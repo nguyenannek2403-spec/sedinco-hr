@@ -5,7 +5,10 @@ import {
   TrendingUp, AlertCircle, CheckCircle2, CalendarCheck, ClipboardCheck, Menu, CheckSquare, Send, Check, XCircle, Clock, CalendarDays, Building2, Save, Upload
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const API_BASE = import.meta.env.VITE_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    ? 'https://sedinco-backend.onrender.com/api'
+    : 'http://localhost:5001/api');
 
 function App() {
   const [activeTab, setActiveTab] = useState('attendance_board'); 
