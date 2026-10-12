@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Production builds
+dist/
+*/dist/
+web-build/
+
+# Environment files (Bảo mật: Không commit mật khẩu thực lên GitHub)
+.env
+.env.*
+!.env.example
+!*/.env.example
+
+# Logs & Debug
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System & Office temp files
+.DS_Store
+Thumbs.db
+~$*
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Mobile / Expo
+.expo/
