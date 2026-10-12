@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   LayoutDashboard, Users, Calculator, Printer, Search, Plus, Edit, Trash2, X, 
-  TrendingUp, AlertCircle, CheckCircle2, CalendarCheck, ClipboardCheck, Menu, CheckSquare, Send, Check, XCircle, Clock, CalendarDays, Building2, Save, Upload
+  TrendingUp, AlertCircle, CheckCircle2, CalendarCheck, ClipboardCheck, Menu, CheckSquare, Send, Check, XCircle, Clock, CalendarDays, Building2, Save, Upload,
+  LogOut, Lock, Shield, User, KeyRound, UserCheck, ArrowRight, ShieldCheck, FileText
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 
@@ -11,6 +12,27 @@ const API_BASE = import.meta.env.VITE_API_URL ||
     : 'http://localhost:5001/api');
 
 function App() {
+  // State xác thực & phân quyền
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sedinco_auth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [loginRoleTab, setLoginRoleTab] = useState('admin');
+  const [loginUsername, setLoginUsername] = useState('admin');
+  const [loginMaNv, setLoginMaNv] = useState('NV001');
+  const [loginPassword, setLoginPassword] = useState('123456');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  // Đơn từ cho nhân viên tự nộp
+  const [isEmpLeaveModalOpen, setIsEmpLeaveModalOpen] = useState(false);
+  const [empLeaveForm, setEmpLeaveForm] = useState({ request_type: 'Nghỉ phép', request_date: '', reason: '' });
+
   const [activeTab, setActiveTab] = useState('attendance_board'); 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
@@ -79,6 +101,105 @@ function App() {
     axios.get(`${API_BASE}/company`)
       .then(res => { if(res.data?.data) setCompanyConfig(res.data.data); })
       .catch(() => {});
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError('');
+
+    if (loginRoleTab === 'admin') {
+      axios.post(`${API_BASE}/admin/login`, {
+        username: loginUsername.trim(),
+        password: loginPassword
+      })
+      .then(res => {
+        setLoginLoading(false);
+        if (res.data?.success) {
+          const user = {
+            ...res.data.data,
+            roleType: 'admin',
+            roleName: res.data.data.ho_ten || 'Giám Đốc Quản Trị',
+            displayTitle: 'Ban Giám Đốc / Admin'
+          };
+          setCurrentUser(user);
+          localStorage.setItem('sedinco_auth_user', JSON.stringify(user));
+          setActiveTab('dashboard');
+        } else {
+          setLoginError(res.data?.message || 'Tài khoản hoặc mật khẩu không chính xác!');
+        }
+      })
+      .catch(err => {
+        setLoginLoading(false);
+        setLoginError(err.response?.data?.message || 'Lỗi kết nối tới máy chủ!');
+      });
+    } else {
+      axios.post(`${API_BASE}/login`, {
+        ma_nv: loginMaNv.trim(),
+        password: loginPassword
+      })
+      .then(res => {
+        setLoginLoading(false);
+        if (res.data?.success) {
+          const emp = res.data.data;
+          let roleType = 'employee';
+          const title = (emp.chuc_danh || '').toLowerCase();
+          if (title.includes('giám đốc') || title.includes('giam doc')) {
+            roleType = 'admin';
+          } else if (title.includes('kế toán') || title.includes('ke toan')) {
+            roleType = 'accountant';
+          }
+
+          const user = {
+            ...emp,
+            roleType: roleType,
+            roleName: emp.ho_ten,
+            username: emp.ma_nv,
+            displayTitle: emp.chuc_danh || 'Cán Bộ Nhân Viên'
+          };
+          setCurrentUser(user);
+          localStorage.setItem('sedinco_auth_user', JSON.stringify(user));
+          if (roleType === 'employee') {
+            setActiveTab('attendance_board');
+          } else {
+            setActiveTab('dashboard');
+          }
+        } else {
+          setLoginError(res.data?.message || 'Mã nhân viên hoặc mật khẩu không chính xác!');
+        }
+      })
+      .catch(err => {
+        setLoginLoading(false);
+        setLoginError(err.response?.data?.message || 'Lỗi kết nối tới máy chủ!');
+      });
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('sedinco_auth_user');
+  };
+
+  const handleCreateEmpLeave = (e) => {
+    e.preventDefault();
+    if (!currentUser?.ma_nv) return;
+    axios.post(`${API_BASE}/requests`, {
+      employee_id: currentUser.ma_nv,
+      request_type: empLeaveForm.request_type,
+      request_date: empLeaveForm.request_date,
+      reason: empLeaveForm.reason
+    })
+    .then(res => {
+      if (res.data?.success) {
+        alert('Gửi đơn thành công! Đã chuyển về Ban Giám Đốc xét duyệt.');
+        setIsEmpLeaveModalOpen(false);
+        setEmpLeaveForm({ request_type: 'Nghỉ phép', request_date: '', reason: '' });
+        fetchRequests();
+      } else {
+        alert('Lỗi gửi đơn: ' + (res.data?.message || ''));
+      }
+    })
+    .catch(err => alert('Lỗi kết nối: ' + err.message));
   };
 
   // 1. Gọi cấu hình công ty 1 lần duy nhất khi ứng dụng vừa load
@@ -280,6 +401,154 @@ function App() {
     return dayIndex === 0 ? 'CN' : `T${dayIndex + 1}`;
   };
 
+  const isFullAdmin = currentUser?.roleType === 'admin';
+  const isAccountant = currentUser?.roleType === 'accountant';
+  const isEmployee = currentUser?.roleType === 'employee';
+
+  // NẾU CHƯA ĐĂNG NHẬP: HIỂN THỊ MÀN HÌNH LOGIN
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center p-4 font-sans text-slate-800">
+        <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
+          {/* Header Card */}
+          <div className="p-8 pb-6 text-center border-b border-slate-100 bg-slate-50/50">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-indigo-500/30">
+              S
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">SEDINCO HR</h1>
+            <p className="text-xs text-slate-500 font-semibold mt-1 uppercase tracking-wider">Hệ thống Quản trị & Chấm công Doanh nghiệp</p>
+          </div>
+
+          {/* Role Switch Tabs */}
+          <div className="p-6 pt-6">
+            <div className="flex bg-slate-100 p-1 rounded-2xl mb-6">
+              <button 
+                type="button" 
+                onClick={() => { setLoginRoleTab('admin'); setLoginError(''); }}
+                className={`flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${loginRoleTab === 'admin' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <ShieldCheck size={16} /> Ban Giám Đốc (Admin)
+              </button>
+              <button 
+                type="button" 
+                onClick={() => { setLoginRoleTab('employee'); setLoginError(''); }}
+                className={`flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${loginRoleTab === 'employee' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <User size={16} /> Nhân Viên / Kế Toán
+              </button>
+            </div>
+
+            {loginError && (
+              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-xs font-semibold flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              {loginRoleTab === 'admin' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Tên Đăng Nhập Quản Trị</label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                      type="text" 
+                      required 
+                      value={loginUsername} 
+                      onChange={e => setLoginUsername(e.target.value)} 
+                      placeholder="admin"
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Mã Nhân Viên</label>
+                  <div className="relative">
+                    <UserCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                      type="text" 
+                      required 
+                      value={loginMaNv} 
+                      onChange={e => setLoginMaNv(e.target.value)} 
+                      placeholder="Ví dụ: NV002"
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Mật Khẩu</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input 
+                    type="password" 
+                    required 
+                    value={loginPassword} 
+                    onChange={e => setLoginPassword(e.target.value)} 
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loginLoading}
+                className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer disabled:opacity-50"
+              >
+                {loginLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>Đăng Nhập Hệ Thống</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Quick Demo Hint */}
+            <div className="mt-6 pt-5 border-t border-slate-100">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center mb-2.5">Tài khoản demo sẵn có:</p>
+              <div className="flex flex-wrap gap-2 justify-center text-xs">
+                {loginRoleTab === 'admin' ? (
+                  <button 
+                    type="button"
+                    onClick={() => { setLoginUsername('admin'); setLoginPassword('123456'); }}
+                    className="px-2.5 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-semibold cursor-pointer"
+                  >
+                    👑 Giám Đốc (admin / 123456)
+                  </button>
+                ) : (
+                  <>
+                    <button 
+                      type="button"
+                      onClick={() => { setLoginMaNv('NV002'); setLoginPassword('123456'); }}
+                      className="px-2.5 py-1.5 bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 font-semibold cursor-pointer"
+                    >
+                      📊 Kế toán (NV002 / 123456)
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => { setLoginMaNv('NV003'); setLoginPassword('123456'); }}
+                      className="px-2.5 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-semibold cursor-pointer"
+                    >
+                      🛡️ Bảo vệ (NV003 / 123456)
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ĐÃ ĐĂNG NHẬP THÀNH CÔNG: RENDER DASHBOARD PHÂN QUYỀN
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden relative">
       {isMobileMenuOpen && <div className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>}
@@ -294,35 +563,50 @@ function App() {
         </div>
         
         <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-          <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-            <LayoutDashboard size={20} className={activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400'} /> Tổng Quan
-          </button>
+          {/* Admin & Kế toán mới xem Tổng quan */}
+          {!isEmployee && (
+            <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+              <LayoutDashboard size={20} className={activeTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400'} /> Tổng Quan
+            </button>
+          )}
           
-          <button onClick={() => setActiveTab('employees')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'employees' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-            <Users size={20} className={activeTab === 'employees' ? 'text-blue-600' : 'text-slate-400'} /> Hồ Sơ Nhân Sự
-          </button>
+          {/* Admin & Kế toán mới xem Hồ sơ nhân sự */}
+          {!isEmployee && (
+            <button onClick={() => setActiveTab('employees')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'employees' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+              <Users size={20} className={activeTab === 'employees' ? 'text-blue-600' : 'text-slate-400'} /> Hồ Sơ Nhân Sự
+            </button>
+          )}
 
           <div className="pt-4 pb-1">
-            <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Quản lý Chấm công</p>
+            <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              {isEmployee ? 'Chấm công của tôi' : 'Quản lý Chấm công'}
+            </p>
             <button onClick={() => setActiveTab('attendance_board')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'attendance_board' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <CalendarCheck size={20} className={activeTab === 'attendance_board' ? 'text-indigo-600' : 'text-slate-400'} /> Bảng Chấm Công
+              <CalendarCheck size={20} className={activeTab === 'attendance_board' ? 'text-indigo-600' : 'text-slate-400'} /> 
+              {isEmployee ? 'Bảng Chấm Công Của Tôi' : 'Bảng Chấm Công'}
             </button>
             <button onClick={() => setActiveTab('attendance_requests')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'attendance_requests' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <ClipboardCheck size={20} className={activeTab === 'attendance_requests' ? 'text-indigo-600' : 'text-slate-400'} /> Duyệt Đơn
-              {leaveRequests.filter(r => r.status === 'pending').length > 0 && (
+              <ClipboardCheck size={20} className={activeTab === 'attendance_requests' ? 'text-indigo-600' : 'text-slate-400'} /> 
+              {isEmployee ? 'Đơn Từ Của Tôi' : 'Duyệt Đơn Từ'}
+              {!isEmployee && leaveRequests.filter(r => r.status === 'pending').length > 0 && (
                 <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{leaveRequests.filter(r => r.status === 'pending').length}</span>
               )}
             </button>
           </div>
           
           <div className="pt-4 pb-1">
-            <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Tài chính & Hệ thống</p>
+            <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              {isEmployee ? 'Thu nhập cá nhân' : 'Tài chính & Hệ thống'}
+            </p>
             <button onClick={() => setActiveTab('payroll')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'payroll' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <Calculator size={20} className={activeTab === 'payroll' ? 'text-blue-600' : 'text-slate-400'} /> Bảng Lương Tổng
+              <Calculator size={20} className={activeTab === 'payroll' ? 'text-blue-600' : 'text-slate-400'} /> 
+              {isEmployee ? 'Phiếu Lương Của Tôi' : 'Bảng Lương Tổng'}
             </button>
-            <button onClick={() => setActiveTab('company_setup')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'company_setup' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <Building2 size={20} className={activeTab === 'company_setup' ? 'text-blue-600' : 'text-slate-400'} /> Cấu Hình & Ngày Lễ
-            </button>
+            {isFullAdmin && (
+              <button onClick={() => setActiveTab('company_setup')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'company_setup' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <Building2 size={20} className={activeTab === 'company_setup' ? 'text-blue-600' : 'text-slate-400'} /> Cấu Hình & Ngày Lễ
+              </button>
+            )}
           </div>
         </nav>
       </div>
@@ -336,11 +620,31 @@ function App() {
               <input type="text" placeholder="Tìm kiếm nhanh..." className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium" />
             </div>
           </div>
-          <div className="flex items-center gap-2 lg:gap-4 shrink-0">
+          <div className="flex items-center gap-3 lg:gap-4 shrink-0">
             <div className="flex items-center gap-2 lg:gap-3 lg:border-l border-slate-200 lg:pl-4">
-              <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">A</div>
-              <div className="hidden lg:block"><p className="text-sm font-bold text-slate-700">Admin</p><p className="text-xs text-slate-500 font-medium">Giám đốc</p></div>
+              <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-md">
+                {currentUser?.roleName ? currentUser.roleName.charAt(0).toUpperCase() : (currentUser?.username?.charAt(0).toUpperCase() || 'U')}
+              </div>
+              <div className="hidden lg:block text-left">
+                <p className="text-sm font-bold text-slate-800 leading-none mb-1">
+                  {currentUser?.roleName || currentUser?.username}
+                </p>
+                <span className={`inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
+                  isFullAdmin ? 'bg-purple-100 text-purple-700' : (isAccountant ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600')
+                }`}>
+                  {currentUser?.displayTitle || 'Nhân viên'}
+                </span>
+              </div>
             </div>
+
+            <button 
+              onClick={handleLogout} 
+              title="Đăng xuất khỏi hệ thống"
+              className="flex items-center gap-1.5 px-3 py-2 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+            >
+              <LogOut size={16} />
+              <span className="hidden sm:inline">Đăng xuất</span>
+            </button>
           </div>
         </header>
 
@@ -414,18 +718,22 @@ function App() {
                     </select>
                   </div>
                   
-                  <button onClick={() => { setIsMultiSelectMode(!isMultiSelectMode); setSelectedCells([]); }} 
-                    className={`px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold transition ${isMultiSelectMode ? 'bg-blue-100 text-blue-700 border-blue-300 border' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
-                    <CheckSquare size={18} /> {isMultiSelectMode ? 'Tắt chọn nhiều' : 'Chọn nhiều ô'}
-                  </button>
+                  {!isEmployee && (
+                    <button onClick={() => { setIsMultiSelectMode(!isMultiSelectMode); setSelectedCells([]); }} 
+                      className={`px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold transition ${isMultiSelectMode ? 'bg-blue-100 text-blue-700 border-blue-300 border' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
+                      <CheckSquare size={18} /> {isMultiSelectMode ? 'Tắt chọn nhiều' : 'Chọn nhiều ô'}
+                    </button>
+                  )}
 
                   <button onClick={() => window.print()} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold hover:bg-indigo-700 shrink-0">
                     <Printer size={18} /> In Bảng Công
                   </button>
                   
-                  <button onClick={simulateSendZalo} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold hover:bg-emerald-700 shrink-0">
-                    <Send size={18} /> Chốt & Zalo
-                  </button>
+                  {!isEmployee && (
+                    <button onClick={simulateSendZalo} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold hover:bg-emerald-700 shrink-0">
+                      <Send size={18} /> Chốt & Zalo
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -458,32 +766,39 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {(attendanceData||[]).length === 0 && <tr><td colSpan={daysInMonth+2} className="py-10 text-slate-400">Đang tải dữ liệu...</td></tr>}
-                    {(attendanceData||[]).map((emp, empIdx) => {
-                      let total = 0;
-                      (emp.days||[]).slice(0, daysInMonth).forEach(d => { if(d === '1' || d === '1/OT') total+=1; else if(d === '0.5') total+=0.5; });
-                      return (
-                      <tr key={emp.ma_nv} className="hover:bg-slate-50 transition">
-                        <td className="p-1.5 xl:p-2 border-r border-slate-200 text-left truncate"><div className="font-bold text-slate-800 truncate" title={emp.ho_ten}>{emp.ho_ten}</div><div className="text-[9px] text-slate-500">{emp.ma_nv}</div></td>
-                        {Array.from({length: daysInMonth}).map((_, dayIdx) => {
-                          const val = (emp.days && emp.days[dayIdx]) ? emp.days[dayIdx] : ''; 
-                          const isSunday = getDayLabel(dayIdx + 1) === 'CN';
-                          const isSelected = selectedCells.includes(`${empIdx}-${dayIdx}`);
-                          return (
-                          <td key={dayIdx} onClick={() => handleCellClick(empIdx, dayIdx, val, emp.ho_ten)} className={`border-r border-slate-100 cursor-pointer p-0 group ${isSunday ? 'bg-slate-50' : ''}`}>
-                            <div className={`w-full h-[24px] xl:h-[32px] flex items-center justify-center transition-all ${getCellStyles(val, isSelected)} ${isSunday && !val && !isSelected ? 'bg-transparent text-transparent border-transparent' : ''}`}>
-                              {val === '1/OT' ? (
-                                <div className="flex flex-col items-center justify-center h-full leading-none font-bold">
-                                  <span className="text-emerald-700 text-[10px]">1</span>
-                                  <span className="text-indigo-600 text-[8px]">OT</span>
-                                </div>
-                              ) : val}
-                            </div>
-                          </td>
-                        )})}
-                        <td className="p-1.5 xl:p-2 font-bold text-emerald-600 border-l border-slate-200 bg-emerald-50/50">{total}</td>
-                      </tr>
-                    )})}
+                    {(() => {
+                      const visibleEmps = isEmployee 
+                        ? (attendanceData||[]).filter(emp => emp.ma_nv === currentUser?.ma_nv)
+                        : (attendanceData||[]);
+                      if (visibleEmps.length === 0) {
+                        return <tr><td colSpan={daysInMonth+2} className="py-10 text-slate-400">Không có dữ liệu chấm công...</td></tr>;
+                      }
+                      return visibleEmps.map((emp, empIdx) => {
+                        let total = 0;
+                        (emp.days||[]).slice(0, daysInMonth).forEach(d => { if(d === '1' || d === '1/OT') total+=1; else if(d === '0.5') total+=0.5; });
+                        return (
+                        <tr key={emp.ma_nv} className="hover:bg-slate-50 transition">
+                          <td className="p-1.5 xl:p-2 border-r border-slate-200 text-left truncate"><div className="font-bold text-slate-800 truncate" title={emp.ho_ten}>{emp.ho_ten}</div><div className="text-[9px] text-slate-500">{emp.ma_nv}</div></td>
+                          {Array.from({length: daysInMonth}).map((_, dayIdx) => {
+                            const val = (emp.days && emp.days[dayIdx]) ? emp.days[dayIdx] : ''; 
+                            const isSunday = getDayLabel(dayIdx + 1) === 'CN';
+                            const isSelected = selectedCells.includes(`${empIdx}-${dayIdx}`);
+                            return (
+                            <td key={dayIdx} onClick={() => { if (!isEmployee) handleCellClick(empIdx, dayIdx, val, emp.ho_ten); }} className={`border-r border-slate-100 ${!isEmployee ? 'cursor-pointer' : 'cursor-default'} p-0 group ${isSunday ? 'bg-slate-50' : ''}`}>
+                              <div className={`w-full h-[24px] xl:h-[32px] flex items-center justify-center transition-all ${getCellStyles(val, isSelected)} ${isSunday && !val && !isSelected ? 'bg-transparent text-transparent border-transparent' : ''}`}>
+                                {val === '1/OT' ? (
+                                  <div className="flex flex-col items-center justify-center h-full leading-none font-bold">
+                                    <span className="text-emerald-700 text-[10px]">1</span>
+                                    <span className="text-indigo-600 text-[8px]">OT</span>
+                                  </div>
+                                ) : val}
+                              </div>
+                            </td>
+                          )})}
+                          <td className="p-1.5 xl:p-2 font-bold text-emerald-600 border-l border-slate-200 bg-emerald-50/50">{total}</td>
+                        </tr>
+                      );});
+                    })()}
                   </tbody>
                 </table>
                 <div className="hidden print:flex justify-between mt-12 px-20 pb-10">
@@ -585,9 +900,23 @@ function App() {
 
           {activeTab === 'attendance_requests' && (
              <div className="max-w-7xl mx-auto">
-              <div className="mb-6">
-                <h1 className="text-2xl font-bold text-slate-800">Duyệt Đơn & Cập Nhật Công</h1>
-                <p className="text-slate-500 mt-1">Danh sách các yêu cầu xin nghỉ phép, báo quên chấm công, đăng ký làm thêm (OT) từ nhân viên.</p>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-end mb-6 gap-4">
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-800">{isEmployee ? 'Đơn Từ Của Tôi' : 'Duyệt Đơn & Cập Nhật Công'}</h1>
+                  <p className="text-slate-500 mt-1">
+                    {isEmployee 
+                      ? 'Theo dõi trạng thái các đơn xin nghỉ phép, làm thêm giờ (OT) hoặc báo quên chấm công của bạn.' 
+                      : 'Danh sách các yêu cầu xin nghỉ phép, báo quên chấm công, đăng ký làm thêm (OT) từ nhân viên.'}
+                  </p>
+                </div>
+                {isEmployee && (
+                  <button 
+                    onClick={() => setIsEmpLeaveModalOpen(true)} 
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md shrink-0 cursor-pointer text-sm"
+                  >
+                    <Plus size={18} /> Tạo Đơn Mới
+                  </button>
+                )}
               </div>
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <table className="w-full text-left border-collapse min-w-[700px]">
@@ -602,39 +931,51 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {loadingRequests ? (
-                      <tr><td colSpan="6" className="p-10 text-center text-slate-500">Đang tải dữ liệu đơn...</td></tr>
-                    ) : (leaveRequests||[]).length === 0 ? (
-                      <tr>
-                        <td colSpan="6" className="p-16 text-center">
-                          <div className="flex flex-col items-center justify-center text-slate-400">
-                            <ClipboardCheck size={56} className="mb-4 text-slate-300" />
-                            <p className="text-lg font-bold text-slate-600">Không có đơn nào cần cập nhật</p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      (leaveRequests||[]).map((req) => (
-                      <tr key={req.id} className="hover:bg-slate-50 transition">
-                        <td className="p-4"><div className="font-bold text-slate-800">{req.ho_ten}</div><div className="text-xs text-slate-500">{req.ma_nv}</div></td>
-                        <td className="p-4"><span className="px-3 py-1 rounded-full text-xs font-bold border bg-blue-50 text-blue-600 border-blue-200">{req.type}</span></td>
-                        <td className="p-4 font-medium text-slate-700">{req.date}</td>
-                        <td className="p-4 text-slate-600 max-w-xs truncate" title={req.reason}>{req.reason}</td>
-                        <td className="p-4">
-                          {req.status === 'pending' && <span className="flex items-center gap-1 text-orange-500 font-medium text-sm"><AlertCircle size={16}/> Chờ duyệt</span>}
-                          {req.status === 'approved' && <span className="flex items-center gap-1 text-emerald-600 font-medium text-sm"><CheckCircle2 size={16}/> Đã duyệt</span>}
-                          {req.status === 'rejected' && <span className="flex items-center gap-1 text-rose-600 font-medium text-sm"><XCircle size={16}/> Từ chối</span>}
-                        </td>
-                        <td className="p-4 text-center">
-                          {req.status === 'pending' ? (
-                            <div className="flex justify-center gap-2">
-                              <button onClick={() => handleRequestAction(req.id, 'approved')} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 p-2 rounded-lg font-bold" title="Duyệt"><Check size={16}/></button>
-                              <button onClick={() => handleRequestAction(req.id, 'rejected')} className="bg-rose-50 text-rose-600 hover:bg-rose-100 p-2 rounded-lg font-bold" title="Từ chối"><X size={16}/></button>
-                            </div>
-                          ) : <span className="text-slate-400 text-sm italic">Đã xử lý</span>}
-                        </td>
-                      </tr>
-                    )))}
+                    {(() => {
+                      const visibleRequests = isEmployee 
+                        ? (leaveRequests||[]).filter(r => r.ma_nv === currentUser?.ma_nv) 
+                        : (leaveRequests||[]);
+                      if (loadingRequests) {
+                        return <tr><td colSpan="6" className="p-10 text-center text-slate-500">Đang tải dữ liệu đơn...</td></tr>;
+                      }
+                      if (visibleRequests.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan="6" className="p-16 text-center">
+                              <div className="flex flex-col items-center justify-center text-slate-400">
+                                <ClipboardCheck size={56} className="mb-4 text-slate-300" />
+                                <p className="text-lg font-bold text-slate-600">{isEmployee ? 'Bạn chưa có đơn từ nào' : 'Không có đơn nào cần xử lý'}</p>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return visibleRequests.map((req) => (
+                        <tr key={req.id} className="hover:bg-slate-50 transition">
+                          <td className="p-4"><div className="font-bold text-slate-800">{req.ho_ten}</div><div className="text-xs text-slate-500">{req.ma_nv}</div></td>
+                          <td className="p-4"><span className="px-3 py-1 rounded-full text-xs font-bold border bg-blue-50 text-blue-600 border-blue-200">{req.type}</span></td>
+                          <td className="p-4 font-medium text-slate-700">{req.date}</td>
+                          <td className="p-4 text-slate-600 max-w-xs truncate" title={req.reason}>{req.reason}</td>
+                          <td className="p-4">
+                            {req.status === 'pending' && <span className="flex items-center gap-1 text-orange-500 font-medium text-sm"><AlertCircle size={16}/> Chờ duyệt</span>}
+                            {req.status === 'approved' && <span className="flex items-center gap-1 text-emerald-600 font-medium text-sm"><CheckCircle2 size={16}/> Đã duyệt</span>}
+                            {req.status === 'rejected' && <span className="flex items-center gap-1 text-rose-600 font-medium text-sm"><XCircle size={16}/> Từ chối</span>}
+                          </td>
+                          <td className="p-4 text-center">
+                            {!isEmployee ? (
+                              req.status === 'pending' ? (
+                                <div className="flex justify-center gap-2">
+                                  <button onClick={() => handleRequestAction(req.id, 'approved')} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 p-2 rounded-lg font-bold cursor-pointer" title="Duyệt"><Check size={16}/></button>
+                                  <button onClick={() => handleRequestAction(req.id, 'rejected')} className="bg-rose-50 text-rose-600 hover:bg-rose-100 p-2 rounded-lg font-bold cursor-pointer" title="Từ chối"><X size={16}/></button>
+                                </div>
+                              ) : <span className="text-slate-400 text-sm italic">Đã xử lý</span>
+                            ) : (
+                              <span className="text-xs font-semibold text-slate-500">{req.status === 'pending' ? 'Chờ BQL duyệt' : 'Đã phản hồi'}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -644,7 +985,10 @@ function App() {
           {activeTab === 'payroll' && (
              <div className="max-w-7xl mx-auto">
               <div className="flex flex-col md:flex-row justify-between md:items-end mb-6 print:hidden gap-4">
-                <div><h1 className="text-2xl font-bold text-slate-800">Bảng Lương Tổng Hợp</h1></div>
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-800">{isEmployee ? 'Phiếu Lương Cá Nhân' : 'Bảng Lương Tổng Hợp'}</h1>
+                  {isEmployee && <p className="text-sm text-slate-500 mt-1 font-medium">{currentUser?.roleName} - {currentUser?.displayTitle}</p>}
+                </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex gap-2 bg-white p-1 rounded-xl border border-slate-200">
                     <select value={payrollMonth} onChange={e => setPayrollMonth(e.target.value)} className="bg-transparent font-semibold text-slate-700 outline-none px-2 py-1">
@@ -654,8 +998,8 @@ function App() {
                       <option value="2026">2026</option><option value="2027">2027</option>
                     </select>
                   </div>
-                  <button onClick={() => window.print()} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold hover:bg-blue-700 shrink-0">
-                    <Printer size={18} /> In Bảng Lương
+                  <button onClick={() => window.print()} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold hover:bg-blue-700 shrink-0 cursor-pointer">
+                    <Printer size={18} /> In {isEmployee ? 'Phiếu Lương' : 'Bảng Lương'}
                   </button>
                 </div>
               </div>
@@ -670,7 +1014,7 @@ function App() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <h2 className="text-xl font-bold uppercase text-slate-800">BẢNG THANH TOÁN LƯƠNG</h2>
+                    <h2 className="text-xl font-bold uppercase text-slate-800">{isEmployee ? 'PHIẾU LƯƠNG CÁ NHÂN' : 'BẢNG THANH TOÁN LƯƠNG'}</h2>
                     <p className="text-xs text-slate-600">Tháng {payrollMonth}/{payrollYear}</p>
                   </div>
                 </div>
@@ -684,8 +1028,13 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {loadingPayroll ? <tr><td colSpan="9" className="p-10 text-center">Đang tải...</td></tr> : 
-                      (payroll||[]).map(nv => (
+                    {(() => {
+                      const visiblePayroll = isEmployee 
+                        ? (safePayroll||[]).filter(nv => nv.id_nhan_vien === currentUser?.ma_nv)
+                        : (safePayroll||[]);
+                      if (loadingPayroll) return <tr><td colSpan="9" className="p-10 text-center">Đang tải...</td></tr>;
+                      if (visiblePayroll.length === 0) return <tr><td colSpan="9" className="p-10 text-center text-slate-400">Không có dữ liệu bảng lương...</td></tr>;
+                      return visiblePayroll.map(nv => (
                         <tr key={nv.id_nhan_vien} className="hover:bg-slate-50">
                           <td className="p-4 font-semibold text-slate-700">{nv.id_nhan_vien}</td><td className="p-4 font-medium">{nv.ho_ten}</td>
                           <td className="p-4 text-center">{nv.totalWorkDays}</td>
@@ -696,12 +1045,14 @@ function App() {
                           <td className="p-4 text-right text-rose-500 font-medium">-{formatCurrency(nv.totalInsurance)}</td>
                           <td className="p-4 text-right font-bold text-blue-600 text-lg">{formatCurrency(nv.netSalary)}</td>
                         </tr>
-                    ))}
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
+
 
           {/* MODAL THÊM / SỬA NHÂN SỰ */}
           {isModalOpen && (
@@ -859,6 +1210,78 @@ function App() {
                   {zaloModal.logs.map((log, idx) => <div key={idx}>{'>'} {log}</div>)}
                 </div>
                 {zaloModal.status === 'success' && <button onClick={() => setZaloModal({isOpen: false, status: '', logs: []})} className="mt-6 w-full py-3 bg-slate-800 text-white font-bold rounded-xl">Đóng</button>}
+              </div>
+            </div>
+          )}
+
+          {/* MODAL TẠO ĐƠN NGHỈ PHÉP / OT CHO NHÂN VIÊN */}
+          {isEmpLeaveModalOpen && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-[#F8FAFC]">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800">Tạo Đơn Xin Phép / Báo Công</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Nhân viên: <strong className="text-blue-600">{currentUser?.roleName}</strong> ({currentUser?.ma_nv})</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsEmpLeaveModalOpen(false)} 
+                    className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-xl transition-all cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <form onSubmit={handleCreateEmpLeave} className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Loại Đơn *</label>
+                    <select 
+                      value={empLeaveForm.request_type} 
+                      onChange={e => setEmpLeaveForm({ ...empLeaveForm, request_type: e.target.value })} 
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                    >
+                      <option value="Nghỉ phép">Nghỉ phép thường niên (Có phép - P)</option>
+                      <option value="Quên chấm công">Quên chấm công / Bổ sung công</option>
+                      <option value="Làm thêm giờ (OT)">Đăng ký làm thêm ngoài giờ (OT)</option>
+                      <option value="Nghỉ ốm / thai sản">Nghỉ ốm / Khám bệnh / Thai sản</option>
+                      <option value="Nghỉ việc riêng">Nghỉ việc riêng không hưởng lương</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Ngày Áp Dụng *</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={empLeaveForm.request_date} 
+                      onChange={e => setEmpLeaveForm({ ...empLeaveForm, request_date: e.target.value })} 
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Lý Do Chi Tiết *</label>
+                    <textarea 
+                      required 
+                      rows={3} 
+                      placeholder="Nhập lý do cụ thể gửi ban quản lý xét duyệt..." 
+                      value={empLeaveForm.reason} 
+                      onChange={e => setEmpLeaveForm({ ...empLeaveForm, reason: e.target.value })} 
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none" 
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-3">
+                    <button 
+                      type="button" 
+                      onClick={() => setIsEmpLeaveModalOpen(false)} 
+                      className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-sm transition-all cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/25 transition-all cursor-pointer"
+                    >
+                      Gửi Lên Ban Quản Lý
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
