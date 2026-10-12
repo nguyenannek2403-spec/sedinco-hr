@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "build": "cd admin-web && npm install && npm run build && mkdir -p ../dist && cp -r dist/* ../dist/",
     "backend": "npm --prefix sedinco_backend start",
     "admin": "npm --prefix admin-web run dev",
     "zalo": "npm --prefix sedinco-zalo-app run web"
