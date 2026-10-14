@@ -6,7 +6,8 @@
     "build": "cd admin-web && npm install && npm run build && mkdir -p ../dist && cp -r dist/* ../dist/",
     "backend": "npm --prefix sedinco_backend start",
     "admin": "npm --prefix admin-web run dev",
-    "zalo": "npm --prefix sedinco-zalo-app run web"
+    "zalo": "npm --prefix sedinco-zalo-app run web",
+    "test": "npm --prefix sedinco_backend test"
   },
   "devDependencies": {
     "autoprefixer": "^10.6.1",

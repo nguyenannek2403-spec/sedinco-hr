@@ -165,7 +165,10 @@ app.put('/api/company', (req, res) => {
     const { company_name, phone, address, tax_code, logo_url } = req.body;
     db.query('UPDATE company_settings SET company_name=?, phone=?, address=?, tax_code=?, logo_url=? WHERE id=1', 
         [company_name, phone, address, tax_code, logo_url], (err) => {
-        if (err) return res.json({ success: false, message: err.message });
+        if (err) {
+            console.error('Lỗi cập nhật công ty:', err.message);
+            return res.status(500).json({ success: false, message: 'Lỗi cập nhật cấu hình công ty!' });
+        }
         res.json({ success: true });
     });
 });
@@ -224,7 +227,10 @@ app.post('/api/admin/register', (req, res) => {
             return res.json({ success: false, message: 'Tên đăng nhập này đã tồn tại!' });
         }
         db.query('INSERT INTO admins (username, password, ho_ten) VALUES (?, ?, ?)', [username, password, ho_ten || 'Quản trị viên'], (err2) => {
-            if (err2) return res.json({ success: false, message: err2.message });
+            if (err2) {
+                console.error('Lỗi đăng ký admin:', err2.message);
+                return res.status(500).json({ success: false, message: 'Lỗi đăng ký tài khoản quản trị!' });
+            }
             res.json({ success: true });
         });
     });
@@ -248,7 +254,10 @@ app.post('/api/change-password', (req, res) => {
 app.post('/api/update-avatar', (req, res) => {
     const { ma_nv, avatar_url } = req.body;
     db.query('UPDATE employees SET avatar_url = ? WHERE ma_nv = ?', [avatar_url, ma_nv], (err) => {
-        if (err) return res.json({ success: false, message: err.message });
+        if (err) {
+            console.error('Lỗi cập nhật avatar:', err.message);
+            return res.status(500).json({ success: false, message: 'Lỗi cập nhật ảnh đại diện!' });
+        }
         res.json({ success: true });
     });
 });
@@ -485,7 +494,10 @@ app.get('/api/employees', (req, res) => {
                     phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv, 
                     phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance`;
     db.query(`SELECT ${fields} FROM employees ORDER BY ma_nv ASC`, (err, results) => {
-        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (err) {
+            console.error('Lỗi lấy danh sách nhân viên:', err.message);
+            return res.status(500).json({ success: false, message: 'Lỗi tải danh sách nhân sự!' });
+        }
         res.json({ success: true, data: results || [] });
     });
 });
@@ -495,7 +507,10 @@ app.post('/api/employees', (req, res) => {
     const query = `INSERT INTO employees (ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb, phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     const values = [ma_nv, ho_ten, ngay_sinh || null, dien_thoai || '', email || '', chuc_danh || '', ngay_bat_dau_lam || null, ngay_chinh_thuc || null, luong_cb || 0, phu_cap_an_trua || 0, phu_cap_xang_xe || 0, phu_cap_nha_o || 0, thuong_htcv || 0, phu_cap_trach_nhiem || 0, phu_cap_tiep_khach || 0, has_insurance ? 1 : 0];
     db.query(query, values, (err) => {
-        if (err) return res.json({ success: false, message: err.message });
+        if (err) {
+            console.error('Lỗi thêm nhân viên:', err.message);
+            return res.status(500).json({ success: false, message: 'Lỗi tạo mới hồ sơ nhân sự!' });
+        }
         res.json({ success: true });
     });
 });
@@ -505,7 +520,10 @@ app.put('/api/employees/:id', (req, res) => {
     const query = `UPDATE employees SET ho_ten=?, ngay_sinh=?, dien_thoai=?, email=?, chuc_danh=?, ngay_bat_dau_lam=?, ngay_chinh_thuc=?, luong_cb=?, phu_cap_an_trua=?, phu_cap_xang_xe=?, phu_cap_nha_o=?, thuong_htcv=?, phu_cap_trach_nhiem=?, phu_cap_tiep_khach=?, has_insurance=? WHERE ma_nv=?`;
     const values = [ho_ten, ngay_sinh || null, dien_thoai || '', email || '', chuc_danh || '', ngay_bat_dau_lam || null, ngay_chinh_thuc || null, luong_cb || 0, phu_cap_an_trua || 0, phu_cap_xang_xe || 0, phu_cap_nha_o || 0, thuong_htcv || 0, phu_cap_trach_nhiem || 0, phu_cap_tiep_khach || 0, has_insurance ? 1 : 0, req.params.id];
     db.query(query, values, (err) => {
-        if (err) return res.json({ success: false, message: err.message });
+        if (err) {
+            console.error('Lỗi cập nhật nhân viên:', err.message);
+            return res.status(500).json({ success: false, message: 'Lỗi cập nhật thông tin nhân viên!' });
+        }
         res.json({ success: true });
     });
 });
