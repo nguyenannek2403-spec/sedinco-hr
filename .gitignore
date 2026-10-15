@@ -7,13 +7,27 @@ dist/
 */dist/
 web-build/
 
-# Environment files (Bảo mật: Không commit mật khẩu thực lên GitHub)
+# Environment files (Ẩn toàn bộ theo yêu cầu bảo mật thông tin)
 .env
 .env.*
-!.env.example
-!*/.env.example
-!.env.production
-!*/.env.production
+*.env
+*.env.*
+*/.env
+*/.env.*
+*.env.example
+*.env.production
+
+# Documentation & Markdown files (Ẩn thông tin dự án theo yêu cầu)
+*.md
+*/**/*.md
+docs/
+scripts/
+
+# Báo cáo kiểm toán & file bảng tính
+*.xlsx
+*.xls
+~$*
+Bao_Cao_Kiem_Thu_Va_Chong_Gian_Lan_Sedinco_HR.xlsx
 
 # Logs & Debug
 logs
@@ -25,7 +39,6 @@ yarn-error.log*
 # System & Office temp files
 .DS_Store
 Thumbs.db
-~$*
 
 # IDE & Editors
 .vscode/
