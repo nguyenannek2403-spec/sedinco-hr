@@ -15,6 +15,7 @@
     "Samsung >= 5"
   ],
   "scripts": {
+    "build": "vite build",
     "login": "zmp login",
     "start": "zmp start",
     "deploy": "zmp deploy"
