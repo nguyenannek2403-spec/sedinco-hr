@@ -1,15 +1,22 @@
 {
   "name": "sedinco_backend",
   "version": "1.0.0",
-  "description": "Sedinco HR Backend Legacy Wrapper",
+  "description": "Sedinco HR - Core REST API Backend (Node.js Express & MySQL)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test ../__tests__/*.test.js"
+    "test": "node --test __tests__/*.test.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "sedinco",
+    "backend",
+    "express",
+    "mysql",
+    "payroll",
+    "attendance"
+  ],
+  "author": "Sedinco HR Team",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {

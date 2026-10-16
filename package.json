@@ -1,29 +1,15 @@
 {
-  "name": "sedinco-hr-backend",
+  "name": "sedinco-hr",
   "version": "1.0.0",
-  "description": "Sedinco HR - Core REST API Backend (Node.js Express & MySQL)",
   "private": true,
-  "main": "server.js",
+  "description": "Sedinco HR - Monorepo (Backend Node.js API & Zalo Mini App Frontend)",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "node --test __tests__/*.test.js",
-    "backend": "node server.js",
+    "start": "npm --prefix sedinco_backend start",
+    "dev": "npm --prefix sedinco_backend run dev",
+    "backend": "npm --prefix sedinco_backend start",
+    "backend:dev": "npm --prefix sedinco_backend run dev",
     "miniapp": "npm --prefix zalo-miniapp-frontend start",
-    "admin": "npm --prefix fullstack/admin-web run dev",
-    "zalo": "npm --prefix fullstack/sedinco-zalo-app run web",
-    "build:admin": "cd fullstack/admin-web && npm install && npm run build"
-  },
-  "devDependencies": {
-    "autoprefixer": "^10.6.1",
-    "postcss": "^8.5.29",
-    "tailwindcss": "^4.3.3"
-  },
-  "dependencies": {
-    "axios": "^1.20.0",
-    "cors": "^2.8.6",
-    "dotenv": "^18.0.8",
-    "express": "^5.3.0",
-    "mysql2": "^3.24.6"
+    "miniapp:deploy": "npm --prefix zalo-miniapp-frontend run deploy",
+    "test": "npm --prefix sedinco_backend test"
   }
 }

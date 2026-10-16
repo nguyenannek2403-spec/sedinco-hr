@@ -1,33 +1,29 @@
 # Dependencies
 node_modules/
 */node_modules/
+*/**/node_modules/
 
 # Production builds
 dist/
 */dist/
+*/**/dist/
 web-build/
+www/
+*/www/
 
-# Environment files (Ẩn toàn bộ theo yêu cầu bảo mật thông tin)
+# Environment files
 .env
 .env.*
 *.env
 *.env.*
 */.env
 */.env.*
-*.env.example
 *.env.production
 
-# Documentation & Markdown files (Ẩn thông tin dự án theo yêu cầu)
-*.md
-*/**/*.md
-docs/
-scripts/
-
-# Báo cáo kiểm toán & file bảng tính
+# Báo cáo tạm & file bảng tính rác
 *.xlsx
 *.xls
 ~$*
-Bao_Cao_Kiem_Thu_Va_Chong_Gian_Lan_Sedinco_HR.xlsx
 
 # Logs & Debug
 logs
@@ -38,6 +34,8 @@ yarn-error.log*
 
 # System & Office temp files
 .DS_Store
+*/.DS_Store
+*/**/.DS_Store
 Thumbs.db
 
 # IDE & Editors

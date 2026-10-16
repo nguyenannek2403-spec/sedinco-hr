@@ -1,6 +1,6 @@
 /**
- * Sedinco HR - Backend Legacy Entry Point Wrapper
- * Ủy quyền trực tiếp sang mô-đun chuẩn tại repo root (src/server.js)
+ * Sedinco HR Backend - Server Entry Point
+ * Điểm khởi chạy chính thức của dịch vụ máy chủ Node.js REST API
  */
 
-module.exports = require('../server.js');
+module.exports = require('./src/server.js');

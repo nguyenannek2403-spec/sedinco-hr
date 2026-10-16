@@ -1,34 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-
-// Logic thẩm tra tham số chấm công (tương ứng server.js: lines 302-317)
-function validateAttendanceInput({ ma_nv, day, month, year, status, ot_hours }) {
-    if (!ma_nv || day === undefined || month === undefined || year === undefined) {
-        return { valid: false, error: 'Thiếu mã nhân viên hoặc thời gian chấm công!' };
-    }
-
-    const d = parseInt(day, 10);
-    const m = parseInt(month, 10);
-    const y = parseInt(year, 10);
-    if (isNaN(d) || d < 1 || d > 31 || isNaN(m) || m < 1 || m > 12 || isNaN(y) || y < 2000 || y > 2100) {
-        return { valid: false, error: 'Ngày tháng năm không hợp lệ!' };
-    }
-
-    let hours = ot_hours !== undefined ? Number(ot_hours) : 0;
-    if (isNaN(hours) || hours < 0) hours = 0;
-    if (hours > 24) hours = 24; // Chống tràn và hạn chế rủi ro DoS / gian lận
-
-    const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const isDelete = (!status || status === '');
-
-    return {
-        valid: true,
-        dateStr,
-        hours,
-        isDelete,
-        status
-    };
-}
+const { validateAttendanceInput } = require('../src/middlewares/validationMiddleware');
 
 test('TC-ATT-01: Thẩm tra input chấm công hợp lệ', () => {
     const res = validateAttendanceInput({
