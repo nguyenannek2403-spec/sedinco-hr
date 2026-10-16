@@ -24,12 +24,13 @@ export const ROLE_PERMISSIONS = {
     canViewCompanyPayroll: false,
     canManageEmployees: false,
     canManageRBAC: false,
-    canManageHolidays: false
+    canManageHolidays: false,
+    canManageCompany: false
   },
   [ROLES.ACCOUNTANT]: {
     name: "Kế Toán",
-    allowedTabs: ["payroll", "history", "checkin", "profile"],
-    defaultTab: "payroll",
+    allowedTabs: ["matrix", "payroll", "history", "checkin", "profile"],
+    defaultTab: "matrix",
     canCheckIn: true,
     canViewOwnAttendance: true,
     canViewAllAttendance: true,
@@ -39,12 +40,13 @@ export const ROLE_PERMISSIONS = {
     canViewCompanyPayroll: true,
     canManageEmployees: false,
     canManageRBAC: false,
-    canManageHolidays: false
+    canManageHolidays: false,
+    canManageCompany: false
   },
   [ROLES.ADMIN]: {
     name: "Quản Trị",
-    allowedTabs: ["management", "requests", "payroll", "history", "checkin", "profile"],
-    defaultTab: "management",
+    allowedTabs: ["matrix", "payroll", "requests", "management", "holidays", "company", "history", "checkin", "profile"],
+    defaultTab: "matrix",
     canCheckIn: true,
     canViewOwnAttendance: true,
     canViewAllAttendance: true,
@@ -54,7 +56,8 @@ export const ROLE_PERMISSIONS = {
     canViewCompanyPayroll: true,
     canManageEmployees: true,
     canManageRBAC: true,
-    canManageHolidays: true
+    canManageHolidays: true,
+    canManageCompany: true
   }
 };
 

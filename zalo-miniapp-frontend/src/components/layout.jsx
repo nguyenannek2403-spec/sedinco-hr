@@ -10,8 +10,18 @@ import {
 import HomePage from "../pages/index";
 
 const Layout = () => {
+  let theme = "light";
+  try {
+    const info = getSystemInfo();
+    if (info?.zaloTheme) {
+      theme = info.zaloTheme;
+    }
+  } catch (e) {
+    theme = "light";
+  }
+
   return (
-    <App theme={getSystemInfo().zaloTheme}>
+    <App theme={theme}>
       <SnackbarProvider>
         <ZMPRouter>
           <AnimationRoutes>
@@ -23,3 +33,4 @@ const Layout = () => {
   );
 };
 export default Layout;
+
