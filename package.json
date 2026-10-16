@@ -10,7 +10,7 @@
     "backend:dev": "npm --prefix sedinco_backend run dev",
     "miniapp": "npm --prefix zalo-miniapp-frontend start",
     "miniapp:deploy": "npm --prefix zalo-miniapp-frontend run deploy",
-    "build": "cd zalo-miniapp-frontend && npx vite build && mkdir -p ../dist && cp -r www/* ../dist/",
+    "build": "cd zalo-miniapp-frontend && npx vite build && mkdir -p ../dist && cp -r www/* ../dist/ && echo '/* /index.html 200' > ../dist/_redirects",
     "test": "npm --prefix sedinco_backend test"
   }
 }
