@@ -16,6 +16,12 @@ import appConfig from "../app-config.json";
 if (!window.APP_CONFIG) {
   window.APP_CONFIG = appConfig;
 }
+if (typeof window.APP_ID === "undefined") {
+  window.APP_ID = appConfig.app?.id || "";
+}
+if (typeof window.BASE_PATH === "undefined") {
+  window.BASE_PATH = "";
+}
 
 // Mount the app
 import Layout from "./components/layout";
