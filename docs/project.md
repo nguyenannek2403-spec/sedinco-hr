@@ -207,3 +207,33 @@ Hiện thực tại [src/middlewares/validationMiddleware.js](file:///Users/an/D
    - `year`: 2000 đến 2100.
 3. **Tính lũy đẳng khi cập nhật công (Idempotency)**:
    - Sử dụng cú pháp `INSERT ... ON DUPLICATE KEY UPDATE` giúp việc gọi API nhiều lần không bị nhân bản dữ liệu.
+
+---
+
+## 7. Cấu Trúc Monorepo & Tương Thích Zalo Mini App Extension (VS Code)
+
+Để đảm bảo Zalo Mini App Extension trong Visual Studio Code nhận diện chính xác dự án khi mở thư mục gốc `sedinco-hr`, cấu trúc monorepo được chuẩn hóa:
+
+1. **Nhận diện Công cụ Đóng gói (Vite & React Plugin)**:
+   - File cấu hình `vite.config.js` được bố trí tại cả thư mục gốc và thư mục `zalo-miniapp-frontend/`, tích hợp cả `zmp-vite-plugin` và `@vitejs/plugin-react`.
+   - File `package.json` ở cấp gốc khai báo đầy đủ các gói `dependencies` (`zmp-sdk`, `zmp-ui`, `react`, `react-dom`) và `devDependencies` (`@vitejs/plugin-react`, `vite`, `zmp-vite-plugin`).
+   - Cung cấp `app-config.json`, `zmp-cli.json`, `.env` tại thư mục gốc để Zalo Extension chẩn đoán đạt 3/3 tích xanh:
+     - `[x] Liên kết Mini App ID`
+     - `[x] Yêu cầu Vite`
+     - `[x] Yêu cầu Vite plugin cho React`
+2. **Kịch bản lệnh điều khiển**:
+   - `npm run miniapp`: Khởi chạy Zalo Mini App dev server.
+   - `npm run miniapp:deploy` hoặc `npm run deploy`: Tự động đóng gói và xuất bản Mini App lên Zalo Cloud.
+   - `npm run build`: Tự động build production và xuất bản ra thư mục `dist/` cho Cloudflare Workers Static Assets.
+
+---
+
+## 8. Tiêu Chuẩn Giao Diện Đăng Nhập & Bảo Mật Khách Hàng (Client Security)
+
+1. **Bộ Nhận Diện Doanh Nghiệp (Official Sedinco Logo)**:
+   - Sử dụng component SVG độc quyền [CompanyLogo.jsx](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/zalo-miniapp-frontend/src/components/CompanyLogo.jsx) biểu trưng cho Sedinco (khối lục giác chịu lực vát vàng kim và chữ S cách điệu).
+2. **Chính Sách Không Gợi Ý Mật Khẩu (Zero Credential Hinting)**:
+   - Loại bỏ triệt để các nút bấm điền sẵn tài khoản demo (Nhân sự, Kế toán, Quản trị) khỏi màn hình đăng nhập.
+   - Khử toàn bộ văn bản gợi ý trong ô placeholder nhằm ngăn chặn lộ lọt cấu trúc mã nhân viên và mật khẩu nội bộ.
+   - Toàn bộ cơ chế điều hướng tự động phân giải `SmartRouter` (chạy song song cho Zalo Mini App qua `ZMPRouter` và Desktop Web qua `BrowserRouter`).
+

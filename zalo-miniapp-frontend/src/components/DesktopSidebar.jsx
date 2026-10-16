@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../constants/roles";
 
+import CompanyLogo from "./CompanyLogo";
+
 export default function DesktopSidebar({
   currentUser,
   activeRole,
@@ -68,19 +70,7 @@ export default function DesktopSidebar({
       
       {/* 1. Header Sidebar: Logo & Thông tin công ty */}
       <div className="p-5 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-500/20 border border-white/20">
-            S
-          </div>
-          <div>
-            <h1 className="font-black text-base text-white tracking-tight uppercase leading-none">
-              SEDINCO HR
-            </h1>
-            <p className="text-[10px] text-blue-300 font-medium mt-1">
-              Quản Trị Nhân Sự & Tiền Lương
-            </p>
-          </div>
-        </div>
+        <CompanyLogo size="small" theme="dark" layout="horizontal" showSubtitle={true} />
 
         {/* 2. Thanh Chuyển Đổi Demo Role Nhanh */}
         <div className="mt-4 pt-3 border-t border-slate-800/80">

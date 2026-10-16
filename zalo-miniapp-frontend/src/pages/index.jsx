@@ -67,6 +67,7 @@ import AttendanceMatrixTable from "../components/AttendanceMatrixTable";
 import PayrollGridTable from "../components/PayrollGridTable";
 import EmployeeCheckinPC from "../components/EmployeeCheckinPC";
 import SalarySlipModal from "../components/SalarySlipModal";
+import CompanyLogo from "../components/CompanyLogo";
 
 // Helper style mã công
 const getStatusBadgeStyle = (status) => {
@@ -763,25 +764,17 @@ export default function HomePage() {
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/25 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/25 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Header Logo */}
+        {/* Header Logo Công Ty Sedinco */}
         <div className="text-center z-10 pt-4">
-          <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-3xl shadow-2xl shadow-blue-500/30 border border-white/20">
-            S
-          </div>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white uppercase">
-            SEDINCO HR
-          </h1>
-          <p className="text-xs md:text-sm text-blue-200 mt-1 font-medium">
-            Hệ Thống Chấm Công GPS & Quản Trị Tiền Lương Doanh Nghiệp
-          </p>
+          <CompanyLogo size="large" theme="dark" showSubtitle={true} />
         </div>
 
-        {/* Khung Đăng nhập (Responsive: Center Desktop & Full Mobile) */}
+        {/* Khung Đăng nhập Đơn Giản & Tối Giản (Không gợi ý tài khoản/mật khẩu) */}
         <div className="w-full max-w-md mx-auto bg-white/10 backdrop-blur-2xl border border-white/15 rounded-3xl p-6 md:p-8 shadow-2xl z-10 my-auto">
           <div className="mb-6 text-center">
-            <h2 className="text-lg font-black text-white">Đăng Nhập Hệ Thống</h2>
+            <h2 className="text-xl font-black text-white tracking-tight uppercase">Đăng Nhập</h2>
             <p className="text-xs text-slate-300 mt-1">
-              Hỗ trợ đồng bộ trên cả Điện thoại (Zalo App) và Máy tính (Web)
+              Cổng thông tin nhân sự & chấm công nội bộ Sedinco
             </p>
           </div>
 
@@ -803,7 +796,7 @@ export default function HomePage() {
                   type="text"
                   value={loginMaNv}
                   onChange={(e) => setLoginMaNv(e.target.value)}
-                  placeholder="Ví dụ: NV001, NV002, ADMIN..."
+                  placeholder="Nhập mã nhân viên..."
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/10 border border-white/15 text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all uppercase"
                   required
                 />
@@ -837,41 +830,11 @@ export default function HomePage() {
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white font-black text-sm shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-60"
+              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white font-black text-sm shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-4 disabled:opacity-60"
             >
-              {isLoggingIn ? <span>Đang xác thực...</span> : <span>ĐĂNG NHẬP HỆ THỐNG</span>}
+              {isLoggingIn ? <span>Đang xác thực...</span> : <span>ĐĂNG NHẬP</span>}
             </button>
           </form>
-
-          {/* Phím tắt Đăng Nhập Nhanh Demo */}
-          <div className="mt-6 pt-4 border-t border-white/10 text-center">
-            <span className="text-[11px] text-slate-400 block mb-2 font-medium">
-              Hoặc trải nghiệm nhanh với các vai trò demo:
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => { setLoginMaNv("NV001"); setLoginPass("123456"); }}
-                className="py-1.5 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-blue-200 transition-all cursor-pointer"
-              >
-                👤 Nhân Sự
-              </button>
-              <button
-                type="button"
-                onClick={() => { setLoginMaNv("NV002"); setLoginPass("123456"); }}
-                className="py-1.5 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-emerald-200 transition-all cursor-pointer"
-              >
-                📊 Kế Toán
-              </button>
-              <button
-                type="button"
-                onClick={() => { setLoginMaNv("ADMIN"); setLoginPass("admin123"); }}
-                className="py-1.5 px-2 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-amber-200 transition-all cursor-pointer"
-              >
-                👑 Quản Trị
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

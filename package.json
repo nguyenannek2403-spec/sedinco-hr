@@ -14,7 +14,31 @@
     "backend:dev": "npm --prefix sedinco_backend run dev",
     "miniapp": "npm --prefix zalo-miniapp-frontend start",
     "miniapp:deploy": "npm --prefix zalo-miniapp-frontend run deploy",
+    "deploy": "npm --prefix zalo-miniapp-frontend run deploy",
+    "login": "npm --prefix zalo-miniapp-frontend run login",
     "build": "cd zalo-miniapp-frontend && npm install && npx vite build && mkdir -p ../dist && cp -r www/* ../dist/ && rm -f ../dist/_redirects",
     "test": "npm --prefix sedinco_backend test"
+  },
+  "dependencies": {
+    "axios": "^1.20.0",
+    "jotai": "^2.12.1",
+    "lucide-react": "^1.57.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.4",
+    "zmp-sdk": "latest",
+    "zmp-ui": "latest"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "cross-env": "^7.0.3",
+    "postcss": "^8.4.38",
+    "postcss-cli": "^8.3.1",
+    "postcss-preset-env": "^6.7.0",
+    "sass": "^1.76.0",
+    "tailwindcss": "^3.4.3",
+    "vite": "^5.2.13",
+    "zmp-vite-plugin": "latest"
   }
 }

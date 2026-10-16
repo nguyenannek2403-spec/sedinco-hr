@@ -115,3 +115,22 @@ sequenceDiagram
    - Ngăn chặn các request giả mạo ngày không tồn tại (như ngày 32, tháng 13, năm < 2000 hoặc > 2100).
 3. **Ẩn dữ liệu nhạy cảm (Zero Password Leakage)**:
    - Tất cả các endpoint trả về danh sách nhân viên hoặc thông tin người dùng đều tự động khử trường `password` trước khi gửi ra ngoài mạng.
+
+---
+
+## 5. Kiến Trúc Khách Hàng Đa Nền Tảng & Tiêu Chuẩn Giao Diện (Cross-Platform Frontend)
+
+Hệ thống cung cấp trải nghiệm nhất quán trên cả thiết bị di động và máy tính để bàn thông qua một mã nguồn Frontend duy nhất kết nối trực tiếp lõi Backend REST API:
+
+1. **Zalo Mini App (Mobile App)**:
+   - Dành cho Cán bộ Công nhân viên.
+   - Hỗ trợ định vị GPS bán kính công trình/nhà máy, quét khuôn mặt qua Camera, xem bảng công 31 ngày cá nhân, nộp đơn từ trực tuyến và tra cứu phiếu lương điện tử.
+   - Vận hành mượt mà trên nền tảng Zalo với hiệu ứng chuyển trang `AnimationRoutes` và `ZMPRouter`.
+2. **Quản Trị Web Quản Lý (Desktop PC)**:
+   - Dành cho Kế Toán và Ban Giám Đốc.
+   - Giao diện Widescreen với Sidebar điều hướng, Bảng công ma trận 31 ngày (click-to-edit, xuất CSV), Bảng lương doanh nghiệp tổng hợp (thẻ KPI, chiết tính bảo hiểm, xuất CSV, in phiếu chi chuẩn Sedinco).
+   - Tích hợp bộ giả lập thiết bị di động (Mobile Simulator) ngay trên Web giúp người quản lý có thể xem và kiểm tra góc nhìn của nhân viên.
+3. **Tiêu Chuẩn Đăng Nhập & Bảo Mật Doanh Nghiệp**:
+   - Sử dụng **Logo chính thức của Công ty Cổ phần Vật Liệu Xây Dựng Sedinco** (khối lục giác cấu trúc xanh hoàng gia phối viền ánh kim và chữ "S" biểu trưng).
+   - **Loại bỏ hoàn toàn mọi gợi ý tài khoản và mật khẩu**: Màn hình đăng nhập sản xuất không hiển thị các phím tắt demo hay gợi ý thông tin đăng nhập trong placeholder, đảm bảo tuân thủ nghiêm ngặt chính sách bảo mật nội bộ.
+
