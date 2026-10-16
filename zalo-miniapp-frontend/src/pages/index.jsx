@@ -948,7 +948,7 @@ export default function HomePage() {
             activeRole={activeRole}
             currentTime={currentTime}
             onRefresh={loadRoleData}
-            isLoading={attendanceLoading || companyPayrollLoading}
+            isLoading={attendanceLoading || payrollLoading}
             viewMode={viewMode}
             onToggleViewMode={() => setViewMode(viewMode === "mobile_simulator" ? "auto" : "mobile_simulator")}
           />
