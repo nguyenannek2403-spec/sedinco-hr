@@ -11,9 +11,15 @@ import {
   RefreshCw,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  ShieldCheck
 } from "lucide-react";
-import { safePost } from "../utils/api";
+import { safePost, sanitizeFormula, generateIdempotencyKey } from "../utils/api";
+import PeriodLockModal from "./PeriodLockModal";
+import { ROLES, hasPermission } from "../constants/roles";
 
 const getBadgeStyle = (status) => {
   if (status === "1") return "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold";
@@ -31,14 +37,32 @@ export default function AttendanceMatrixTable({
   year,
   onMonthChange,
   onRefresh,
-  canEdit = true,
+  userRole = "admin",
+  isLocked: propIsLocked,
   onShowToast
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingCell, setEditingCell] = useState(null); // { emp, dayIndex, currentStatus }
   const [selectedStatus, setSelectedStatus] = useState("1");
   const [otHours, setOtHours] = useState(2);
+  const [editReason, setEditReason] = useState("");
+  const [editError, setEditError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLockModal, setShowLockModal] = useState(false);
+
+  const [internalLocked, setInternalLocked] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`sedinco_locked_period_${year}_${month}`);
+      return saved ? JSON.parse(saved).locked : false;
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const isLocked = propIsLocked !== undefined ? propIsLocked : internalLocked;
+
+  // Tách quyền: Chỉ HR và Admin được sửa công khi kỳ CHƯA bị chốt
+  const canEdit = !isLocked && (userRole === ROLES.HR || userRole === ROLES.ADMIN);
 
   // Số ngày trong tháng
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -55,6 +79,18 @@ export default function AttendanceMatrixTable({
   });
 
   const handleCellClick = (emp, dayIndex) => {
+    if (isLocked) {
+      if (onShowToast) {
+        onShowToast(`Kỳ công tháng ${month}/${year} đã chốt sổ. Chỉ Quản Trị Viên mới có quyền mở khóa.`, "warning");
+      }
+      return;
+    }
+    if (userRole === ROLES.ACCOUNTANT) {
+      if (onShowToast) {
+        onShowToast("Tách quyền: Kế toán chỉ có quyền xem và chốt sổ, không được sửa dữ liệu công.", "warning");
+      }
+      return;
+    }
     if (!canEdit) return;
     const currentVal = (emp.days && emp.days[dayIndex]) || "";
     setEditingCell({
@@ -64,20 +100,30 @@ export default function AttendanceMatrixTable({
     });
     setSelectedStatus(currentVal || "1");
     setOtHours(2);
+    setEditReason("");
+    setEditError("");
   };
 
   const handleSaveCellAttendance = async () => {
     if (!editingCell) return;
+    if (!editReason.trim()) {
+      setEditError("Vui lòng nhập lý do điều chỉnh công (Bắt buộc theo quy chế kiểm toán).");
+      return;
+    }
+
     setIsSubmitting(true);
+    setEditError("");
     try {
+      const idempotencyKey = generateIdempotencyKey("att_edit");
       await safePost("/attendance/update", {
         ma_nv: editingCell.emp.ma_nv,
         day: editingCell.dayNum,
         month: month,
         year: year,
         status: selectedStatus,
-        ot_hours: selectedStatus === "OT" || selectedStatus === "1/OT" ? otHours : 0
-      });
+        ot_hours: selectedStatus === "OT" || selectedStatus === "1/OT" ? otHours : 0,
+        reason: editReason.trim()
+      }, { idempotencyKey });
 
       if (onShowToast) {
         onShowToast(`Đã cập nhật công ngày ${editingCell.dayNum}/${month} cho ${editingCell.emp.ho_ten}!`, "success");
@@ -85,9 +131,7 @@ export default function AttendanceMatrixTable({
       setEditingCell(null);
       if (onRefresh) onRefresh();
     } catch (err) {
-      if (onShowToast) {
-        onShowToast(err.message || "Không thể cập nhật ngày công.", "error");
-      }
+      setEditError(err.message || "Không thể cập nhật ngày công.");
     } finally {
       setIsSubmitting(false);
     }
@@ -103,9 +147,9 @@ export default function AttendanceMatrixTable({
       const countP = days.filter(d => d === "P").length;
       const countOT = days.filter(d => String(d).includes("OT")).length;
       return [
-        `"${item.ma_nv}"`,
-        `"${item.ho_ten}"`,
-        ...dayNumbers.map(d => `"${days[d - 1] || ""}"`),
+        `"${sanitizeFormula(item.ma_nv)}"`,
+        `"${sanitizeFormula(item.ho_ten)}"`,
+        ...dayNumbers.map(d => `"${sanitizeFormula(days[d - 1] || "")}"`),
         count1,
         countHalf,
         countP,
@@ -195,8 +239,52 @@ export default function AttendanceMatrixTable({
           >
             <RefreshCw size={14} />
           </button>
+
+          {/* Nút Chốt Công Kỳ Lương (Kế toán & Quản trị) */}
+          {hasPermission(userRole, "canLockPeriod") && !isLocked && (
+            <button
+              type="button"
+              onClick={() => setShowLockModal(true)}
+              className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              <Lock size={14} />
+              <span>Chốt Kỳ Công</span>
+            </button>
+          )}
+
+          {/* Nút Mở Lại Kỳ Công Đã Chốt (Chỉ Quản Trị) */}
+          {hasPermission(userRole, "canUnlockPeriod") && isLocked && (
+            <button
+              type="button"
+              onClick={() => setShowLockModal(true)}
+              className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              <Unlock size={14} />
+              <span>Mở Lại Kỳ Đã Chốt</span>
+            </button>
+          )}
+
+          {isLocked && !hasPermission(userRole, "canUnlockPeriod") && (
+            <div className="flex items-center gap-1.5 bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl">
+              <Lock size={14} className="text-slate-500" />
+              <span>Đã Khóa Sổ</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Banner Cảnh Báo Nếu Kỳ Đã Chốt */}
+      {isLocked && (
+        <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center justify-between text-xs text-amber-900 font-medium">
+          <div className="flex items-center gap-2">
+            <Lock size={16} className="text-amber-600 shrink-0" />
+            <span>Kỳ công Tháng {month}/{year} đã được Kế toán chốt sổ. Toàn bộ bảng công ở chế độ CHỈ ĐỌC.</span>
+          </div>
+          {hasPermission(userRole, "canUnlockPeriod") && (
+            <span className="text-[11px] text-amber-700 italic">Quản trị viên có thể mở khóa khi có lý do chính đáng</span>
+          )}
+        </div>
+      )}
 
       {/* Chú giải ký hiệu */}
       <div className="px-5 py-2.5 bg-slate-100/60 border-b border-slate-200 flex flex-wrap items-center gap-4 text-[11px] text-slate-600">
@@ -208,6 +296,8 @@ export default function AttendanceMatrixTable({
         <span className="flex items-center gap-1"><span className="w-5 h-4 rounded text-center inline-block text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-300">L</span> Ngày lễ (x3)</span>
         <span className="flex items-center gap-1"><span className="w-5 h-4 rounded text-center inline-block text-[9px] font-black bg-slate-200 text-slate-700 border border-slate-300">KP</span> Không phép</span>
         {canEdit && <span className="ml-auto text-blue-600 italic">💡 Nhấp chuột vào bất kỳ ô ngày nào để sửa công trực tiếp</span>}
+        {isLocked && <span className="ml-auto text-rose-600 font-bold">🔒 Bảng công đã bị khóa sổ</span>}
+        {!isLocked && userRole === ROLES.ACCOUNTANT && <span className="ml-auto text-slate-500 italic">👁️ Kế toán xem đối soát & chốt số liệu</span>}
       </div>
 
       {/* Bảng Ma Trận (Horizontal scroll) */}
@@ -374,6 +464,31 @@ export default function AttendanceMatrixTable({
                 </div>
               )}
 
+              {/* Nhập lý do điều chỉnh công bắt buộc theo kiểm toán */}
+              <div>
+                <label className="block text-slate-600 font-bold mb-1">
+                  Lý do điều chỉnh <span className="text-rose-500">* (Bắt buộc)</span>
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  value={editReason}
+                  onChange={e => {
+                    setEditReason(e.target.value);
+                    if (editError) setEditError("");
+                  }}
+                  placeholder="Ví dụ: Nhân viên công tác hiện trường, cập nhật bổ sung..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium resize-none text-xs"
+                />
+              </div>
+
+              {editError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-1.5 font-medium">
+                  <AlertTriangle size={14} className="shrink-0 text-rose-500" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
@@ -399,6 +514,24 @@ export default function AttendanceMatrixTable({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Chốt / Mở Lại Kỳ Công */}
+      {showLockModal && (
+        <PeriodLockModal
+          month={month}
+          year={year}
+          isCurrentlyLocked={isLocked}
+          userRole={userRole}
+          onClose={() => setShowLockModal(false)}
+          onStatusChanged={(newLocked) => {
+            setInternalLocked(newLocked);
+            if (onShowToast) {
+              onShowToast(newLocked ? `Đã chốt sổ kỳ công tháng ${month}/${year} thành công!` : `Đã mở khóa kỳ công tháng ${month}/${year}!`, "success");
+            }
+            if (onRefresh) onRefresh();
+          }}
+        />
       )}
 
     </div>

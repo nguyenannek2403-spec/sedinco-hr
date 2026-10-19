@@ -45,21 +45,32 @@ export default function DesktopSidebar({
 
     if (activeRole === ROLES.ACCOUNTANT) {
       return [
-        { id: "matrix", label: "Bảng Công Ma Trận", icon: Calendar, badge: "31 Ngày" },
-        { id: "payroll", label: "Bảng Lương Doanh Nghiệp", icon: DollarSign },
+        { id: "matrix", label: "Bảng Công (Chốt Sổ)", icon: Calendar, badge: "Chỉ đọc" },
+        { id: "payroll", label: "Bảng Lương & Xuất CSV", icon: DollarSign },
         { id: "history", label: "Lịch Sử Công Cá Nhân", icon: Calendar },
         { id: "checkin", label: "Điểm Danh Thử Nghiệm", icon: Clock },
         { id: "profile", label: "Hồ Sơ Kế Toán", icon: User }
       ];
     }
 
-    // Role Nhân Sự (Employee)
+    if (activeRole === ROLES.HR) {
+      return [
+        { id: "matrix", label: "Bảng Công Ma Trận", icon: Calendar, badge: "Sửa công" },
+        { id: "requests", label: "Phê Duyệt Đơn Từ", icon: FileText, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null, badgeColor: "bg-rose-500 text-white" },
+        { id: "management", label: "Cấp Mã & Nhân Sự", icon: Users },
+        { id: "history", label: "Lịch Sử Công Cá Nhân", icon: Calendar },
+        { id: "payroll", label: "Phiếu Lương Cá Nhân", icon: DollarSign },
+        { id: "profile", label: "Hồ Sơ Nhân Sự", icon: User }
+      ];
+    }
+
+    // Role Nhân Viên (Employee)
     return [
-      { id: "checkin", label: "Điểm Danh & Chấm Công", icon: Clock, badge: "Mobile GPS" },
+      { id: "checkin", label: "Điểm Danh 1 Chạm", icon: Clock, badge: "GPS Token" },
       { id: "history", label: "Bảng Công Tháng (31 Ngày)", icon: Calendar },
-      { id: "payroll", label: "Phiếu Lương Điện Tử", icon: DollarSign },
       { id: "requests", label: "Đơn Từ Của Tôi", icon: FileText },
-      { id: "profile", label: "Hồ Sơ & Mật Khẩu", icon: User }
+      { id: "payroll", label: "Phiếu Lương Điện Tử", icon: DollarSign },
+      { id: "profile", label: "Hồ Sơ Cá Nhân", icon: User }
     ];
   };
 
@@ -75,15 +86,26 @@ export default function DesktopSidebar({
         {/* 2. Thanh Chuyển Đổi Demo Role Nhanh */}
         <div className="mt-4 pt-3 border-t border-slate-800/80">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
-            Phân hệ hiện hành:
+            Phân hệ hiện hành ({ROLE_LABELS[activeRole]}):
           </span>
-          <div className="grid grid-cols-3 gap-1 bg-slate-800/80 p-1 rounded-xl">
+          <div className="grid grid-cols-2 gap-1 bg-slate-800/80 p-1 rounded-xl">
             <button
               type="button"
               onClick={() => onSwitchDemoRole(ROLES.EMPLOYEE)}
               className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
                 activeRole === ROLES.EMPLOYEE
                   ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Nhân Viên
+            </button>
+            <button
+              type="button"
+              onClick={() => onSwitchDemoRole(ROLES.HR)}
+              className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                activeRole === ROLES.HR
+                  ? "bg-purple-600 text-white shadow-sm"
                   : "text-slate-400 hover:text-white"
               }`}
             >

@@ -3,10 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "description": "Sedinco HR - Monorepo (Backend Node.js API & Zalo Mini App Frontend)",
-  "workspaces": [
-    "sedinco_backend",
-    "zalo-miniapp-frontend"
-  ],
   "scripts": {
     "start": "npm --prefix sedinco_backend start",
     "dev": "npm --prefix sedinco_backend run dev",
@@ -17,7 +13,8 @@
     "deploy": "npm --prefix zalo-miniapp-frontend run deploy",
     "login": "npm --prefix zalo-miniapp-frontend run login",
     "build": "cd zalo-miniapp-frontend && npm install && npx vite build && mkdir -p ../dist && cp -r www/* ../dist/ && rm -f ../dist/_redirects",
-    "test": "npm --prefix sedinco_backend test"
+    "test": "npm --prefix sedinco_backend test",
+    "summary": "node tools/generate-summary/index.js"
   },
   "dependencies": {
     "axios": "^1.20.0",
@@ -33,6 +30,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
     "cross-env": "^7.0.3",
+    "exceljs": "^4.4.0",
     "postcss": "^8.4.38",
     "postcss-cli": "^8.3.1",
     "postcss-preset-env": "^6.7.0",

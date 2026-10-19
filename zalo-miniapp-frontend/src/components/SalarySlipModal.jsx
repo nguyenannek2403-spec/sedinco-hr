@@ -1,5 +1,6 @@
 import React from "react";
 import { Printer, X, DollarSign, Award, ShieldCheck, Building } from "lucide-react";
+import sedincoLogo from "../static/sedinco-logo.png";
 
 export default function SalarySlipModal({ payrollItem, month, year, onClose }) {
   if (!payrollItem) return null;
@@ -60,10 +61,8 @@ export default function SalarySlipModal({ payrollItem, month, year, onClose }) {
           {/* Header Doanh nghiệp */}
           <div className="flex justify-between items-start border-b-2 border-slate-800 pb-4">
             <div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-700 text-white font-black flex items-center justify-center text-base">
-                  S
-                </div>
+              <div className="flex items-center gap-2.5">
+                <img src={sedincoLogo} alt="SEDINCO Logo" className="w-8 h-8 object-contain" />
                 <h2 className="font-black text-sm text-slate-900 uppercase">
                   CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO
                 </h2>

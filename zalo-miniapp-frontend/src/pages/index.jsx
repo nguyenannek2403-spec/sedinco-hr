@@ -68,6 +68,11 @@ import PayrollGridTable from "../components/PayrollGridTable";
 import EmployeeCheckinPC from "../components/EmployeeCheckinPC";
 import SalarySlipModal from "../components/SalarySlipModal";
 import CompanyLogo from "../components/CompanyLogo";
+import sedincoLogo from "../static/sedinco-logo.png";
+import OneTouchCheckIn from "../components/OneTouchCheckIn";
+import SmartLeaveRequestModal from "../components/SmartLeaveRequestModal";
+import LinkAccountView from "../components/LinkAccountView";
+import { resolveSession, logoutSession } from "../services/authService";
 
 // Helper style mã công
 const getStatusBadgeStyle = (status) => {
@@ -120,13 +125,37 @@ export default function HomePage() {
     }, 3500);
   }, []);
 
-  // Form Đăng nhập
+  // Form Đăng nhập & Xác thực phiên Zalo
+  const [authViewMode, setAuthViewMode] = useState("credentials"); // "credentials" | "link_code"
   const [loginMaNv, setLoginMaNv] = useState("");
   const [loginPass, setLoginPass] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const isLoginSubmittingRef = useRef(false);
+
+  // F0: Tự động phân giải phiên Zalo Mini App khi mở ứng dụng
+  useEffect(() => {
+    let isMounted = true;
+    const checkZaloSession = async () => {
+      if (!currentUser) {
+        try {
+          const session = await resolveSession();
+          if (isMounted && session.isLinked && session.user) {
+            setCurrentUser(session.user);
+            setActiveRole(session.user.role || ROLES.EMPLOYEE);
+            setCurrentTab(getDefaultTabForRole(session.user.role || ROLES.EMPLOYEE));
+          } else if (isMounted && !session.isLinked && !isDesktop) {
+            setAuthViewMode("link_code");
+          }
+        } catch (e) {
+          // Bỏ qua trên môi trường dev/web
+        }
+      }
+    };
+    checkZaloSession();
+    return () => { isMounted = false; };
+  }, [currentUser, isDesktop]);
 
   // Đồng hồ thời gian thực
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -473,10 +502,18 @@ export default function HomePage() {
         avatar_url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200",
         role: ROLES.ACCOUNTANT
       };
+    } else if (targetRole === ROLES.HR) {
+      demoUser = {
+        ma_nv: "NV003",
+        ho_ten: "Lê Hoàng Yến (Nhân Sự)",
+        chuc_danh: "Trưởng phòng Nhân sự",
+        avatar_url: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200",
+        role: ROLES.HR
+      };
     } else {
       demoUser = {
         ma_nv: "NV001",
-        ho_ten: "Ngô Trường Sa (Nhân Sự)",
+        ho_ten: "Ngô Trường Sa (Nhân Viên)",
         chuc_danh: "Kỹ sư Công trường",
         avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200",
         role: ROLES.EMPLOYEE
@@ -759,6 +796,32 @@ export default function HomePage() {
 
   // ================= 7. GIAO DIỆN CHƯA ĐĂNG NHẬP (CROSS-PLATFORM LOGIN) =================
   if (!currentUser) {
+    if (authViewMode === "link_code") {
+      return (
+        <div className="min-h-screen bg-slate-900 text-white font-sans flex flex-col justify-between p-6 relative overflow-hidden">
+          <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/25 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/25 rounded-full blur-3xl pointer-events-none" />
+          <div className="w-full max-w-md mx-auto my-auto z-10">
+            <LinkAccountView
+              onLinkSuccess={(user) => {
+                resetAllSessionData();
+                setCurrentUser(user);
+                setActiveRole(user.role || ROLES.EMPLOYEE);
+                setCurrentTab(getDefaultTabForRole(user.role || ROLES.EMPLOYEE));
+                showToast(`Liên kết tài khoản thành công! Xin chào ${user.ho_ten}`, "success");
+              }}
+              onSwitchToPasswordLogin={() => setAuthViewMode("credentials")}
+            />
+          </div>
+          <div className="text-center z-10 pt-4 space-y-1">
+            <p className="text-[10px] text-slate-500">
+              © 2026 CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO. BẢN QUYỀN ĐÃ ĐƯỢC BẢO HỘ.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-slate-900 text-white font-sans flex flex-col justify-between p-6 relative overflow-hidden">
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/25 rounded-full blur-3xl pointer-events-none" />
@@ -834,6 +897,16 @@ export default function HomePage() {
             >
               {isLoggingIn ? <span>Đang xác thực...</span> : <span>ĐĂNG NHẬP</span>}
             </button>
+
+            <div className="pt-2 text-center">
+              <button
+                type="button"
+                onClick={() => setAuthViewMode("link_code")}
+                className="text-xs text-blue-300 hover:text-blue-200 transition-colors cursor-pointer"
+              >
+                Bạn có mã liên kết 8 ký tự? <span className="font-bold underline">Bấm để liên kết Zalo</span>
+              </button>
+            </div>
           </form>
         </div>
 
@@ -926,7 +999,7 @@ export default function HomePage() {
                 year={selectedYear}
                 onMonthChange={(m, y) => { setSelectedMonth(m); setSelectedYear(y); }}
                 onRefresh={loadRoleData}
-                canEdit={hasPermission(activeRole, "canManageEmployees") || activeRole === ROLES.ACCOUNTANT}
+                userRole={activeRole}
                 onShowToast={showToast}
               />
             )}
@@ -1480,68 +1553,19 @@ export default function HomePage() {
           />
         )}
 
-        {/* MODAL TẠO ĐƠN TỪ */}
+        {/* MODAL TẠO ĐƠN TỪ THÔNG MINH (F3) */}
         {isRequestModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="font-extrabold text-sm text-slate-800">Tạo Đơn Xin Phép / OT</h3>
-                <button type="button" onClick={() => setIsRequestModalOpen(false)} className="text-slate-400">
-                  <X size={18} />
-                </button>
-              </div>
-              <form onSubmit={handleSendRequest} className="space-y-3 text-xs">
-                <div>
-                  <label className="block text-slate-600 font-bold mb-1">Loại Đơn</label>
-                  <select
-                    value={requestForm.request_type}
-                    onChange={e => setRequestForm({ ...requestForm, request_type: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium"
-                  >
-                    <option value="Nghỉ phép">Nghỉ phép (Hưởng lương - P)</option>
-                    <option value="Làm thêm giờ (OT)">Làm thêm ngoài giờ (OT)</option>
-                    <option value="Quên chấm công">Báo quên chấm công / Bổ sung công</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-bold mb-1">Ngày Áp Dụng</label>
-                  <input
-                    type="date"
-                    required
-                    value={requestForm.request_date}
-                    onChange={e => setRequestForm({ ...requestForm, request_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-bold mb-1">Lý Do Cụ Thể</label>
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="Nhập lý do gửi Ban Giám Đốc xét duyệt..."
-                    value={requestForm.reason}
-                    onChange={e => setRequestForm({ ...requestForm, reason: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none resize-none font-medium"
-                  />
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsRequestModalOpen(false)}
-                    className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md cursor-pointer"
-                  >
-                    Gửi Đơn
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+          <SmartLeaveRequestModal
+            currentUser={currentUser}
+            holidaysList={holidays}
+            existingRequests={allRequests}
+            leaveBalance={12}
+            onClose={() => setIsRequestModalOpen(false)}
+            onRequestCreated={(newReq) => {
+              loadRoleData();
+              showToast("Đã gửi đơn xin nghỉ thành công!", "success");
+            }}
+          />
         )}
 
         {/* MODAL THÊM NHÂN VIÊN */}
@@ -1815,8 +1839,8 @@ export default function HomePage() {
         >
           <div className="flex items-center justify-between mb-3 min-h-[36px]">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center font-black text-lg shadow-inner border border-white/20">
-                S
+              <div className="w-9 h-9 rounded-xl bg-white p-1 shadow-md border border-white/30 flex items-center justify-center overflow-hidden shrink-0">
+                <img src={sedincoLogo} alt="SEDINCO Logo" className="w-full h-full object-contain" />
               </div>
               <div>
                 <h1 className="font-extrabold text-base tracking-tight leading-tight">SEDINCO HR</h1>
@@ -1915,103 +1939,19 @@ export default function HomePage() {
           {/* TAB 1: CHẤM CÔNG DI ĐỘNG (QUÉT KHUÔN MẶT & GPS) */}
           {(currentTab === "checkin" || (!allowedTabs.includes(currentTab) && getDefaultTabForRole(activeRole) === "checkin")) && (
             <div className="space-y-4 animate-in fade-in">
-              <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm text-center relative overflow-hidden">
-                <div className="mb-2">
-                  <h2 className="text-base font-extrabold text-slate-800">Chấm Công Trực Tuyến</h2>
-                  <p className="text-xs text-slate-400">Yêu cầu bật vị trí GPS • Khung giờ 08:00 - 17:00</p>
-                </div>
-
-                {/* Nút Tròn Chấm Công Lớn */}
-                <div className="py-6 flex justify-center">
-                  <button
-                    type="button"
-                    disabled={isCheckInLoading}
-                    onClick={handleSmartCheckInOut}
-                    className={`w-44 h-44 rounded-full flex flex-col items-center justify-center p-4 shadow-2xl transition-all duration-300 transform active:scale-95 cursor-pointer relative ${
-                      isCheckInLoading
-                        ? "opacity-60 cursor-not-allowed"
-                        : checkInStatus === "not_checked_in"
-                        ? "bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white shadow-blue-500/40 hover:shadow-blue-500/60"
-                        : checkInStatus === "checked_in"
-                        ? "bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-500 text-white shadow-emerald-500/40 animate-pulse"
-                        : "bg-slate-800 text-slate-300 shadow-slate-900/30"
-                    }`}
-                  >
-                    <div className="p-3 bg-white/20 rounded-full mb-1">
-                      {isCheckInLoading ? (
-                        <RefreshCw size={36} className="text-white animate-spin" />
-                      ) : (
-                        <Clock size={36} className="text-white" />
-                      )}
-                    </div>
-                    <span className="font-black text-sm tracking-wide">
-                      {checkInStatus === "not_checked_in" && "CHẤM CÔNG VÀO"}
-                      {checkInStatus === "checked_in" && "CHẤM CÔNG RA"}
-                      {checkInStatus === "completed" && "ĐÃ HOÀN TẤT"}
-                    </span>
-                    <span className="text-[11px] font-mono font-bold mt-1 text-white/90">
-                      {currentTime.toLocaleTimeString("vi-VN")}
-                    </span>
-                    {checkInTime && (
-                      <span className="text-[10px] text-white/80 mt-1 font-medium">Vào: {checkInTime}</span>
-                    )}
-                    {checkOutTime && (
-                      <span className="text-[10px] text-white/80 font-medium">Ra: {checkOutTime}</span>
-                    )}
-                  </button>
-                </div>
-
-                {/* Hộp Thông Báo Đúng Giờ / Đi Muộn */}
-                {lateNotice && (
-                  <div
-                    className={`p-3 rounded-2xl text-xs flex items-center justify-center gap-2 mb-4 font-medium ${
-                      isViolation
-                        ? "bg-amber-50 text-amber-800 border border-amber-200"
-                        : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                    }`}
-                  >
-                    {isViolation ? (
-                      <AlertTriangle size={16} className="text-amber-600 shrink-0" />
-                    ) : (
-                      <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
-                    )}
-                    <span>{lateNotice}</span>
-                  </div>
-                )}
-
-                {/* 2 Nút Xác Thực GPS & Camera Selfie */}
-                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={handleGetGps}
-                    className="p-2.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left transition-all flex items-center gap-2.5 cursor-pointer"
-                  >
-                    <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
-                      <MapPin size={18} />
-                    </div>
-                    <div>
-                      <span className="block text-[11px] font-bold text-slate-800">Xác Thực GPS</span>
-                      <span className="block text-[9px] text-slate-500 line-clamp-1">{gpsStatus}</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleCapturePhoto}
-                    className="p-2.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left transition-all flex items-center gap-2.5 cursor-pointer"
-                  >
-                    <div className="p-2 bg-purple-100 text-purple-600 rounded-xl">
-                      <Camera size={18} />
-                    </div>
-                    <div>
-                      <span className="block text-[11px] font-bold text-slate-800">Ảnh Khuôn Mặt</span>
-                      <span className="block text-[9px] text-slate-500">
-                        {selfiePhoto ? "✓ Đã nhận diện" : "Chụp ảnh selfie"}
-                      </span>
-                    </div>
-                  </button>
-                </div>
-              </div>
+              <OneTouchCheckIn
+                currentUser={currentUser}
+                todayAttendance={
+                  checkInTime || checkOutTime
+                    ? { check_in_time: checkInTime, check_out_time: checkOutTime }
+                    : null
+                }
+                onCheckInSuccess={() => {
+                  loadRoleData();
+                  showToast("Điểm danh trực tuyến thành công!", "success");
+                }}
+                isLockedPeriod={false}
+              />
 
               {/* Quick Stats Row */}
               <div className="grid grid-cols-3 gap-3">
@@ -2360,6 +2300,21 @@ export default function HomePage() {
             month={selectedMonth}
             year={selectedYear}
             onClose={() => setSelectedEmployeeForDetail(null)}
+          />
+        )}
+
+        {/* MODAL TẠO ĐƠN TỪ TRÊN MOBILE (F3) */}
+        {isRequestModalOpen && (
+          <SmartLeaveRequestModal
+            currentUser={currentUser}
+            holidaysList={holidays}
+            existingRequests={allRequests}
+            leaveBalance={12}
+            onClose={() => setIsRequestModalOpen(false)}
+            onRequestCreated={(newReq) => {
+              loadRoleData();
+              showToast("Đã gửi đơn xin nghỉ thành công!", "success");
+            }}
           />
         )}
 

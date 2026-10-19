@@ -14,6 +14,7 @@ import {
   Eye
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
+import { sanitizeFormula } from "../utils/api";
 
 export default function PayrollGridTable({
   payrollData,
@@ -66,9 +67,9 @@ export default function PayrollGridTable({
       const totalAllowance = Number(item.totalAllowance) || 0;
       const respAllowance = totalAllowance > 3730000 ? totalAllowance - 3730000 : 0;
       return [
-        `"${item.ma_nv || item.id_nhan_vien || ""}"`,
-        `"${item.ho_ten || ""}"`,
-        `"${item.chuc_danh || "Nhân viên"}"`,
+        `"${sanitizeFormula(item.ma_nv || item.id_nhan_vien || "")}"`,
+        `"${sanitizeFormula(item.ho_ten || "")}"`,
+        `"${sanitizeFormula(item.chuc_danh || "Nhân viên")}"`,
         Number(item.baseSalary) || 0,
         Number(item.totalWorkDays) || 0,
         Number(item.salaryByWork) || 0,
