@@ -79,13 +79,15 @@ class ErrorBoundary extends React.Component {
               <button
                 onClick={() => window.location.reload()}
                 style={{
-                  padding: "10px 20px",
+                  padding: "12px 24px",
                   backgroundColor: "#2563eb",
                   color: "#ffffff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontWeight: "600",
+                  border: "2px solid #1d4ed8",
+                  borderRadius: "12px",
+                  fontWeight: "800",
+                  fontSize: "15px",
                   cursor: "pointer",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                 }}
               >
                 Tải lại trang
@@ -99,12 +101,13 @@ class ErrorBoundary extends React.Component {
                   window.location.href = "/";
                 }}
                 style={{
-                  padding: "10px 20px",
+                  padding: "12px 24px",
                   backgroundColor: "#f1f5f9",
-                  color: "#475569",
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "8px",
-                  fontWeight: "600",
+                  color: "#1e293b",
+                  border: "2px solid #94a3b8",
+                  borderRadius: "12px",
+                  fontWeight: "800",
+                  fontSize: "15px",
                   cursor: "pointer",
                 }}
               >

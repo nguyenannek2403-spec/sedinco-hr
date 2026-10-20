@@ -964,60 +964,60 @@ export default function HomePage() {
           <CompanyLogo size="large" theme="dark" showSubtitle={true} />
         </div>
 
-        {/* Khung Đăng nhập Đơn Giản & Tối Giản (Không gợi ý tài khoản/mật khẩu) */}
-        <div className="w-full max-w-md mx-auto bg-white/10 backdrop-blur-2xl border border-white/15 rounded-3xl p-6 md:p-8 shadow-2xl z-10 my-auto">
+        {/* Khung Đăng nhập Đơn Giản & Tối Giản cho người cao tuổi */}
+        <div className="w-full max-w-md mx-auto bg-slate-800/95 border-2 border-white/30 rounded-3xl p-6 md:p-8 shadow-2xl z-10 my-auto">
           <div className="mb-6 text-center">
-            <h2 className="text-xl font-black text-white tracking-tight uppercase">Đăng Nhập</h2>
-            <p className="text-xs text-slate-300 mt-1">
+            <h2 className="text-2xl font-black text-white tracking-tight uppercase">Đăng Nhập</h2>
+            <p className="text-sm text-slate-200 font-medium mt-1">
               Cổng thông tin nhân sự & chấm công nội bộ Sedinco
             </p>
           </div>
 
           {loginError && (
-            <div className="mb-4 p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2">
-              <AlertCircle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+            <div className="mb-4 p-3.5 rounded-xl bg-rose-500/20 border-2 border-rose-500/50 text-rose-200 text-xs font-bold flex items-start gap-2.5">
+              <AlertCircle size={18} className="text-rose-400 shrink-0 mt-0.5" />
               <span>{loginError}</span>
             </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+              <label className="block text-sm font-black text-slate-200 mb-1.5">
                 Mã Nhân Viên / Tài Khoản
               </label>
               <div className="relative">
-                <User size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <User size={20} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={loginMaNv}
                   onChange={(e) => setLoginMaNv(e.target.value)}
                   placeholder="Nhập mã nhân viên..."
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/10 border border-white/15 text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all uppercase"
+                  className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/10 border-2 border-white/30 text-white placeholder-slate-400 text-base font-bold focus:outline-none focus:border-blue-400 transition-all uppercase"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+              <label className="block text-sm font-black text-slate-200 mb-1.5">
                 Mật Khẩu
               </label>
               <div className="relative">
-                <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Lock size={20} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type={showPassword ? "text" : "password"}
                   value={loginPass}
                   onChange={(e) => setLoginPass(e.target.value)}
                   placeholder="Nhập mật khẩu..."
-                  className="w-full pl-10 pr-11 py-3 rounded-xl bg-white/10 border border-white/15 text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all"
+                  className="w-full pl-11 pr-12 py-3.5 rounded-xl bg-white/10 border-2 border-white/30 text-white placeholder-slate-400 text-base font-bold focus:outline-none focus:border-blue-400 transition-all"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white p-1"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
@@ -1025,7 +1025,7 @@ export default function HomePage() {
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white font-black text-sm shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-4 disabled:opacity-60"
+              className="w-full py-4 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-base border-2 border-white/60 shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer mt-5 disabled:opacity-60"
             >
               {isLoggingIn ? <span>Đang xác thực...</span> : <span>ĐĂNG NHẬP</span>}
             </button>
@@ -1034,25 +1034,25 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setAuthViewMode("link_code")}
-                className="text-xs text-blue-300 hover:text-blue-200 transition-colors cursor-pointer"
+                className="text-sm text-blue-300 hover:text-white transition-colors cursor-pointer font-bold py-2 px-3 rounded-lg border border-blue-400/30 inline-block"
               >
-                Bạn có mã liên kết 8 ký tự? <span className="font-bold underline">Bấm để liên kết Zalo</span>
+                Bạn có mã liên kết 8 ký tự? <span className="underline ml-1">Bấm để liên kết Zalo</span>
               </button>
             </div>
           </form>
         </div>
 
         {/* Footer */}
-        <div className="text-center z-10 pt-4 space-y-1">
+        <div className="text-center z-10 pt-4 space-y-2">
           <button
             type="button"
             onClick={handleClearCache}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 opacity-60 hover:opacity-100 transition-all cursor-pointer py-1 px-3 rounded-lg"
+            className="inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white py-2 px-4 rounded-xl border border-slate-700 bg-slate-800/80 cursor-pointer"
           >
-            <RotateCcw size={12} />
-            <span>Làm mới bộ nhớ đệm (Clear Cache)</span>
+            <RotateCcw size={14} />
+            <span className="font-semibold">Làm mới bộ nhớ đệm (Clear Cache)</span>
           </button>
-          <p className="text-[10px] text-slate-500">
+          <p className="text-xs text-slate-400 font-medium">
             © 2026 CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO. BẢN QUYỀN ĐÃ ĐƯỢC BẢO HỘ.
           </p>
         </div>
@@ -1897,80 +1897,84 @@ export default function HomePage() {
 
         {/* MODAL THÊM NHÂN VIÊN */}
         {isEmployeeModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="font-extrabold text-sm text-slate-800">Thêm Cán Bộ Nhân Sự Mới</h3>
-                <button type="button" onClick={() => setIsEmployeeModalOpen(false)} className="text-slate-400">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4 border-2 border-slate-200">
+              <div className="flex justify-between items-center border-b-2 border-slate-100 pb-3">
+                <h3 className="font-black text-base md:text-lg text-slate-900">Thêm Cán Bộ Nhân Sự Mới</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsEmployeeModalOpen(false)}
+                  className="w-8 h-8 rounded-full border-2 border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+                >
                   <X size={18} />
                 </button>
               </div>
-              <form onSubmit={handleCreateEmployee} className="space-y-3 text-xs">
+              <form onSubmit={handleCreateEmployee} className="space-y-4 text-xs md:text-sm">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-600 font-bold mb-1">Mã NV (ID)</label>
+                    <label className="block text-slate-700 font-black mb-1.5">Mã NV (ID)</label>
                     <input
                       type="text"
                       required
                       placeholder="NV004..."
                       value={newEmployeeForm.ma_nv}
                       onChange={e => setNewEmployeeForm({ ...newEmployeeForm, ma_nv: e.target.value.toUpperCase() })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold uppercase"
+                      className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-blue-600 rounded-xl outline-none font-black uppercase text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-600 font-bold mb-1">Họ và Tên</label>
+                    <label className="block text-slate-700 font-black mb-1.5">Họ và Tên</label>
                     <input
                       type="text"
                       required
                       placeholder="Nguyễn Văn A..."
                       value={newEmployeeForm.ho_ten}
                       onChange={e => setNewEmployeeForm({ ...newEmployeeForm, ho_ten: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold"
+                      className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-blue-600 rounded-xl outline-none font-black text-sm"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-slate-600 font-bold mb-1">Chức Danh Công Việc</label>
+                  <label className="block text-slate-700 font-black mb-1.5">Chức Danh Công Việc</label>
                   <input
                     type="text"
                     required
                     value={newEmployeeForm.chuc_danh}
                     onChange={e => setNewEmployeeForm({ ...newEmployeeForm, chuc_danh: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium"
+                    className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-blue-600 rounded-xl outline-none font-bold text-sm"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-600 font-bold mb-1">Điện Thoại</label>
+                    <label className="block text-slate-700 font-black mb-1.5">Điện Thoại</label>
                     <input
                       type="text"
                       value={newEmployeeForm.dien_thoai}
                       onChange={e => setNewEmployeeForm({ ...newEmployeeForm, dien_thoai: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium"
+                      className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-blue-600 rounded-xl outline-none font-bold text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-600 font-bold mb-1">Lương Cơ Bản (VND)</label>
+                    <label className="block text-slate-700 font-black mb-1.5">Lương Cơ Bản (VND)</label>
                     <input
                       type="number"
                       value={newEmployeeForm.luong_cb}
                       onChange={e => setNewEmployeeForm({ ...newEmployeeForm, luong_cb: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold"
+                      className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-blue-600 rounded-xl outline-none font-black text-sm"
                     />
                   </div>
                 </div>
-                <div className="flex gap-2 pt-2">
+                <div className="flex gap-3 pt-3">
                   <button
                     type="button"
                     onClick={() => setIsEmployeeModalOpen(false)}
-                    className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl"
+                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-xl border-2 border-slate-300 text-sm cursor-pointer"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md cursor-pointer"
+                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl border-2 border-blue-700 shadow-md text-sm cursor-pointer"
                   >
                     Tạo Nhân Viên
                   </button>
@@ -1982,57 +1986,61 @@ export default function HomePage() {
 
         {/* MODAL THÊM LỊCH NGHỈ LỄ */}
         {isHolidayModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="font-extrabold text-sm text-slate-800">Thêm Ngày Lễ Hưởng Lương (x3)</h3>
-                <button type="button" onClick={() => setIsHolidayModalOpen(false)} className="text-slate-400">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 border-2 border-slate-200">
+              <div className="flex justify-between items-center border-b-2 border-slate-100 pb-3">
+                <h3 className="font-black text-base md:text-lg text-slate-900">Thêm Ngày Lễ Hưởng Lương (x3)</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsHolidayModalOpen(false)}
+                  className="w-8 h-8 rounded-full border-2 border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+                >
                   <X size={18} />
                 </button>
               </div>
-              <form onSubmit={handleCreateHoliday} className="space-y-3 text-xs">
+              <form onSubmit={handleCreateHoliday} className="space-y-4 text-xs md:text-sm">
                 <div>
-                  <label className="block text-slate-600 font-bold mb-1">Tên Ngày Lễ</label>
+                  <label className="block text-slate-700 font-black mb-1.5">Tên Ngày Lễ</label>
                   <input
                     type="text"
                     required
                     placeholder="Ví dụ: Giỗ Tổ Hùng Vương..."
                     value={newHolidayForm.holiday_name}
                     onChange={e => setNewHolidayForm({ ...newHolidayForm, holiday_name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold"
+                    className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-indigo-600 rounded-xl outline-none font-black text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-600 font-bold mb-1">Ngày Bắt Đầu</label>
+                  <label className="block text-slate-700 font-black mb-1.5">Ngày Bắt Đầu</label>
                   <input
                     type="date"
                     required
                     value={newHolidayForm.start_date}
                     onChange={e => setNewHolidayForm({ ...newHolidayForm, start_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                    className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-indigo-600 rounded-xl outline-none font-bold text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-600 font-bold mb-1">Ngày Kết Thúc</label>
+                  <label className="block text-slate-700 font-black mb-1.5">Ngày Kết Thúc</label>
                   <input
                     type="date"
                     required
                     value={newHolidayForm.end_date}
                     onChange={e => setNewHolidayForm({ ...newHolidayForm, end_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                    className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-indigo-600 rounded-xl outline-none font-bold text-sm"
                   />
                 </div>
-                <div className="flex gap-2 pt-2">
+                <div className="flex gap-3 pt-3">
                   <button
                     type="button"
                     onClick={() => setIsHolidayModalOpen(false)}
-                    className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl"
+                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-xl border-2 border-slate-300 text-sm cursor-pointer"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-md cursor-pointer"
+                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl border-2 border-indigo-700 shadow-md text-sm cursor-pointer"
                   >
                     Lưu Ngày Lễ
                   </button>
@@ -2044,46 +2052,50 @@ export default function HomePage() {
 
         {/* MODAL ĐỔI MẬT KHẨU */}
         {showChangePassModal && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="font-extrabold text-sm text-slate-800">Đổi Mật Khẩu Cá Nhân</h3>
-                <button type="button" onClick={() => setShowChangePassModal(false)} className="text-slate-400">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 border-2 border-slate-200">
+              <div className="flex justify-between items-center border-b-2 border-slate-100 pb-3">
+                <h3 className="font-black text-base md:text-lg text-slate-900">Đổi Mật Khẩu Cá Nhân</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowChangePassModal(false)}
+                  className="w-8 h-8 rounded-full border-2 border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+                >
                   <X size={18} />
                 </button>
               </div>
-              <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+              <form onSubmit={handleChangePassword} className="space-y-4 text-xs md:text-sm">
                 <div>
-                  <label className="block text-slate-600 font-bold mb-1">Mật khẩu hiện tại</label>
+                  <label className="block text-slate-700 font-black mb-1.5">Mật khẩu hiện tại</label>
                   <input
                     type="password"
                     required
                     value={oldPass}
                     onChange={e => setOldPass(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                    className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-blue-600 rounded-xl outline-none font-bold text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-600 font-bold mb-1">Mật khẩu mới (tối thiểu 6 ký tự)</label>
+                  <label className="block text-slate-700 font-black mb-1.5">Mật khẩu mới (tối thiểu 6 ký tự)</label>
                   <input
                     type="password"
                     required
                     value={newPass}
                     onChange={e => setNewPass(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                    className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 focus:border-blue-600 rounded-xl outline-none font-bold text-sm"
                   />
                 </div>
-                <div className="flex gap-2 pt-2">
+                <div className="flex gap-3 pt-3">
                   <button
                     type="button"
                     onClick={() => setShowChangePassModal(false)}
-                    className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl"
+                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-xl border-2 border-slate-300 text-sm cursor-pointer"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md cursor-pointer"
+                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl border-2 border-blue-700 shadow-md text-sm cursor-pointer"
                   >
                     Lưu Mật Khẩu
                   </button>
@@ -2105,17 +2117,17 @@ export default function HomePage() {
       
       {/* THANH ĐIỀU HƯỚNG QUAY LẠI MÀN HÌNH PC KHI ĐANG Ở CHẾ ĐỘ GIẢ LẬP DI ĐỘNG */}
       {viewMode === "mobile_simulator" && (
-        <div className="w-full max-w-sm mb-3 flex items-center justify-between bg-slate-800 text-white px-4 py-2 rounded-2xl text-xs shadow-lg">
-          <div className="flex items-center gap-1.5 font-bold">
-            <Smartphone size={15} className="text-blue-400" />
+        <div className="w-full max-w-sm mb-3 flex items-center justify-between bg-slate-800 text-white px-4 py-2.5 rounded-2xl text-xs md:text-sm shadow-lg border-2 border-slate-700">
+          <div className="flex items-center gap-2 font-black">
+            <Smartphone size={16} className="text-blue-400" />
             <span>Khung Giả Lập Điện Thoại</span>
           </div>
           <button
             type="button"
             onClick={() => setViewMode("auto")}
-            className="flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white font-black px-3 py-1 rounded-xl text-[11px] cursor-pointer"
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-black px-3.5 py-1.5 rounded-xl text-xs border-2 border-blue-400 cursor-pointer shadow"
           >
-            <Monitor size={12} />
+            <Monitor size={14} />
             <span>Mở Lại Màn Hình PC</span>
           </button>
         </div>
@@ -2160,72 +2172,73 @@ export default function HomePage() {
         )}
 
         {/* 1. HEADER DI ĐỘNG (TƯƠNG THÍCH ZALO CAPSULE) */}
+        {/* 1. HEADER DI ĐỘNG (TƯƠNG THÍCH ZALO CAPSULE) */}
         <header
-          className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white p-4 shadow-lg rounded-b-3xl"
+          className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white p-4 shadow-lg rounded-b-3xl border-b-2 border-blue-600"
           style={{ paddingTop: "calc(env(safe-area-inset-top, 24px) + 12px)" }}
         >
-          <div className="flex items-center justify-between mb-3 min-h-[36px]">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-white p-1 shadow-md border border-white/30 flex items-center justify-center overflow-hidden shrink-0">
+          <div className="flex items-center justify-between mb-3 min-h-[40px]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white p-1 shadow-md border-2 border-white/40 flex items-center justify-center overflow-hidden shrink-0">
                 <img src={sedincoLogo} alt="SEDINCO Logo" className="w-full h-full object-contain" />
               </div>
               <div>
-                <h1 className="font-extrabold text-base tracking-tight leading-tight">SEDINCO HR</h1>
-                <p className="text-[10px] text-blue-200 font-medium">Chấm Công & Quản Trị Nhân Sự</p>
+                <h1 className="font-black text-lg tracking-tight leading-tight">SEDINCO HR</h1>
+                <p className="text-xs text-blue-200 font-bold">Chấm Công & Quản Trị Nhân Sự</p>
               </div>
             </div>
             <div className="min-w-[96px] h-8 pointer-events-none" aria-hidden="true" />
           </div>
 
           {/* User Card */}
-          <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/15 space-y-3">
+          <div className="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border-2 border-white/20 space-y-3.5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3.5">
                 <img
                   src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
                   alt="Avatar"
-                  className="w-12 h-12 rounded-full object-cover border-2 border-white/40 shadow-md"
+                  className="w-14 h-14 rounded-full object-cover border-2 border-white/60 shadow-md"
                 />
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <h2 className="font-bold text-sm text-white">{currentUser?.ho_ten}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-black text-base text-white">{currentUser?.ho_ten}</h2>
                     <span
-                      className={`text-[9px] px-2 py-0.5 rounded-md font-extrabold ${
+                      className={`text-xs px-2.5 py-0.5 rounded-lg font-black border border-white/40 ${
                         activeRole === ROLES.ADMIN
-                          ? "bg-amber-400 text-slate-900"
+                          ? "bg-amber-400 text-slate-950"
                           : activeRole === ROLES.ACCOUNTANT
-                          ? "bg-emerald-400 text-slate-900"
+                          ? "bg-emerald-400 text-slate-950"
                           : activeRole === ROLES.HR
-                          ? "bg-purple-300 text-slate-900"
-                          : "bg-blue-300 text-slate-900"
+                          ? "bg-purple-300 text-slate-950"
+                          : "bg-blue-300 text-slate-950"
                       }`}
                     >
                       {ROLE_LABELS[activeRole]}
                     </span>
                   </div>
-                  <p className="text-xs text-blue-200">{currentUser?.chuc_danh}</p>
-                  <span className="inline-block text-[10px] bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full font-semibold mt-1">
+                  <p className="text-xs text-blue-100 font-medium mt-0.5">{currentUser?.chuc_danh}</p>
+                  <span className="inline-block text-xs bg-emerald-500/30 text-emerald-200 px-2.5 py-0.5 rounded-full font-mono font-bold mt-1 border border-emerald-400/30">
                     Mã: {currentUser?.ma_nv}
                   </span>
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-blue-200 uppercase font-semibold block">Hôm nay</span>
-                <span className="text-xs font-bold text-white">
+                <span className="text-xs text-blue-200 uppercase font-black block">Hôm nay</span>
+                <span className="text-sm font-black text-white">
                   {currentTime.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" })}
                 </span>
               </div>
             </div>
 
             {/* Thanh chuyển đổi nhanh Role demo */}
-            <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1 overflow-x-auto">
-                <span className="text-[10px] text-blue-200 font-semibold mr-0.5 shrink-0">Role:</span>
+            <div className="pt-2.5 border-t border-white/15 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 overflow-x-auto">
+                <span className="text-xs text-blue-200 font-black mr-0.5 shrink-0">Role:</span>
                 <button
                   type="button"
                   onClick={() => handleSwitchDemoRole(ROLES.EMPLOYEE)}
-                  className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold cursor-pointer shrink-0 ${
-                    activeRole === ROLES.EMPLOYEE ? "bg-white text-blue-900" : "bg-black/20 text-white/80"
+                  className={`px-2 py-1 rounded-lg text-xs font-black cursor-pointer shrink-0 border-2 ${
+                    activeRole === ROLES.EMPLOYEE ? "bg-white text-slate-900 border-white" : "bg-black/30 text-white border-white/20"
                   }`}
                 >
                   Nhân Viên
@@ -2233,8 +2246,8 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => handleSwitchDemoRole(ROLES.HR)}
-                  className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold cursor-pointer shrink-0 ${
-                    activeRole === ROLES.HR ? "bg-purple-400 text-purple-950" : "bg-black/20 text-white/80"
+                  className={`px-2 py-1 rounded-lg text-xs font-black cursor-pointer shrink-0 border-2 ${
+                    activeRole === ROLES.HR ? "bg-purple-400 text-purple-950 border-purple-300" : "bg-black/30 text-white border-white/20"
                   }`}
                 >
                   Nhân Sự
@@ -2242,8 +2255,8 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => handleSwitchDemoRole(ROLES.ACCOUNTANT)}
-                  className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold cursor-pointer shrink-0 ${
-                    activeRole === ROLES.ACCOUNTANT ? "bg-emerald-400 text-emerald-950" : "bg-black/20 text-white/80"
+                  className={`px-2 py-1 rounded-lg text-xs font-black cursor-pointer shrink-0 border-2 ${
+                    activeRole === ROLES.ACCOUNTANT ? "bg-emerald-400 text-emerald-950 border-emerald-300" : "bg-black/30 text-white border-white/20"
                   }`}
                 >
                   Kế Toán
@@ -2251,8 +2264,8 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => handleSwitchDemoRole(ROLES.ADMIN)}
-                  className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold cursor-pointer shrink-0 ${
-                    activeRole === ROLES.ADMIN ? "bg-amber-400 text-amber-950" : "bg-black/20 text-white/80"
+                  className={`px-2 py-1 rounded-lg text-xs font-black cursor-pointer shrink-0 border-2 ${
+                    activeRole === ROLES.ADMIN ? "bg-amber-400 text-amber-950 border-amber-300" : "bg-black/30 text-white border-white/20"
                   }`}
                 >
                   Quản Trị
@@ -2262,9 +2275,9 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex items-center gap-1 bg-rose-500 hover:bg-rose-600 px-2.5 py-1 rounded-xl font-bold text-white shadow-md text-[11px] cursor-pointer"
+                className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-xl font-black text-white text-xs border-2 border-rose-400 shadow-md cursor-pointer"
               >
-                <LogOut size={12} />
+                <LogOut size={14} />
                 <span>Thoát</span>
               </button>
             </div>
@@ -2293,26 +2306,26 @@ export default function HomePage() {
 
               {/* Quick Stats Row */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm text-center">
-                  <span className="block text-[10px] text-slate-400 font-semibold uppercase">Công Tháng</span>
-                  <span className="block text-lg font-black text-blue-600 mt-0.5">
+                <div className="bg-white rounded-2xl p-3.5 border-2 border-slate-200 shadow-sm text-center">
+                  <span className="block text-xs text-slate-600 font-black uppercase">Công Tháng</span>
+                  <span className="block text-2xl font-black text-blue-700 mt-0.5">
                     {myAttendanceDays.filter(d => d === "1").length || 21.5}
                   </span>
-                  <span className="text-[9px] text-emerald-600 font-medium">/ 22 ngày</span>
+                  <span className="text-xs text-emerald-700 font-bold">/ 22 ngày</span>
                 </div>
 
-                <div className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm text-center">
-                  <span className="block text-[10px] text-slate-400 font-semibold uppercase">Phép Năm</span>
-                  <span className="block text-lg font-black text-amber-600 mt-0.5">11.0</span>
-                  <span className="text-[9px] text-slate-500 font-medium">ngày còn lại</span>
+                <div className="bg-white rounded-2xl p-3.5 border-2 border-slate-200 shadow-sm text-center">
+                  <span className="block text-xs text-slate-600 font-black uppercase">Phép Năm</span>
+                  <span className="block text-2xl font-black text-amber-700 mt-0.5">11.0</span>
+                  <span className="text-xs text-slate-600 font-bold">ngày còn</span>
                 </div>
 
-                <div className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm text-center">
-                  <span className="block text-[10px] text-slate-400 font-semibold uppercase">Lương Tạm Tính</span>
-                  <span className="block text-sm font-black text-emerald-600 mt-1 line-clamp-1">
+                <div className="bg-white rounded-2xl p-3.5 border-2 border-slate-200 shadow-sm text-center">
+                  <span className="block text-xs text-slate-600 font-black uppercase">Lương Dự Tính</span>
+                  <span className="block text-lg font-black text-emerald-700 mt-1 line-clamp-1">
                     {myPayroll ? `${(myPayroll.netSalary / 1000000).toFixed(1)} tr` : "18.5 tr"}
                   </span>
-                  <span className="text-[9px] text-slate-400">Thực nhận</span>
+                  <span className="text-xs text-slate-500 font-semibold">Thực nhận</span>
                 </div>
               </div>
             </div>
@@ -2320,33 +2333,33 @@ export default function HomePage() {
 
           {/* TAB 2: LỊCH SỬ CHẤM CÔNG */}
           {currentTab === "history" && (
-            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-3">
+            <div className="bg-white rounded-3xl p-4 border-2 border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center justify-between px-2">
                 <button
                   type="button"
                   onClick={() => setSelectedMonth(prev => (prev > 1 ? prev - 1 : 12))}
-                  className="p-2 rounded-xl bg-slate-100 text-slate-600 font-bold"
+                  className="p-2.5 rounded-xl bg-slate-100 text-slate-800 font-black border-2 border-slate-300 cursor-pointer"
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={18} />
                 </button>
                 <div className="text-center">
-                  <h3 className="font-extrabold text-sm text-slate-800">
+                  <h3 className="font-black text-base text-slate-900">
                     Tháng {selectedMonth}, Năm {selectedYear}
                   </h3>
-                  <p className="text-[10px] text-slate-400">Bảng chấm công cá nhân</p>
+                  <p className="text-xs text-slate-500 font-semibold">Bảng chấm công cá nhân</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedMonth(prev => (prev < 12 ? prev + 1 : 1))}
-                  className="p-2 rounded-xl bg-slate-100 text-slate-600 font-bold"
+                  className="p-2.5 rounded-xl bg-slate-100 text-slate-800 font-black border-2 border-slate-300 cursor-pointer"
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={18} />
                 </button>
               </div>
 
               <div className="grid grid-cols-7 gap-1.5 text-center pt-2">
                 {["CN", "T2", "T3", "T4", "T5", "T6", "T7"].map((d, i) => (
-                  <div key={i} className="text-[11px] font-extrabold text-slate-400 py-1">{d}</div>
+                  <div key={i} className="text-xs font-black text-slate-500 py-1">{d}</div>
                 ))}
                 {Array.from({ length: 31 }, (_, idx) => {
                   const dayNum = idx + 1;
@@ -2355,10 +2368,10 @@ export default function HomePage() {
                   return (
                     <div
                       key={idx}
-                      className={`p-1.5 rounded-xl border flex flex-col items-center justify-center min-h-[46px] ${style.bg}`}
+                      className={`p-1.5 rounded-xl border-2 flex flex-col items-center justify-center min-h-[50px] ${style.bg}`}
                     >
-                      <span className="text-[11px] font-bold">{dayNum}</span>
-                      <span className="text-[9px] uppercase font-black">{statusVal || "-"}</span>
+                      <span className="text-xs font-black">{dayNum}</span>
+                      <span className="text-xs uppercase font-black">{statusVal || "-"}</span>
                     </div>
                   );
                 })}
@@ -2368,33 +2381,33 @@ export default function HomePage() {
 
           {/* TAB 3: ĐƠN TỪ (MOBILE) */}
           {currentTab === "requests" && (
-            <div className="space-y-3">
-              <div className="flex justify-between items-center bg-white p-4 rounded-3xl border border-slate-100">
+            <div className="space-y-3.5">
+              <div className="flex justify-between items-center bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-sm">
                 <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">
+                  <h3 className="font-black text-base text-slate-900">
                     {hasPermission(activeRole, "canApproveRequests") ? "Duyệt Đơn Toàn Cty" : "Đơn Từ Của Tôi"}
                   </h3>
-                  <p className="text-xs text-slate-400">Nghỉ phép, tăng ca ngoài giờ, quên chấm công</p>
+                  <p className="text-xs text-slate-500 font-medium">Nghỉ phép, tăng ca ngoài giờ, bổ sung công</p>
                 </div>
                 {hasPermission(activeRole, "canCreateRequest") && (
                   <button
                     type="button"
                     onClick={() => setIsRequestModalOpen(true)}
-                    className="flex items-center gap-1 bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-xl"
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs md:text-sm px-3.5 py-2.5 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer"
                   >
-                    <Plus size={14} />
+                    <Plus size={16} />
                     <span>Tạo Đơn</span>
                   </button>
                 )}
               </div>
 
               {hasPermission(activeRole, "canApproveRequests") && (
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] font-bold">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-black">
                   <button
                     type="button"
                     onClick={() => setRequestFilterStatus("all")}
-                    className={`px-3 py-1.5 rounded-xl shrink-0 transition-all ${
-                      requestFilterStatus === "all" ? "bg-blue-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
+                    className={`px-3.5 py-2 rounded-xl shrink-0 border-2 cursor-pointer transition-all ${
+                      requestFilterStatus === "all" ? "bg-blue-600 text-white border-blue-700 shadow-sm" : "bg-white text-slate-700 border-slate-300"
                     }`}
                   >
                     Tất cả ({allRequests.length})
@@ -2402,8 +2415,8 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => setRequestFilterStatus("pending")}
-                    className={`px-3 py-1.5 rounded-xl shrink-0 transition-all ${
-                      requestFilterStatus === "pending" ? "bg-amber-500 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
+                    className={`px-3.5 py-2 rounded-xl shrink-0 border-2 cursor-pointer transition-all ${
+                      requestFilterStatus === "pending" ? "bg-amber-500 text-white border-amber-600 shadow-sm" : "bg-white text-slate-700 border-slate-300"
                     }`}
                   >
                     Chờ duyệt ({allRequests.filter(r => r.status === "pending").length})
@@ -2411,8 +2424,8 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => setRequestFilterStatus("approved")}
-                    className={`px-3 py-1.5 rounded-xl shrink-0 transition-all ${
-                      requestFilterStatus === "approved" ? "bg-emerald-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
+                    className={`px-3.5 py-2 rounded-xl shrink-0 border-2 cursor-pointer transition-all ${
+                      requestFilterStatus === "approved" ? "bg-emerald-600 text-white border-emerald-700 shadow-sm" : "bg-white text-slate-700 border-slate-300"
                     }`}
                   >
                     Đã duyệt ({allRequests.filter(r => r.status === "approved").length})
@@ -2420,8 +2433,8 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => setRequestFilterStatus("mine")}
-                    className={`px-3 py-1.5 rounded-xl shrink-0 transition-all ${
-                      requestFilterStatus === "mine" ? "bg-indigo-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
+                    className={`px-3.5 py-2 rounded-xl shrink-0 border-2 cursor-pointer transition-all ${
+                      requestFilterStatus === "mine" ? "bg-indigo-600 text-white border-indigo-700 shadow-sm" : "bg-white text-slate-700 border-slate-300"
                     }`}
                   >
                     Đơn của tôi ({allRequests.filter(r => (r.ma_nv || r.employee_id) === currentUser?.ma_nv).length})
@@ -2437,26 +2450,30 @@ export default function HomePage() {
                   })
                 : myRequests
               ).map((req, i) => (
-                <div key={req.id || i} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-2">
+                <div key={req.id || i} className="bg-white rounded-2xl p-4 border-2 border-slate-200 shadow-sm space-y-3">
                   <div className="flex justify-between items-start">
                     <div>
-                      <span className="font-bold text-xs text-slate-900">{req.ho_ten || req.ma_nv}</span>
-                      <span className="text-[11px] text-blue-600 block mt-0.5">{req.type || req.request_type}</span>
+                      <span className="font-black text-sm text-slate-900">{req.ho_ten || req.ma_nv}</span>
+                      <span className="text-xs text-blue-700 font-bold block mt-0.5">{req.type || req.request_type}</span>
                     </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      req.status === "approved" ? "bg-emerald-100 text-emerald-800" : req.status === "rejected" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"
+                    <span className={`text-xs px-3 py-1 rounded-full font-black border-2 ${
+                      req.status === "approved"
+                        ? "bg-emerald-100 text-emerald-900 border-emerald-400"
+                        : req.status === "rejected"
+                        ? "bg-rose-100 text-rose-900 border-rose-400"
+                        : "bg-amber-100 text-amber-900 border-amber-400"
                     }`}>
                       {req.status === "approved" ? "✓ Đã duyệt" : req.status === "rejected" ? "✗ Từ chối" : "⏱ Chờ duyệt"}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl">{req.reason}</p>
+                  <p className="text-xs text-slate-800 bg-slate-50 border border-slate-200 p-3 rounded-xl font-medium leading-relaxed">{req.reason}</p>
                   <div className="flex items-center justify-between pt-1">
-                    <span className="text-[10px] text-slate-400 block">Ngày áp dụng: {req.date || req.request_date}</span>
+                    <span className="text-xs text-slate-500 font-semibold block">Ngày: {req.date || req.request_date}</span>
                     {req.status === "pending" && !hasPermission(activeRole, "canApproveRequests") && (
                       <button
                         type="button"
                         onClick={() => handleCancelRequest(req.id)}
-                        className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-lg border border-rose-200 cursor-pointer transition-all"
+                        className="text-xs font-black text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg border-2 border-rose-300 cursor-pointer transition-all"
                       >
                         Hủy đơn
                       </button>
@@ -2465,33 +2482,33 @@ export default function HomePage() {
 
                   {hasPermission(activeRole, "canApproveRequests") && req.status === "pending" && (
                     (req.ma_nv || req.employee_id) === currentUser?.ma_nv ? (
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
+                      <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-300 inline-block">
                           Đơn của bạn (Không tự duyệt)
                         </span>
                         <button
                           type="button"
                           onClick={() => handleCancelRequest(req.id)}
-                          className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 cursor-pointer transition-all"
+                          className="text-xs font-black text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg border-2 border-rose-300 cursor-pointer transition-all"
                         >
                           Hủy đơn
                         </button>
                       </div>
                     ) : (
-                      <div className="flex gap-2 pt-2 border-t border-slate-100">
+                      <div className="flex gap-2.5 pt-2 border-t border-slate-200">
                         <button
                           type="button"
                           onClick={() => handleApproveRejectRequest(req.id, "approved", req.ma_nv || req.employee_id)}
-                          className="flex-1 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 active:scale-95 shadow-sm"
+                          className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm rounded-xl border-2 border-emerald-700 flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
                         >
-                          <Check size={14} /> Duyệt
+                          <Check size={16} /> Duyệt Đơn
                         </button>
                         <button
                           type="button"
                           onClick={() => handleApproveRejectRequest(req.id, "rejected", req.ma_nv || req.employee_id)}
-                          className="flex-1 py-1.5 bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 active:scale-95 shadow-sm"
+                          className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs md:text-sm rounded-xl border-2 border-rose-700 flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
                         >
-                          <X size={14} /> Từ chối
+                          <X size={16} /> Từ Chối
                         </button>
                       </div>
                     )
@@ -2519,48 +2536,48 @@ export default function HomePage() {
 
           {/* TAB: QUẢN LÝ NHÂN SỰ & CẤP MÃ LIÊN KẾT TRÊN MOBILE */}
           {currentTab === "management" && hasPermission(activeRole, "canManageEmployees") && (
-            <div className="space-y-3">
-              <div className="flex justify-between items-center bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="space-y-3.5">
+              <div className="flex justify-between items-center bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-sm">
                 <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">Danh Sách Nhân Sự & Cấp Mã</h3>
-                  <p className="text-xs text-slate-400">Tổng cộng {allEmployees.length} nhân viên</p>
+                  <h3 className="font-black text-base text-slate-900">Danh Sách Nhân Sự & Cấp Mã</h3>
+                  <p className="text-xs text-slate-500 font-medium">Tổng cộng {allEmployees.length} nhân viên</p>
                 </div>
                 {activeRole === ROLES.ADMIN && (
                   <button
                     type="button"
                     onClick={() => setIsEmployeeModalOpen(true)}
-                    className="flex items-center gap-1 bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-xl"
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs md:text-sm px-3.5 py-2.5 rounded-xl border-2 border-blue-700 cursor-pointer"
                   >
-                    <Plus size={14} />
+                    <Plus size={16} />
                     <span>Thêm NV</span>
                   </button>
                 )}
               </div>
 
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {allEmployees.map((emp, i) => (
-                  <div key={emp.ma_nv || i} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-2.5">
+                  <div key={emp.ma_nv || i} className="bg-white rounded-2xl p-4 border-2 border-slate-200 shadow-sm space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="font-bold text-xs text-slate-900">{emp.ho_ten}</h4>
-                        <span className="text-[11px] text-slate-500">{emp.ma_nv} • {emp.chuc_danh || "Nhân viên"}</span>
+                        <h4 className="font-black text-sm text-slate-900">{emp.ho_ten}</h4>
+                        <span className="text-xs text-slate-600 font-bold">{emp.ma_nv} • {emp.chuc_danh || "Nhân viên"}</span>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-50 text-blue-700">
+                      <span className="text-xs px-2.5 py-1 rounded-full font-black bg-blue-100 text-blue-900 border border-blue-300">
                         {ROLE_LABELS[emp.role] || emp.role || "Nhân Viên"}
                       </span>
                     </div>
 
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                      <span className="text-[11px] text-slate-400">
-                        {emp.dien_thoai || "0905***"}
+                    <div className="flex justify-between items-center pt-2.5 border-t border-slate-100">
+                      <span className="text-xs text-slate-500 font-semibold">
+                        SĐT: {emp.dien_thoai || "0905***"}
                       </span>
                       {hasPermission(activeRole, "canIssueLinkCode") && (
                         <button
                           type="button"
                           onClick={() => handleReissueLinkCode(emp)}
-                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold flex items-center gap-1 text-xs border border-blue-200"
+                          className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-xl font-black flex items-center gap-1.5 text-xs border-2 border-blue-300 cursor-pointer"
                         >
-                          <Key size={13} />
+                          <Key size={14} />
                           <span>Cấp mã Zalo</span>
                         </button>
                       )}
@@ -2573,16 +2590,16 @@ export default function HomePage() {
 
           {/* TAB 4: BẢNG LƯƠNG / PHIẾU LƯƠNG (MOBILE) */}
           {currentTab === "payroll" && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {hasPermission(activeRole, "canViewCompanyPayroll") ? (
-                <div className="space-y-3">
-                  <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-3xl p-5 shadow-lg">
+                <div className="space-y-3.5">
+                  <div className="bg-gradient-to-br from-emerald-600 to-teal-800 text-white rounded-3xl p-5 shadow-md border-2 border-emerald-700">
                     <div className="flex justify-between items-center mb-2">
-                      <h3 className="font-extrabold text-base">Bảng Lương Tháng {selectedMonth}/{selectedYear}</h3>
-                      <span className="text-xs bg-white/20 px-2 py-0.5 rounded-xl">{companyPayroll.length} NV</span>
+                      <h3 className="font-black text-base md:text-lg">Bảng Lương Tháng {selectedMonth}/{selectedYear}</h3>
+                      <span className="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-xl border border-white/30">{companyPayroll.length} NV</span>
                     </div>
-                    <span className="text-xs text-emerald-100 block uppercase">Tổng quỹ lương Net:</span>
-                    <span className="text-xl font-black text-white mt-1 block">
+                    <span className="text-xs text-emerald-100 block font-black uppercase">Tổng quỹ lương Net:</span>
+                    <span className="text-2xl font-black text-white mt-1 block">
                       {companyPayroll.reduce((acc, c) => acc + (Number(c.netSalary) || 0), 0).toLocaleString("vi-VN")} đ
                     </span>
                   </div>
@@ -2591,68 +2608,68 @@ export default function HomePage() {
                     <div
                       key={item.ma_nv || item.id_nhan_vien || idx}
                       onClick={() => setSelectedEmployeeForDetail(item)}
-                      className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex justify-between items-center cursor-pointer"
+                      className="bg-white rounded-2xl p-4 border-2 border-slate-200 shadow-sm flex justify-between items-center cursor-pointer hover:border-emerald-500 transition-all"
                     >
                       <div>
-                        <h4 className="font-bold text-xs text-slate-900">{item.ho_ten}</h4>
-                        <span className="text-[10px] text-slate-400">{item.ma_nv || item.id_nhan_vien} • {item.chuc_danh || "Nhân viên"}</span>
+                        <h4 className="font-black text-sm text-slate-900">{item.ho_ten}</h4>
+                        <span className="text-xs text-slate-500 font-semibold">{item.ma_nv || item.id_nhan_vien} • {item.chuc_danh || "Nhân viên"}</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-sm font-black text-emerald-600 block">
+                        <span className="text-base font-black text-emerald-800 block">
                           {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
                         </span>
-                        <span className="text-[9px] text-blue-600 font-bold">Xem phiếu ➔</span>
+                        <span className="text-xs text-blue-700 font-black">Xem chi tiết ➔</span>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : myPayroll ? (
-                <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b-2 border-slate-100 pb-3">
                     <div>
-                      <h3 className="font-extrabold text-sm text-slate-800">
+                      <h3 className="font-black text-base text-slate-900">
                         Phiếu Lương Tháng {selectedMonth}/{selectedYear}
                       </h3>
-                      <p className="text-xs text-slate-400">Mã: {myPayroll.ma_nv || myPayroll.id_nhan_vien}</p>
+                      <p className="text-xs text-slate-500 font-bold">Mã: {myPayroll.ma_nv || myPayroll.id_nhan_vien}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block font-bold uppercase">Thực Nhận (Net)</span>
-                      <span className="font-black text-base text-emerald-600">
+                      <span className="text-xs text-slate-500 block font-black uppercase">Thực Nhận (Net)</span>
+                      <span className="font-black text-lg text-emerald-800">
                         {Number(myPayroll.netSalary).toLocaleString("vi-VN")} đ
                       </span>
                     </div>
                   </div>
 
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between py-1 border-b border-slate-50">
-                      <span className="text-slate-500">Lương cơ bản HĐ:</span>
-                      <strong className="text-slate-800">{Number(myPayroll.baseSalary).toLocaleString("vi-VN")} đ</strong>
+                  <div className="space-y-2.5 text-xs md:text-sm">
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-600 font-medium">Lương cơ bản HĐ:</span>
+                      <strong className="text-slate-900 font-bold">{Number(myPayroll.baseSalary).toLocaleString("vi-VN")} đ</strong>
                     </div>
-                    <div className="flex justify-between py-1 border-b border-slate-50">
-                      <span className="text-slate-500">Ngày công thực tế:</span>
-                      <strong className="text-blue-600">{myPayroll.totalWorkDays} công</strong>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-600 font-medium">Ngày công thực tế:</span>
+                      <strong className="text-blue-800 font-black">{myPayroll.totalWorkDays} công</strong>
                     </div>
-                    <div className="flex justify-between py-1 border-b border-slate-50">
-                      <span className="text-slate-500">Tổng phụ cấp:</span>
-                      <strong className="text-slate-800">{Number(myPayroll.totalAllowance).toLocaleString("vi-VN")} đ</strong>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-600 font-medium">Tổng phụ cấp:</span>
+                      <strong className="text-slate-900 font-bold">{Number(myPayroll.totalAllowance).toLocaleString("vi-VN")} đ</strong>
                     </div>
-                    <div className="flex justify-between py-1 border-b border-slate-50 text-rose-600">
-                      <span>Trích trừ BHXH (10.5%):</span>
-                      <strong>-{Number(myPayroll.insuranceDeduction || myPayroll.totalInsurance).toLocaleString("vi-VN")} đ</strong>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100 text-rose-700">
+                      <span className="font-medium">Trích trừ BHXH (10.5%):</span>
+                      <strong className="font-bold">-{Number(myPayroll.insuranceDeduction || myPayroll.totalInsurance).toLocaleString("vi-VN")} đ</strong>
                     </div>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => setSelectedEmployeeForDetail(myPayroll)}
-                    className="w-full py-2.5 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-black text-xs md:text-sm rounded-xl border-2 border-emerald-300 flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Printer size={14} />
+                    <Printer size={16} />
                     <span>In Phiếu Lương Chi Tiết</span>
                   </button>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl p-8 text-center text-slate-400">
+                <div className="bg-white rounded-3xl p-8 text-center text-slate-500 font-bold border-2 border-slate-200">
                   Chưa có dữ liệu bảng lương tháng {selectedMonth}/{selectedYear}.
                 </div>
               )}
@@ -2661,41 +2678,41 @@ export default function HomePage() {
 
           {/* TAB 5: HỒ SƠ CÁ NHÂN (MOBILE) */}
           {currentTab === "profile" && (
-            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4 text-center">
+            <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-sm space-y-4 text-center">
               <img
                 src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
                 alt="Avatar"
-                className="w-20 h-20 mx-auto rounded-full object-cover border-2 border-blue-500 shadow-md"
+                className="w-22 h-22 mx-auto rounded-full object-cover border-2 border-blue-600 shadow-md"
               />
               <div>
-                <h3 className="font-extrabold text-base text-slate-800">{currentUser?.ho_ten}</h3>
-                <p className="text-xs text-slate-400">{currentUser?.chuc_danh}</p>
-                <span className="inline-block mt-1 text-[11px] font-bold bg-blue-50 text-blue-700 px-3 py-0.5 rounded-full">
+                <h3 className="font-black text-lg text-slate-900">{currentUser?.ho_ten}</h3>
+                <p className="text-xs text-slate-600 font-semibold">{currentUser?.chuc_danh}</p>
+                <span className="inline-block mt-1 text-xs font-black bg-blue-100 text-blue-900 px-3 py-1 rounded-full border border-blue-300">
                   Mã: {currentUser?.ma_nv} • {ROLE_LABELS[activeRole]}
                 </span>
               </div>
 
-              <div className="text-left space-y-2 text-xs pt-3 border-t border-slate-100">
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-400">Công ty:</span>
-                  <span className="font-bold text-slate-700">SEDINCO Construction</span>
+              <div className="text-left space-y-2.5 text-xs md:text-sm pt-4 border-t-2 border-slate-100">
+                <div className="flex justify-between py-1.5 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Công ty:</span>
+                  <span className="font-bold text-slate-800">SEDINCO Construction</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-400">Điện thoại:</span>
-                  <span className="font-bold text-slate-700">{currentUser?.dien_thoai || "0905123456"}</span>
+                <div className="flex justify-between py-1.5 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Điện thoại:</span>
+                  <span className="font-bold text-slate-800">{currentUser?.dien_thoai || "0905123456"}</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-50">
-                  <span className="text-slate-400">Email:</span>
-                  <span className="font-bold text-slate-700">{currentUser?.email || "nhanvien@sedinco.vn"}</span>
+                <div className="flex justify-between py-1.5 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Email:</span>
+                  <span className="font-bold text-slate-800">{currentUser?.email || "nhanvien@sedinco.vn"}</span>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setShowChangePassModal(true)}
-                className="w-full py-2.5 bg-slate-50 text-blue-600 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5"
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-blue-900 font-black rounded-xl text-xs md:text-sm border-2 border-slate-300 flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Lock size={14} /> Đổi Mật Khẩu Cá Nhân
+                <Lock size={16} /> <span>Đổi Mật Khẩu Cá Nhân</span>
               </button>
             </div>
           )}
@@ -2704,19 +2721,21 @@ export default function HomePage() {
 
         {/* 3. THANH ĐIỀU HƯỚNG ĐÁY MÀN HÌNH DI ĐỘNG */}
         <nav
-          className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 flex justify-around items-center pt-2 px-1 z-40 shadow-lg"
+          className="fixed bottom-0 inset-x-0 bg-white border-t-2 border-slate-300 flex justify-around items-center pt-2 pb-2 px-1 z-40 shadow-xl"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 12px) + 8px)" }}
         >
           {allowedTabs.includes("matrix") && (
             <button
               type="button"
               onClick={() => setCurrentTab("matrix")}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl cursor-pointer ${
-                currentTab === "matrix" ? "text-blue-600 font-bold" : "text-slate-400 hover:text-slate-600"
+              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl cursor-pointer ${
+                currentTab === "matrix"
+                  ? "text-blue-700 font-black bg-blue-50 border-2 border-blue-600 shadow-sm"
+                  : "text-slate-600 font-bold border-2 border-transparent hover:border-slate-300"
               }`}
             >
-              <Calendar size={20} />
-              <span className="text-[10px]">Bảng Công</span>
+              <Calendar size={22} />
+              <span className="text-xs font-black">Bảng Công</span>
             </button>
           )}
 
@@ -2724,12 +2743,14 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setCurrentTab("checkin")}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl cursor-pointer ${
-                currentTab === "checkin" ? "text-blue-600 font-bold" : "text-slate-400 hover:text-slate-600"
+              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl cursor-pointer ${
+                currentTab === "checkin"
+                  ? "text-blue-700 font-black bg-blue-50 border-2 border-blue-600 shadow-sm"
+                  : "text-slate-600 font-bold border-2 border-transparent hover:border-slate-300"
               }`}
             >
-              <Clock size={20} />
-              <span className="text-[10px]">Chấm Công</span>
+              <Clock size={22} />
+              <span className="text-xs font-black">Chấm Công</span>
             </button>
           )}
 
@@ -2737,12 +2758,14 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setCurrentTab("history")}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl cursor-pointer ${
-                currentTab === "history" ? "text-blue-600 font-bold" : "text-slate-400 hover:text-slate-600"
+              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl cursor-pointer ${
+                currentTab === "history"
+                  ? "text-blue-700 font-black bg-blue-50 border-2 border-blue-600 shadow-sm"
+                  : "text-slate-600 font-bold border-2 border-transparent hover:border-slate-300"
               }`}
             >
-              <Calendar size={20} />
-              <span className="text-[10px]">Lịch Sử</span>
+              <Calendar size={22} />
+              <span className="text-xs font-black">Lịch Sử</span>
             </button>
           )}
 
@@ -2750,12 +2773,14 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setCurrentTab("requests")}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl cursor-pointer ${
-                currentTab === "requests" ? "text-blue-600 font-bold" : "text-slate-400 hover:text-slate-600"
+              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl cursor-pointer ${
+                currentTab === "requests"
+                  ? "text-blue-700 font-black bg-blue-50 border-2 border-blue-600 shadow-sm"
+                  : "text-slate-600 font-bold border-2 border-transparent hover:border-slate-300"
               }`}
             >
-              <FileText size={20} />
-              <span className="text-[10px]">
+              <FileText size={22} />
+              <span className="text-xs font-black">
                 {hasPermission(activeRole, "canApproveRequests") ? "Duyệt Đơn" : "Đơn Từ"}
               </span>
             </button>
@@ -2765,12 +2790,14 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setCurrentTab("management")}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl cursor-pointer ${
-                currentTab === "management" ? "text-blue-600 font-bold" : "text-slate-400 hover:text-slate-600"
+              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl cursor-pointer ${
+                currentTab === "management"
+                  ? "text-blue-700 font-black bg-blue-50 border-2 border-blue-600 shadow-sm"
+                  : "text-slate-600 font-bold border-2 border-transparent hover:border-slate-300"
               }`}
             >
-              <Users size={20} />
-              <span className="text-[10px]">Nhân Sự</span>
+              <Users size={22} />
+              <span className="text-xs font-black">Nhân Sự</span>
             </button>
           )}
 
@@ -2778,12 +2805,14 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setCurrentTab("payroll")}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl cursor-pointer ${
-                currentTab === "payroll" ? "text-blue-600 font-bold" : "text-slate-400 hover:text-slate-600"
+              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl cursor-pointer ${
+                currentTab === "payroll"
+                  ? "text-blue-700 font-black bg-blue-50 border-2 border-blue-600 shadow-sm"
+                  : "text-slate-600 font-bold border-2 border-transparent hover:border-slate-300"
               }`}
             >
-              <DollarSign size={20} />
-              <span className="text-[10px]">
+              <DollarSign size={22} />
+              <span className="text-xs font-black">
                 {hasPermission(activeRole, "canViewCompanyPayroll") ? "Bảng Lương" : "Phiếu Lương"}
               </span>
             </button>
@@ -2793,12 +2822,14 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setCurrentTab("profile")}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl cursor-pointer ${
-                currentTab === "profile" ? "text-blue-600 font-bold" : "text-slate-400 hover:text-slate-600"
+              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl cursor-pointer ${
+                currentTab === "profile"
+                  ? "text-blue-700 font-black bg-blue-50 border-2 border-blue-600 shadow-sm"
+                  : "text-slate-600 font-bold border-2 border-transparent hover:border-slate-300"
               }`}
             >
-              <User size={20} />
-              <span className="text-[10px]">Hồ Sơ</span>
+              <User size={22} />
+              <span className="text-xs font-black">Hồ Sơ</span>
             </button>
           )}
         </nav>
@@ -2806,56 +2837,56 @@ export default function HomePage() {
         {/* MODAL HIỂN THỊ MÃ LIÊN KẾT 8 KÝ TỰ ĐƯỢC CẤP */}
         {reissuedCodeModal && (
           <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl text-slate-800 space-y-4 animate-in fade-in zoom-in duration-200 border border-slate-100">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                    <Key size={18} />
+            <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl text-slate-800 space-y-4 border-2 border-slate-200">
+              <div className="flex items-center justify-between pb-3 border-b-2 border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 border-2 border-blue-300 flex items-center justify-center">
+                    <Key size={22} />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-sm text-slate-900">Mã Liên Kết Zalo Mini App</h3>
-                    <p className="text-[10px] text-slate-400">Cấp lúc: {reissuedCodeModal.createdAt}</p>
+                    <h3 className="font-black text-base text-slate-900">Mã Kích Hoạt Zalo</h3>
+                    <p className="text-xs font-bold text-slate-500">Cấp lúc: {reissuedCodeModal.createdAt}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setReissuedCodeModal(null)}
-                  className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+                  className="w-8 h-8 rounded-full bg-slate-100 border-2 border-slate-300 text-slate-700 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
                 >
-                  <X size={15} />
+                  <X size={16} />
                 </button>
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1 text-xs">
-                <div><span className="text-slate-400">Nhân sự:</span> <strong>{reissuedCodeModal.emp.ho_ten}</strong></div>
-                <div><span className="text-slate-400">Mã NV:</span> <strong className="font-mono text-blue-700">{reissuedCodeModal.emp.ma_nv}</strong></div>
-                <div><span className="text-slate-400">Chức danh:</span> <span>{reissuedCodeModal.emp.chuc_danh || "Nhân viên"}</span></div>
+              <div className="bg-slate-50 p-3.5 rounded-2xl border-2 border-slate-200 space-y-1.5 text-xs md:text-sm">
+                <div><span className="text-slate-600 font-bold">Nhân sự:</span> <strong className="text-slate-900 font-black">{reissuedCodeModal.emp.ho_ten}</strong></div>
+                <div><span className="text-slate-600 font-bold">Mã NV:</span> <strong className="font-mono text-blue-800 font-black">{reissuedCodeModal.emp.ma_nv}</strong></div>
+                <div><span className="text-slate-600 font-bold">Chức danh:</span> <span className="font-bold text-slate-700">{reissuedCodeModal.emp.chuc_danh || "Nhân viên"}</span></div>
               </div>
 
-              <div className="text-center p-4 bg-blue-50 rounded-2xl border border-blue-200 space-y-1">
-                <span className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Mã 8 ký tự kích hoạt</span>
-                <div className="text-2xl font-black font-mono tracking-widest text-blue-800 select-all">
+              <div className="text-center p-4 bg-blue-50 rounded-2xl border-2 border-blue-300 space-y-1.5">
+                <span className="text-xs uppercase font-black text-blue-700 tracking-wider">Mã 8 ký tự kích hoạt</span>
+                <div className="text-3xl font-black font-mono tracking-widest text-blue-900 select-all">
                   {reissuedCodeModal.code}
                 </div>
-                <p className="text-[10px] text-slate-500">Mã có hiệu lực liên kết trên Zalo Mini App</p>
+                <p className="text-xs font-bold text-slate-600">Dùng mã này để đăng nhập lần đầu trên điện thoại</p>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2.5 pt-1">
                 <button
                   type="button"
                   onClick={() => {
                     navigator.clipboard?.writeText(reissuedCodeModal.code);
                     showToast(`Đã sao chép mã: ${reissuedCodeModal.code}`, "success");
                   }}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+                  className="flex-1 py-3 px-4 rounded-xl border-2 border-blue-700 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer"
                 >
-                  <Copy size={14} />
+                  <Copy size={16} />
                   <span>Sao Chép Mã</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setReissuedCodeModal(null)}
-                  className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                  className="py-3 px-5 rounded-xl border-2 border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-sm cursor-pointer"
                 >
                   Đóng
                 </button>

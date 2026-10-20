@@ -90,25 +90,25 @@ export default function LinkAccountView({
       </div>
 
       {/* Khung Liên kết Tài khoản F1 */}
-      <div className="w-full max-w-md mx-auto bg-white/10 backdrop-blur-2xl border border-white/15 rounded-3xl p-6 md:p-8 shadow-2xl z-10 my-auto">
+      <div className="w-full max-w-md mx-auto bg-slate-800/90 backdrop-blur-2xl border-2 border-white/20 rounded-3xl p-6 md:p-8 shadow-2xl z-10 my-auto">
         <div className="mb-6 text-center">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold mb-2">
-            <ShieldCheck size={14} />
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-500/30 text-blue-200 text-xs font-bold mb-2 border border-blue-400/40">
+            <ShieldCheck size={16} />
             <span>Xác thực Tài khoản Zalo Mini App</span>
           </div>
-          <h2 className="text-xl font-black text-white tracking-tight">LIÊN KẾT NHÂN SỰ</h2>
-          <p className="text-xs text-slate-300 mt-1">
+          <h2 className="text-2xl font-black text-white tracking-tight">LIÊN KẾT NHÂN SỰ</h2>
+          <p className="text-sm text-slate-200 mt-1">
             Nhập mã liên kết 8 ký tự được cấp bởi phòng Nhân sự Sedinco
           </p>
         </div>
 
         {errorMessage && (
-          <div className="mb-4 p-3.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5">
-            <AlertCircle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+          <div className="mb-4 p-4 rounded-2xl bg-rose-500/30 border-2 border-rose-400 text-white text-sm flex items-start gap-2.5">
+            <AlertCircle size={20} className="text-rose-300 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <span>{errorMessage}</span>
+              <span className="font-bold">{errorMessage}</span>
               {rateLimitCountdown > 0 && (
-                <span className="block mt-1 font-bold text-amber-300">
+                <span className="block mt-1 font-black text-amber-300">
                   Thử lại sau {rateLimitCountdown} giây...
                 </span>
               )}
@@ -120,7 +120,7 @@ export default function LinkAccountView({
         {!previewEmployee ? (
           <form onSubmit={handleCheckCode} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+              <label className="block text-sm font-bold text-white mb-2">
                 Mã Liên Kết Nhân Sự (8 Ký Tự)
               </label>
               <div className="relative">
@@ -134,7 +134,7 @@ export default function LinkAccountView({
                   }}
                   placeholder="Ví dụ: SED-8821..."
                   disabled={isLoadingPreview || rateLimitCountdown > 0}
-                  className="w-full px-4 py-3.5 rounded-xl bg-white/10 border border-white/15 text-white placeholder-slate-400 text-base font-mono tracking-widest text-center focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all uppercase disabled:opacity-50"
+                  className="w-full px-4 py-4 rounded-2xl bg-slate-900 border-2 border-white/40 text-white placeholder-slate-400 text-lg font-mono font-black tracking-widest text-center focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all uppercase disabled:opacity-50"
                   required
                 />
               </div>
@@ -143,14 +143,14 @@ export default function LinkAccountView({
             <button
               type="submit"
               disabled={isLoadingPreview || !code.trim() || rateLimitCountdown > 0}
-              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white font-black text-sm shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-black text-base border-2 border-white/70 shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {isLoadingPreview ? (
                 <span>Đang tra cứu hồ sơ...</span>
               ) : (
                 <>
                   <span>KIỂM TRA MÃ LIÊN KẾT</span>
-                  <ArrowRight size={16} />
+                  <ArrowRight size={18} />
                 </>
               )}
             </button>
@@ -158,27 +158,27 @@ export default function LinkAccountView({
         ) : (
           /* Bước 2: Hiển thị hồ sơ nhân sự để người dùng xác nhận đúng tên mình */
           <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-white/10 border border-white/20 text-center">
-              <div className="w-14 h-14 rounded-full bg-blue-600/30 border border-blue-400/40 text-blue-300 flex items-center justify-center mx-auto mb-2 text-xl font-black">
-                <User size={28} />
+            <div className="p-5 rounded-2xl bg-slate-900 border-2 border-white/30 text-center">
+              <div className="w-16 h-16 rounded-full bg-blue-600/40 border-2 border-blue-400 text-blue-200 flex items-center justify-center mx-auto mb-2 text-2xl font-black">
+                <User size={32} />
               </div>
-              <h3 className="font-black text-lg text-white">
+              <h3 className="font-black text-xl text-white">
                 {previewEmployee.ho_ten || previewEmployee.name}
               </h3>
-              <p className="text-xs text-blue-300 font-semibold mt-0.5">
+              <p className="text-sm text-blue-200 font-bold mt-1">
                 Mã NV: {previewEmployee.ma_nv} • {previewEmployee.chuc_danh || "Cán bộ nhân viên"}
               </p>
-              <div className="mt-3 py-1.5 px-3 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold inline-flex items-center gap-1.5">
-                <CheckCircle2 size={13} />
+              <div className="mt-3 py-2 px-3.5 rounded-xl bg-emerald-500/30 border-2 border-emerald-400 text-emerald-200 text-xs font-black inline-flex items-center gap-2">
+                <CheckCircle2 size={16} />
                 <span>Mã liên kết hợp lệ và sẵn sàng kết nối</span>
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2.5">
               <button
                 type="button"
                 onClick={() => setPreviewEmployee(null)}
-                className="flex-1 py-3 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 font-bold text-xs transition-all cursor-pointer"
+                className="flex-1 py-3.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-black text-sm border-2 border-slate-500 transition-all cursor-pointer"
               >
                 Nhập mã khác
               </button>
@@ -186,7 +186,7 @@ export default function LinkAccountView({
                 type="button"
                 onClick={handleConfirmLink}
                 disabled={isLinking || rateLimitCountdown > 0}
-                className="flex-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="flex-2 py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm border-2 border-white/80 shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isLinking ? <span>Đang kết nối...</span> : <span>XÁC NHẬN LIÊN KẾT</span>}
               </button>
@@ -200,10 +200,10 @@ export default function LinkAccountView({
             <button
               type="button"
               onClick={onSwitchToPasswordLogin}
-              className="text-xs text-blue-300 hover:text-white font-medium inline-flex items-center gap-1.5 transition-all cursor-pointer"
+              className="w-full py-3 px-4 rounded-xl border border-blue-400/40 bg-blue-500/10 text-sm text-blue-200 hover:text-white font-bold inline-flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
-              <Lock size={12} />
-              <span>Đăng nhập bằng tài khoản & mật khẩu (Web / Quản trị)</span>
+              <Lock size={15} />
+              <span>Đăng nhập bằng tài khoản & mật khẩu</span>
             </button>
           </div>
         )}

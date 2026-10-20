@@ -75,23 +75,23 @@ export default function PeriodLockModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl text-slate-800 p-6 animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl text-slate-800 p-6 border-2 border-slate-200">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-slate-100">
+          <div className="flex items-center gap-3">
             <div
-              className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-                isLockAction ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600"
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 ${
+                isLockAction ? "bg-rose-50 text-rose-700 border-rose-300" : "bg-amber-50 text-amber-700 border-amber-300"
               }`}
             >
-              {isLockAction ? <Lock size={20} /> : <Unlock size={20} />}
+              {isLockAction ? <Lock size={24} /> : <Unlock size={24} />}
             </div>
             <div>
-              <h3 className="font-black text-base text-slate-900">
+              <h3 className="font-black text-lg md:text-xl text-slate-900">
                 {isLockAction ? "Chốt Công Kỳ Lương" : "Mở Lại Kỳ Công Đã Chốt"}
               </h3>
-              <p className="text-[11px] text-slate-500 font-medium">
+              <p className="text-sm text-slate-600 font-bold">
                 Tháng {month}/{year}
               </p>
             </div>
@@ -99,29 +99,29 @@ export default function PeriodLockModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-all cursor-pointer"
+            className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 border-2 border-slate-200 flex items-center justify-center cursor-pointer"
           >
-            <X size={16} />
+            <X size={20} />
           </button>
         </div>
 
         {errorMessage && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
-            <AlertTriangle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+          <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-bold flex items-start gap-2.5">
+            <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
             <span>{errorMessage}</span>
           </div>
         )}
 
         {/* Nội dung cảnh báo */}
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2 mb-4">
-          <div className="flex items-center gap-1.5 font-bold">
-            <ShieldAlert size={16} className="text-amber-700" />
+        <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-sm space-y-2 mb-5">
+          <div className="flex items-center gap-2 font-black text-sm text-amber-900">
+            <ShieldAlert size={18} className="text-amber-700" />
             <span>Lưu ý quan trọng về tính toàn vẹn dữ liệu:</span>
           </div>
-          <p className="text-[11px] leading-relaxed text-amber-800">
+          <p className="text-xs md:text-sm leading-relaxed text-amber-900 font-semibold">
             {isLockAction ? (
               <>
-                Sau khi Kế toán xác nhận <strong>Chốt công</strong>, toàn bộ nhật ký chấm công của Tháng {month}/{year} sẽ bị đóng băng. Nhân sự và Nhân viên sẽ <strong>không thể sửa đổi hay bổ sung công</strong> nữa để đảm bảo số liệu tính lương chính xác.
+                Sau khi Kế toán xác nhận <strong>Chốt công</strong>, toàn bộ bảng chấm công của Tháng {month}/{year} sẽ bị đóng băng. Nhân sự và Nhân viên sẽ <strong>không thể sửa đổi hay bổ sung công</strong> nữa để đảm bảo số liệu tính lương chính xác tuyệt đối.
               </>
             ) : (
               <>
@@ -134,47 +134,47 @@ export default function PeriodLockModal({
         <form onSubmit={handleAction} className="space-y-4">
           {!isLockAction && (
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Lý Do Mở Lại Kỳ Công <span className="text-rose-500">*</span>
+              <label className="block text-sm font-black text-slate-800 mb-1.5">
+                Lý Do Mở Lại Kỳ Công <span className="text-rose-600">* (Bắt buộc)</span>
               </label>
               <textarea
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Ghi rõ số quyết định hoặc căn cứ mở lại kỳ công đã chốt..."
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 text-xs focus:outline-none focus:border-amber-500"
+                placeholder="Ghi rõ lý do hoặc căn cứ mở lại kỳ công đã chốt..."
+                className="w-full px-3.5 py-3 rounded-xl border-2 border-slate-300 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-600"
                 required
               />
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer"
+              className="flex-1 py-3.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-sm border-2 border-slate-300 cursor-pointer"
             >
-              Hủy
+              Hủy Bỏ
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`flex-2 py-3 px-4 rounded-xl text-white font-black text-xs shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+              className={`flex-2 py-3.5 px-4 rounded-xl text-white font-black text-sm border-2 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
                 isLockAction
-                  ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/30"
-                  : "bg-amber-600 hover:bg-amber-700 shadow-amber-600/30"
+                  ? "bg-rose-600 hover:bg-rose-700 border-rose-700 shadow-rose-600/20"
+                  : "bg-amber-600 hover:bg-amber-700 border-amber-700 shadow-amber-600/20"
               }`}
             >
               {isSubmitting ? (
                 <span>Đang xử lý...</span>
               ) : isLockAction ? (
                 <>
-                  <Lock size={14} />
+                  <Lock size={16} />
                   <span>XÁC NHẬN CHỐT CÔNG</span>
                 </>
               ) : (
                 <>
-                  <Unlock size={14} />
+                  <Unlock size={16} />
                   <span>XÁC NHẬN MỞ KỲ CÔNG</span>
                 </>
               )}

@@ -79,25 +79,25 @@ export default function DesktopSidebar({
   const menuItems = getMenuItems();
 
   return (
-    <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col justify-between shrink-0 h-screen sticky top-0 border-r border-slate-800 select-none">
+    <aside className="w-72 bg-slate-900 text-slate-200 flex flex-col justify-between shrink-0 h-screen sticky top-0 border-r-2 border-slate-800 select-none">
       
       {/* 1. Header Sidebar: Logo & Thông tin công ty */}
-      <div className="p-5 border-b border-slate-800">
+      <div className="p-5 border-b-2 border-slate-800">
         <CompanyLogo size="small" theme="dark" layout="horizontal" showSubtitle={true} />
 
         {/* 2. Thanh Chuyển Đổi Demo Role Nhanh */}
-        <div className="mt-4 pt-3 border-t border-slate-800/80">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
-            Phân hệ hiện hành ({ROLE_LABELS[activeRole]}):
+        <div className="mt-4 pt-3 border-t border-slate-800">
+          <span className="text-xs font-black uppercase tracking-wider text-slate-300 block mb-2">
+            Vai trò hiện hành ({ROLE_LABELS[activeRole]}):
           </span>
-          <div className="grid grid-cols-2 gap-1 bg-slate-800/80 p-1 rounded-xl">
+          <div className="grid grid-cols-2 gap-1.5 bg-slate-800/90 p-1.5 rounded-2xl border-2 border-slate-700">
             <button
               type="button"
               onClick={() => onSwitchDemoRole(ROLES.EMPLOYEE)}
-              className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border-2 ${
                 activeRole === ROLES.EMPLOYEE
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-blue-600 text-white border-white shadow-md"
+                  : "border-transparent text-slate-300 hover:border-slate-500 hover:text-white"
               }`}
             >
               Nhân Viên
@@ -105,10 +105,10 @@ export default function DesktopSidebar({
             <button
               type="button"
               onClick={() => onSwitchDemoRole(ROLES.HR)}
-              className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border-2 ${
                 activeRole === ROLES.HR
-                  ? "bg-purple-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-purple-600 text-white border-white shadow-md"
+                  : "border-transparent text-slate-300 hover:border-slate-500 hover:text-white"
               }`}
             >
               Nhân Sự
@@ -116,10 +116,10 @@ export default function DesktopSidebar({
             <button
               type="button"
               onClick={() => onSwitchDemoRole(ROLES.ACCOUNTANT)}
-              className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border-2 ${
                 activeRole === ROLES.ACCOUNTANT
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-emerald-600 text-white border-white shadow-md"
+                  : "border-transparent text-slate-300 hover:border-slate-500 hover:text-white"
               }`}
             >
               Kế Toán
@@ -127,10 +127,10 @@ export default function DesktopSidebar({
             <button
               type="button"
               onClick={() => onSwitchDemoRole(ROLES.ADMIN)}
-              className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border-2 ${
                 activeRole === ROLES.ADMIN
-                  ? "bg-amber-500 text-slate-950 shadow-sm"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-amber-500 text-slate-950 border-white shadow-md"
+                  : "border-transparent text-slate-300 hover:border-slate-500 hover:text-white"
               }`}
             >
               Quản Trị
@@ -140,7 +140,7 @@ export default function DesktopSidebar({
       </div>
 
       {/* 3. Danh Sách Menu Điều Hướng */}
-      <nav className="p-3 flex-1 overflow-y-auto space-y-1">
+      <nav className="p-4 flex-1 overflow-y-auto space-y-2">
         {menuItems.map(item => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
@@ -149,21 +149,21 @@ export default function DesktopSidebar({
               key={item.id}
               type="button"
               onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-black transition-all cursor-pointer border-2 ${
                 isActive
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-extrabold"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                  ? "bg-blue-600 text-white border-white shadow-lg shadow-blue-600/30"
+                  : "text-slate-200 border-slate-800 hover:border-slate-600 hover:bg-slate-800/80"
               }`}
             >
-              <div className="flex items-center gap-2.5">
-                <Icon size={16} className={isActive ? "text-white" : "text-slate-400"} />
+              <div className="flex items-center gap-3">
+                <Icon size={18} className={isActive ? "text-white" : "text-slate-400"} />
                 <span>{item.label}</span>
               </div>
 
               {item.badge && (
                 <span
-                  className={`text-[9px] px-2 py-0.5 rounded-full font-black ${
-                    item.badgeColor || (isActive ? "bg-white/20 text-white" : "bg-slate-800 text-slate-300")
+                  className={`text-[11px] px-2.5 py-0.5 rounded-full font-black border ${
+                    item.badgeColor || (isActive ? "bg-white/20 text-white border-white/40" : "bg-slate-800 text-slate-200 border-slate-700")
                   }`}
                 >
                   {item.badge}
@@ -175,40 +175,40 @@ export default function DesktopSidebar({
       </nav>
 
       {/* 4. Footer Sidebar: Người Dùng & Nút Đăng Xuất */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/40 space-y-3">
+      <div className="p-4 border-t-2 border-slate-800 bg-slate-950/60 space-y-3.5">
         <div className="flex items-center gap-3">
           <img
             src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
             alt="Avatar"
-            className="w-10 h-10 rounded-xl object-cover border border-slate-700 shadow-sm"
+            className="w-11 h-11 rounded-2xl object-cover border-2 border-slate-600 shadow-sm"
           />
           <div className="flex-1 min-w-0">
-            <h4 className="font-extrabold text-xs text-white truncate">{currentUser?.ho_ten}</h4>
+            <h4 className="font-black text-sm text-white truncate">{currentUser?.ho_ten}</h4>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-[10px] text-blue-400 font-mono">{currentUser?.ma_nv}</span>
-              <span className="text-[9px] text-slate-500">•</span>
-              <span className="text-[10px] text-slate-400 truncate">{ROLE_LABELS[activeRole]}</span>
+              <span className="text-xs text-blue-400 font-mono font-bold">{currentUser?.ma_nv}</span>
+              <span className="text-xs text-slate-500">•</span>
+              <span className="text-xs text-slate-300 truncate font-semibold">{ROLE_LABELS[activeRole]}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-1 text-xs">
+        <div className="flex items-center gap-2 pt-1">
           <button
             type="button"
             onClick={onClearCache}
-            className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-600 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 hover:text-white transition-all cursor-pointer"
             title="Làm mới bộ nhớ đệm"
           >
-            <RotateCcw size={12} />
+            <RotateCcw size={14} />
             <span>Xóa Cache</span>
           </button>
 
           <button
             type="button"
             onClick={onLogout}
-            className="flex items-center gap-1 text-[11px] text-rose-400 hover:text-rose-300 font-bold cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-rose-500 bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md transition-all cursor-pointer"
           >
-            <LogOut size={12} />
+            <LogOut size={14} />
             <span>Đăng Xuất</span>
           </button>
         </div>

@@ -260,48 +260,43 @@ export default function OneTouchCheckIn({
         </div>
       )}
 
-      {/* NÚT CHẤM CÔNG 1 CHẠM LỚN (BIG BUTTON) */}
+      {/* NÚT CHẤM CÔNG 1 CHẠM LỚN (BIG BUTTON - DỄ BẤM CHO NGƯỜI LỚN TUỔI) */}
       <div className="relative my-4 flex flex-col items-center">
-        {/* Vòng lan tỏa (Ripple Effect) khi đang xử lý */}
-        {(stage === STAGES.LOCATING || stage === STAGES.SUBMITTING || stage === STAGES.BIO_AUTH) && (
-          <div className="absolute inset-0 rounded-full bg-blue-400 animate-ping opacity-30 pointer-events-none" />
-        )}
-
         <button
           type="button"
           onClick={() => handleStartCheckIn(false)}
           disabled={isLockedRef.current || stage === STAGES.SUBMITTING || isLockedPeriod}
-          className={`relative w-48 h-48 md:w-56 md:h-56 rounded-full flex flex-col items-center justify-center text-white transition-all duration-300 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed ${
+          className={`relative w-52 h-52 md:w-60 md:h-60 rounded-full flex flex-col items-center justify-center text-white transition-all duration-200 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed border-[6px] ${
             isLockedPeriod
-              ? "bg-slate-400 border-4 border-slate-300 shadow-none opacity-60"
+              ? "bg-slate-600 border-slate-400 opacity-70"
               : stage === STAGES.SUCCESS
-              ? "bg-gradient-to-tr from-emerald-600 to-teal-500 border-4 border-emerald-300 shadow-emerald-500/40"
+              ? "bg-emerald-600 border-white shadow-emerald-600/50"
               : stage === STAGES.ERROR
-              ? "bg-gradient-to-tr from-rose-600 to-red-500 border-4 border-rose-300 shadow-rose-500/40"
+              ? "bg-rose-600 border-white shadow-rose-600/50"
               : checkinType === "in"
-              ? "bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-700 border-4 border-blue-300 shadow-blue-500/40 hover:shadow-blue-500/60"
-              : "bg-gradient-to-tr from-amber-600 via-orange-600 to-amber-700 border-4 border-amber-300 shadow-amber-500/40 hover:shadow-amber-500/60"
+              ? "bg-blue-600 border-white hover:bg-blue-500 shadow-blue-600/50"
+              : "bg-amber-600 border-white hover:bg-amber-500 shadow-amber-600/50"
           }`}
         >
-          {/* Biểu tượng trạng thái động */}
+          {/* Biểu tượng trạng thái rõ ràng, không giật lắc */}
           <div className="mb-2">
             {stage === STAGES.SUCCESS ? (
-              <CheckCircle2 size={48} className="animate-bounce" />
+              <CheckCircle2 size={54} className="text-white" />
             ) : stage === STAGES.ERROR ? (
-              <AlertCircle size={48} />
+              <AlertCircle size={54} className="text-white" />
             ) : stage === STAGES.BIO_AUTH ? (
-              <Fingerprint size={48} className="animate-pulse text-blue-200" />
+              <Fingerprint size={54} className="text-blue-100" />
             ) : stage === STAGES.LOCATING ? (
-              <MapPin size={48} className="animate-bounce text-amber-200" />
+              <MapPin size={54} className="text-amber-100" />
             ) : stage === STAGES.SUBMITTING ? (
-              <Send size={44} className="animate-pulse" />
+              <Send size={50} className="text-white" />
             ) : (
-              <Clock size={48} />
+              <Clock size={54} className="text-white" />
             )}
           </div>
 
-          {/* Tiêu đề nút */}
-          <span className="font-black text-lg md:text-xl tracking-tight uppercase leading-tight text-center px-4">
+          {/* Tiêu đề nút - Chữ to rõ ràng */}
+          <span className="font-black text-xl md:text-2xl tracking-normal uppercase leading-tight text-center px-4">
             {stage === STAGES.SUBMITTING
               ? "ĐANG XÁC THỰC"
               : stage === STAGES.LOCATING
@@ -311,63 +306,63 @@ export default function OneTouchCheckIn({
               : stage === STAGES.SUCCESS
               ? "THÀNH CÔNG"
               : stage === STAGES.ERROR
-              ? "THỬ LẠI"
+              ? "BẤM THỬ LẠI"
               : checkinType === "in"
               ? "CHẤM CÔNG VÀO"
               : "CHẤM CÔNG RA"}
           </span>
 
-          {/* Phụ đề hướng dẫn */}
-          <span className="text-[11px] font-semibold text-white/80 mt-1">
-            {isLockedPeriod ? "Kỳ đã chốt" : "Chạm 1 lần duy nhất"}
+          {/* Phụ đề hướng dẫn to rõ */}
+          <span className="text-xs md:text-sm font-bold text-white/95 mt-1.5 bg-black/20 px-3 py-0.5 rounded-full">
+            {isLockedPeriod ? "Kỳ công đã chốt" : "Chạm 1 lần vào đây"}
           </span>
         </button>
       </div>
 
-      {/* DÒNG THÔNG BÁO TIẾN ĐỘ 5 TRẠNG THÁI */}
-      <div className="w-full max-w-sm text-center mt-3 space-y-2">
+      {/* DÒNG THÔNG BÁO TIẾN ĐỘ RÕ RÀNG */}
+      <div className="w-full max-w-sm text-center mt-3 space-y-3">
         <div
-          className={`py-2 px-4 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition-all ${
+          className={`py-3 px-5 rounded-2xl text-sm font-extrabold inline-flex items-center justify-center gap-2.5 transition-all border-2 shadow-sm ${
             stage === STAGES.SUCCESS
-              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              ? "bg-emerald-50 text-emerald-900 border-emerald-400"
               : stage === STAGES.ERROR
-              ? "bg-rose-50 text-rose-800 border border-rose-200"
-              : "bg-slate-100 text-slate-700 border border-slate-200"
+              ? "bg-rose-50 text-rose-900 border-rose-400"
+              : "bg-white text-slate-800 border-slate-300"
           }`}
         >
-          {stage === STAGES.SUCCESS && <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />}
-          {stage === STAGES.ERROR && <AlertCircle size={15} className="text-rose-600 shrink-0" />}
+          {stage === STAGES.SUCCESS && <CheckCircle2 size={18} className="text-emerald-700 shrink-0" />}
+          {stage === STAGES.ERROR && <AlertCircle size={18} className="text-rose-700 shrink-0" />}
           {stage !== STAGES.SUCCESS && stage !== STAGES.ERROR && (
-            <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping shrink-0" />
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
           )}
           <span>{statusMessage}</span>
         </div>
 
         {/* Khối Báo Lỗi Chi Tiết & Nút Thử Lại */}
         {stage === STAGES.ERROR && (
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-left space-y-2 animate-in fade-in duration-200">
-            <div className="flex items-start gap-2">
-              <AlertTriangle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-left space-y-3">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-extrabold text-xs text-rose-900">{errorMessage}</h4>
-                {errorDetails && <p className="text-[11px] text-rose-700 mt-0.5">{errorDetails}</p>}
+                <h4 className="font-black text-sm text-rose-950">{errorMessage}</h4>
+                {errorDetails && <p className="text-xs text-rose-800 mt-1 font-medium">{errorDetails}</p>}
               </div>
             </div>
             <button
               type="button"
               onClick={() => handleStartCheckIn(true)}
-              className="w-full py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer mt-1"
+              className="w-full py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-sm flex items-center justify-center gap-2 transition-all cursor-pointer border-2 border-rose-800 shadow-md"
             >
-              <RotateCcw size={13} />
-              <span>Thử lại ngay</span>
+              <RotateCcw size={16} />
+              <span>BẤM VÀO ĐÂY ĐỂ THỬ LẠI</span>
             </button>
           </div>
         )}
 
         {/* Thông tin xác thực giờ Server khi thành công */}
         {serverTimeResult && stage === STAGES.SUCCESS && (
-          <p className="text-[11px] text-slate-500 font-medium">
-            Thời gian xác thực: <span className="font-bold text-slate-700">{serverTimeResult}</span> (Chuẩn NTP Server Sedinco)
+          <p className="text-xs text-slate-700 font-bold bg-white p-2.5 rounded-xl border-2 border-emerald-200">
+            Thời gian xác thực: <span className="text-emerald-700 font-black">{serverTimeResult}</span> (Giờ hệ thống Sedinco)
           </p>
         )}
       </div>

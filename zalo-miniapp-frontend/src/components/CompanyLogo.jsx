@@ -53,7 +53,7 @@ export default function CompanyLogo({
           <p
             className={`font-semibold tracking-wide ${
               theme === "dark" ? "text-slate-300" : "text-slate-500"
-            } ${isLarge ? "text-xs md:text-sm mt-1" : "text-[10px] mt-0.5"}`}
+            } ${isLarge ? "text-xs md:text-sm mt-1" : "text-xs mt-0.5"}`}
           >
             HỆ THỐNG QUẢN TRỊ NHÂN SỰ & CHẤM CÔNG
           </p>
