@@ -1133,6 +1133,7 @@ export default function HomePage() {
                 onRefresh={loadRoleData}
                 userRole={activeRole}
                 onShowToast={showToast}
+                onRecordAuditLog={recordAuditLog}
               />
             )}
 
@@ -1229,44 +1230,65 @@ export default function HomePage() {
                     </p>
                   </div>
 
-                  {/* Filter tabs */}
-                  <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setRequestFilterStatus("all")}
-                      className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
-                        requestFilterStatus === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"
-                      }`}
-                    >
-                      Tất cả ({allRequests.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRequestFilterStatus("pending")}
-                      className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
-                        requestFilterStatus === "pending" ? "bg-amber-500 text-white shadow-sm" : "text-slate-600"
-                      }`}
-                    >
-                      Chờ duyệt ({allRequests.filter(r => r.status === "pending").length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRequestFilterStatus("approved")}
-                      className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
-                        requestFilterStatus === "approved" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600"
-                      }`}
-                    >
-                      Đã duyệt ({allRequests.filter(r => r.status === "approved").length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRequestFilterStatus("rejected")}
-                      className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
-                        requestFilterStatus === "rejected" ? "bg-rose-600 text-white shadow-sm" : "text-slate-600"
-                      }`}
-                    >
-                      Từ chối ({allRequests.filter(r => r.status === "rejected").length})
-                    </button>
+                  {/* Filter tabs & Action */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {hasPermission(activeRole, "canCreateRequest") && (
+                      <button
+                        type="button"
+                        onClick={() => setIsRequestModalOpen(true)}
+                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-95"
+                      >
+                        <Plus size={14} />
+                        <span>Tạo Đơn Mới</span>
+                      </button>
+                    )}
+                    <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setRequestFilterStatus("all")}
+                        className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
+                          requestFilterStatus === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"
+                        }`}
+                      >
+                        Tất cả ({allRequests.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRequestFilterStatus("pending")}
+                        className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
+                          requestFilterStatus === "pending" ? "bg-amber-500 text-white shadow-sm" : "text-slate-600"
+                        }`}
+                      >
+                        Chờ duyệt ({allRequests.filter(r => r.status === "pending").length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRequestFilterStatus("approved")}
+                        className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
+                          requestFilterStatus === "approved" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600"
+                        }`}
+                      >
+                        Đã duyệt ({allRequests.filter(r => r.status === "approved").length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRequestFilterStatus("rejected")}
+                        className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
+                          requestFilterStatus === "rejected" ? "bg-rose-600 text-white shadow-sm" : "text-slate-600"
+                        }`}
+                      >
+                        Từ chối ({allRequests.filter(r => r.status === "rejected").length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRequestFilterStatus("mine")}
+                        className={`px-3 py-1.5 rounded-xl cursor-pointer transition-all ${
+                          requestFilterStatus === "mine" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600"
+                        }`}
+                      >
+                        Đơn của tôi ({allRequests.filter(r => (r.ma_nv || r.employee_id) === currentUser?.ma_nv).length})
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1285,7 +1307,11 @@ export default function HomePage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {allRequests
-                        .filter(r => requestFilterStatus === "all" || r.status === requestFilterStatus)
+                        .filter(r => {
+                          if (requestFilterStatus === "all") return true;
+                          if (requestFilterStatus === "mine") return (r.ma_nv || r.employee_id) === currentUser?.ma_nv;
+                          return r.status === requestFilterStatus;
+                        })
                         .map((req, i) => (
                           <tr key={req.id || i} className="hover:bg-slate-50/60 transition-colors">
                             <td className="p-3 pl-4">
@@ -1317,9 +1343,19 @@ export default function HomePage() {
                             <td className="p-3 text-center pr-4">
                               {req.status === "pending" ? (
                                 (req.ma_nv || req.employee_id) === currentUser?.ma_nv ? (
-                                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
-                                    Đơn của bạn (Không tự duyệt)
-                                  </span>
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
+                                      Đơn của bạn
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCancelRequest(req.id)}
+                                      className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-bold border border-rose-200 text-[10px] cursor-pointer transition-all"
+                                      title="Hủy đơn xin phép này"
+                                    >
+                                      Hủy đơn
+                                    </button>
+                                  </div>
                                 ) : (
                                   <div className="flex items-center justify-center gap-2">
                                     <button
@@ -2159,6 +2195,8 @@ export default function HomePage() {
                           ? "bg-amber-400 text-slate-900"
                           : activeRole === ROLES.ACCOUNTANT
                           ? "bg-emerald-400 text-slate-900"
+                          : activeRole === ROLES.HR
+                          ? "bg-purple-300 text-slate-900"
                           : "bg-blue-300 text-slate-900"
                       }`}
                     >
@@ -2181,13 +2219,22 @@ export default function HomePage() {
 
             {/* Thanh chuyển đổi nhanh Role demo */}
             <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] text-blue-200 font-semibold mr-1">Role:</span>
+              <div className="flex items-center gap-1 overflow-x-auto">
+                <span className="text-[10px] text-blue-200 font-semibold mr-0.5 shrink-0">Role:</span>
                 <button
                   type="button"
                   onClick={() => handleSwitchDemoRole(ROLES.EMPLOYEE)}
-                  className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
+                  className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold cursor-pointer shrink-0 ${
                     activeRole === ROLES.EMPLOYEE ? "bg-white text-blue-900" : "bg-black/20 text-white/80"
+                  }`}
+                >
+                  Nhân Viên
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchDemoRole(ROLES.HR)}
+                  className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold cursor-pointer shrink-0 ${
+                    activeRole === ROLES.HR ? "bg-purple-400 text-purple-950" : "bg-black/20 text-white/80"
                   }`}
                 >
                   Nhân Sự
@@ -2195,7 +2242,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => handleSwitchDemoRole(ROLES.ACCOUNTANT)}
-                  className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
+                  className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold cursor-pointer shrink-0 ${
                     activeRole === ROLES.ACCOUNTANT ? "bg-emerald-400 text-emerald-950" : "bg-black/20 text-white/80"
                   }`}
                 >
@@ -2204,7 +2251,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => handleSwitchDemoRole(ROLES.ADMIN)}
-                  className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer ${
+                  className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold cursor-pointer shrink-0 ${
                     activeRole === ROLES.ADMIN ? "bg-amber-400 text-amber-950" : "bg-black/20 text-white/80"
                   }`}
                 >
@@ -2341,7 +2388,55 @@ export default function HomePage() {
                 )}
               </div>
 
-              {(hasPermission(activeRole, "canApproveRequests") ? allRequests : myRequests).map((req, i) => (
+              {hasPermission(activeRole, "canApproveRequests") && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setRequestFilterStatus("all")}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition-all ${
+                      requestFilterStatus === "all" ? "bg-blue-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
+                    }`}
+                  >
+                    Tất cả ({allRequests.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRequestFilterStatus("pending")}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition-all ${
+                      requestFilterStatus === "pending" ? "bg-amber-500 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
+                    }`}
+                  >
+                    Chờ duyệt ({allRequests.filter(r => r.status === "pending").length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRequestFilterStatus("approved")}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition-all ${
+                      requestFilterStatus === "approved" ? "bg-emerald-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
+                    }`}
+                  >
+                    Đã duyệt ({allRequests.filter(r => r.status === "approved").length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRequestFilterStatus("mine")}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition-all ${
+                      requestFilterStatus === "mine" ? "bg-indigo-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
+                    }`}
+                  >
+                    Đơn của tôi ({allRequests.filter(r => (r.ma_nv || r.employee_id) === currentUser?.ma_nv).length})
+                  </button>
+                </div>
+              )}
+
+              {(hasPermission(activeRole, "canApproveRequests")
+                ? allRequests.filter(r => {
+                    if (requestFilterStatus === "all") return true;
+                    if (requestFilterStatus === "mine") return (r.ma_nv || r.employee_id) === currentUser?.ma_nv;
+                    return r.status === requestFilterStatus;
+                  })
+                : myRequests
+              ).map((req, i) => (
                 <div key={req.id || i} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
@@ -2370,10 +2465,17 @@ export default function HomePage() {
 
                   {hasPermission(activeRole, "canApproveRequests") && req.status === "pending" && (
                     (req.ma_nv || req.employee_id) === currentUser?.ma_nv ? (
-                      <div className="pt-2 border-t border-slate-100 text-center">
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                         <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
-                          Đơn của bạn (Không được tự duyệt)
+                          Đơn của bạn (Không tự duyệt)
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelRequest(req.id)}
+                          className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 cursor-pointer transition-all"
+                        >
+                          Hủy đơn
+                        </button>
                       </div>
                     ) : (
                       <div className="flex gap-2 pt-2 border-t border-slate-100">
@@ -2410,6 +2512,7 @@ export default function HomePage() {
                 onRefresh={loadRoleData}
                 userRole={activeRole}
                 onShowToast={showToast}
+                onRecordAuditLog={recordAuditLog}
               />
             </div>
           )}

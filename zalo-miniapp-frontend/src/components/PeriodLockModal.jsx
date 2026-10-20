@@ -21,6 +21,16 @@ export default function PeriodLockModal({
 
   const handleAction = async (e) => {
     e.preventDefault();
+    if (!isLockAction && userRole !== "admin") {
+      setErrorMessage("Tách quyền: Chỉ Quản Trị Viên mới có thẩm quyền mở lại kỳ công đã chốt!");
+      return;
+    }
+
+    if (isLockAction && userRole !== "accountant" && userRole !== "admin") {
+      setErrorMessage("Tách quyền: Chỉ bộ phận Kế toán mới có quyền chốt sổ kỳ công!");
+      return;
+    }
+
     if (!isLockAction && !reason.trim()) {
       setErrorMessage("Vui lòng ghi rõ lý do mở lại kỳ công đã chốt.");
       return;
@@ -53,7 +63,7 @@ export default function PeriodLockModal({
       }
 
       if (onStatusChanged) {
-        onStatusChanged(isLockAction);
+        onStatusChanged(isLockAction, payload.reason);
       }
       onClose();
     } catch (err) {

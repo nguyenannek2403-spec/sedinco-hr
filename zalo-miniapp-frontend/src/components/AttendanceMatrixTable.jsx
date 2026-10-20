@@ -39,7 +39,8 @@ export default function AttendanceMatrixTable({
   onRefresh,
   userRole = "admin",
   isLocked: propIsLocked,
-  onShowToast
+  onShowToast,
+  onRecordAuditLog
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingCell, setEditingCell] = useState(null); // { emp, dayIndex, currentStatus }
@@ -124,6 +125,14 @@ export default function AttendanceMatrixTable({
         ot_hours: selectedStatus === "OT" || selectedStatus === "1/OT" ? otHours : 0,
         reason: editReason.trim()
       }, { idempotencyKey });
+
+      if (onRecordAuditLog) {
+        onRecordAuditLog(
+          "Điều chỉnh ngày công",
+          `Sửa công ngày ${editingCell.dayNum}/${month}/${year} của ${editingCell.emp.ho_ten} (${editingCell.emp.ma_nv}) thành [${selectedStatus || "Xóa công"}]`,
+          editReason.trim()
+        );
+      }
 
       if (onShowToast) {
         onShowToast(`Đã cập nhật công ngày ${editingCell.dayNum}/${month} cho ${editingCell.emp.ho_ten}!`, "success");
@@ -524,8 +533,15 @@ export default function AttendanceMatrixTable({
           isCurrentlyLocked={isLocked}
           userRole={userRole}
           onClose={() => setShowLockModal(false)}
-          onStatusChanged={(newLocked) => {
+          onStatusChanged={(newLocked, lockReason) => {
             setInternalLocked(newLocked);
+            if (onRecordAuditLog) {
+              onRecordAuditLog(
+                newLocked ? "Chốt kỳ công" : "Mở lại kỳ công",
+                `${newLocked ? "Chốt sổ" : "Mở khóa"} kỳ chấm công tháng ${month}/${year}`,
+                lockReason || (newLocked ? "Kế toán chốt số liệu công tính lương" : "Quản trị viên mở khóa kỳ công")
+              );
+            }
             if (onShowToast) {
               onShowToast(newLocked ? `Đã chốt sổ kỳ công tháng ${month}/${year} thành công!` : `Đã mở khóa kỳ công tháng ${month}/${year}!`, "success");
             }

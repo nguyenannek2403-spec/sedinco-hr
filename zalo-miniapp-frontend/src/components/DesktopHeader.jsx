@@ -22,13 +22,21 @@ export default function DesktopHeader({
   const getTabTitle = () => {
     switch (currentTab) {
       case "matrix":
-        return "Bảng Chấm Công Ma Trận (Toàn Doanh Nghiệp)";
+        return activeRole === "accountant"
+          ? "Bảng Chấm Công Ma Trận (Đối Soát & Chốt Sổ)"
+          : "Bảng Chấm Công Ma Trận (Toàn Doanh Nghiệp)";
       case "payroll":
-        return activeRole === "employee" ? "Phiếu Lương Điện Tử Cá Nhân" : "Bảng Lương & Chi Trả Doanh Nghiệp";
+        return activeRole === "employee" || activeRole === "hr"
+          ? "Phiếu Lương Điện Tử Cá Nhân"
+          : "Bảng Lương & Chi Trả Doanh Nghiệp";
       case "requests":
-        return activeRole === "admin" ? "Trung Tâm Phê Duyệt Đơn Từ" : "Danh Sách Đơn Từ Của Tôi";
+        return activeRole === "admin" || activeRole === "hr"
+          ? "Trung Tâm Phê Duyệt Đơn Từ"
+          : "Danh Sách Đơn Từ Của Tôi";
       case "management":
-        return "Quản Trị Nhân Sự & Phân Quyền (RBAC)";
+        return activeRole === "hr"
+          ? "Hồ Sơ Nhân Sự & Cấp Mã Liên Kết"
+          : "Quản Trị Nhân Sự & Phân Quyền (RBAC)";
       case "company":
         return "Cấu Hình Thông Tin Doanh Nghiệp";
       case "holidays":
