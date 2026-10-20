@@ -40,7 +40,10 @@ import {
   Smartphone,
   Monitor,
   Download,
-  Grid
+  Grid,
+  Key,
+  Copy,
+  ExternalLink
 } from "lucide-react";
 
 import {
@@ -72,7 +75,7 @@ import sedincoLogo from "../static/sedinco-logo.png";
 import OneTouchCheckIn from "../components/OneTouchCheckIn";
 import SmartLeaveRequestModal from "../components/SmartLeaveRequestModal";
 import LinkAccountView from "../components/LinkAccountView";
-import { resolveSession, logoutSession } from "../services/authService";
+import { resolveSession, logoutSession, registerIssuedLinkCode } from "../services/authService";
 
 // Helper style mã công
 const getStatusBadgeStyle = (status) => {
@@ -217,9 +220,73 @@ export default function HomePage() {
     phone: "0236.3888.999",
     address: "KCN Hòa Khánh, Liên Chiểu, TP. Đà Nẵng",
     tax_code: "0401899999",
-    logo_url: ""
+    logo_url: "",
+    work_location_name: "Nhà máy & Văn phòng Hòa Khánh",
+    latitude: 16.0544,
+    longitude: 108.2022,
+    allowed_radius: 50,
+    enable_biometrics: false
   });
   const [isCompanySaving, setIsCompanySaving] = useState(false);
+
+  // State cấp mã liên kết 8 ký tự cho nhân viên
+  const [reissuedCodeModal, setReissuedCodeModal] = useState(null); // { emp, code, createdAt }
+
+  // State Nhật ký thao tác hệ thống (Audit Logs)
+  const [auditLogs, setAuditLogs] = useState(() => {
+    try {
+      const saved = localStorage.getItem("sedinco_audit_logs");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [
+      {
+        id: "log_1",
+        timestamp: "2026-10-18 08:30:15",
+        actor: "ADMIN (Ban Giám Đốc)",
+        action: "Cấu hình hệ thống",
+        details: "Cập nhật tọa độ công trường Hòa Khánh (Bán kính 50m)",
+        reason: "Khởi tạo thông số định vị GPS",
+        status: "success"
+      },
+      {
+        id: "log_2",
+        timestamp: "2026-10-18 10:15:20",
+        actor: "NV003 (Lê Hoàng Yến - HR)",
+        action: "Phê duyệt đơn từ",
+        details: "Duyệt đơn nghỉ phép ngày 20/10 cho NV001",
+        reason: "Đủ điều kiện phép năm",
+        status: "success"
+      },
+      {
+        id: "log_3",
+        timestamp: "2026-10-19 09:00:00",
+        actor: "NV002 (Tô Phương Linh - Kế toán)",
+        action: "Chốt kỳ công",
+        details: "Chốt sổ kỳ công tháng 09/2026 để tính lương",
+        reason: "Hoàn tất đối soát công",
+        status: "success"
+      }
+    ];
+  });
+
+  const recordAuditLog = (action, details, reason) => {
+    const newLog = {
+      id: `log_${Date.now()}`,
+      timestamp: new Date().toLocaleString("vi-VN"),
+      actor: `${currentUser?.ma_nv || "UNKNOWN"} (${currentUser?.ho_ten || "Hệ thống"})`,
+      action,
+      details,
+      reason: reason || "Thao tác quản trị hệ thống",
+      status: "success"
+    };
+    setAuditLogs((prev) => {
+      const updated = [newLog, ...prev];
+      try {
+        localStorage.setItem("sedinco_audit_logs", JSON.stringify(updated.slice(0, 50)));
+      } catch (e) {}
+      return updated;
+    });
+  };
 
   // Modals
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
@@ -237,7 +304,8 @@ export default function HomePage() {
   const [newHolidayForm, setNewHolidayForm] = useState({
     holiday_name: "",
     start_date: new Date().toISOString().split("T")[0],
-    end_date: new Date().toISOString().split("T")[0]
+    end_date: new Date().toISOString().split("T")[0],
+    source: "Điều 112 Bộ luật Lao động 2019"
   });
   const [oldPass, setOldPass] = useState("");
   const [newPass, setNewPass] = useState("");
@@ -670,13 +738,32 @@ export default function HomePage() {
     }
   };
 
-  // Duyệt đơn (Admin)
-  const handleApproveRejectRequest = async (id, newStatus) => {
+  // Duyệt / Từ chối đơn (HR & Admin) - Tách quyền: Không được tự duyệt đơn của chính mình
+  const handleApproveRejectRequest = async (id, newStatus, reqOwnerMaNv) => {
     if (isApproveSubmittingRef.current) return;
+    
+    // TÁCH QUYỀN: Không được tự duyệt đơn của chính mình
+    if (reqOwnerMaNv && reqOwnerMaNv === currentUser?.ma_nv) {
+      showToast("Tách quyền: Bạn không được tự phê duyệt đơn từ của chính mình!", "warning");
+      return;
+    }
+
+    let rejectReason = "";
+    if (newStatus === "rejected") {
+      const promptReason = window.prompt("Vui lòng nhập lý do từ chối đơn:");
+      if (promptReason === null) return;
+      rejectReason = promptReason.trim() || "Không phù hợp kế hoạch công tác";
+    }
+
     isApproveSubmittingRef.current = true;
     try {
-      await safePut(`/requests/${id}`, { status: newStatus });
+      await safePut(`/requests/${id}`, { status: newStatus, reject_reason: rejectReason });
       showToast(`Đã cập nhật đơn thành: ${newStatus === 'approved' ? 'PHÊ DUYỆT' : 'TỪ CHỐI'}!`, "success");
+      recordAuditLog(
+        newStatus === "approved" ? "Phê duyệt đơn" : "Từ chối đơn",
+        `Cập nhật trạng thái đơn #${id} thành ${newStatus} cho ${reqOwnerMaNv || "nhân viên"}`,
+        rejectReason || `Thẩm quyền phê duyệt của ${ROLE_LABELS[activeRole]}`
+      );
       loadRoleData();
     } catch (err) {
       showToast(err.message || "Không thể cập nhật trạng thái đơn.", "error");
@@ -687,11 +774,56 @@ export default function HomePage() {
     }
   };
 
-  // Phân quyền RBAC (Admin)
+  // Hủy đơn của chính mình (Chỉ khi còn chờ duyệt)
+  const handleCancelRequest = async (id) => {
+    if (!window.confirm("Bạn có chắc chắn muốn hủy đơn xin phép này không?")) return;
+    try {
+      await safePut(`/requests/${id}`, { status: "cancelled" });
+      showToast("Đã hủy đơn xin phép thành công!", "success");
+      recordAuditLog("Hủy đơn", `Nhân viên hủy đơn xin phép #${id}`, "Thao tác của người tạo đơn");
+      loadRoleData();
+    } catch (err) {
+      showToast(err.message || "Không thể hủy đơn.", "error");
+    }
+  };
+
+  // Cấp lại mã liên kết Zalo 8 ký tự cho nhân viên (HR & Admin)
+  const handleReissueLinkCode = (emp) => {
+    const randNum = Math.floor(10000 + Math.random() * 90000);
+    const code = `SED${randNum}`;
+    registerIssuedLinkCode(code, {
+      ma_nv: emp.ma_nv,
+      ho_ten: emp.ho_ten,
+      chuc_danh: emp.chuc_danh || "Nhân viên",
+      role: emp.role || ROLES.EMPLOYEE
+    });
+    setReissuedCodeModal({
+      emp,
+      code,
+      createdAt: new Date().toLocaleTimeString("vi-VN")
+    });
+    recordAuditLog(
+      "Cấp mã liên kết Zalo",
+      `Tạo mã ${code} cho nhân sự ${emp.ho_ten} (${emp.ma_nv})`,
+      "Hỗ trợ nhân viên kích hoạt Zalo Mini App"
+    );
+    showToast(`Đã cấp mã liên kết mới: ${code}`, "success");
+  };
+
+  // Phân quyền RBAC (Admin) - Bảo mật: Không tự nâng/hạ quyền chính mình
   const handleUpdateRole = async (ma_nv, newRole) => {
+    if (ma_nv === currentUser?.ma_nv) {
+      showToast("Bảo mật: Bạn không thể tự thay đổi vai trò phân quyền của chính mình!", "warning");
+      return;
+    }
     try {
       await safePut(`/employees/${ma_nv}/role`, { role: newRole });
       showToast(`Đã cập nhật vai trò nhân sự ${ma_nv} thành: ${ROLE_LABELS[newRole] || newRole}`, "success");
+      recordAuditLog(
+        "Cập nhật vai trò (RBAC)",
+        `Chuyển vai trò của ${ma_nv} sang ${ROLE_LABELS[newRole]}`,
+        "Điều chỉnh quyền hạn người dùng"
+      );
       loadRoleData();
     } catch (err) {
       showToast(err.message || "Lỗi cập nhật phân quyền.", "error");
@@ -1184,24 +1316,30 @@ export default function HomePage() {
                             </td>
                             <td className="p-3 text-center pr-4">
                               {req.status === "pending" ? (
-                                <div className="flex items-center justify-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleApproveRejectRequest(req.id, "approved")}
-                                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1 cursor-pointer active:scale-95"
-                                  >
-                                    <Check size={12} />
-                                    <span>Phê Duyệt</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleApproveRejectRequest(req.id, "rejected")}
-                                    className="px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold flex items-center gap-1 cursor-pointer active:scale-95"
-                                  >
-                                    <X size={12} />
-                                    <span>Từ Chối</span>
-                                  </button>
-                                </div>
+                                (req.ma_nv || req.employee_id) === currentUser?.ma_nv ? (
+                                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
+                                    Đơn của bạn (Không tự duyệt)
+                                  </span>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApproveRejectRequest(req.id, "approved", req.ma_nv || req.employee_id)}
+                                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1 cursor-pointer active:scale-95 shadow-sm"
+                                    >
+                                      <Check size={12} />
+                                      <span>Phê Duyệt</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApproveRejectRequest(req.id, "rejected", req.ma_nv || req.employee_id)}
+                                      className="px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold flex items-center gap-1 cursor-pointer active:scale-95 shadow-sm"
+                                    >
+                                      <X size={12} />
+                                      <span>Từ Chối</span>
+                                    </button>
+                                  </div>
+                                )
                               ) : (
                                 <span className="text-[11px] text-slate-400 italic">Đã xử lý</span>
                               )}
@@ -1238,13 +1376,24 @@ export default function HomePage() {
                       <div className="flex justify-between items-start">
                         <span className="font-bold text-slate-900 text-xs">{req.type || req.request_type}</span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          req.status === "approved" ? "bg-emerald-100 text-emerald-800" : req.status === "rejected" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"
+                          req.status === "approved" ? "bg-emerald-100 text-emerald-800" : req.status === "rejected" ? "bg-rose-100 text-rose-800" : req.status === "cancelled" ? "bg-slate-200 text-slate-600" : "bg-amber-100 text-amber-800"
                         }`}>
-                          {req.status === "approved" ? "✓ Đã duyệt" : req.status === "rejected" ? "✗ Từ chối" : "⏱ Chờ duyệt"}
+                          {req.status === "approved" ? "✓ Đã duyệt" : req.status === "rejected" ? "✗ Từ chối" : req.status === "cancelled" ? "Đã hủy" : "⏱ Chờ duyệt"}
                         </span>
                       </div>
                       <p className="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-100">{req.reason}</p>
-                      <span className="text-[10px] text-slate-400 block">Ngày xin: {req.date || req.request_date}</span>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[10px] text-slate-400 block">Ngày xin: {req.date || req.request_date}</span>
+                        {req.status === "pending" && (
+                          <button
+                            type="button"
+                            onClick={() => handleCancelRequest(req.id)}
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-lg border border-rose-200 cursor-pointer transition-all"
+                          >
+                            Hủy đơn
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1297,24 +1446,41 @@ export default function HomePage() {
                           </td>
                           <td className="p-3 text-center">
                             <select
-                              value={emp.role || (emp.chuc_danh?.includes("Giám Đốc") ? ROLES.ADMIN : emp.chuc_danh?.includes("Kế Toán") ? ROLES.ACCOUNTANT : ROLES.EMPLOYEE)}
+                              value={emp.role || (emp.chuc_danh?.includes("Giám Đốc") ? ROLES.ADMIN : emp.chuc_danh?.includes("Kế Toán") ? ROLES.ACCOUNTANT : emp.chuc_danh?.includes("Nhân Sự") ? ROLES.HR : ROLES.EMPLOYEE)}
                               onChange={(e) => handleUpdateRole(emp.ma_nv, e.target.value)}
-                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-300 text-xs font-bold text-blue-800 outline-none cursor-pointer"
+                              disabled={emp.ma_nv === currentUser?.ma_nv}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-300 text-xs font-bold text-blue-800 outline-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                               <option value={ROLES.ADMIN}>👑 Quản Trị Viên (Admin)</option>
+                              <option value={ROLES.HR}>📋 Nhân Sự (HR)</option>
                               <option value={ROLES.ACCOUNTANT}>📊 Bộ Phận Kế Toán</option>
                               <option value={ROLES.EMPLOYEE}>👤 Cán Bộ Nhân Viên</option>
                             </select>
                           </td>
                           <td className="p-3 text-center pr-4">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteEmployee(emp.ma_nv)}
-                              className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
-                              title="Xóa nhân sự"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                            <div className="flex items-center justify-center gap-1.5">
+                              {hasPermission(activeRole, "canIssueLinkCode") && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleReissueLinkCode(emp)}
+                                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold flex items-center gap-1 cursor-pointer transition-all border border-blue-200 text-[11px]"
+                                  title="Cấp lại mã liên kết Zalo Mini App 8 ký tự"
+                                >
+                                  <Key size={12} />
+                                  <span>Cấp mã Zalo</span>
+                                </button>
+                              )}
+                              {activeRole === ROLES.ADMIN && emp.ma_nv !== currentUser?.ma_nv && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteEmployee(emp.ma_nv)}
+                                  className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                                  title="Xóa nhân sự"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1378,6 +1544,75 @@ export default function HomePage() {
                     />
                   </div>
 
+                  <div className="pt-4 border-t border-slate-100">
+                    <h4 className="font-extrabold text-sm text-slate-800 mb-3 flex items-center gap-1.5">
+                      <MapPin size={16} className="text-blue-600" />
+                      <span>Cấu Hình Tọa Độ GPS & Bán Kính Chấm Công</span>
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-slate-700 font-bold mb-1">Tên Điểm Làm Việc</label>
+                        <input
+                          type="text"
+                          required
+                          value={companyInfo.work_location_name || ""}
+                          onChange={e => setCompanyInfo({ ...companyInfo, work_location_name: e.target.value })}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-700 font-bold mb-1">Bán Kính Cho Phép (Mét)</label>
+                        <input
+                          type="number"
+                          required
+                          min={10}
+                          max={1000}
+                          value={companyInfo.allowed_radius || 50}
+                          onChange={e => setCompanyInfo({ ...companyInfo, allowed_radius: Number(e.target.value) })}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-blue-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-700 font-bold mb-1">Vĩ Độ (Latitude)</label>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          required
+                          value={companyInfo.latitude || 16.0544}
+                          onChange={e => setCompanyInfo({ ...companyInfo, latitude: parseFloat(e.target.value) })}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-700 font-bold mb-1">Kinh Độ (Longitude)</label>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          required
+                          value={companyInfo.longitude || 108.2022}
+                          onChange={e => setCompanyInfo({ ...companyInfo, longitude: parseFloat(e.target.value) })}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                    <div>
+                      <span className="font-bold text-slate-800 text-xs block">Xác Thực Sinh Trắc Học (Biometrics)</span>
+                      <span className="text-[11px] text-slate-500">Mặc định TẮT theo chính sách Zalo Mini App. Chỉ bật khi đã được cấp phép.</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(companyInfo.enable_biometrics)}
+                        onChange={e => setCompanyInfo({ ...companyInfo, enable_biometrics: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
                   <button
                     type="submit"
                     disabled={isCompanySaving}
@@ -1419,8 +1654,64 @@ export default function HomePage() {
                       <p className="text-xs text-indigo-700 font-semibold font-mono">
                         {String(h.start_date).split("T")[0]} ➔ {String(h.end_date).split("T")[0]}
                       </p>
+                      <p className="text-[10px] text-slate-500 font-medium">Căn cứ: {h.source || "Điều 112 Bộ luật Lao động 2019"}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: NHẬT KÝ THAO TÁC HỆ THỐNG - AUDIT LOGS (CHỈ ĐỌC) */}
+            {currentTab === "audit_logs" && hasPermission(activeRole, "canViewAuditLogs") && (
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                      <ShieldCheck className="text-emerald-600" size={20} />
+                      <span>NHẬT KÝ THAO TÁC HỆ THỐNG (AUDIT LOGS)</span>
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Bản ghi vết kiểm toán chỉ đọc (Append-only) — Không thể chỉnh sửa hoặc xóa theo chuẩn bảo mật
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold">
+                    {auditLogs.length} Bản Ghi
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase text-[11px]">
+                        <th className="p-3 pl-4">Thời Gian</th>
+                        <th className="p-3">Tác Nhân (Actor)</th>
+                        <th className="p-3">Hành Động</th>
+                        <th className="p-3">Chi Tiết Thao Tác</th>
+                        <th className="p-3">Lý Do / Căn Cứ</th>
+                        <th className="p-3 text-center pr-4">Trạng Thái</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {auditLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="p-3 pl-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">{log.timestamp}</td>
+                          <td className="p-3 font-bold text-slate-800">{log.actor}</td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-bold text-[10px] border border-blue-200">
+                              {log.action}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-600">{log.details}</td>
+                          <td className="p-3 text-slate-500 italic">{log.reason}</td>
+                          <td className="p-3 text-center pr-4">
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                              Thành công
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -2064,28 +2355,116 @@ export default function HomePage() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl">{req.reason}</p>
-                  <span className="text-[10px] text-slate-400 block">Ngày áp dụng: {req.date || req.request_date}</span>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-slate-400 block">Ngày áp dụng: {req.date || req.request_date}</span>
+                    {req.status === "pending" && !hasPermission(activeRole, "canApproveRequests") && (
+                      <button
+                        type="button"
+                        onClick={() => handleCancelRequest(req.id)}
+                        className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-lg border border-rose-200 cursor-pointer transition-all"
+                      >
+                        Hủy đơn
+                      </button>
+                    )}
+                  </div>
 
                   {hasPermission(activeRole, "canApproveRequests") && req.status === "pending" && (
-                    <div className="flex gap-2 pt-2 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={() => handleApproveRejectRequest(req.id, "approved")}
-                        className="flex-1 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1"
-                      >
-                        <Check size={14} /> Duyệt
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleApproveRejectRequest(req.id, "rejected")}
-                        className="flex-1 py-1.5 bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1"
-                      >
-                        <X size={14} /> Từ chối
-                      </button>
-                    </div>
+                    (req.ma_nv || req.employee_id) === currentUser?.ma_nv ? (
+                      <div className="pt-2 border-t border-slate-100 text-center">
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
+                          Đơn của bạn (Không được tự duyệt)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 pt-2 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => handleApproveRejectRequest(req.id, "approved", req.ma_nv || req.employee_id)}
+                          className="flex-1 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 active:scale-95 shadow-sm"
+                        >
+                          <Check size={14} /> Duyệt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApproveRejectRequest(req.id, "rejected", req.ma_nv || req.employee_id)}
+                          className="flex-1 py-1.5 bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 active:scale-95 shadow-sm"
+                        >
+                          <X size={14} /> Từ chối
+                        </button>
+                      </div>
+                    )
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* TAB: BẢNG CÔNG MA TRẬN TRÊN MOBILE */}
+          {currentTab === "matrix" && (
+            <div className="space-y-3">
+              <AttendanceMatrixTable
+                attendanceData={attendanceMatrix}
+                month={selectedMonth}
+                year={selectedYear}
+                onMonthChange={(m, y) => { setSelectedMonth(m); setSelectedYear(y); }}
+                onRefresh={loadRoleData}
+                userRole={activeRole}
+                onShowToast={showToast}
+              />
+            </div>
+          )}
+
+          {/* TAB: QUẢN LÝ NHÂN SỰ & CẤP MÃ LIÊN KẾT TRÊN MOBILE */}
+          {currentTab === "management" && hasPermission(activeRole, "canManageEmployees") && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">Danh Sách Nhân Sự & Cấp Mã</h3>
+                  <p className="text-xs text-slate-400">Tổng cộng {allEmployees.length} nhân viên</p>
+                </div>
+                {activeRole === ROLES.ADMIN && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEmployeeModalOpen(true)}
+                    className="flex items-center gap-1 bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-xl"
+                  >
+                    <Plus size={14} />
+                    <span>Thêm NV</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-2.5">
+                {allEmployees.map((emp, i) => (
+                  <div key={emp.ma_nv || i} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-2.5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-xs text-slate-900">{emp.ho_ten}</h4>
+                        <span className="text-[11px] text-slate-500">{emp.ma_nv} • {emp.chuc_danh || "Nhân viên"}</span>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-50 text-blue-700">
+                        {ROLE_LABELS[emp.role] || emp.role || "Nhân Viên"}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                      <span className="text-[11px] text-slate-400">
+                        {emp.dien_thoai || "0905***"}
+                      </span>
+                      {hasPermission(activeRole, "canIssueLinkCode") && (
+                        <button
+                          type="button"
+                          onClick={() => handleReissueLinkCode(emp)}
+                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold flex items-center gap-1 text-xs border border-blue-200"
+                        >
+                          <Key size={13} />
+                          <span>Cấp mã Zalo</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -2225,6 +2604,19 @@ export default function HomePage() {
           className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 flex justify-around items-center pt-2 px-1 z-40 shadow-lg"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 12px) + 8px)" }}
         >
+          {allowedTabs.includes("matrix") && (
+            <button
+              type="button"
+              onClick={() => setCurrentTab("matrix")}
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl cursor-pointer ${
+                currentTab === "matrix" ? "text-blue-600 font-bold" : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              <Calendar size={20} />
+              <span className="text-[10px]">Bảng Công</span>
+            </button>
+          )}
+
           {allowedTabs.includes("checkin") && (
             <button
               type="button"
@@ -2238,7 +2630,7 @@ export default function HomePage() {
             </button>
           )}
 
-          {allowedTabs.includes("history") && (
+          {allowedTabs.includes("history") && !allowedTabs.includes("matrix") && (
             <button
               type="button"
               onClick={() => setCurrentTab("history")}
@@ -2260,7 +2652,22 @@ export default function HomePage() {
               }`}
             >
               <FileText size={20} />
-              <span className="text-[10px]">Đơn Từ</span>
+              <span className="text-[10px]">
+                {hasPermission(activeRole, "canApproveRequests") ? "Duyệt Đơn" : "Đơn Từ"}
+              </span>
+            </button>
+          )}
+
+          {allowedTabs.includes("management") && (
+            <button
+              type="button"
+              onClick={() => setCurrentTab("management")}
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl cursor-pointer ${
+                currentTab === "management" ? "text-blue-600 font-bold" : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              <Users size={20} />
+              <span className="text-[10px]">Nhân Sự</span>
             </button>
           )}
 
@@ -2292,6 +2699,67 @@ export default function HomePage() {
             </button>
           )}
         </nav>
+
+        {/* MODAL HIỂN THỊ MÃ LIÊN KẾT 8 KÝ TỰ ĐƯỢC CẤP */}
+        {reissuedCodeModal && (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl text-slate-800 space-y-4 animate-in fade-in zoom-in duration-200 border border-slate-100">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Key size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900">Mã Liên Kết Zalo Mini App</h3>
+                    <p className="text-[10px] text-slate-400">Cấp lúc: {reissuedCodeModal.createdAt}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReissuedCodeModal(null)}
+                  className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1 text-xs">
+                <div><span className="text-slate-400">Nhân sự:</span> <strong>{reissuedCodeModal.emp.ho_ten}</strong></div>
+                <div><span className="text-slate-400">Mã NV:</span> <strong className="font-mono text-blue-700">{reissuedCodeModal.emp.ma_nv}</strong></div>
+                <div><span className="text-slate-400">Chức danh:</span> <span>{reissuedCodeModal.emp.chuc_danh || "Nhân viên"}</span></div>
+              </div>
+
+              <div className="text-center p-4 bg-blue-50 rounded-2xl border border-blue-200 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Mã 8 ký tự kích hoạt</span>
+                <div className="text-2xl font-black font-mono tracking-widest text-blue-800 select-all">
+                  {reissuedCodeModal.code}
+                </div>
+                <p className="text-[10px] text-slate-500">Mã có hiệu lực liên kết trên Zalo Mini App</p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(reissuedCodeModal.code);
+                    showToast(`Đã sao chép mã: ${reissuedCodeModal.code}`, "success");
+                  }}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+                >
+                  <Copy size={14} />
+                  <span>Sao Chép Mã</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReissuedCodeModal(null)}
+                  className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL PHIẾU LƯƠNG TRÊN MOBILE */}
         {selectedEmployeeForDetail && (

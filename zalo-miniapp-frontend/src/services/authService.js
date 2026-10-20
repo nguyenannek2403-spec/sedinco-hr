@@ -19,6 +19,21 @@ const MOCK_LINK_CODES = {
 };
 
 /**
+ * Đăng ký mã liên kết mới được cấp bởi HR hoặc Admin
+ */
+export const registerIssuedLinkCode = (code, userInfo) => {
+  if (code && userInfo) {
+    const key = code.toUpperCase();
+    MOCK_LINK_CODES[key] = userInfo;
+    try {
+      const stored = JSON.parse(localStorage.getItem("sedinco_issued_link_codes") || "{}");
+      stored[key] = userInfo;
+      localStorage.setItem("sedinco_issued_link_codes", JSON.stringify(stored));
+    } catch (e) {}
+  }
+};
+
+/**
  * F0: Xác định phiên đăng nhập tự động khi mở Mini App
  */
 export const resolveSession = async () => {
@@ -114,10 +129,14 @@ export const previewLinkCode = async (code) => {
     // Backend V1 fallback sang mock demo
   }
 
-  // 2. Kiểm tra danh sách mock mẫu
+  // 2. Kiểm tra danh sách mock mẫu hoặc mã được cấp
   if (MOCK_LINK_CODES[cleanCode]) {
     return MOCK_LINK_CODES[cleanCode];
   }
+  try {
+    const stored = JSON.parse(localStorage.getItem("sedinco_issued_link_codes") || "{}");
+    if (stored[cleanCode]) return stored[cleanCode];
+  } catch (e) {}
 
   throw new Error("Mã liên kết không tồn tại hoặc đã hết hạn. Vui lòng liên hệ phòng Nhân sự.");
 };
@@ -146,8 +165,15 @@ export const confirmLinkAccount = async (code, zaloAccessToken) => {
     }
   } catch (err) {
     // Nếu backend chưa hỗ trợ /auth/link, fallback kích hoạt mock để test flow
-    if (MOCK_LINK_CODES[cleanCode]) {
-      const mockUser = MOCK_LINK_CODES[cleanCode];
+    let mockUser = MOCK_LINK_CODES[cleanCode];
+    if (!mockUser) {
+      try {
+        const stored = JSON.parse(localStorage.getItem("sedinco_issued_link_codes") || "{}");
+        if (stored[cleanCode]) mockUser = stored[cleanCode];
+      } catch (e) {}
+    }
+
+    if (mockUser) {
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(mockUser));
       return { success: true, user: mockUser, role: mockUser.role, token: "mock_jwt_token" };
     }

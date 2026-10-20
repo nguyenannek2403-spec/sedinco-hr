@@ -47,8 +47,8 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.HR]: {
     name: "Nhân Sự (HR)",
-    allowedTabs: ["hr_dashboard", "requests", "matrix", "management", "history", "profile"],
-    defaultTab: "hr_dashboard",
+    allowedTabs: ["matrix", "requests", "management", "history", "payroll", "checkin", "profile"],
+    defaultTab: "matrix",
     canCheckIn: true,
     canViewOwnAttendance: true,
     canViewAllAttendance: true,
@@ -70,7 +70,7 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.ACCOUNTANT]: {
     name: "Kế Toán",
-    allowedTabs: ["matrix", "payroll", "anomalies", "history", "profile"],
+    allowedTabs: ["matrix", "payroll", "history", "checkin", "profile"],
     defaultTab: "matrix",
     canCheckIn: true,
     canViewOwnAttendance: true,
@@ -94,8 +94,8 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.ADMIN]: {
     name: "Quản Trị",
-    allowedTabs: ["admin_dashboard", "matrix", "payroll", "requests", "management", "company", "holidays", "audit_logs", "profile"],
-    defaultTab: "admin_dashboard",
+    allowedTabs: ["matrix", "payroll", "requests", "management", "company", "holidays", "audit_logs", "checkin", "profile"],
+    defaultTab: "matrix",
     canCheckIn: true,
     canViewOwnAttendance: true,
     canViewAllAttendance: true,

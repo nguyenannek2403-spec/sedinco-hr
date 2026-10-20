@@ -38,6 +38,7 @@ export default function DesktopSidebar({
         { id: "management", label: "Quản Lý Nhân Sự & RBAC", icon: Users },
         { id: "company", label: "Cấu Hình Doanh Nghiệp", icon: Building },
         { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", icon: Gift },
+        { id: "audit_logs", label: "Nhật Ký Thao Tác", icon: ShieldCheck },
         { id: "checkin", label: "Điểm Danh Thử Nghiệm", icon: Clock },
         { id: "profile", label: "Hồ Sơ Quản Trị", icon: User }
       ];
@@ -60,6 +61,7 @@ export default function DesktopSidebar({
         { id: "management", label: "Cấp Mã & Nhân Sự", icon: Users },
         { id: "history", label: "Lịch Sử Công Cá Nhân", icon: Calendar },
         { id: "payroll", label: "Phiếu Lương Cá Nhân", icon: DollarSign },
+        { id: "checkin", label: "Điểm Danh Thử Nghiệm", icon: Clock },
         { id: "profile", label: "Hồ Sơ Nhân Sự", icon: User }
       ];
     }
