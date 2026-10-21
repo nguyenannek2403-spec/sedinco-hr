@@ -27,14 +27,15 @@ export default function DesktopSidebar({
   onClearCache,
   pendingRequestsCount = 0
 }) {
-  // Danh sách menu theo từng role
+  // Danh sách menu theo đúng 3 Role chuẩn: Admin, Accountant, Worker
   const getMenuItems = () => {
     if (activeRole === ROLES.ADMIN) {
       return [
         { id: "matrix", label: "Bảng Công Ma Trận", icon: Calendar, badge: "31 Ngày" },
         { id: "payroll", label: "Bảng Lương Doanh Nghiệp", icon: DollarSign },
         { id: "requests", label: "Phê Duyệt Đơn Từ", icon: FileText, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null, badgeColor: "bg-rose-500 text-white" },
-        { id: "management", label: "Quản Lý Nhân Sự & Phân Quyền", icon: Users },
+        { id: "management", label: "Quản Lý Nhân Sự", icon: Users },
+        { id: "permissions", label: "Phân Quyền Kế Toán", icon: ShieldCheck, badge: "RBAC" },
         { id: "company", label: "Cấu Hình Vị Trí & Trụ Sở", icon: Building },
         { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", icon: Gift },
         { id: "audit_logs", label: "Nhật Ký Thao Tác", icon: ShieldCheck },
@@ -45,27 +46,16 @@ export default function DesktopSidebar({
 
     if (activeRole === ROLES.ACCOUNTANT) {
       return [
-        { id: "matrix", label: "Bảng Công (Chốt Sổ)", icon: Calendar, badge: "Chỉ đọc" },
-        { id: "payroll", label: "Bảng Lương & Xuất CSV", icon: DollarSign },
+        { id: "matrix", label: "Bảng Công (Chốt Sổ)", icon: Calendar, badge: "Chấm công" },
+        { id: "payroll", label: "Bảng Lương Doanh Nghiệp", icon: DollarSign },
+        { id: "requests", label: "Xử Lý Đơn Từ", icon: FileText, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null, badgeColor: "bg-rose-500 text-white" },
         { id: "history", label: "Lịch Sử Công Cá Nhân", icon: Calendar },
         { id: "checkin", label: "Điểm Danh Thử Nghiệm", icon: Clock },
         { id: "profile", label: "Hồ Sơ Kế Toán", icon: User }
       ];
     }
 
-    if (activeRole === ROLES.HR) {
-      return [
-        { id: "matrix", label: "Bảng Công Ma Trận", icon: Calendar, badge: "Sửa công" },
-        { id: "requests", label: "Phê Duyệt Đơn Từ", icon: FileText, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null, badgeColor: "bg-rose-500 text-white" },
-        { id: "management", label: "Cấp Mã & Nhân Sự", icon: Users },
-        { id: "history", label: "Lịch Sử Công Cá Nhân", icon: Calendar },
-        { id: "payroll", label: "Phiếu Lương Cá Nhân", icon: DollarSign },
-        { id: "checkin", label: "Điểm Danh Thử Nghiệm", icon: Clock },
-        { id: "profile", label: "Hồ Sơ Nhân Sự", icon: User }
-      ];
-    }
-
-    // Role Nhân Viên (Employee)
+    // Role Công Nhân / Nhân Viên (Worker / Employee)
     return [
       { id: "checkin", label: "Điểm Danh 1 Chạm", icon: Clock, badge: "GPS Token" },
       { id: "history", label: "Bảng Công Tháng (31 Ngày)", icon: Calendar },

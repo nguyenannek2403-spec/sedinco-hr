@@ -142,9 +142,9 @@ export default function EmployeeCheckinPC({
                 <Clock size={22} />
               )}
               <span>
-                {checkInStatus === "not_checked_in" && "CHẤM CÔNG VÀO (CHECK-IN)"}
-                {checkInStatus === "checked_in" && "CHẤM CÔNG RA (CHECK-OUT)"}
-                {checkInStatus === "completed" && "ĐÃ XONG 2 CA HÔM NAY"}
+                {checkInStatus === "not_checked_in" && "CHẤM CÔNG (VÀO CA: 08:00 - 12:00)"}
+                {checkInStatus === "checked_in" && "CHẤM CÔNG (TAN CA: 13:00 - 17:00)"}
+                {checkInStatus === "completed" && "ĐÃ HOÀN TẤT ĐIỂM DANH HÔM NAY"}
               </span>
             </button>
           </div>

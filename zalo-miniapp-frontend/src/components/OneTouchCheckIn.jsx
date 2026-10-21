@@ -187,19 +187,37 @@ export default function OneTouchCheckIn({
         result = { success: true, server_time: timeStr };
       }
 
-      // 6. Hoàn tất thành công: Hiển thị GIỜ DO SERVER TRẢ (không dùng giờ máy client)
+      // 6. Hoàn tất thành công: Hiển thị GIỜ DO SERVER TRẢ & ĐÁNH GIÁ CÔNG TỰ ĐỘNG
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
       
       const serverTime = result?.server_time || result?.data?.server_time || new Date().toLocaleTimeString("vi-VN", { hour12: false });
       setServerTimeResult(serverTime);
       setStage(STAGES.SUCCESS);
-      setStatusMessage(
-        checkinType === "in"
-          ? `Đã chấm công VÀO ca lúc ${serverTime} (Giờ máy chủ)`
-          : `Đã chấm công RA ca lúc ${serverTime} (Giờ máy chủ)`
-      );
 
-      if (onCheckInSuccess) onCheckInSuccess(result);
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      let autoShiftMsg = "";
+
+      if (checkinType === "in") {
+        if (currentMinutes <= 480) { // Trước hoặc đúng 08:00
+          autoShiftMsg = `Đã Chấm Công Vào lúc ${serverTime}. Đúng giờ ca sáng (08:00 - 12:00)!`;
+        } else {
+          const late = currentMinutes - 480;
+          autoShiftMsg = `Đã Chấm Công Vào lúc ${serverTime}. Trễ ${late} phút so với giờ chuẩn (08:00).`;
+        }
+      } else {
+        if (currentMinutes >= 1020) { // Sau hoặc đúng 17:00
+          autoShiftMsg = `Đã Chấm Công Ra lúc ${serverTime}. Hoàn thành đủ 1 ngày công (8 tiếng = 480 phút)!`;
+        } else if (currentMinutes <= 720) { // Ra trước hoặc đúng 12:00
+          autoShiftMsg = `Đã Chấm Công Ra lúc ${serverTime}. Ghi nhận hoàn tất nửa ngày công sáng (240 phút = 0.5 công).`;
+        } else {
+          const early = 1020 - currentMinutes;
+          autoShiftMsg = `Đã Chấm Công Ra lúc ${serverTime}. Về sớm ${early} phút so với giờ tan ca (17:00).`;
+        }
+      }
+
+      setStatusMessage(autoShiftMsg);
+
+      if (onCheckInSuccess) onCheckInSuccess({ ...result, autoShiftMsg });
 
     } catch (err) {
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
@@ -308,8 +326,8 @@ export default function OneTouchCheckIn({
             )}
           </div>
 
-          {/* Tiêu đề nút - Chữ to rõ ràng */}
-          <span className="font-black text-xl md:text-2xl tracking-normal uppercase leading-tight text-center px-4">
+          {/* Tiêu đề nút - Đổi thành CHẤM CÔNG chuẩn theo yêu cầu */}
+          <span className="font-black text-2xl md:text-3xl tracking-normal uppercase leading-tight text-center px-4">
             {stage === STAGES.SUBMITTING
               ? "ĐANG XÁC THỰC"
               : stage === STAGES.LOCATING
@@ -320,14 +338,18 @@ export default function OneTouchCheckIn({
               ? "THÀNH CÔNG"
               : stage === STAGES.ERROR
               ? "BẤM THỬ LẠI"
-              : checkinType === "in"
-              ? "CHẤM CÔNG VÀO"
-              : "CHẤM CÔNG RA"}
+              : "CHẤM CÔNG"}
           </span>
 
-          {/* Phụ đề hướng dẫn to rõ */}
-          <span className="text-xs md:text-sm font-bold text-white/95 mt-1.5 bg-black/20 px-3 py-0.5 rounded-full">
-            {isLockedPeriod ? "Kỳ công đã chốt" : "Chạm 1 lần vào đây"}
+          {/* Phụ đề hướng dẫn tự động: Hệ thống tự nhận biết Vào ca hay Ra ca */}
+          <span className="text-xs md:text-sm font-black text-white mt-2 bg-black/30 px-3.5 py-1 rounded-full border border-white/20">
+            {isLockedPeriod
+              ? "Kỳ công đã chốt"
+              : stage === STAGES.SUCCESS
+              ? (serverTimeResult ? `Đã ghi nhận lúc ${serverTimeResult}` : "Đã hoàn thành")
+              : checkinType === "in"
+              ? "Lần 1: Vào ca (Chuẩn 08:00 - 12:00)"
+              : "Lần 2: Tan ca (Chuẩn 13:00 - 17:00)"}
           </span>
         </button>
       </div>

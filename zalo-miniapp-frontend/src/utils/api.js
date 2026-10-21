@@ -27,8 +27,18 @@ export const setOnUnauthorizedCallback = (callback) => {
 // Request Interceptor: Gắn Token và Idempotency-Key
 apiClient.interceptors.request.use(
   (config) => {
-    if (currentAuthToken) {
-      config.headers["Authorization"] = `Bearer ${currentAuthToken}`;
+    let token = currentAuthToken;
+    if (!token && typeof window !== "undefined") {
+      try {
+        token = localStorage.getItem("sedinco_auth_token") || "";
+        if (!token) {
+          const user = JSON.parse(localStorage.getItem("sedinco_miniapp_user") || "{}");
+          token = user?.token || "";
+        }
+      } catch (e) {}
+    }
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
     }
     if (config.idempotencyKey) {
       config.headers["Idempotency-Key"] = config.idempotencyKey;

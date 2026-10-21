@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { getLocation, chooseImage } from "zmp-sdk/apis";
 import {
   Clock,
@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   LogOut,
   Lock,
+  Unlock,
   Eye,
   EyeOff,
   RotateCcw,
@@ -77,6 +78,7 @@ import CompanyLogo from "../components/CompanyLogo";
 import sedincoLogo from "../static/sedinco-logo.png";
 import OneTouchCheckIn from "../components/OneTouchCheckIn";
 import SmartLeaveRequestModal from "../components/SmartLeaveRequestModal";
+import AccountantPermissionView from "../components/AccountantPermissionView";
 import { resolveSession, logoutSession } from "../services/authService";
 
 // Helper style mã công
@@ -235,10 +237,60 @@ export default function HomePage() {
   const [isCompanySaving, setIsCompanySaving] = useState(false);
   const [isGettingGps, setIsGettingGps] = useState(false);
 
+  // Cấu hình Khung giờ làm việc & Mức phạt Đi trễ / Trừ công (Quản trị viên toàn quyền tùy chỉnh)
+  const [shiftAndPenaltyConfig, setShiftAndPenaltyConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem("sedinco_shift_penalty_config");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      morning_start: "08:00",
+      morning_end: "12:00",
+      morning_minutes: 240, // 4 tiếng = 240 phút = 0.5 công sáng
+      afternoon_start: "13:00",
+      afternoon_end: "17:00",
+      afternoon_minutes: 240, // 4 tiếng = 240 phút = 0.5 công chiều
+      grace_period_minutes: 15, // Dưới 15 phút miễn phạt
+      penalty_type: "fixed_amount", // 'fixed_amount' (VND) hoặc 'salary_percent' (%)
+      tier_15_30_amount: 50000,
+      tier_15_30_percent: 1,
+      tier_31_60_amount: 100000,
+      tier_31_60_percent: 2,
+      tier_61_120_amount: 200000,
+      tier_61_120_percent: 5,
+      tier_over_120_amount: 300000,
+      tier_over_120_percent: 10,
+      unapproved_absence_cut_day: 1.0, // Vắng cả ngày không duyệt: trừ 1.0 công (480 phút)
+      unapproved_absence_half_day: 0.5 // Vắng 1 buổi: trừ 0.5 công (240 phút)
+    };
+  });
+  const [isShiftPenaltySaving, setIsShiftPenaltySaving] = useState(false);
+  const [isUpdatingEmployee, setIsUpdatingEmployee] = useState(false);
+  const isUpdatingEmployeeRef = useRef(false);
+
   // Quản lý Nhân sự & Cấp tài khoản / Chỉnh sửa của Quản trị viên
   const [isEditEmployeeModalOpen, setIsEditEmployeeModalOpen] = useState(false);
   const [editEmployeeForm, setEditEmployeeForm] = useState(null);
   const [createdCredentialModal, setCreatedCredentialModal] = useState(null); // { ma_nv, ho_ten, password, role }
+
+  // Thanh tìm kiếm và bộ lọc nhân sự trong tab Quản lý nhân sự
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState("");
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState("all");
+
+  const filteredEmployees = useMemo(() => {
+    return (allEmployees || []).filter(emp => {
+      if (employeeRoleFilter !== "all" && emp.role !== employeeRoleFilter) {
+        return false;
+      }
+      if (!employeeSearchQuery.trim()) return true;
+      const q = employeeSearchQuery.toLowerCase().trim();
+      const name = (emp.ho_ten || "").toLowerCase();
+      const code = (emp.ma_nv || "").toLowerCase();
+      const title = (emp.chuc_danh || "").toLowerCase();
+      const phone = (emp.dien_thoai || "").toLowerCase();
+      return name.includes(q) || code.includes(q) || title.includes(q) || phone.includes(q);
+    });
+  }, [allEmployees, employeeSearchQuery, employeeRoleFilter]);
 
   // State Nhật ký thao tác hệ thống (Audit Logs)
   const [auditLogs, setAuditLogs] = useState(() => {
@@ -398,14 +450,23 @@ export default function HomePage() {
       setAttendanceMatrixLoading(false);
     }
 
-    // B. Đơn từ
+    // B. Đơn từ (Phân tách theo quyền: Admin/Kế toán duyệt đơn vs Công nhân xem đơn cá nhân)
     setRequestsLoading(true);
     try {
-      const res = await safeGet("/requests", {}, { cancelPrevious: true });
-      if (res?.success && Array.isArray(res.data)) {
-        const myFiltered = res.data.filter(r => r.ma_nv === activeUserId || r.employee_id === activeUserId);
-        setMyRequests(myFiltered);
-        setAllRequests(res.data);
+      const canApprove = hasPermission(currentActiveRole, "canApproveRequests");
+      if (canApprove) {
+        const res = await safeGet("/requests", {}, { cancelPrevious: true });
+        if (res?.success && Array.isArray(res.data)) {
+          const myFiltered = res.data.filter(r => r.ma_nv === activeUserId || r.employee_id === activeUserId);
+          setMyRequests(myFiltered);
+          setAllRequests(res.data);
+        }
+      } else {
+        const res = await safeGet("/requests/me", {}, { cancelPrevious: true });
+        if (res?.success && Array.isArray(res.data)) {
+          setMyRequests(res.data);
+          setAllRequests([]);
+        }
       }
     } catch (err) {
       if (!err.isCanceled) setRequestsError(err.message || "Lỗi tải danh sách đơn từ.");
@@ -413,14 +474,23 @@ export default function HomePage() {
       setRequestsLoading(false);
     }
 
-    // C. Bảng lương cá nhân & Doanh nghiệp
+    // C. Bảng lương cá nhân & Doanh nghiệp (Chống rò rỉ BOLA: chỉ gọi /payroll khi có quyền)
     setPayrollLoading(true);
     try {
-      const res = await safeGet("/payroll", { month: selectedMonth, year: selectedYear }, { cancelPrevious: true });
-      if (res?.success && Array.isArray(res.data)) {
-        setCompanyPayroll(res.data);
-        const myItem = res.data.find(p => (p.ma_nv || p.id_nhan_vien) === activeUserId);
-        setMyPayroll(myItem || null);
+      const canViewAll = hasPermission(currentActiveRole, "canViewCompanyPayroll");
+      if (canViewAll) {
+        const res = await safeGet("/payroll", { month: selectedMonth, year: selectedYear }, { cancelPrevious: true });
+        if (res?.success && Array.isArray(res.data)) {
+          setCompanyPayroll(res.data);
+          const myItem = res.data.find(p => (p.ma_nv || p.id_nhan_vien) === activeUserId);
+          setMyPayroll(myItem || null);
+        }
+      } else {
+        const res = await safeGet("/payroll/me", { month: selectedMonth, year: selectedYear }, { cancelPrevious: true });
+        if (res?.success && res.data) {
+          setMyPayroll(res.data);
+          setCompanyPayroll([]);
+        }
       }
     } catch (err) {
       if (!err.isCanceled) setPayrollError(err.message || "Lỗi tính toán bảng lương.");
@@ -434,7 +504,13 @@ export default function HomePage() {
       try {
         const res = await safeGet("/employees", {}, { cancelPrevious: true });
         if (res?.success && Array.isArray(res.data)) {
-          setAllEmployees(res.data);
+          const storedAccounts = JSON.parse(localStorage.getItem("sedinco_employee_accounts") || "{}");
+          const merged = res.data.map(emp => ({
+            ...emp,
+            is_locked: Boolean(storedAccounts[emp.ma_nv]?.is_locked || emp.status === "inactive" || false),
+            status: storedAccounts[emp.ma_nv]?.status || emp.status || "active"
+          }));
+          setAllEmployees(merged);
         }
       } catch (e) {
       } finally {
@@ -486,6 +562,10 @@ export default function HomePage() {
       const storedAccounts = JSON.parse(localStorage.getItem("sedinco_employee_accounts") || "{}");
       if (storedAccounts[u]) {
         const acc = storedAccounts[u];
+        if (acc.is_locked || acc.status === "inactive") {
+          setLoginError("Tài khoản của bạn đã bị TẠM KHÓA bởi Quản trị viên. Vui lòng liên hệ phòng Nhân sự / Ban giám đốc!");
+          return;
+        }
         if (acc.password === p) {
           const resolvedRole = acc.role || ROLES.EMPLOYEE;
           const safeUser = {
@@ -523,6 +603,10 @@ export default function HomePage() {
 
       if (res?.success && res.data) {
         const rawUser = res.data;
+        if (rawUser.is_locked || rawUser.status === "inactive" || storedAccounts[u]?.is_locked || storedAccounts[u]?.status === "inactive") {
+          setLoginError("Tài khoản của bạn đã bị TẠM KHÓA bởi Quản trị viên. Vui lòng liên hệ phòng Nhân sự / Ban giám đốc!");
+          return;
+        }
         let resolvedRole = ROLES.EMPLOYEE;
         if (u === "ADMIN" || rawUser.username === "admin") {
           resolvedRole = ROLES.ADMIN;
@@ -662,11 +746,11 @@ export default function HomePage() {
     }
   };
 
-  // Chấm công thông minh
+  // Chấm công thông minh (Khung giờ 08:00-12:00 và 13:00-17:00; 1 ngày = 1 công = 480 phút, nửa công = 240 phút)
   const handleSmartCheckInOut = async () => {
     if (isCheckInSubmittingRef.current) return;
     if (checkInStatus === "completed") {
-      showToast("Hôm nay bạn đã hoàn tất cả 2 ca Chấm công Vào & Ra!", "info");
+      showToast("Hôm nay bạn đã hoàn tất cả 2 ca Chấm công Vào & Ra (Đủ 1 ngày công)!", "info");
       return;
     }
 
@@ -686,20 +770,40 @@ export default function HomePage() {
       setCheckInTime(timeStr);
       if (currentMinutes > 480) { // Sau 08:00
         const late = currentMinutes - 480;
-        notice = `Cảnh báo: Bạn vào trễ ${late} phút so với giờ quy định (08:00).`;
+        let penaltyDesc = "";
+        if (late >= 15 && late <= 30) {
+          penaltyDesc = shiftAndPenaltyConfig.penalty_type === "fixed_amount" 
+            ? ` (Mức phạt: -${Number(shiftAndPenaltyConfig.tier_15_30_amount || 20000).toLocaleString("vi-VN")}đ)`
+            : ` (Mức phạt: -${shiftAndPenaltyConfig.tier_15_30_percent || 1}% lương)`;
+        } else if (late > 30 && late <= 60) {
+          penaltyDesc = shiftAndPenaltyConfig.penalty_type === "fixed_amount" 
+            ? ` (Mức phạt: -${Number(shiftAndPenaltyConfig.tier_31_60_amount || 50000).toLocaleString("vi-VN")}đ)`
+            : ` (Mức phạt: -${shiftAndPenaltyConfig.tier_31_60_percent || 2}% lương)`;
+        } else if (late > 60 && late <= 120) {
+          penaltyDesc = shiftAndPenaltyConfig.penalty_type === "fixed_amount" 
+            ? ` (Mức phạt: -${Number(shiftAndPenaltyConfig.tier_61_120_amount || 100000).toLocaleString("vi-VN")}đ)`
+            : ` (Mức phạt: -${shiftAndPenaltyConfig.tier_61_120_percent || 5}% lương)`;
+        } else if (late > 120) {
+          penaltyDesc = shiftAndPenaltyConfig.penalty_type === "fixed_amount" 
+            ? ` (Mức phạt: -${Number(shiftAndPenaltyConfig.tier_over_120_amount || 200000).toLocaleString("vi-VN")}đ & Trừ 0.5 công / 240 phút)`
+            : ` (Mức phạt: -${shiftAndPenaltyConfig.tier_over_120_percent || 10}% lương & Trừ 0.5 công / 240 phút)`;
+        }
+        notice = `Chấm công Vào lúc ${timeStr}. Bạn vào trễ ${late} phút so với giờ chuẩn (08:00)${penaltyDesc}.`;
         violation = true;
       } else {
-        notice = "Chấm công Vào đúng giờ (08:00 - 17:00). Chúc bạn ngày làm việc hiệu quả!";
+        notice = `Chấm công Vào đúng giờ lúc ${timeStr} (trước 08:00). Đủ điều kiện ca sáng (08:00 - 12:00 = 240 phút = 0.5 công)!`;
       }
     } else if (checkInStatus === "checked_in") {
       newStatus = "completed";
       setCheckOutTime(timeStr);
-      if (currentMinutes < 1020) { // Trước 17:00
-        const early = 1020 - currentMinutes;
-        notice = `Check-out thành công! Cảnh báo: Bạn về sớm ${early} phút so với giờ tan ca (17:00).`;
-        violation = true;
+      if (currentMinutes >= 1020) { // Sau hoặc đúng 17:00
+        notice = `Chấm công Ra đúng giờ lúc ${timeStr} (sau 17:00). Hoàn thành trọn vẹn 1 công chuẩn (8 tiếng = 480 phút) hôm nay!`;
+      } else if (currentMinutes <= 720) { // Ra trước hoặc đúng 12:00
+        notice = `Chấm công Ra lúc ${timeStr}. Ghi nhận hoàn tất nửa ngày công sáng (240 phút = 0.5 công).`;
       } else {
-        notice = "Chấm công Ra thành công! Đã hoàn tất ghi nhận công nhật.";
+        const early = 1020 - currentMinutes;
+        notice = `Chấm công Ra lúc ${timeStr}. Bạn về sớm ${early} phút so với giờ tan ca (17:00).`;
+        violation = true;
       }
     }
 
@@ -788,7 +892,7 @@ export default function HomePage() {
       };
 
       const res = await safePost("/requests", payload);
-      showToast(res?.message || "Gửi đơn thành công! Đã chuyển Ban Giám Đốc xét duyệt.", "success");
+      showToast(res?.message || "Gửi đơn thành công! Đã chuyển Ban Giám Đốc / Kế Toán xét duyệt.", "success");
       setIsRequestModalOpen(false);
       setRequestForm({
         request_type: "Nghỉ phép",
@@ -805,11 +909,38 @@ export default function HomePage() {
     }
   };
 
-  // Duyệt / Từ chối đơn (HR & Admin) - Tách quyền: Không được tự duyệt đơn của chính mình
+  // Lưu cấu hình Khung giờ & Thang phạt đi trễ (Dành cho Quản trị viên)
+  const handleSaveShiftPenaltyConfig = async (e) => {
+    if (e) e.preventDefault();
+    if (isShiftPenaltySaving) return;
+    setIsShiftPenaltySaving(true);
+    try {
+      localStorage.setItem("sedinco_shift_penalty_config", JSON.stringify(shiftAndPenaltyConfig));
+      await safePost("/settings/penalties", shiftAndPenaltyConfig).catch(() => {});
+      recordAuditLog(
+        "Cấu hình ca & mức phạt",
+        "Quản trị viên cập nhật khung giờ 08:00-12:00, 13:00-17:00 và mức phạt đi trễ",
+        "Thẩm quyền Quản trị viên"
+      );
+      showToast("Đã lưu khung giờ làm việc và quy tắc phạt đi trễ thành công!", "success");
+    } catch (err) {
+      showToast("Lỗi lưu cấu hình: " + (err.message || ""), "error");
+    } finally {
+      setTimeout(() => setIsShiftPenaltySaving(false), 500);
+    }
+  };
+
+  // Duyệt / Từ chối đơn (Kế toán & Quản trị) - Tách quyền: Không được tự duyệt đơn của chính mình
   const handleApproveRejectRequest = async (id, newStatus, reqOwnerMaNv) => {
     if (isApproveSubmittingRef.current) return;
     
-    // TÁCH QUYỀN: Không được tự duyệt đơn của chính mình
+    // TÁCH QUYỀN: Chỉ Quản Trị hoặc Kế Toán mới có quyền duyệt đơn
+    if (!hasPermission(activeRole, "canApproveRequests")) {
+      showToast("Tách quyền: Bạn không có quyền phê duyệt đơn từ!", "error");
+      return;
+    }
+
+    // Không được tự duyệt đơn của chính mình
     if (reqOwnerMaNv && reqOwnerMaNv === currentUser?.ma_nv) {
       showToast("Tách quyền: Bạn không được tự phê duyệt đơn từ của chính mình!", "warning");
       return;
@@ -825,10 +956,52 @@ export default function HomePage() {
     isApproveSubmittingRef.current = true;
     try {
       await safePut(`/requests/${id}`, { status: newStatus, reject_reason: rejectReason });
-      showToast(`Đã cập nhật đơn thành: ${newStatus === 'approved' ? 'PHÊ DUYỆT' : 'TỪ CHỐI'}!`, "success");
+
+      // TỰ ĐỘNG CẬP NHẬT HOẶC TRỪ THỜI GIAN CÔNG TRÊN BẢNG CÔNG
+      const targetReq = allRequests.find(r => r.id === id);
+      if (targetReq) {
+        const reqDate = new Date(targetReq.start_date || targetReq.request_date || Date.now());
+        const day = reqDate.getDate();
+        const month = reqDate.getMonth() + 1;
+        const year = reqDate.getFullYear();
+        const isHalfDay = targetReq.calculated_days === 0.5 || 
+          (targetReq.reason && (targetReq.reason.toLowerCase().includes("nửa ngày") || targetReq.reason.toLowerCase().includes("buổi")));
+
+        let autoAttendanceStatus = "";
+        if (newStatus === "approved") {
+          // Được duyệt: Hưởng phép có lương hoặc theo loại đơn
+          if (targetReq.request_type === "KP") {
+            autoAttendanceStatus = "KP"; // Không lương
+          } else if (isHalfDay) {
+            autoAttendanceStatus = "0.5P"; // Nửa ngày phép (240 phút = 0.5 công)
+          } else {
+            autoAttendanceStatus = "P"; // Hưởng nguyên 1 ngày phép có lương
+          }
+        } else if (newStatus === "rejected") {
+          // Từ chối nhưng nhân viên vẫn cố ý nghỉ: Tự động trừ thời gian công theo quy định
+          // 1 ngày = 1 công (480 phút); Nửa công = 240 phút (4 tiếng sáng hoặc chiều)
+          if (isHalfDay) {
+            autoAttendanceStatus = "0.5"; // Trừ 0.5 công = 240 phút (chỉ còn nửa công)
+          } else {
+            autoAttendanceStatus = "V"; // Vắng không phép: trừ trọn vẹn 1 công = 480 phút
+          }
+        }
+
+        if (autoAttendanceStatus) {
+          await safePost("/attendance/update", {
+            ma_nv: reqOwnerMaNv,
+            day,
+            month,
+            year,
+            status: autoAttendanceStatus
+          }).catch(e => console.warn("Lỗi đồng bộ ngày công:", e));
+        }
+      }
+
+      showToast(`Đã cập nhật đơn thành: ${newStatus === 'approved' ? 'PHÊ DUYỆT' : 'TỪ CHỐI (TỰ ĐỘNG TRỪ CÔNG)'}!`, "success");
       recordAuditLog(
         newStatus === "approved" ? "Phê duyệt đơn" : "Từ chối đơn",
-        `Cập nhật trạng thái đơn #${id} thành ${newStatus} cho ${reqOwnerMaNv || "nhân viên"}`,
+        `Cập nhật trạng thái đơn #${id} thành ${newStatus} cho ${reqOwnerMaNv || "nhân viên"}${newStatus === 'rejected' ? ' (Tự động trừ công trên bảng công)' : ''}`,
         rejectReason || `Thẩm quyền phê duyệt của ${ROLE_LABELS[activeRole]}`
       );
       loadRoleData();
@@ -887,16 +1060,21 @@ export default function HomePage() {
       dien_thoai: emp.dien_thoai || "",
       email: emp.email || "",
       luong_cb: emp.luong_cb || 8000000,
+      shift_type: emp.shift_type || "standard",
+      penalty_mode: emp.penalty_mode || "company_standard",
       role: emp.role || (emp.chuc_danh?.includes("Giám Đốc") ? ROLES.ADMIN : emp.chuc_danh?.includes("Kế Toán") ? ROLES.ACCOUNTANT : emp.chuc_danh?.includes("Nhân Sự") ? ROLES.HR : ROLES.EMPLOYEE),
       newPassword: "" // Để trống nếu không thay đổi mật khẩu
     });
     setIsEditEmployeeModalOpen(true);
   };
 
-  // Cập nhật nhân viên sau khi Admin chỉnh sửa
+  // Cập nhật nhân viên sau khi Admin chỉnh sửa (Bảo mật: Chống spam nút / double click)
   const handleUpdateEmployee = async (e) => {
     e.preventDefault();
-    if (!editEmployeeForm) return;
+    if (!editEmployeeForm || isUpdatingEmployeeRef.current) return;
+
+    isUpdatingEmployeeRef.current = true;
+    setIsUpdatingEmployee(true);
 
     try {
       try {
@@ -928,12 +1106,17 @@ export default function HomePage() {
       showToast(`Đã cập nhật hồ sơ & mật khẩu cho nhân sự ${editEmployeeForm.ma_nv} thành công!`, "success");
       recordAuditLog(
         "Chỉnh sửa nhân sự",
-        `Admin cập nhật thông tin/mật khẩu nhân viên ${editEmployeeForm.ma_nv} (${editEmployeeForm.ho_ten})`,
+        `Admin cập nhật thông tin/mật khẩu/ca làm việc nhân viên ${editEmployeeForm.ma_nv} (${editEmployeeForm.ho_ten})`,
         "Quản trị nhân sự & bảo mật"
       );
       loadRoleData();
     } catch (err) {
       showToast(err.message || "Lỗi cập nhật nhân sự.", "error");
+    } finally {
+      setTimeout(() => {
+        isUpdatingEmployeeRef.current = false;
+        setIsUpdatingEmployee(false);
+      }, 600);
     }
   };
 
@@ -996,6 +1179,58 @@ export default function HomePage() {
       loadRoleData();
     } catch (err) {
       showToast(err.message || "Không thể thêm nhân sự.", "error");
+    }
+  };
+
+  // Khóa / Mở Khóa tài khoản nhân viên (Admin)
+  const handleToggleLockEmployee = async (emp) => {
+    if (emp.ma_nv === currentUser?.ma_nv) {
+      showToast("Bảo mật: Bạn không thể tự khóa tài khoản của chính mình!", "warning");
+      return;
+    }
+
+    const isCurrentlyLocked = Boolean(emp.is_locked || emp.status === "inactive");
+    const confirmMsg = isCurrentlyLocked
+      ? `Bạn có chắc chắn muốn MỞ KHÓA tài khoản cho nhân sự ${emp.ma_nv} (${emp.ho_ten}) để tiếp tục làm việc?`
+      : `Bạn có chắc chắn muốn TẠM KHÓA tài khoản ${emp.ma_nv} (${emp.ho_ten})?\n• Nhân sự sẽ không thể đăng nhập hoặc chấm công.\n• Toàn bộ lịch sử chấm công và bảng lương quá khứ vẫn được bảo toàn nguyên vẹn 100%!`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const newLockedState = !isCurrentlyLocked;
+      const newStatus = newLockedState ? "inactive" : "active";
+
+      // 1. Cập nhật localStorage
+      const storedAccounts = JSON.parse(localStorage.getItem("sedinco_employee_accounts") || "{}");
+      const currentStored = storedAccounts[emp.ma_nv] || {};
+      storedAccounts[emp.ma_nv] = {
+        ...currentStored,
+        ...emp,
+        is_locked: newLockedState,
+        status: newStatus
+      };
+      localStorage.setItem("sedinco_employee_accounts", JSON.stringify(storedAccounts));
+
+      // 2. Gửi cập nhật trạng thái lên backend
+      try {
+        await safePut(`/employees/${emp.ma_nv}`, { ...emp, status: newStatus, is_locked: newLockedState });
+      } catch (e) {
+        console.warn("Backend update lock status fallback:", e);
+      }
+
+      // 3. Cập nhật state danh sách
+      setAllEmployees(prev => prev.map(item => item.ma_nv === emp.ma_nv ? { ...item, is_locked: newLockedState, status: newStatus } : item));
+
+      const actionText = newLockedState ? "TẠM KHÓA" : "MỞ KHÓA";
+      showToast(`Đã ${actionText} tài khoản nhân sự ${emp.ma_nv} thành công!`, newLockedState ? "warning" : "success");
+
+      recordAuditLog(
+        `${actionText} tài khoản`,
+        `Admin thực hiện ${actionText} tài khoản nhân sự ${emp.ma_nv} (${emp.ho_ten})`,
+        newLockedState ? "Tạm ngưng hoạt động / Điều chỉnh bảo mật" : "Kích hoạt lại tài khoản"
+      );
+    } catch (err) {
+      showToast(err.message || "Lỗi thay đổi trạng thái tài khoản.", "error");
     }
   };
 
@@ -1603,6 +1838,51 @@ export default function HomePage() {
                   </button>
                 </div>
 
+                {/* Thanh tìm kiếm & Bộ lọc vai trò nhân sự */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200">
+                  <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+                    <div className="relative flex-1">
+                      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Tìm nhân sự theo Họ tên, Mã NV, Chức danh, Số điện thoại..."
+                        value={employeeSearchQuery}
+                        onChange={e => setEmployeeSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2.5 text-xs bg-white border border-slate-300 rounded-xl font-medium outline-none focus:border-blue-600 shadow-sm"
+                      />
+                      {employeeSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setEmployeeSearchQuery("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                          title="Xóa tìm kiếm"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Filter size={15} className="text-slate-500 shrink-0" />
+                      <select
+                        value={employeeRoleFilter}
+                        onChange={e => setEmployeeRoleFilter(e.target.value)}
+                        className="px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer shadow-sm"
+                      >
+                        <option value="all">Tất cả vai trò ({allEmployees.length})</option>
+                        <option value={ROLES.ADMIN}>Quản Trị Viên (Admin)</option>
+                        <option value={ROLES.ACCOUNTANT}>Bộ Phận Kế Toán</option>
+                        <option value={ROLES.HR}>Nhân Sự (HR)</option>
+                        <option value={ROLES.EMPLOYEE}>Cán Bộ Nhân Viên</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="text-xs font-bold text-slate-600 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                    Hiển thị: <span className="text-blue-700 font-black">{filteredEmployees.length}</span> / {allEmployees.length} nhân sự
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -1613,62 +1893,98 @@ export default function HomePage() {
                         <th className="p-3">Điện Thoại / Email</th>
                         <th className="p-3 text-right">Lương CB (Hợp Đồng)</th>
                         <th className="p-3 text-center">Vai Trò Hệ Thống (RBAC)</th>
+                        <th className="p-3 text-center">Trạng Thái</th>
                         <th className="p-3 text-center pr-4">Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {allEmployees.map((emp, i) => (
-                        <tr key={emp.ma_nv || i} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="p-3 pl-4 font-mono font-bold text-blue-600">{emp.ma_nv}</td>
-                          <td className="p-3 font-bold text-slate-900">{emp.ho_ten}</td>
-                          <td className="p-3 text-slate-600">{emp.chuc_danh || "Nhân viên"}</td>
-                          <td className="p-3 text-slate-500">
-                            <div>{emp.dien_thoai || "0905***"}</div>
-                            <div className="text-[10px] text-slate-400">{emp.email || `${emp.ma_nv.toLowerCase()}@sedinco.vn`}</div>
-                          </td>
-                          <td className="p-3 text-right font-medium text-slate-800">
-                            {Number(emp.luong_cb || 8000000).toLocaleString("vi-VN")} đ
-                          </td>
-                          <td className="p-3 text-center">
-                            <select
-                              value={emp.role || (emp.chuc_danh?.includes("Giám Đốc") ? ROLES.ADMIN : emp.chuc_danh?.includes("Kế Toán") ? ROLES.ACCOUNTANT : emp.chuc_danh?.includes("Nhân Sự") ? ROLES.HR : ROLES.EMPLOYEE)}
-                              onChange={(e) => handleUpdateRole(emp.ma_nv, e.target.value)}
-                              disabled={emp.ma_nv === currentUser?.ma_nv}
-                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-300 text-xs font-bold text-blue-800 outline-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                              <option value={ROLES.ADMIN}>👑 Quản Trị Viên (Admin)</option>
-                              <option value={ROLES.HR}>📋 Nhân Sự (HR)</option>
-                              <option value={ROLES.ACCOUNTANT}>📊 Bộ Phận Kế Toán</option>
-                              <option value={ROLES.EMPLOYEE}>👤 Cán Bộ Nhân Viên</option>
-                            </select>
-                          </td>
-                          <td className="p-3 text-center pr-4">
-                            <div className="flex items-center justify-center gap-1.5">
-                              {activeRole === ROLES.ADMIN && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenEditEmployee(emp)}
-                                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl font-bold flex items-center gap-1 cursor-pointer transition-all border border-amber-300 text-[11px]"
-                                  title="Chỉnh sửa thông tin hồ sơ & đặt lại mật khẩu"
-                                >
-                                  <Edit3 size={12} />
-                                  <span>Chỉnh Sửa</span>
-                                </button>
-                              )}
-                              {activeRole === ROLES.ADMIN && emp.ma_nv !== currentUser?.ma_nv && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteEmployee(emp.ma_nv)}
-                                  className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
-                                  title="Xóa nhân sự"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              )}
-                            </div>
+                      {filteredEmployees.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-slate-500">
+                            <Search size={32} className="mx-auto mb-2 text-slate-300" />
+                            <p className="text-sm font-bold text-slate-700">Không tìm thấy nhân sự phù hợp</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Vui lòng thử tìm với từ khóa hoặc bộ lọc vai trò khác</p>
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredEmployees.map((emp, i) => (
+                          <tr key={emp.ma_nv || i} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="p-3 pl-4 font-mono font-bold text-blue-600">{emp.ma_nv}</td>
+                            <td className="p-3 font-bold text-slate-900">{emp.ho_ten}</td>
+                            <td className="p-3 text-slate-600">{emp.chuc_danh || "Nhân viên"}</td>
+                            <td className="p-3 text-slate-500">
+                              <div>{emp.dien_thoai || "0905***"}</div>
+                              <div className="text-[10px] text-slate-400">{emp.email || `${emp.ma_nv.toLowerCase()}@sedinco.vn`}</div>
+                            </td>
+                            <td className="p-3 text-right font-medium text-slate-800">
+                              {Number(emp.luong_cb || 8000000).toLocaleString("vi-VN")} đ
+                            </td>
+                            <td className="p-3 text-center">
+                              <select
+                                value={emp.role || (emp.chuc_danh?.includes("Giám Đốc") ? ROLES.ADMIN : emp.chuc_danh?.includes("Kế Toán") ? ROLES.ACCOUNTANT : emp.chuc_danh?.includes("Nhân Sự") ? ROLES.HR : ROLES.EMPLOYEE)}
+                                onChange={(e) => handleUpdateRole(emp.ma_nv, e.target.value)}
+                                disabled={emp.ma_nv === currentUser?.ma_nv}
+                                className="px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-300 text-xs font-bold text-blue-800 outline-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                <option value={ROLES.ADMIN}>👑 Quản Trị Viên (Admin)</option>
+                                <option value={ROLES.HR}>📋 Nhân Sự (HR)</option>
+                                <option value={ROLES.ACCOUNTANT}>📊 Bộ Phận Kế Toán</option>
+                                <option value={ROLES.EMPLOYEE}>👤 Cán Bộ Nhân Viên</option>
+                              </select>
+                            </td>
+                            <td className="p-3 text-center">
+                              {emp.is_locked || emp.status === "inactive" ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-black text-[11px] bg-rose-100 text-rose-800 border border-rose-300">
+                                  <Lock size={11} /> Tạm Khóa
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-black text-[11px] bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  <CheckCircle2 size={11} /> Hoạt Động
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-center pr-4">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {activeRole === ROLES.ADMIN && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditEmployee(emp)}
+                                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl font-bold flex items-center gap-1 cursor-pointer transition-all border border-amber-300 text-[11px]"
+                                    title="Chỉnh sửa thông tin hồ sơ & đặt lại mật khẩu"
+                                  >
+                                    <Edit3 size={12} />
+                                    <span>Chỉnh Sửa</span>
+                                  </button>
+                                )}
+                                {activeRole === ROLES.ADMIN && emp.ma_nv !== currentUser?.ma_nv && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleLockEmployee(emp)}
+                                    className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 cursor-pointer transition-all border text-[11px] ${
+                                      emp.is_locked || emp.status === "inactive"
+                                        ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300"
+                                        : "bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300"
+                                    }`}
+                                    title={emp.is_locked || emp.status === "inactive" ? "Mở khóa tài khoản nhân sự" : "Tạm khóa tài khoản nhân sự"}
+                                  >
+                                    {emp.is_locked || emp.status === "inactive" ? (
+                                      <>
+                                        <Unlock size={12} />
+                                        <span>Mở Khóa</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Lock size={12} />
+                                        <span>Tạm Khóa</span>
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1853,6 +2169,231 @@ export default function HomePage() {
                     {isCompanySaving ? "Đang lưu..." : "Lưu Thông Tin Doanh Nghiệp"}
                   </button>
                 </form>
+
+                {/* KHUNG CẤU HÌNH KHUNG GIỜ LÀM VIỆC & QUY TẮC PHẠT ĐI TRỄ (ADMIN XỬ LÝ) */}
+                <div className="pt-6 border-t-2 border-slate-100 space-y-6">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-900 text-xs font-black mb-2">
+                      <Clock size={14} className="text-blue-700" />
+                      <span>QUY CHUẨN CA LÀM VIỆC & PHẠT ĐI TRỄ</span>
+                    </div>
+                    <h3 className="font-extrabold text-base text-slate-900">
+                      CÀI ĐẶT KHUNG GIỜ CHÍNH & MỨC TRỪ LƯƠNG ĐI TRỄ
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Quản trị viên toàn quyền cấu hình: Nhân viên làm ca 08:00 - 12:00 & 13:00 - 17:00, chấm trước 08h và sau 17h là đủ 1 công.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleSaveShiftPenaltyConfig} className="space-y-5 text-xs">
+                    {/* 1. Khung giờ ca làm việc chính */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                        <Calendar size={16} className="text-blue-600" />
+                        <span>1. Khung Giờ Ca Làm Việc Chính (1 ngày = 8 tiếng = 480 phút = 1 công)</span>
+                      </h4>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                          <span className="font-bold text-slate-800 block text-xs">Ca Sáng (240 phút = 4 tiếng = 0.5 công)</span>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <label className="text-[11px] text-slate-500 block mb-0.5">Giờ Vào Ca:</label>
+                              <input
+                                type="time"
+                                value={shiftAndPenaltyConfig.morning_start}
+                                onChange={e => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, morning_start: e.target.value })}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-black text-blue-700"
+                              />
+                            </div>
+                            <span className="text-slate-400 font-black mt-4">đến</span>
+                            <div className="flex-1">
+                              <label className="text-[11px] text-slate-500 block mb-0.5">Giờ Nghỉ Trưa:</label>
+                              <input
+                                type="time"
+                                value={shiftAndPenaltyConfig.morning_end}
+                                onChange={e => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, morning_end: e.target.value })}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-black text-slate-700"
+                              />
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-emerald-700 font-bold">Chấm công trước 08:00 là đúng giờ ca sáng</p>
+                        </div>
+
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                          <span className="font-bold text-slate-800 block text-xs">Ca Chiều (240 phút = 4 tiếng = 0.5 công)</span>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <label className="text-[11px] text-slate-500 block mb-0.5">Giờ Bắt Đầu:</label>
+                              <input
+                                type="time"
+                                value={shiftAndPenaltyConfig.afternoon_start}
+                                onChange={e => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, afternoon_start: e.target.value })}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-black text-slate-700"
+                              />
+                            </div>
+                            <span className="text-slate-400 font-black mt-4">đến</span>
+                            <div className="flex-1">
+                              <label className="text-[11px] text-slate-500 block mb-0.5">Giờ Tan Ca:</label>
+                              <input
+                                type="time"
+                                value={shiftAndPenaltyConfig.afternoon_end}
+                                onChange={e => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, afternoon_end: e.target.value })}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-black text-blue-700"
+                              />
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-emerald-700 font-bold">Chấm công sau 17:00 là hoàn tất đủ 1 ngày công</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. Quy tắc phạt đi trễ tùy chỉnh */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                          <AlertTriangle size={16} className="text-amber-600" />
+                          <span>2. Quy Tắc Phạt Đi Trễ / Trừ Tiền Lương</span>
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-600 font-bold">Hình thức phạt:</span>
+                          <div className="inline-flex rounded-xl p-1 bg-white border border-slate-300">
+                            <button
+                              type="button"
+                              onClick={() => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, penalty_type: "fixed_amount" })}
+                              className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
+                                shiftAndPenaltyConfig.penalty_type === "fixed_amount"
+                                  ? "bg-blue-600 text-white shadow"
+                                  : "text-slate-700 hover:text-black"
+                              }`}
+                            >
+                              Tiền Mặt (VND)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, penalty_type: "salary_percent" })}
+                              className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
+                                shiftAndPenaltyConfig.penalty_type === "salary_percent"
+                                  ? "bg-blue-600 text-white shadow"
+                                  : "text-slate-700 hover:text-black"
+                              }`}
+                            >
+                              % Lương Tháng
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                          <span className="font-bold text-slate-700 block text-xs">Trễ 15 - 30 phút:</span>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              value={shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? shiftAndPenaltyConfig.tier_15_30_amount : shiftAndPenaltyConfig.tier_15_30_percent}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                setShiftAndPenaltyConfig(prev => ({
+                                  ...prev,
+                                  tier_15_30_amount: prev.penalty_type === "fixed_amount" ? val : prev.tier_15_30_amount,
+                                  tier_15_30_percent: prev.penalty_type === "salary_percent" ? val : prev.tier_15_30_percent
+                                }));
+                              }}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-black text-rose-600"
+                            />
+                            <span className="font-bold text-slate-500">{shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? "đ" : "%"}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                          <span className="font-bold text-slate-700 block text-xs">Trễ 31 - 60 phút:</span>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              value={shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? shiftAndPenaltyConfig.tier_31_60_amount : shiftAndPenaltyConfig.tier_31_60_percent}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                setShiftAndPenaltyConfig(prev => ({
+                                  ...prev,
+                                  tier_31_60_amount: prev.penalty_type === "fixed_amount" ? val : prev.tier_31_60_amount,
+                                  tier_31_60_percent: prev.penalty_type === "salary_percent" ? val : prev.tier_31_60_percent
+                                }));
+                              }}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-black text-rose-600"
+                            />
+                            <span className="font-bold text-slate-500">{shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? "đ" : "%"}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                          <span className="font-bold text-slate-700 block text-xs">Trễ 61 - 120 phút:</span>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              value={shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? shiftAndPenaltyConfig.tier_61_120_amount : shiftAndPenaltyConfig.tier_61_120_percent}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                setShiftAndPenaltyConfig(prev => ({
+                                  ...prev,
+                                  tier_61_120_amount: prev.penalty_type === "fixed_amount" ? val : prev.tier_61_120_amount,
+                                  tier_61_120_percent: prev.penalty_type === "salary_percent" ? val : prev.tier_61_120_percent
+                                }));
+                              }}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-black text-rose-600"
+                            />
+                            <span className="font-bold text-slate-500">{shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? "đ" : "%"}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                          <span className="font-bold text-slate-700 block text-xs">Trễ trên 120 phút:</span>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              value={shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? shiftAndPenaltyConfig.tier_over_120_amount : shiftAndPenaltyConfig.tier_over_120_percent}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                setShiftAndPenaltyConfig(prev => ({
+                                  ...prev,
+                                  tier_over_120_amount: prev.penalty_type === "fixed_amount" ? val : prev.tier_over_120_amount,
+                                  tier_over_120_percent: prev.penalty_type === "salary_percent" ? val : prev.tier_over_120_percent
+                                }));
+                              }}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-black text-rose-600"
+                            />
+                            <span className="font-bold text-slate-500">{shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? "đ" : "%"}</span>
+                          </div>
+                          <span className="text-[10px] text-amber-700 font-extrabold block">+ Trừ nửa công (240 phút = 0.5 công)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3. Quy tắc đơn không duyệt */}
+                    <div className="p-4 bg-amber-50 rounded-2xl border-2 border-amber-300 text-amber-950 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck size={18} className="text-amber-700 shrink-0" />
+                        <span className="font-black text-sm">3. Quy Tắc Khi Đơn Xin Nghỉ Bị Từ Chối (Hoặc Cố Ý Nghỉ Không Phép)</span>
+                      </div>
+                      <p className="text-xs leading-relaxed font-semibold">
+                        • Nếu nhân sự làm đơn xin nghỉ mà <strong>Quản trị hoặc Kế toán KHÔNG DUYỆT (Từ chối)</strong> nhưng nhân viên vẫn nghỉ: Hệ thống sẽ tự động trừ đi thời gian công của người đó (Vắng cả ngày trừ trọn vẹn 1.0 công = 480 phút; vắng nửa ngày trừ 0.5 công = 240 phút).<br />
+                        • Quản trị viên (Admin) luôn là người có thẩm quyền cao nhất để chỉnh sửa, ghi đè hoặc tùy chỉnh ngày công trên Bảng Công Matrix bất kỳ lúc nào.
+                      </p>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isShiftPenaltySaving}
+                      className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-sm rounded-xl shadow-lg cursor-pointer transition-all flex items-center gap-2 disabled:opacity-60"
+                    >
+                      <Clock size={16} />
+                      <span>{isShiftPenaltySaving ? "Đang lưu cấu hình..." : "💾 Lưu Cấu Hình Khung Giờ & Mức Phạt Đi Trễ"}</span>
+                    </button>
+                  </form>
+                </div>
               </div>
             )}
 
@@ -1946,6 +2487,11 @@ export default function HomePage() {
                   </table>
                 </div>
               </div>
+            )}
+
+            {/* TAB: CẤU HÌNH PHÂN QUYỀN KẾ TOÁN (CHỈ QUẢN TRỊ VIÊN) */}
+            {currentTab === "permissions" && hasPermission(activeRole, "canManagePermissions") && (
+              <AccountantPermissionView />
             )}
 
             {/* TAB: ĐIỂM DANH & CHẤM CÔNG TRÊN PC (VỚI BANNER THÔNG BÁO MOBILE CHO NHÂN SỰ) */}
@@ -2328,13 +2874,46 @@ export default function HomePage() {
                     className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-300 focus:border-blue-600 rounded-xl outline-none font-bold text-xs text-blue-900 disabled:opacity-60 cursor-pointer"
                   >
                     <option value={ROLES.EMPLOYEE}>👤 Cán Bộ Nhân Viên (Chỉ chấm công & xem phiếu lương)</option>
-                    <option value={ROLES.HR}>📋 Nhân Sự HR (Duyệt đơn, quản lý nhân viên, sửa công)</option>
-                    <option value={ROLES.ACCOUNTANT}>📊 Bộ Phận Kế Toán (Chốt bảng công, tính lương)</option>
-                    <option value={ROLES.ADMIN}>👑 Quản Trị Viên (Toàn quyền hệ thống & vị trí)</option>
+                    <option value={ROLES.HR}>📋 Nhân Sự HR (Tạo đơn xin nghỉ, quản lý nhân viên, sửa công)</option>
+                    <option value={ROLES.ACCOUNTANT}>📊 Bộ Phận Kế Toán (Phê duyệt đơn, chốt bảng công, tính lương)</option>
+                    <option value={ROLES.ADMIN}>👑 Quản Trị Viên (Toàn quyền duyệt đơn, vị trí, khung giờ & hệ thống)</option>
                   </select>
                   {editEmployeeForm.ma_nv === currentUser?.ma_nv && (
                     <p className="text-[10px] text-amber-600 font-bold mt-1">Bảo mật: Không thể tự thay đổi vai trò phân quyền của chính mình.</p>
                   )}
+                </div>
+
+                {/* Cài đặt ca làm việc & Chế độ phạt riêng cho nhân viên */}
+                <div className="p-3.5 bg-blue-50/70 rounded-2xl border-2 border-blue-200 space-y-2.5">
+                  <span className="font-black text-blue-950 text-xs flex items-center gap-1.5">
+                    <Clock size={14} className="text-blue-700" />
+                    <span>Cài Đặt Khung Giờ & Chế Độ Phạt Riêng Cho Nhân Viên</span>
+                  </span>
+                  <div>
+                    <label className="block text-slate-700 font-bold text-[11px] mb-1">Khung Giờ Ca Làm Việc</label>
+                    <select
+                      value={editEmployeeForm.shift_type || "standard"}
+                      onChange={e => setEditEmployeeForm({ ...editEmployeeForm, shift_type: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-xs text-slate-800"
+                    >
+                      <option value="standard">Ca Hành Chính Chuẩn (08:00-12:00 & 13:00-17:00 • 8 tiếng/công)</option>
+                      <option value="flexible">Ca Linh Hoạt / Công Trường (Theo điều động thực tế)</option>
+                      <option value="shift_morning">Chỉ Ca Sáng (08:00 - 12:00 • 4 tiếng / 0.5 công)</option>
+                      <option value="shift_afternoon">Chỉ Ca Chiều (13:00 - 17:00 • 4 tiếng / 0.5 công)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold text-[11px] mb-1">Chế Độ Phạt Đi Trễ</label>
+                    <select
+                      value={editEmployeeForm.penalty_mode || "company_standard"}
+                      onChange={e => setEditEmployeeForm({ ...editEmployeeForm, penalty_mode: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-xs text-slate-800"
+                    >
+                      <option value="company_standard">Áp dụng thang phạt chuẩn công ty (VND / % lương)</option>
+                      <option value="exempt_approved">Miễn trừ phạt (Đặc thù công tác / Ban quản lý)</option>
+                      <option value="strict">Áp dụng thang phạt nghiêm ngặt (+ trừ 0.5 công khi trễ trên 60 phút)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="p-3.5 bg-amber-50 rounded-2xl border-2 border-amber-300 space-y-2">
@@ -2371,9 +2950,10 @@ export default function HomePage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl border-2 border-blue-700 shadow-md text-xs md:text-sm cursor-pointer"
+                    disabled={isUpdatingEmployee}
+                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl border-2 border-blue-700 shadow-md text-xs md:text-sm cursor-pointer disabled:opacity-60"
                   >
-                    Lưu Thay Đổi
+                    {isUpdatingEmployee ? "Đang lưu..." : "Lưu Thay Đổi"}
                   </button>
                 </div>
               </form>
@@ -2978,36 +3558,119 @@ export default function HomePage() {
                 )}
               </div>
 
-              <div className="space-y-3">
-                {allEmployees.map((emp, i) => (
-                  <div key={emp.ma_nv || i} className="bg-white rounded-2xl p-4 border-2 border-slate-200 shadow-sm space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-black text-sm text-slate-900">{emp.ho_ten}</h4>
-                        <span className="text-xs text-slate-600 font-bold">{emp.ma_nv} • {emp.chuc_danh || "Nhân viên"}</span>
-                      </div>
-                      <span className="text-xs px-2.5 py-1 rounded-full font-black bg-blue-100 text-blue-900 border border-blue-300">
-                        {ROLE_LABELS[emp.role] || emp.role || "Nhân Viên"}
-                      </span>
-                    </div>
+              {/* Thanh tìm kiếm & lọc trên mobile */}
+              <div className="bg-white p-3 rounded-2xl border-2 border-slate-200 shadow-sm space-y-2.5">
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm tên, mã NV, chức vụ, SĐT..."
+                    value={employeeSearchQuery}
+                    onChange={e => setEmployeeSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-medium outline-none focus:border-blue-600"
+                  />
+                  {employeeSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setEmployeeSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 p-1 cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <select
+                    value={employeeRoleFilter}
+                    onChange={e => setEmployeeRoleFilter(e.target.value)}
+                    className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                  >
+                    <option value="all">Tất cả vai trò</option>
+                    <option value={ROLES.ADMIN}>Quản Trị Viên</option>
+                    <option value={ROLES.ACCOUNTANT}>Kế Toán</option>
+                    <option value={ROLES.HR}>Nhân Sự</option>
+                    <option value={ROLES.EMPLOYEE}>Nhân Viên</option>
+                  </select>
+                  <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2.5 py-1.5 rounded-xl border border-blue-200 shrink-0">
+                    {filteredEmployees.length} / {allEmployees.length} NV
+                  </span>
+                </div>
+              </div>
 
-                    <div className="flex justify-between items-center pt-2.5 border-t border-slate-100">
-                      <span className="text-xs text-slate-500 font-semibold">
-                        SĐT: {emp.dien_thoai || "0905***"}
-                      </span>
-                      {activeRole === ROLES.ADMIN && (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditEmployee(emp)}
-                          className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl font-black flex items-center gap-1.5 text-xs border border-amber-300 cursor-pointer shadow-sm transition-all"
-                        >
-                          <Edit3 size={13} />
-                          <span>Sửa Hồ Sơ / MK</span>
-                        </button>
-                      )}
-                    </div>
+              <div className="space-y-3">
+                {filteredEmployees.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-6 border-2 border-slate-200 text-center space-y-2">
+                    <Search size={28} className="mx-auto text-slate-300" />
+                    <p className="text-xs font-bold text-slate-700">Không tìm thấy nhân sự phù hợp</p>
+                    <p className="text-[11px] text-slate-400">Thử tìm với tên hoặc mã nhân sự khác</p>
                   </div>
-                ))}
+                ) : (
+                  filteredEmployees.map((emp, i) => (
+                    <div key={emp.ma_nv || i} className="bg-white rounded-2xl p-4 border-2 border-slate-200 shadow-sm space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-black text-sm text-slate-900">{emp.ho_ten}</h4>
+                          <span className="text-xs text-slate-600 font-bold">{emp.ma_nv} • {emp.chuc_danh || "Nhân viên"}</span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-xs px-2.5 py-1 rounded-full font-black bg-blue-100 text-blue-900 border border-blue-300">
+                            {ROLE_LABELS[emp.role] || emp.role || "Nhân Viên"}
+                          </span>
+                          {emp.is_locked || emp.status === "inactive" ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1">
+                              <Lock size={10} /> Đã tạm khóa
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                              <CheckCircle2 size={10} /> Đang làm
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-2.5 border-t border-slate-100">
+                        <span className="text-xs text-slate-500 font-semibold">
+                          SĐT: {emp.dien_thoai || "0905***"}
+                        </span>
+                        {activeRole === ROLES.ADMIN && (
+                          <div className="flex items-center gap-2">
+                            {emp.ma_nv !== currentUser?.ma_nv && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleLockEmployee(emp)}
+                                className={`px-2.5 py-1.5 rounded-xl font-black flex items-center gap-1 text-xs border cursor-pointer shadow-sm transition-all ${
+                                  emp.is_locked || emp.status === "inactive"
+                                    ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300"
+                                    : "bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300"
+                                }`}
+                              >
+                                {emp.is_locked || emp.status === "inactive" ? (
+                                  <>
+                                    <Unlock size={12} />
+                                    <span>Mở Khóa</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Lock size={12} />
+                                    <span>Khóa TK</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditEmployee(emp)}
+                              className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl font-black flex items-center gap-1.5 text-xs border border-amber-300 cursor-pointer shadow-sm transition-all"
+                            >
+                              <Edit3 size={13} />
+                              <span>Sửa</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -3301,6 +3964,222 @@ export default function HomePage() {
                   💾 Lưu Cấu Hình Vị Trí Trụ Sở
                 </button>
               </form>
+
+              {/* Form Cấu Hình Ca Làm Việc & Thang Phạt Đi Trễ Cho Mobile */}
+              <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 shadow-sm space-y-4">
+                <div className="border-b-2 border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="text-indigo-600" size={20} />
+                    <h3 className="font-black text-sm md:text-base text-slate-900">
+                      CẤU HÌNH KHUNG GIỜ & THANG PHẠT ĐI TRỄ
+                    </h3>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-bold mt-1">
+                    Khung giờ chuẩn: 08:00 - 12:00 & 13:00 - 17:00 (1 ngày = 8 tiếng = 480 phút = 1 công)
+                  </p>
+                </div>
+
+                <form onSubmit={handleSaveShiftPenaltyConfig} className="space-y-4 text-xs">
+                  {/* Khung giờ ca */}
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                    <span className="font-black text-slate-800 text-xs flex items-center gap-1.5">
+                      <Calendar size={14} className="text-blue-600" />
+                      <span>Khung Giờ Ca Làm Việc Chính</span>
+                    </span>
+
+                    <div className="space-y-2.5">
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                        <span className="font-bold text-slate-800 block text-[11px]">Ca Sáng (240 phút = 4 tiếng = 0.5 công)</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={shiftAndPenaltyConfig.morning_start}
+                            onChange={e => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, morning_start: e.target.value })}
+                            className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-black text-blue-700 text-xs"
+                          />
+                          <span className="text-slate-400 font-bold text-xs">đến</span>
+                          <input
+                            type="time"
+                            value={shiftAndPenaltyConfig.morning_end}
+                            onChange={e => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, morning_end: e.target.value })}
+                            className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-black text-slate-700 text-xs"
+                          />
+                        </div>
+                        <span className="text-[10px] text-emerald-700 font-bold block">Chấm công trước 08:00 là đúng giờ ca sáng</span>
+                      </div>
+
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                        <span className="font-bold text-slate-800 block text-[11px]">Ca Chiều (240 phút = 4 tiếng = 0.5 công)</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={shiftAndPenaltyConfig.afternoon_start}
+                            onChange={e => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, afternoon_start: e.target.value })}
+                            className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-black text-slate-700 text-xs"
+                          />
+                          <span className="text-slate-400 font-bold text-xs">đến</span>
+                          <input
+                            type="time"
+                            value={shiftAndPenaltyConfig.afternoon_end}
+                            onChange={e => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, afternoon_end: e.target.value })}
+                            className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-black text-blue-700 text-xs"
+                          />
+                        </div>
+                        <span className="text-[10px] text-emerald-700 font-bold block">Chấm công sau 17:00 là đủ 1 ngày công</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hình thức phạt */}
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-slate-800 text-xs flex items-center gap-1.5">
+                        <AlertTriangle size={14} className="text-amber-600" />
+                        <span>Mức Phạt Đi Trễ</span>
+                      </span>
+                      <div className="inline-flex rounded-xl p-0.5 bg-white border border-slate-300">
+                        <button
+                          type="button"
+                          onClick={() => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, penalty_type: "fixed_amount" })}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${
+                            shiftAndPenaltyConfig.penalty_type === "fixed_amount"
+                              ? "bg-blue-600 text-white shadow"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          VND
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShiftAndPenaltyConfig({ ...shiftAndPenaltyConfig, penalty_type: "salary_percent" })}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${
+                            shiftAndPenaltyConfig.penalty_type === "salary_percent"
+                              ? "bg-blue-600 text-white shadow"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          % Lương
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-600 block mb-1">Trễ 15 - 30p:</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            value={shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? shiftAndPenaltyConfig.tier_15_30_amount : shiftAndPenaltyConfig.tier_15_30_percent}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setShiftAndPenaltyConfig(prev => ({
+                                ...prev,
+                                tier_15_30_amount: prev.penalty_type === "fixed_amount" ? val : prev.tier_15_30_amount,
+                                tier_15_30_percent: prev.penalty_type === "salary_percent" ? val : prev.tier_15_30_percent
+                              }));
+                            }}
+                            className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-black text-rose-600 text-xs"
+                          />
+                          <span className="text-[10px] font-bold text-slate-500">{shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? "đ" : "%"}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-600 block mb-1">Trễ 31 - 60p:</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            value={shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? shiftAndPenaltyConfig.tier_31_60_amount : shiftAndPenaltyConfig.tier_31_60_percent}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setShiftAndPenaltyConfig(prev => ({
+                                ...prev,
+                                tier_31_60_amount: prev.penalty_type === "fixed_amount" ? val : prev.tier_31_60_amount,
+                                tier_31_60_percent: prev.penalty_type === "salary_percent" ? val : prev.tier_31_60_percent
+                              }));
+                            }}
+                            className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-black text-rose-600 text-xs"
+                          />
+                          <span className="text-[10px] font-bold text-slate-500">{shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? "đ" : "%"}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-600 block mb-1">Trễ 61 - 120p:</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            value={shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? shiftAndPenaltyConfig.tier_61_120_amount : shiftAndPenaltyConfig.tier_61_120_percent}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setShiftAndPenaltyConfig(prev => ({
+                                ...prev,
+                                tier_61_120_amount: prev.penalty_type === "fixed_amount" ? val : prev.tier_61_120_amount,
+                                tier_61_120_percent: prev.penalty_type === "salary_percent" ? val : prev.tier_61_120_percent
+                              }));
+                            }}
+                            className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-black text-rose-600 text-xs"
+                          />
+                          <span className="text-[10px] font-bold text-slate-500">{shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? "đ" : "%"}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-600 block mb-1">Trễ trên 120p:</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            value={shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? shiftAndPenaltyConfig.tier_over_120_amount : shiftAndPenaltyConfig.tier_over_120_percent}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setShiftAndPenaltyConfig(prev => ({
+                                ...prev,
+                                tier_over_120_amount: prev.penalty_type === "fixed_amount" ? val : prev.tier_over_120_amount,
+                                tier_over_120_percent: prev.penalty_type === "salary_percent" ? val : prev.tier_over_120_percent
+                              }));
+                            }}
+                            className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-black text-rose-600 text-xs"
+                          />
+                          <span className="text-[10px] font-bold text-slate-500">{shiftAndPenaltyConfig.penalty_type === "fixed_amount" ? "đ" : "%"}</span>
+                        </div>
+                        <span className="text-[9px] text-amber-700 font-extrabold block mt-0.5">+ Trừ 0.5 công (240p)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quy tắc đơn không duyệt */}
+                  <div className="p-3 bg-amber-50 rounded-2xl border border-amber-300 text-amber-950 space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck size={15} className="text-amber-700 shrink-0" />
+                      <span className="font-black text-xs">Quy Tắc Đơn Bị Từ Chối (Hoặc Nghỉ Tự Ý)</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed font-semibold">
+                      • Đơn xin nghỉ bị Quản trị hoặc Kế toán Từ chối nhưng nhân viên vẫn nghỉ: Hệ thống tự động trừ thời gian công (1 ngày = trừ 1 công = 480 phút; nửa ngày = trừ 0.5 công = 240 phút).<br />
+                      • Quản trị viên (Admin) luôn có toàn quyền chỉnh sửa và quyết định trên Bảng Công Matrix.
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isShiftPenaltySaving}
+                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black rounded-2xl text-xs md:text-sm border-2 border-indigo-700 shadow-md cursor-pointer transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    <Clock size={16} />
+                    <span>{isShiftPenaltySaving ? "Đang lưu cấu hình..." : "💾 Lưu Cấu Hình Khung Giờ & Mức Phạt"}</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 8 (MOBILE): CẤU HÌNH PHÂN QUYỀN KẾ TOÁN (CHỈ QUẢN TRỊ VIÊN) */}
+          {currentTab === "permissions" && hasPermission(activeRole, "canManagePermissions") && (
+            <div className="p-2">
+              <AccountantPermissionView />
             </div>
           )}
 

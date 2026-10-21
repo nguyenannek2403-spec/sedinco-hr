@@ -101,6 +101,8 @@ Hệ thống Backend được tổ chức phân tầng rõ rệt theo mô hình 
 - `luong_cb`: DECIMAL(15,2) DEFAULT 0
 - `phu_cap_an_trua`, `phu_cap_xang_xe`, `phu_cap_nha_o`, `thuong_htcv`, `phu_cap_trach_nhiem`, `phu_cap_tiep_khach`: DECIMAL(15,2) DEFAULT 0
 - `has_insurance`: BOOLEAN DEFAULT TRUE
+- `status`: VARCHAR(20) DEFAULT 'active' ('active' / 'inactive')
+- `is_locked`: BOOLEAN DEFAULT FALSE (Khóa tài khoản nhân viên)
 
 ### 3.3 Bảng `attendance` (Công chuẩn theo tháng)
 - `id`: INT AUTO_INCREMENT PRIMARY KEY
@@ -134,9 +136,26 @@ Hệ thống Backend được tổ chức phân tầng rõ rệt theo mô hình 
 - `holiday_name`: VARCHAR(150) NOT NULL
 - `start_date`: DATE NOT NULL, `end_date`: DATE NOT NULL
 
-### 3.7 Bảng `company_settings` (Cấu hình Doanh nghiệp)
+### 3.7 Bảng `company_settings` (Cấu hình Doanh nghiệp & Khung Giờ Làm Việc)
 - `id`: INT AUTO_INCREMENT PRIMARY KEY
 - `company_name`: VARCHAR(255), `phone`: VARCHAR(50), `address`: TEXT, `tax_code`: VARCHAR(50), `logo_url`: LONGTEXT
+- `work_start`: VARCHAR(10) DEFAULT '08:00'
+- `work_end`: VARCHAR(10) DEFAULT '17:00'
+- `lunch_start`: VARCHAR(10) DEFAULT '12:00'
+- `lunch_end`: VARCHAR(10) DEFAULT '13:00'
+- `grace_period_minutes`: INT DEFAULT 15
+- `penalty_per_minute`: DECIMAL(15,2) DEFAULT 2000
+- `penalty_fixed_block`: DECIMAL(15,2) DEFAULT 50000
+- `penalty_salary_percent`: DECIMAL(5,2) DEFAULT 0
+
+### 3.8 Bảng `period_locks` (Chốt / Mở Khóa Kỳ Công Tháng)
+- `id`: INT AUTO_INCREMENT PRIMARY KEY
+- `month`: INT NOT NULL, `year`: INT NOT NULL
+- `is_locked`: BOOLEAN DEFAULT TRUE
+- `locked_by`: VARCHAR(50) DEFAULT 'admin'
+- `locked_at`: TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+- `reason`: TEXT
+- Ràng buộc duy nhất: `UNIQUE KEY unique_period (month, year)`
 
 ---
 
@@ -147,17 +166,22 @@ Hệ thống Backend được tổ chức phân tầng rõ rệt theo mô hình 
 | `GET` | `/` | Không | Không | `{ status: 'ok', name: 'Sedinco HR Backend API', time }` | [src/app.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/app.js) |
 | `GET` | `/api/health` | Không | Không | `{ status: 'healthy', uptime, timestamp }` | [src/app.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/app.js) |
 | `POST` | `/api/admin/login` | Không | `{ username, password }` | `{ success, data: safeAdmin }` | [src/controllers/authController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/authController.js) |
-| `POST` | `/api/login` | Không | `{ ma_nv, password }` | `{ success, data: safeEmp }` | [src/controllers/authController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/authController.js) |
+| `POST` | `/api/login` | Không | `{ ma_nv, password }` | `{ success, data: safeEmp }` (Chặn nếu tài khoản bị khóa) | [src/controllers/authController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/authController.js) |
 | `POST` | `/api/admin/register` | Không | `{ username, password, ho_ten }` | `{ success }` | [src/controllers/authController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/authController.js) |
 | `POST` | `/api/change-password` | Không | `{ ma_nv, old_password, new_password }` | `{ success }` | [src/controllers/authController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/authController.js) |
 | `POST` | `/api/update-avatar` | Không | `{ ma_nv, avatar_url }` | `{ success }` | [src/controllers/authController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/authController.js) |
 | `GET` | `/api/company` | Không | Không | `{ success, data: config }` | [src/controllers/companyController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/companyController.js) |
 | `PUT` | `/api/company` | Không | `{ company_name, phone, address, tax_code, logo_url }` | `{ success }` | [src/controllers/companyController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/companyController.js) |
+| `GET` | `/api/settings/penalties` | Không | Không | `{ success, data: penaltiesConfig }` | [src/controllers/companyController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/companyController.js) |
+| `POST` | `/api/settings/penalties` | Không | `{ work_start, work_end, grace_period_minutes, penalty_per_minute... }` | `{ success }` | [src/controllers/companyController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/companyController.js) |
 | `GET` | `/api/holidays` | Không | Không | `{ success, data: [] }` | [src/controllers/holidayController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/holidayController.js) |
 | `POST` | `/api/holidays` | Không | `{ holiday_name, start_date, end_date }` | `{ success }` | [src/controllers/holidayController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/holidayController.js) |
 | `DELETE` | `/api/holidays/:id` | Không | URL param `:id` | `{ success }` | [src/controllers/holidayController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/holidayController.js) |
 | `GET` | `/api/attendance` | Không | Query: `?month=&year=` | `{ success, data: [{ ma_nv, ho_ten, days: [] }] }` | [src/controllers/attendanceController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/attendanceController.js) |
-| `POST` | `/api/attendance/update` | Không | `{ ma_nv, day, month, year, status, ot_hours }` | `{ success }` | [src/controllers/attendanceController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/attendanceController.js) |
+| `GET` | `/api/attendance/period-status` | Không | Query: `?month=&year=` | `{ success, data: { month, year, is_locked, locked_by... } }` | [src/controllers/attendanceController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/attendanceController.js) |
+| `POST` | `/api/attendance/lock-period` | Không | `{ month, year, reason, locked_by }` | `{ success, message }` | [src/controllers/attendanceController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/attendanceController.js) |
+| `POST` | `/api/attendance/unlock-period` | Không | `{ month, year, reason, unlocked_by }` | `{ success, message }` | [src/controllers/attendanceController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/attendanceController.js) |
+| `POST` | `/api/attendance/update` | Không | `{ ma_nv, day, month, year, status, ot_hours }` | `{ success }` (Chặn nếu kỳ công đã khóa hoặc tài khoản bị khóa) | [src/controllers/attendanceController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/attendanceController.js) |
 | `GET` | `/api/payroll` | Không | Query: `?month=&year=` | `{ success, data: [PayrollItems] }` | [src/controllers/payrollController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/payrollController.js) |
 | `GET` | `/api/requests` | Không | Không | `{ success, data: [Requests] }` | [src/controllers/requestController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/requestController.js) |
 | `POST` | `/api/requests` | Không | `{ employee_id, request_type, request_date, reason }` | `{ success }` | [src/controllers/requestController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/requestController.js) |
@@ -166,6 +190,7 @@ Hệ thống Backend được tổ chức phân tầng rõ rệt theo mô hình 
 | `POST` | `/api/employees` | Không | Hồ sơ nhân viên mới | `{ success }` | [src/controllers/employeeController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/employeeController.js) |
 | `PUT` | `/api/employees/:id` | Không | Hồ sơ nhân viên cập nhật | `{ success }` | [src/controllers/employeeController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/employeeController.js) |
 | `PUT` | `/api/employees/:ma_nv/role` | Không | Body: `{ role: 'admin'/'accountant'/'employee' }` | `{ success }` | [src/controllers/employeeController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/employeeController.js) |
+| `PUT` | `/api/employees/:ma_nv/status` | Không | Body: `{ status: 'active'/'inactive', is_locked: true/false }` | `{ success }` | [src/controllers/employeeController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/employeeController.js) |
 | `DELETE` | `/api/employees/:id` | Không | URL param `:id` | `{ success }` | [src/controllers/employeeController.js](file:///Users/an/Desktop/anti%20gravity/sedinco-hr/src/controllers/employeeController.js) |
 
 ---
