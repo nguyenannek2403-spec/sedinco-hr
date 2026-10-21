@@ -46,6 +46,28 @@ class RequestService {
             }
         }
 
+        // Siết chặt phòng chống gian lận: Giới hạn tối đa 3 lần nộp đơn bổ sung công / quên chấm công trong 1 tháng
+        const typeLower = (request_type || '').toLowerCase();
+        if (typeLower.includes('cập nhật công') || typeLower.includes('quên chấm công') || typeLower.includes('bổ sung công')) {
+            const dateObj = request_date ? new Date(request_date) : new Date();
+            const m = dateObj.getMonth() + 1;
+            const y = dateObj.getFullYear();
+            const cntRows = await query(`
+                SELECT COUNT(*) as cnt 
+                FROM requests 
+                WHERE employee_id = ? 
+                  AND (LOWER(request_type) LIKE '%cập nhật công%' OR LOWER(request_type) LIKE '%quên chấm công%' OR LOWER(request_type) LIKE '%bổ sung công%')
+                  AND MONTH(request_date) = ? AND YEAR(request_date) = ?
+                  AND status != 'cancelled'
+            `, [targetId, m, y]);
+            const currentCount = (cntRows && cntRows[0]) ? cntRows[0].cnt : 0;
+            if (currentCount >= 3) {
+                const error = new Error(`Chính sách công ty: Bạn đã nộp tối đa 3 đơn bổ sung công trong Tháng ${m}/${y}! Vui lòng gặp trực tiếp Quản trị viên.`);
+                error.statusCode = 400;
+                throw error;
+            }
+        }
+
         await query(
             'INSERT INTO requests (employee_id, request_type, request_date, reason) VALUES (?, ?, ?, ?)',
             [targetId, request_type, request_date, reason]
@@ -197,6 +219,102 @@ class RequestService {
         });
 
         return { success: true, message: 'Hủy đơn thành công!' };
+    }
+
+    async createOtPreRegistration({ employee_id, work_date, expected_hours, reason, current_user = null }) {
+        if (!current_user) {
+            const error = new Error('Yêu cầu đăng nhập!');
+            error.statusCode = 401;
+            throw error;
+        }
+
+        const targetId = (current_user.role === 'worker') ? current_user.ma_nv : (employee_id || current_user.ma_nv);
+        const hours = Number(expected_hours);
+        if (isNaN(hours) || hours <= 0 || hours > 8) {
+            const error = new Error('Số giờ làm thêm dự kiến phải từ 0.5 đến 8.0 giờ/ngày!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        if (!work_date) {
+            const error = new Error('Vui lòng chọn ngày làm thêm giờ!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const sql = `
+            INSERT INTO ot_registrations (employee_id, work_date, expected_hours, reason, status)
+            VALUES (?, ?, ?, ?, 'pending')
+            ON DUPLICATE KEY UPDATE 
+                expected_hours = VALUES(expected_hours),
+                reason = VALUES(reason),
+                status = 'pending'
+        `;
+        await query(sql, [targetId, work_date, hours, reason || '']);
+
+        await logAuditEvent({
+            actor_id: current_user.ma_nv || current_user.username,
+            actor_role: current_user.role,
+            action: 'REGISTER_PRE_OT',
+            resource: 'ot_registrations',
+            details: { employee_id: targetId, work_date, expected_hours: hours, reason }
+        });
+
+        return { success: true, message: 'Đăng ký làm thêm giờ thành công, đang chờ quản lý phê duyệt!' };
+    }
+
+    async getOtRegistrations(month, year) {
+        const m = parseInt(month, 10) || (new Date().getMonth() + 1);
+        const y = parseInt(year, 10) || new Date().getFullYear();
+
+        const sql = `
+            SELECT o.id, o.employee_id, e.ho_ten, e.chuc_danh, 
+                   DATE_FORMAT(o.work_date, '%d/%m/%Y') as work_date_display,
+                   o.work_date, o.expected_hours, o.reason, o.approved_by, o.status, o.created_at
+            FROM ot_registrations o
+            LEFT JOIN employees e ON o.employee_id = e.ma_nv
+            WHERE MONTH(o.work_date) = ? AND YEAR(o.work_date) = ?
+            ORDER BY o.work_date DESC, o.created_at DESC
+        `;
+        const rows = await query(sql, [m, y]);
+        return rows || [];
+    }
+
+    async updateOtRegistrationStatus(id, status, current_user = null) {
+        if (!['approved', 'rejected'].includes(status)) {
+            const error = new Error('Trạng thái phê duyệt không hợp lệ!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const rows = await query('SELECT * FROM ot_registrations WHERE id = ?', [id]);
+        if (!rows || rows.length === 0) {
+            const error = new Error('Không tìm thấy đơn đăng ký làm thêm giờ!');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const reg = rows[0];
+
+        // Ngăn chặn tự duyệt OT của chính mình (Separation of Duties)
+        if (current_user && current_user.ma_nv && current_user.ma_nv === reg.employee_id && status === 'approved') {
+            const error = new Error('Bảo mật: Bạn không thể tự phê duyệt đơn đăng ký làm thêm giờ của chính mình!');
+            error.statusCode = 403;
+            throw error;
+        }
+
+        const approver = current_user ? (current_user.username || current_user.ma_nv) : 'admin';
+        await query('UPDATE ot_registrations SET status = ?, approved_by = ? WHERE id = ?', [status, approver, id]);
+
+        await logAuditEvent({
+            actor_id: approver,
+            actor_role: current_user ? current_user.role : 'admin',
+            action: status === 'approved' ? 'APPROVE_OT_REGISTRATION' : 'REJECT_OT_REGISTRATION',
+            resource: 'ot_registrations',
+            details: { ot_reg_id: id, employee_id: reg.employee_id, status }
+        });
+
+        return { success: true, message: `Cập nhật trạng thái đăng ký OT thành '${status}' thành công!` };
     }
 }
 

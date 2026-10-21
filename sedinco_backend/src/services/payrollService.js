@@ -25,6 +25,12 @@ class PayrollService {
         );
         const safeLogs = logs || [];
 
+        const otRegs = await query(
+            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE MONTH(work_date) = ? AND YEAR(work_date) = ? AND status = "approved"',
+            [m, y]
+        );
+        const safeOtRegs = otRegs || [];
+
         return emps.map(emp => {
             const empLogs = safeLogs.filter(l => l.employee_id === emp.ma_nv);
             const allowances = {
@@ -43,7 +49,8 @@ class PayrollService {
                 logs: empLogs,
                 holidays: safeHolidays,
                 allowances: allowances,
-                has_insurance: emp.has_insurance
+                has_insurance: emp.has_insurance,
+                otRegistrations: safeOtRegs.filter(r => r.employee_id === emp.ma_nv)
             });
 
             return {
@@ -88,6 +95,12 @@ class PayrollService {
         );
         const safeLogs = logs || [];
 
+        const otRegs = await query(
+            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE employee_id = ? AND MONTH(work_date) = ? AND YEAR(work_date) = ? AND status = "approved"',
+            [ma_nv, m, y]
+        );
+        const safeOtRegs = otRegs || [];
+
         const allowances = {
             an_trua: emp.phu_cap_an_trua,
             xang_xe: emp.phu_cap_xang_xe,
@@ -104,7 +117,8 @@ class PayrollService {
             logs: safeLogs,
             holidays: safeHolidays,
             allowances: allowances,
-            has_insurance: emp.has_insurance
+            has_insurance: emp.has_insurance,
+            otRegistrations: safeOtRegs
         });
 
         return {

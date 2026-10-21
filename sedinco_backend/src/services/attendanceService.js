@@ -1,5 +1,7 @@
 const { query } = require('../config/db');
 const { logAuditEvent, getAccountantPermissions } = require('../middlewares/authMiddleware');
+const { calculateDistanceMeters } = require('../utils/geoHelper');
+const { generateDynamicQrToken, verifyDynamicQrToken } = require('../utils/dynamicQrHelper');
 
 class AttendanceService {
     async getAttendanceMatrix(month, year) {
@@ -228,6 +230,251 @@ class AttendanceService {
         }
 
         return { success: true };
+    }
+
+    async generateDynamicQr(branchId = 1, current_user = null) {
+        const qrData = generateDynamicQrToken(branchId, 30);
+        const sql = `
+            INSERT INTO dynamic_qr_sessions (session_token, branch_id, expires_at)
+            VALUES (?, ?, ?)
+        `;
+        await query(sql, [qrData.token, qrData.branchId, qrData.expiresAt]);
+
+        if (current_user) {
+            await logAuditEvent({
+                actor_id: current_user.username || current_user.ma_nv || 'system',
+                actor_role: current_user.role || 'admin',
+                action: 'GENERATE_DYNAMIC_QR',
+                resource: 'attendance',
+                details: { branchId: qrData.branchId, expiresAt: qrData.expiresAt }
+            });
+        }
+
+        return {
+            token: qrData.token,
+            branchId: qrData.branchId,
+            expiresAt: qrData.expiresAt.toISOString(),
+            ttlSeconds: qrData.ttlSeconds
+        };
+    }
+
+    async checkInMultiFactor({ token, lat, lng, image_snapshot, device_info, current_user = null, ip_address = '' }) {
+        if (!current_user || !current_user.ma_nv) {
+            const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
+            error.statusCode = 401;
+            throw error;
+        }
+
+        const ma_nv = current_user.ma_nv;
+
+        // 1. Kiểm tra tài khoản có bị tạm khóa không
+        const empCheck = await query('SELECT is_locked, status FROM employees WHERE ma_nv = ?', [ma_nv]);
+        if (!empCheck || empCheck.length === 0) {
+            const error = new Error('Mã nhân viên không tồn tại trong hệ thống!');
+            error.statusCode = 404;
+            throw error;
+        }
+        if (empCheck[0].status === 'inactive' || empCheck[0].is_locked === 1 || empCheck[0].is_locked === true) {
+            const error = new Error(`Tài khoản nhân viên ${ma_nv} đang bị TẠM KHÓA. Không thể thực hiện chấm công!`);
+            error.statusCode = 403;
+            throw error;
+        }
+
+        // 2. Xác thực Mã QR Động
+        if (!token) {
+            const error = new Error('Thiếu mã QR xác thực chấm công!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // 2.1 Kiểm tra định dạng và chữ ký HMAC
+        const verifyRes = verifyDynamicQrToken(token, 60);
+        if (!verifyRes.valid) {
+            const error = new Error(verifyRes.reason);
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // 2.2 Kiểm tra trong CSDL (chống replay attack và kiểm tra hết hạn)
+        const sessions = await query('SELECT * FROM dynamic_qr_sessions WHERE session_token = ? LIMIT 1', [token]);
+        if (!sessions || sessions.length === 0) {
+            const error = new Error('Mã QR không hợp lệ hoặc không tồn tại trong hệ thống!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const session = sessions[0];
+        if (session.is_used === 1 || session.is_used === true) {
+            const error = new Error('Mã QR này đã được sử dụng! Vui lòng quét mã QR mới trên màn hình.');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const now = new Date();
+        const expiresAt = new Date(session.expires_at);
+        if (now > expiresAt) {
+            const error = new Error('Mã QR đã hết hạn! Vui lòng quét mã QR mới trên màn hình.');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // 3. Xác thực Vị trí Khoanh vùng (Geofencing)
+        const companySettings = await query('SELECT latitude, longitude, radius_meters FROM company_settings LIMIT 1');
+        const companyLat = companySettings && companySettings[0] && companySettings[0].latitude !== null ? Number(companySettings[0].latitude) : 16.0544;
+        const companyLng = companySettings && companySettings[0] && companySettings[0].longitude !== null ? Number(companySettings[0].longitude) : 108.2022;
+        const allowedRadius = companySettings && companySettings[0] && companySettings[0].radius_meters !== null ? Number(companySettings[0].radius_meters) : 100;
+
+        let distanceMeters = null;
+        if (lat !== undefined && lng !== undefined && lat !== null && lng !== null) {
+            distanceMeters = calculateDistanceMeters(lat, lng, companyLat, companyLng);
+            if (distanceMeters > allowedRadius) {
+                const error = new Error(`Vị trí chấm công không hợp lệ: Bạn đang cách trụ sở công ty ${distanceMeters}m (Bán kính cho phép tối đa ${allowedRadius}m)!`);
+                error.statusCode = 400;
+                throw error;
+            }
+        }
+
+        // 4. Kiểm tra kỳ công có bị khóa sổ không
+        const today = new Date();
+        const currentMonth = today.getMonth() + 1;
+        const currentYear = today.getFullYear();
+        const isLocked = await this.isPeriodLocked(currentMonth, currentYear);
+        if (isLocked) {
+            const error = new Error(`Kỳ công Tháng ${currentMonth}/${currentYear} đã bị KHÓA SỔ. Không thể chấm công!`);
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // 5. Thuật toán phát hiện bất thường / Chấm công hộ (Anomaly Detection)
+        let is_suspicious = false;
+        let suspicious_reason = null;
+
+        if (ip_address || device_info) {
+            const recentLogs = await query(`
+                SELECT actor_id, ip_address, details, created_at 
+                FROM audit_logs 
+                WHERE action = 'CHECK_IN_DYNAMIC_QR' 
+                  AND actor_id != ? 
+                  AND created_at >= NOW() - INTERVAL 60 SECOND
+                ORDER BY created_at DESC 
+                LIMIT 5
+            `, [ma_nv]);
+
+            if (recentLogs && recentLogs.length > 0) {
+                for (const log of recentLogs) {
+                    const sameIp = ip_address && log.ip_address === ip_address;
+                    let sameDevice = false;
+                    try {
+                        const parsedDetails = JSON.parse(log.details || '{}');
+                        if (device_info && parsedDetails.device_fingerprint === device_info) {
+                            sameDevice = true;
+                        }
+                    } catch {}
+
+                    if (sameIp || sameDevice) {
+                        is_suspicious = true;
+                        suspicious_reason = `Phát hiện chấm công liên tiếp trên cùng ${sameDevice ? 'thiết bị' : 'địa chỉ mạng'} với nhân viên ${log.actor_id} trong vòng 60 giây`;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 6. Đánh dấu Token đã sử dụng (Atomic Single-Use update)
+        const updateRes = await query(
+            'UPDATE dynamic_qr_sessions SET is_used = 1, used_by = ?, used_at = NOW() WHERE session_token = ? AND is_used = 0',
+            [ma_nv, token]
+        );
+        if (!updateRes || updateRes.affectedRows === 0) {
+            const error = new Error('Mã QR đã vừa được sử dụng bởi phiên khác! Vui lòng quét mã mới.');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // 7. Ghi nhận nhật ký chấm công vào attendance_logs
+        const dateStr = today.toISOString().split('T')[0];
+        const hours = String(today.getHours()).padStart(2, '0');
+        const minutes = String(today.getMinutes()).padStart(2, '0');
+        const seconds = String(today.getSeconds()).padStart(2, '0');
+        const timeStr = `${hours}:${minutes}:${seconds}`;
+
+        const insertLogSql = `
+            INSERT INTO attendance_logs (
+                employee_id, record_date, status, ot_hours, check_in_time, 
+                check_in_lat, check_in_lng, check_in_method, check_in_image, 
+                is_suspicious, suspicious_reason, device_fingerprint
+            ) VALUES (?, ?, '1', 0, ?, ?, ?, 'dynamic_qr', ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+                status = '1',
+                check_in_time = COALESCE(check_in_time, VALUES(check_in_time)),
+                check_out_time = VALUES(check_in_time),
+                check_in_lat = COALESCE(VALUES(check_in_lat), check_in_lat),
+                check_in_lng = COALESCE(VALUES(check_in_lng), check_in_lng),
+                check_in_image = COALESCE(VALUES(check_in_image), check_in_image),
+                is_suspicious = CASE WHEN VALUES(is_suspicious) = 1 THEN 1 ELSE is_suspicious END,
+                suspicious_reason = COALESCE(VALUES(suspicious_reason), suspicious_reason),
+                device_fingerprint = COALESCE(VALUES(device_fingerprint), device_fingerprint)
+        `;
+
+        await query(insertLogSql, [
+            ma_nv,
+            dateStr,
+            timeStr,
+            lat || null,
+            lng || null,
+            image_snapshot || null,
+            is_suspicious ? 1 : 0,
+            suspicious_reason || null,
+            device_info || null
+        ]);
+
+        // 8. Ghi Audit Log
+        await logAuditEvent({
+            actor_id: ma_nv,
+            actor_role: current_user.role,
+            action: 'CHECK_IN_DYNAMIC_QR',
+            resource: 'attendance',
+            details: {
+                date: dateStr,
+                time: timeStr,
+                distanceMeters,
+                is_suspicious,
+                suspicious_reason,
+                device_fingerprint: device_info
+            },
+            ip_address
+        });
+
+        return {
+            success: true,
+            message: is_suspicious 
+                ? 'Chấm công thành công (Hệ thống ghi nhận dấu hiệu bất thường để quản trị đối soát).' 
+                : 'Chấm công qua Mã QR Động thành công!',
+            data: {
+                employee_id: ma_nv,
+                record_date: dateStr,
+                check_in_time: timeStr,
+                distanceMeters,
+                is_suspicious,
+                suspicious_reason
+            }
+        };
+    }
+
+    async getSuspiciousLogs(limit = 100) {
+        const sql = `
+            SELECT a.id, a.employee_id, e.ho_ten, e.chuc_danh, 
+                   DATE_FORMAT(a.record_date, '%d/%m/%Y') as record_date, 
+                   a.check_in_time, a.check_out_time, a.check_in_lat, a.check_in_lng, 
+                   a.check_in_method, a.check_in_image, a.is_suspicious, a.suspicious_reason, a.device_fingerprint
+            FROM attendance_logs a
+            LEFT JOIN employees e ON a.employee_id = e.ma_nv
+            WHERE a.is_suspicious = 1
+            ORDER BY a.record_date DESC, a.check_in_time DESC
+            LIMIT ?
+        `;
+        const rows = await query(sql, [parseInt(limit, 10) || 100]);
+        return rows || [];
     }
 }
 

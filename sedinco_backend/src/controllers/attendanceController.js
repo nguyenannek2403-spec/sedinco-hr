@@ -90,6 +90,45 @@ class AttendanceController {
             next(err);
         }
     }
+
+    async getDynamicQr(req, res, next) {
+        try {
+            const branchId = parseInt(req.query.branch_id, 10) || 1;
+            const data = await attendanceService.generateDynamicQr(branchId, req.user);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async checkInMultiFactor(req, res, next) {
+        try {
+            const { token, lat, lng, image_snapshot, device_info } = req.body;
+            const ip = req.ip || (req.connection && req.connection.remoteAddress) || '';
+            const result = await attendanceService.checkInMultiFactor({
+                token,
+                lat,
+                lng,
+                image_snapshot,
+                device_info,
+                current_user: req.user,
+                ip_address: ip
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getSuspiciousLogs(req, res, next) {
+        try {
+            const limit = parseInt(req.query.limit, 10) || 100;
+            const data = await attendanceService.getSuspiciousLogs(limit);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 module.exports = new AttendanceController();

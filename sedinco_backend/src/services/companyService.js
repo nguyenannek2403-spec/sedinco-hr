@@ -21,19 +21,24 @@ class CompanyService {
             grace_period_minutes = current.grace_period_minutes !== undefined ? current.grace_period_minutes : 15,
             penalty_per_minute = current.penalty_per_minute !== undefined ? current.penalty_per_minute : 2000,
             penalty_fixed_block = current.penalty_fixed_block !== undefined ? current.penalty_fixed_block : 50000,
-            penalty_salary_percent = current.penalty_salary_percent !== undefined ? current.penalty_salary_percent : 0
+            penalty_salary_percent = current.penalty_salary_percent !== undefined ? current.penalty_salary_percent : 0,
+            latitude = current.latitude !== undefined ? current.latitude : 16.054400,
+            longitude = current.longitude !== undefined ? current.longitude : 108.202200,
+            radius_meters = current.radius_meters !== undefined ? current.radius_meters : 100
         } = data;
 
         await query(
             `UPDATE company_settings SET 
                 company_name=?, phone=?, address=?, tax_code=?, logo_url=?,
                 work_start=?, work_end=?, lunch_start=?, lunch_end=?,
-                grace_period_minutes=?, penalty_per_minute=?, penalty_fixed_block=?, penalty_salary_percent=? 
+                grace_period_minutes=?, penalty_per_minute=?, penalty_fixed_block=?, penalty_salary_percent=?,
+                latitude=?, longitude=?, radius_meters=?
             WHERE id=1`,
             [
                 company_name, phone, address, tax_code, logo_url,
                 work_start, work_end, lunch_start, lunch_end,
-                grace_period_minutes, penalty_per_minute, penalty_fixed_block, penalty_salary_percent
+                grace_period_minutes, penalty_per_minute, penalty_fixed_block, penalty_salary_percent,
+                latitude, longitude, radius_meters
             ]
         );
         return { success: true };

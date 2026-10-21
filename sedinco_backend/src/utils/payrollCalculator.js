@@ -10,7 +10,8 @@ function calculateEmployeeSalary({
     logs = [],
     holidays = [],
     allowances = {},
-    has_insurance = true
+    has_insurance = true,
+    otRegistrations = null
 }) {
     const luongCb = Number(luong_cb) || 0;
     const congChuan = Number(cong_chuan) || 26;
@@ -46,14 +47,23 @@ function calculateEmployeeSalary({
             if (isProbation) congThuViec += 1; else congChinhThuc += 1;
         } else if (log.status === '0.5') {
             if (isProbation) congThuViec += 0.5; else congChinhThuc += 0.5;
-        } else if (log.status === 'OT') {
+        } else if (log.status === 'OT' || log.status === '1/OT') {
+            if (log.status === '1/OT') {
+                if (isProbation) congThuViec += 1; else congChinhThuc += 1;
+            }
             let heSo = isHoliday ? 3.0 : (isSunday ? 2.0 : 1.5);
             let soGioOT = Number(log.ot_hours) > 0 ? Number(log.ot_hours) : ((isHoliday || isSunday) ? 8 : 4);
-            tienOt += (luong1Gio * soGioOT * heSo);
-        } else if (log.status === '1/OT') {
-            if (isProbation) congThuViec += 1; else congChinhThuc += 1;
-            let heSo = isHoliday ? 3.0 : (isSunday ? 2.0 : 1.5);
-            let soGioOT = Number(log.ot_hours) > 0 ? Number(log.ot_hours) : ((isHoliday || isSunday) ? 8 : 4);
+
+            // Kiểm soát OT duyệt trước (Anti-OT Fraud): Chỉ tính giờ OT khi có đơn duyệt trước
+            if (Array.isArray(otRegistrations)) {
+                const reg = otRegistrations.find(r => {
+                    const rDate = new Date(r.work_date);
+                    rDate.setHours(0, 0, 0, 0);
+                    return rDate.getTime() === logDate.getTime() && r.status === 'approved';
+                });
+                soGioOT = reg ? Math.min(soGioOT, Number(reg.expected_hours)) : 0;
+            }
+
             tienOt += (luong1Gio * soGioOT * heSo);
         }
     });

@@ -27,4 +27,13 @@ router.post('/unlock-period', authenticateToken, requireRole(['admin']), (req, r
 // 6. Cập nhật dữ liệu chấm công (Kiểm tra quyền sở hữu hoặc permission attendance_edit trong service)
 router.post('/update', authenticateToken, requireAuth, validateAttendanceMiddleware, (req, res, next) => attendanceController.updateAttendance(req, res, next));
 
+// 7. Sinh mã QR Động (Yêu cầu permission: attendance_view_all - Admin & Kế toán)
+router.get('/dynamic-qr', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getDynamicQr(req, res, next));
+
+// 8. Chấm công đa lớp Multi-Factor (Mã QR động + GPS Geofencing + Camera Snapshot + Anti-Proxy)
+router.post('/check-in', authenticateToken, requireAuth, (req, res, next) => attendanceController.checkInMultiFactor(req, res, next));
+
+// 9. Danh sách chấm công nghi vấn / phát hiện chấm công hộ (Yêu cầu permission: attendance_view_all)
+router.get('/suspicious-logs', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getSuspiciousLogs(req, res, next));
+
 module.exports = router;

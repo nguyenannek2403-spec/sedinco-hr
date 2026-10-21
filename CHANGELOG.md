@@ -6,7 +6,43 @@ Tất cả các thay đổi đáng chú ý của dự án Sedinco HR trong đợ
 
 * * *
 
-## \[Phiên Bản 2.0.0\] - 2026-10-21
+## [Phiên Bản 2.1.0] - 2026-10-21: Multi-Factor Anti-Fraud Attendance System
+
+### 1. Database & Schema Migration
+- **`company_settings`**:
+  - Bổ sung các cột `latitude DECIMAL(10, 8)`, `longitude DECIMAL(11, 8)`, `radius_meters INT DEFAULT 100` phục vụ khoanh vùng Geofencing.
+- **`attendance_logs`**:
+  - Bổ sung `check_in_lat DECIMAL(10, 8)`, `check_in_lng DECIMAL(11, 8)`, `check_in_method ENUM('dynamic_qr', 'gps_camera', 'manual_admin')`, `check_in_image LONGTEXT`, `is_suspicious BOOLEAN DEFAULT FALSE`, `suspicious_reason VARCHAR(255)`, `device_fingerprint VARCHAR(150)`.
+- **`dynamic_qr_sessions`**:
+  - Tạo mới bảng quản lý mã QR động thời gian thực (`session_token`, `branch_id`, `expires_at`, `is_used`, `used_by`, `used_at`).
+- **`ot_registrations`**:
+  - Tạo mới bảng quản lý đăng ký làm thêm giờ duyệt trước (`employee_id`, `work_date`, `expected_hours`, `reason`, `approved_by`, `status`).
+
+### 2. Tiện Ích Thuật Toán (Core Helpers)
+- **`src/utils/geoHelper.js`**:
+  - Triển khai công thức **Haversine** tính toán khoảng cách mặt cầu Trái Đất chính xác theo mét tại Backend.
+  - Hàm kiểm tra `isWithinGeofence` đối chiếu khoảng cách với bán kính quy định tại cơ sở.
+- **`src/utils/dynamicQrHelper.js`**:
+  - Thuật toán TOTP kết hợp Nonce ngẫu nhiên và chữ ký số HMAC-SHA256 (`generateDynamicQrToken`, `verifyDynamicQrToken`). Hạn sử dụng mặc định 30 giây.
+
+### 3. Nghiệp Vụ Chống Gian Lận (Services & Controllers)
+- **`src/services/attendanceService.js`**:
+  - Thêm `generateDynamicQr`: Sinh mã QR động cho Admin/Kế toán hiển thị tại trụ sở.
+  - Thêm `checkInMultiFactor`: Xác thực chữ ký token, thời gian sống, atomic single-use check, server-side geofencing, camera snapshot, heuristic anomaly detection (cùng IP/thiết bị < 60s cho nhiều nhân sự).
+  - Thêm `getSuspiciousLogs`: Lấy danh sách lượt chấm công bị gắn cờ nghi vấn phục vụ kiểm toán đối soát.
+- **`src/services/requestService.js`**:
+  - Giới hạn tối đa **3 đơn bổ sung công / quên chấm công trong 1 tháng**.
+  - Bổ sung nghiệp vụ đăng ký OT duyệt trước (`createOtPreRegistration`, `getOtRegistrations`, `updateOtRegistrationStatus`). Chặn tự duyệt đơn của chính mình (Separation of Duties).
+- **`src/utils/payrollCalculator.js` & `src/services/payrollService.js`**:
+  - Khống chế giờ OT tính lương: $\text{ot\_hours} = \min(\text{ot\_thực\_tế}, \text{ot\_được\_duyệt\_trước})$.
+
+### 4. Tự Động Hóa Kiểm Thử (QA Testing Suite)
+- Bổ sung file `__tests__/anti_fraud_attendance.test.js` với 8 kịch bản kiểm thử: `TC-ANTI-01` đến `TC-ANTI-08`.
+- Toàn bộ test suite đạt **40/40 tests PASS 100%**.
+
+---
+
+## [Phiên Bản 2.0.0] - 2026-10-21
 
 ### 1\. Database & Schema Migration
 

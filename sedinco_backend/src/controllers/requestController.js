@@ -59,6 +59,43 @@ class RequestController {
             next(err);
         }
     }
+
+    async createOtPreRegistration(req, res, next) {
+        try {
+            const { employee_id, work_date, expected_hours, reason } = req.body;
+            const result = await requestService.createOtPreRegistration({
+                employee_id,
+                work_date,
+                expected_hours,
+                reason,
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getOtRegistrations(req, res, next) {
+        try {
+            const { month, year } = req.query;
+            const data = await requestService.getOtRegistrations(month, year);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async updateOtRegistrationStatus(req, res, next) {
+        try {
+            const { status } = req.body;
+            const { id } = req.params;
+            const result = await requestService.updateOtRegistrationStatus(id, status, req.user);
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 module.exports = new RequestController();

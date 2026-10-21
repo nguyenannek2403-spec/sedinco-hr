@@ -76,10 +76,13 @@ async function initDatabase() {
         await query("ALTER TABLE company_settings ADD COLUMN penalty_per_minute DECIMAL(15,2) DEFAULT 2000").catch(() => {});
         await query("ALTER TABLE company_settings ADD COLUMN penalty_fixed_block DECIMAL(15,2) DEFAULT 50000").catch(() => {});
         await query("ALTER TABLE company_settings ADD COLUMN penalty_salary_percent DECIMAL(5,2) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN latitude DECIMAL(10,8) DEFAULT 16.054400").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN longitude DECIMAL(11,8) DEFAULT 108.202200").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN radius_meters INT DEFAULT 100").catch(() => {});
         const companyCount = await query('SELECT COUNT(*) as cnt FROM company_settings');
         if (companyCount && companyCount[0].cnt === 0) {
-            await query(`INSERT INTO company_settings (company_name, phone, address, tax_code, logo_url) VALUES 
-                ('Công ty Cổ phần Vật Liệu Xây Dựng Sedinco', '02363123456', 'Số 1 Nguyễn Văn Linh, Đà Nẵng', '0400123456', 'https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=200')`);
+            await query(`INSERT INTO company_settings (company_name, phone, address, tax_code, logo_url, latitude, longitude, radius_meters) VALUES 
+                ('Công ty Cổ phần Vật Liệu Xây Dựng Sedinco', '02363123456', 'Số 1 Nguyễn Văn Linh, Đà Nẵng', '0400123456', 'https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=200', 16.054400, 108.202200, 100)`);
         }
 
         // 3. Bảng Chấm công chuẩn tháng (attendance)
@@ -104,10 +107,25 @@ async function initDatabase() {
             ot_hours DECIMAL(4,2) DEFAULT 0,
             check_in_time VARCHAR(20) DEFAULT NULL,
             check_out_time VARCHAR(20) DEFAULT NULL,
+            check_in_lat DECIMAL(10,8) NULL,
+            check_in_lng DECIMAL(11,8) NULL,
+            check_in_method VARCHAR(30) DEFAULT 'dynamic_qr',
+            check_in_image LONGTEXT NULL,
+            is_suspicious BOOLEAN DEFAULT FALSE,
+            suspicious_reason VARCHAR(255) NULL,
+            device_fingerprint VARCHAR(150) NULL,
             UNIQUE KEY unique_emp_date (employee_id, record_date)
         )`);
         await query("ALTER TABLE attendance_logs ADD COLUMN check_in_time VARCHAR(20) DEFAULT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN check_out_time VARCHAR(20) DEFAULT NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_in_lat DECIMAL(10,8) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_in_lng DECIMAL(11,8) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_in_method VARCHAR(30) DEFAULT 'dynamic_qr'").catch(() => {});
+        await query("ALTER TABLE attendance_logs MODIFY COLUMN check_in_image LONGTEXT NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_in_image LONGTEXT NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN is_suspicious BOOLEAN DEFAULT FALSE").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN suspicious_reason VARCHAR(255) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN device_fingerprint VARCHAR(150) NULL").catch(() => {});
 
         // 5. Bảng Đơn từ (requests)
         await query(`CREATE TABLE IF NOT EXISTS requests (
@@ -235,7 +253,32 @@ async function initDatabase() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
-        console.log('✅ Khởi tạo cấu trúc Database (10 bảng quan hệ + RBAC) thành công!');
+        // 11. Bảng Phiên Mã QR Động (dynamic_qr_sessions - Anti-Replay / Nonce TOTP)
+        await query(`CREATE TABLE IF NOT EXISTS dynamic_qr_sessions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            session_token VARCHAR(128) UNIQUE NOT NULL,
+            branch_id INT DEFAULT 1,
+            expires_at DATETIME NOT NULL,
+            is_used BOOLEAN DEFAULT FALSE,
+            used_by VARCHAR(20) NULL,
+            used_at DATETIME NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // 12. Bảng Đăng Ký Làm Thêm Giờ Duyệt Trước (ot_registrations - Anti-OT Fraud)
+        await query(`CREATE TABLE IF NOT EXISTS ot_registrations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            employee_id VARCHAR(20) NOT NULL,
+            work_date DATE NOT NULL,
+            expected_hours DECIMAL(4,2) NOT NULL,
+            reason TEXT NULL,
+            approved_by VARCHAR(50) NULL,
+            status VARCHAR(20) DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_emp_ot_date (employee_id, work_date)
+        )`);
+
+        console.log('✅ Khởi tạo cấu trúc Database (12 bảng quan hệ + Multi-Factor Anti-Fraud RBAC) thành công!');
     } catch (err) {
         console.error('❌ Lỗi khởi tạo cấu trúc Database:', err.message);
     }
