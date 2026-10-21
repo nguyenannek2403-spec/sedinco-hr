@@ -23,7 +23,6 @@ export default function DesktopSidebar({
   activeRole,
   currentTab,
   onSelectTab,
-  onSwitchDemoRole,
   onLogout,
   onClearCache,
   pendingRequestsCount = 0
@@ -35,8 +34,8 @@ export default function DesktopSidebar({
         { id: "matrix", label: "Bảng Công Ma Trận", icon: Calendar, badge: "31 Ngày" },
         { id: "payroll", label: "Bảng Lương Doanh Nghiệp", icon: DollarSign },
         { id: "requests", label: "Phê Duyệt Đơn Từ", icon: FileText, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null, badgeColor: "bg-rose-500 text-white" },
-        { id: "management", label: "Quản Lý Nhân Sự & RBAC", icon: Users },
-        { id: "company", label: "Cấu Hình Doanh Nghiệp", icon: Building },
+        { id: "management", label: "Quản Lý Nhân Sự & Phân Quyền", icon: Users },
+        { id: "company", label: "Cấu Hình Vị Trí & Trụ Sở", icon: Building },
         { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", icon: Gift },
         { id: "audit_logs", label: "Nhật Ký Thao Tác", icon: ShieldCheck },
         { id: "checkin", label: "Điểm Danh Thử Nghiệm", icon: Clock },
@@ -85,56 +84,21 @@ export default function DesktopSidebar({
       <div className="p-5 border-b-2 border-slate-800">
         <CompanyLogo size="small" theme="dark" layout="horizontal" showSubtitle={true} />
 
-        {/* 2. Thanh Chuyển Đổi Demo Role Nhanh */}
+        {/* 2. Hiển thị Phân Hệ Xác Thực Chuẩn (RBAC Độc Lập) */}
         <div className="mt-4 pt-3 border-t border-slate-800">
-          <span className="text-xs font-black uppercase tracking-wider text-slate-300 block mb-2">
-            Vai trò hiện hành ({ROLE_LABELS[activeRole]}):
-          </span>
-          <div className="grid grid-cols-2 gap-1.5 bg-slate-800/90 p-1.5 rounded-2xl border-2 border-slate-700">
-            <button
-              type="button"
-              onClick={() => onSwitchDemoRole(ROLES.EMPLOYEE)}
-              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border-2 ${
-                activeRole === ROLES.EMPLOYEE
-                  ? "bg-blue-600 text-white border-white shadow-md"
-                  : "border-transparent text-slate-300 hover:border-slate-500 hover:text-white"
-              }`}
-            >
-              Nhân Viên
-            </button>
-            <button
-              type="button"
-              onClick={() => onSwitchDemoRole(ROLES.HR)}
-              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border-2 ${
-                activeRole === ROLES.HR
-                  ? "bg-purple-600 text-white border-white shadow-md"
-                  : "border-transparent text-slate-300 hover:border-slate-500 hover:text-white"
-              }`}
-            >
-              Nhân Sự
-            </button>
-            <button
-              type="button"
-              onClick={() => onSwitchDemoRole(ROLES.ACCOUNTANT)}
-              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border-2 ${
-                activeRole === ROLES.ACCOUNTANT
-                  ? "bg-emerald-600 text-white border-white shadow-md"
-                  : "border-transparent text-slate-300 hover:border-slate-500 hover:text-white"
-              }`}
-            >
-              Kế Toán
-            </button>
-            <button
-              type="button"
-              onClick={() => onSwitchDemoRole(ROLES.ADMIN)}
-              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer border-2 ${
-                activeRole === ROLES.ADMIN
-                  ? "bg-amber-500 text-slate-950 border-white shadow-md"
-                  : "border-transparent text-slate-300 hover:border-slate-500 hover:text-white"
-              }`}
-            >
-              Quản Trị
-            </button>
+          <div className="flex items-center justify-between px-3 py-2.5 rounded-2xl bg-slate-800/80 border border-slate-700">
+            <span className="text-xs font-bold text-slate-400">Phân hệ:</span>
+            <span className={`text-xs font-black px-2.5 py-1 rounded-xl border ${
+              activeRole === ROLES.ADMIN
+                ? "bg-amber-400 text-slate-950 border-amber-300"
+                : activeRole === ROLES.ACCOUNTANT
+                ? "bg-emerald-400 text-slate-950 border-emerald-300"
+                : activeRole === ROLES.HR
+                ? "bg-purple-300 text-slate-950 border-purple-200"
+                : "bg-blue-300 text-slate-950 border-blue-200"
+            }`}>
+              {ROLE_LABELS[activeRole]}
+            </span>
           </div>
         </div>
       </div>
@@ -177,15 +141,18 @@ export default function DesktopSidebar({
       {/* 4. Footer Sidebar: Người Dùng & Nút Đăng Xuất */}
       <div className="p-4 border-t-2 border-slate-800 bg-slate-950/60 space-y-3.5">
         <div className="flex items-center gap-3">
-          <img
-            src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
-            alt="Avatar"
-            className="w-11 h-11 rounded-2xl object-cover border-2 border-slate-600 shadow-sm"
-          />
+          <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-2xl border-2 border-slate-600 shadow-sm overflow-hidden shrink-0 bg-slate-800">
+            <img
+              src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
+              alt="Avatar"
+              className="w-full h-full object-cover"
+            />
+          </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-black text-sm text-white truncate">{currentUser?.ho_ten}</h4>
+            <p className="text-[11px] text-blue-300 font-semibold truncate">{currentUser?.chuc_danh || "Kỹ sư công trường"}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-xs text-blue-400 font-mono font-bold">{currentUser?.ma_nv}</span>
+              <span className="text-xs text-emerald-400 font-mono font-bold">Mã: {currentUser?.ma_nv}</span>
               <span className="text-xs text-slate-500">•</span>
               <span className="text-xs text-slate-300 truncate font-semibold">{ROLE_LABELS[activeRole]}</span>
             </div>
