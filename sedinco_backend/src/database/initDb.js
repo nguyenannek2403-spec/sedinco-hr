@@ -31,17 +31,17 @@ async function initDatabase() {
         await query("ALTER TABLE employees ADD COLUMN is_locked BOOLEAN DEFAULT FALSE").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN role VARCHAR(20) DEFAULT 'worker'").catch(() => {});
         
-        // Migrate dữ liệu role ban đầu từ chức danh (chỉ thực hiện khi role chưa được thiết lập)
+        // Migrate dữ liệu role ban đầu từ chức danh (CHỈ thực hiện một lần khi role chưa được thiết lập)
         await query(`
             UPDATE employees 
             SET role = 'accountant' 
-            WHERE (role IS NULL OR role = '' OR role = 'worker') 
+            WHERE (role IS NULL OR role = '') 
               AND (LOWER(chuc_danh) LIKE '%kế toán%' OR LOWER(chuc_danh) LIKE '%ke toan%')
         `).catch(() => {});
         await query(`
             UPDATE employees 
             SET role = 'admin' 
-            WHERE (role IS NULL OR role = '' OR role = 'worker') 
+            WHERE (role IS NULL OR role = '') 
               AND (LOWER(chuc_danh) LIKE '%giám đốc%' OR LOWER(chuc_danh) LIKE '%giam doc%')
         `).catch(() => {});
         await query(`

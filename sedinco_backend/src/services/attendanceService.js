@@ -157,6 +157,12 @@ class AttendanceService {
                 throw error;
             }
 
+            if (userRole === 'worker' && isDelete) {
+                const error = new Error('Bảo mật: Công nhân không thể tự ý xóa bản ghi chấm công!');
+                error.statusCode = 403;
+                throw error;
+            }
+
             if (userRole === 'accountant' && !isSelf) {
                 const permissions = await getAccountantPermissions();
                 if (!permissions['attendance_edit']) {

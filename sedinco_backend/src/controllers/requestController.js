@@ -49,6 +49,16 @@ class RequestController {
             next(err);
         }
     }
+
+    async cancelRequest(req, res, next) {
+        try {
+            const reqId = req.params.id;
+            const result = await requestService.cancelRequest(reqId, req.user);
+            return res.json({ success: true, message: result.message || 'Hủy đơn thành công!' });
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 module.exports = new RequestController();

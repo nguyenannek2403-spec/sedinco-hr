@@ -74,13 +74,20 @@ class RequestService {
 
         const reqData = results[0];
 
-        // Ngăn chặn tự phê duyệt đơn của chính mình (Separation of Duties)
+        // 1. Ngăn chặn tự phê duyệt đơn của chính mình (Separation of Duties - 403 Forbidden)
         if (current_user && current_user.ma_nv && current_user.ma_nv === reqData.employee_id) {
             if (status === 'approved') {
                 const error = new Error('Bảo mật: Bạn không thể tự phê duyệt đơn từ của chính mình!');
                 error.statusCode = 403;
                 throw error;
             }
+        }
+
+        // 2. Kiểm tra trạng thái hiện tại: Chỉ cho phép xử lý khi đơn đang ở trạng thái 'pending' (400 Bad Request)
+        if (reqData.status !== 'pending') {
+            const error = new Error(`Đơn từ này đã được xử lý (trạng thái: '${reqData.status}'). Không thể cập nhật lại!`);
+            error.statusCode = 400;
+            throw error;
         }
 
         if (status === 'approved') {
@@ -147,6 +154,49 @@ class RequestService {
         }
 
         return { success: true };
+    }
+
+    async cancelRequest(reqId, current_user = null) {
+        if (!current_user) {
+            const error = new Error('Yêu cầu đăng nhập để hủy đơn!');
+            error.statusCode = 401;
+            throw error;
+        }
+
+        const results = await query('SELECT * FROM requests WHERE id = ?', [reqId]);
+        if (!results || results.length === 0) {
+            const error = new Error('Không tìm thấy đơn từ yêu cầu!');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const reqData = results[0];
+
+        // Quyền sở hữu: Chỉ người tạo đơn hoặc Admin mới được hủy
+        if (current_user.role !== 'admin' && current_user.ma_nv !== reqData.employee_id) {
+            const error = new Error('Bảo mật: Bạn không có quyền hủy đơn từ của nhân viên khác!');
+            error.statusCode = 403;
+            throw error;
+        }
+
+        // Chỉ được hủy đơn khi còn ở trạng thái 'pending'
+        if (reqData.status !== 'pending') {
+            const error = new Error(`Chỉ có thể hủy đơn đang ở trạng thái 'pending'. Đơn này hiện là '${reqData.status}'!`);
+            error.statusCode = 400;
+            throw error;
+        }
+
+        await query("UPDATE requests SET status = 'cancelled' WHERE id = ?", [reqId]);
+
+        await logAuditEvent({
+            actor_id: current_user.ma_nv || current_user.username,
+            actor_role: current_user.role,
+            action: 'CANCEL_REQUEST',
+            resource: 'requests',
+            details: { request_id: reqId, target_employee: reqData.employee_id }
+        });
+
+        return { success: true, message: 'Hủy đơn thành công!' };
     }
 }
 

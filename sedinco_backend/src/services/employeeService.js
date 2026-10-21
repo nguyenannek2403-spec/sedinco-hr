@@ -23,9 +23,15 @@ class EmployeeService {
             status, is_locked
         } = data;
 
-        const normalizedRole = ['worker', 'accountant', 'admin'].includes(role)
-            ? role 
-            : resolveUserRole({ chuc_danh });
+        // Chỉ Quản trị viên (Admin) mới có quyền gán role 'accountant' hoặc 'admin' (Chống Mass Assignment & Privilege Escalation)
+        let normalizedRole = 'worker';
+        if (current_user && current_user.role === 'admin') {
+            normalizedRole = ['worker', 'accountant', 'admin'].includes(role)
+                ? role 
+                : resolveUserRole({ chuc_danh });
+        } else {
+            normalizedRole = 'worker';
+        }
 
         const sql = `
             INSERT INTO employees (
@@ -71,7 +77,7 @@ class EmployeeService {
 
         const updateStatus = status !== undefined;
         const updateLocked = is_locked !== undefined;
-        const updateRole = role !== undefined && ['worker', 'accountant', 'admin'].includes(role);
+        const updateRole = (current_user && current_user.role === 'admin') && role !== undefined && ['worker', 'accountant', 'admin'].includes(role);
 
         let sql = `
             UPDATE employees SET 

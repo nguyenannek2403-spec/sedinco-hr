@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { 
     generateToken, 
     verifyToken, 
+    authenticateToken,
     requireAuth, 
     requireRole, 
     requirePermission 
@@ -10,6 +11,9 @@ const {
 const requestService = require('../src/services/requestService');
 const attendanceService = require('../src/services/attendanceService');
 const authService = require('../src/services/authService');
+const employeeService = require('../src/services/employeeService');
+const permissionService = require('../src/services/permissionService');
+const { query } = require('../src/config/db');
 
 // Helper giả lập Request/Response cho Express Middleware
 function mockReqRes(user = null, headers = {}) {
@@ -130,25 +134,13 @@ test('TC-RBAC-04: Middleware requirePermission thực thi chính sách Least Pri
 });
 
 test('TC-BOLA-01: Ngăn chặn tự phê duyệt đơn xin nghỉ của chính mình (Separation of Duties)', async () => {
-    // Mô phỏng người dùng NV001 tạo đơn nghỉ phép, sau đó chính NV001 đăng nhập cố duyệt đơn của mình
-    const currentUser = { ma_nv: 'NV001', role: 'accountant' }; // Dù có role kế toán
+    const currentUser = { ma_nv: 'NV001', role: 'accountant' };
+    const testReqId = 99999;
+    await query("INSERT INTO requests (id, employee_id, request_type, request_date, status) VALUES (?, 'NV001', 'Nghỉ phép', '2026-10-21', 'pending') ON DUPLICATE KEY UPDATE employee_id='NV001', status='pending'", [testReqId]);
 
-    // Mock query trong DB nếu cần hoặc kiểm tra rule logic trong updateRequestStatus
     await assert.rejects(
         async () => {
-            // Giả lập cập nhật trạng thái đơn mà employee_id trùng với current_user.ma_nv
-            // Logic trong requestService: if (current_user.ma_nv === reqData.employee_id && status === 'approved') throw 403
-            const { query } = require('../src/config/db');
-            // Tìm 1 đơn bất kỳ để test hoặc mock
-            const reqs = await query('SELECT id, employee_id FROM requests LIMIT 1');
-            if (reqs && reqs.length > 0) {
-                const targetReq = reqs[0];
-                await requestService.updateRequestStatus(targetReq.id, 'approved', { ma_nv: targetReq.employee_id, role: 'admin' });
-            } else {
-                // Tạo đơn giả lập để test
-                await query("INSERT INTO requests (id, employee_id, request_type, request_date, status) VALUES (99999, 'NV001', 'Nghỉ phép', '2026-10-21', 'pending') ON DUPLICATE KEY UPDATE employee_id='NV001'");
-                await requestService.updateRequestStatus(99999, 'approved', currentUser);
-            }
+            await requestService.updateRequestStatus(testReqId, 'approved', currentUser);
         },
         (err) => {
             assert.equal(err.statusCode, 403);
@@ -156,6 +148,8 @@ test('TC-BOLA-01: Ngăn chặn tự phê duyệt đơn xin nghỉ của chính m
             return true;
         }
     );
+
+    await query('DELETE FROM requests WHERE id = ?', [testReqId]);
 });
 
 test('TC-BOLA-02: Ngăn chặn công nhân chỉnh sửa chấm công của người khác (IDOR)', async () => {
@@ -184,6 +178,174 @@ test('TC-BOLA-03: Ngăn chặn nhân viên thay đổi mật khẩu của ngư�
     const result = await authService.changePassword('NV002', '123456', 'newsecretpass', workerUser);
     assert.equal(result.success, false, 'Không được phép đổi mật khẩu của nhân viên khác');
     assert.ok(result.message.includes('không có quyền'));
+});
+
+test('TC-SEC-05: Chặn khai thác token JWT đã hết hạn (exp < now)', () => {
+    // Tạo token có expiresInSeconds âm (-10 giây)
+    const expiredToken = generateToken({ ma_nv: 'NV001', role: 'worker' }, -10);
+    const decoded = verifyToken(expiredToken);
+    assert.equal(decoded, null, 'Token đã quá hạn exp phải trả về null');
+});
+
+test('TC-SEC-06: Chặn giả mạo vai trò qua x-user-role header khi không ở môi trường test', () => {
+    const originalEnv = process.env.NODE_ENV;
+    try {
+        process.env.NODE_ENV = 'production';
+        const ctx = mockReqRes(null, {
+            'x-user-id': 'hacker',
+            'x-user-role': 'admin'
+        });
+        authenticateToken(ctx.req, ctx.res, ctx.next);
+        assert.equal(ctx.req.user, null, 'Không được phép cấp user context từ header ngoài môi trường test');
+    } finally {
+        process.env.NODE_ENV = originalEnv;
+    }
+});
+
+test('TC-SEC-07: Chặn người dùng không phải Admin đăng ký tài khoản Quản trị', async () => {
+    // Đảm bảo có ít nhất 1 admin trong DB
+    await query("INSERT INTO admins (username, password, ho_ten) VALUES ('admin_root', '123456', 'Root Admin') ON DUPLICATE KEY UPDATE ho_ten='Root Admin'");
+
+    // 1. Thử đăng ký admin mà không có session admin
+    const unauthedResult = await authService.adminRegister('hacker_admin', '123456', 'Hacker', null);
+    assert.equal(unauthedResult.success, false);
+    assert.equal(unauthedResult.statusCode, 403, 'Phải từ chối 403 khi chưa đăng nhập');
+
+    // 2. Thử đăng ký admin với tài khoản role worker
+    const workerResult = await authService.adminRegister('hacker_admin2', '123456', 'Hacker', { ma_nv: 'NV001', role: 'worker' });
+    assert.equal(workerResult.success, false);
+    assert.equal(workerResult.statusCode, 403, 'Worker không thể tạo tài khoản admin');
+});
+
+test('TC-SEC-08: Chặn Mass Assignment leo thang quyền thành admin trong createEmployee và updateEmployee', async () => {
+    const accountantUser = { ma_nv: 'NV_KT', role: 'accountant' };
+    const testEmpId = 'TEST_ELEV_01';
+
+    // Xóa record test cũ nếu có
+    await query('DELETE FROM employees WHERE ma_nv = ?', [testEmpId]);
+
+    // 1. Kế toán gọi createEmployee gửi kèm role: 'admin'
+    await employeeService.createEmployee({
+        ma_nv: testEmpId,
+        ho_ten: 'Test Nhân Viên',
+        role: 'admin' // Cố tình gán admin
+    }, accountantUser);
+
+    const empAfterCreate = await employeeService.getEmployeeById(testEmpId);
+    assert.equal(empAfterCreate.role, 'worker', 'Tài khoản do non-admin tạo bắt buộc phải có role worker');
+
+    // 2. Kế toán gọi updateEmployee gửi kèm role: 'admin'
+    await employeeService.updateEmployee(testEmpId, {
+        role: 'admin' // Cố tình update thành admin
+    }, accountantUser);
+
+    const empAfterUpdate = await employeeService.getEmployeeById(testEmpId);
+    assert.equal(empAfterUpdate.role, 'worker', 'Non-admin không thể nâng role qua updateEmployee');
+
+    // Dọn dẹp
+    await query('DELETE FROM employees WHERE ma_nv = ?', [testEmpId]);
+});
+
+test('TC-SEC-09: Kiểm soát trạng thái đơn từ (State Machine) - Chặn duyệt/từ chối đơn đã xử lý', async () => {
+    const testReqId = 88881;
+    await query('DELETE FROM requests WHERE id = ?', [testReqId]);
+    await query("INSERT INTO requests (id, employee_id, request_type, request_date, status) VALUES (?, 'NV002', 'Nghỉ phép', '2026-10-21', 'approved')", [testReqId]);
+
+    const adminUser = { username: 'admin', role: 'admin' };
+
+    // Cố tình duyệt lại đơn đã 'approved'
+    await assert.rejects(
+        async () => {
+            await requestService.updateRequestStatus(testReqId, 'approved', adminUser);
+        },
+        (err) => {
+            assert.equal(err.statusCode, 400);
+            assert.ok(err.message.includes('đã được xử lý'));
+            return true;
+        }
+    );
+
+    // Dọn dẹp
+    await query('DELETE FROM requests WHERE id = ?', [testReqId]);
+});
+
+test('TC-SEC-10: Cho phép Worker hủy đơn pending của chính mình và chặn hủy đơn của người khác', async () => {
+    const testReqId = 88882;
+    await query('DELETE FROM requests WHERE id = ?', [testReqId]);
+    await query("INSERT INTO requests (id, employee_id, request_type, request_date, status) VALUES (?, 'NV001', 'Nghỉ phép', '2026-10-21', 'pending')", [testReqId]);
+
+    const colleague = { ma_nv: 'NV002', role: 'worker' };
+    const owner = { ma_nv: 'NV001', role: 'worker' };
+
+    // 1. Đồng nghiệp NV002 cố hủy đơn của NV001 -> Bị chặn 403
+    await assert.rejects(
+        async () => {
+            await requestService.cancelRequest(testReqId, colleague);
+        },
+        (err) => {
+            assert.equal(err.statusCode, 403);
+            assert.ok(err.message.includes('không có quyền'));
+            return true;
+        }
+    );
+
+    // 2. Chính chủ NV001 hủy đơn pending -> Thành công
+    const cancelRes = await requestService.cancelRequest(testReqId, owner);
+    assert.equal(cancelRes.success, true);
+
+    const rows = await query('SELECT status FROM requests WHERE id = ?', [testReqId]);
+    assert.equal(rows[0].status, 'cancelled');
+
+    // 3. Thử hủy lại khi đã 'cancelled' -> Bị chặn 400
+    await assert.rejects(
+        async () => {
+            await requestService.cancelRequest(testReqId, owner);
+        },
+        (err) => {
+            assert.equal(err.statusCode, 400);
+            return true;
+        }
+    );
+
+    // Dọn dẹp
+    await query('DELETE FROM requests WHERE id = ?', [testReqId]);
+});
+
+test('TC-SEC-11: Chặn Worker tự ý xóa bản ghi chấm công (isDelete = true)', async () => {
+    const workerUser = { ma_nv: 'NV001', role: 'worker' };
+
+    await assert.rejects(
+        async () => {
+            await attendanceService.updateAttendanceDaily({
+                ma_nv: 'NV001',
+                dateStr: '2026-10-21',
+                isDelete: true,
+                current_user: workerUser
+            });
+        },
+        (err) => {
+            assert.equal(err.statusCode, 403);
+            assert.ok(err.message.includes('không thể tự ý xóa'));
+            return true;
+        }
+    );
+});
+
+test('TC-SEC-12: Thu hồi tức thì quyền Kế toán (Cache Invalidation)', async () => {
+    const accountantUser = { ma_nv: 'NV002', role: 'accountant' };
+
+    // 1. Bật quyền attendance_edit
+    await permissionService.updateAccountantPermissions({ attendance_edit: true }, { role: 'admin', username: 'admin' });
+    const check1 = mockReqRes(accountantUser);
+    await requirePermission('attendance_edit')(check1.req, check1.res, check1.next);
+    assert.equal(check1.isNextCalled(), true, 'Kế toán phải được cấp quyền sau khi bật');
+
+    // 2. Thu hồi quyền attendance_edit
+    await permissionService.updateAccountantPermissions({ attendance_edit: false }, { role: 'admin', username: 'admin' });
+    const check2 = mockReqRes(accountantUser);
+    await requirePermission('attendance_edit')(check2.req, check2.res, check2.next);
+    assert.equal(check2.getStatus(), 403, 'Kế toán phải bị chặn ngay sau khi thu hồi quyền (cache invalidation)');
+    assert.equal(check2.isNextCalled(), false);
 });
 
 test.after(async () => {

@@ -33,11 +33,12 @@ class AuthController {
     async adminRegister(req, res, next) {
         try {
             const { username, password, ho_ten } = req.body;
-            const result = await authService.adminRegister(username, password, ho_ten);
+            const result = await authService.adminRegister(username, password, ho_ten, req.user);
             if (!result.success) {
-                return res.json({ success: false, message: result.message });
+                const code = result.statusCode || 400;
+                return res.status(code).json({ success: false, message: result.message });
             }
-            return res.json({ success: true });
+            return res.json({ success: true, message: 'Tạo tài khoản quản trị thành công!' });
         } catch (err) {
             next(err);
         }

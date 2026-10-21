@@ -120,10 +120,26 @@ class AuthService {
         return { success: false, message: 'Mật khẩu quản trị không chính xác!' };
     }
 
-    async adminRegister(username, password, ho_ten) {
+    async adminRegister(username, password, ho_ten, current_user = null) {
         if (!username || !password) {
             return { success: false, message: 'Vui lòng nhập tài khoản và mật khẩu!' };
         }
+
+        // Kiểm tra số lượng tài khoản quản trị hiện tại trong hệ thống
+        const adminCountRes = await query('SELECT COUNT(*) as count FROM admins');
+        const adminCount = (adminCountRes && adminCountRes[0]) ? adminCountRes[0].count : 0;
+
+        // Nếu đã có quản trị viên, BẮT BUỘC chỉ Quản trị viên mới được tạo thêm (Least Privilege)
+        if (adminCount > 0) {
+            if (!current_user || current_user.role !== 'admin') {
+                return { 
+                    success: false, 
+                    statusCode: 403, 
+                    message: 'Từ chối quyền: Chỉ Quản trị viên hệ thống mới có thể tạo thêm tài khoản Quản trị!' 
+                };
+            }
+        }
+
         const existing = await query('SELECT * FROM admins WHERE username = ?', [username]);
         if (existing && existing.length > 0) {
             return { success: false, message: 'Tên đăng nhập này đã tồn tại!' };
@@ -133,6 +149,15 @@ class AuthService {
             password,
             ho_ten || 'Quản trị viên'
         ]);
+
+        await logAuditEvent({
+            actor_id: current_user ? (current_user.username || current_user.ma_nv) : username,
+            actor_role: current_user ? current_user.role : 'admin',
+            action: 'ADMIN_REGISTER',
+            resource: 'admins',
+            details: { new_admin_username: username }
+        });
+
         return { success: true };
     }
 

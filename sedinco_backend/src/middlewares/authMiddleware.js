@@ -29,7 +29,14 @@ function verifyToken(token) {
     if (parts.length !== 3) return null;
     const [header, body, signature] = parts;
     const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
-    if (signature !== expectedSig) return null;
+    
+    // Sử dụng crypto.timingSafeEqual để chống Timing Attack
+    const sigBuf = Buffer.from(signature);
+    const expectedSigBuf = Buffer.from(expectedSig);
+    if (sigBuf.length !== expectedSigBuf.length || !crypto.timingSafeEqual(sigBuf, expectedSigBuf)) {
+        return null;
+    }
+
     try {
         const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
         if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
@@ -135,20 +142,22 @@ function authenticateToken(req, res, next) {
         }
     }
 
-    // Hỗ trợ kiểm thử và tích hợp nội bộ an toàn (chỉ chấp nhận 3 role chuẩn)
-    const testUserId = req.headers['x-user-id'];
-    const testUserRole = req.headers['x-user-role'];
-    if (testUserId && testUserRole) {
-        const validRoles = ['worker', 'accountant', 'admin'];
-        const role = validRoles.includes(testUserRole) ? testUserRole : (testUserRole === 'employee' ? 'worker' : null);
-        if (role) {
-            req.user = {
-                id: testUserId,
-                ma_nv: testUserId,
-                role: role,
-                ho_ten: req.headers['x-user-name'] || 'Test User'
-            };
-            return next();
+    // Hỗ trợ kiểm thử tự động (CHỈ chấp nhận khi NODE_ENV === 'test' để chống Header Spoofing)
+    if (process.env.NODE_ENV === 'test') {
+        const testUserId = req.headers['x-user-id'];
+        const testUserRole = req.headers['x-user-role'];
+        if (testUserId && testUserRole) {
+            const validRoles = ['worker', 'accountant', 'admin'];
+            const role = validRoles.includes(testUserRole) ? testUserRole : (testUserRole === 'employee' ? 'worker' : null);
+            if (role) {
+                req.user = {
+                    id: testUserId,
+                    ma_nv: testUserId,
+                    role: role,
+                    ho_ten: req.headers['x-user-name'] || 'Test User'
+                };
+                return next();
+            }
         }
     }
 

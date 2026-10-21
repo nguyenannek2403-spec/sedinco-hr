@@ -3,10 +3,10 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const { authenticateToken, requireAuth } = require('../middlewares/authMiddleware');
 
-// Public endpoints
+// Public & Protected registration
 router.post('/login', (req, res, next) => authController.login(req, res, next));
 router.post('/admin/login', (req, res, next) => authController.adminLogin(req, res, next));
-router.post('/admin/register', (req, res, next) => authController.adminRegister(req, res, next));
+router.post('/admin/register', authenticateToken, (req, res, next) => authController.adminRegister(req, res, next));
 
 // Protected endpoints
 router.get('/me', authenticateToken, requireAuth, (req, res, next) => authController.getProfile(req, res, next));
