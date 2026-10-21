@@ -68,7 +68,7 @@ class RequestService {
             }
         }
 
-        await query(
+        const insertRes = await query(
             'INSERT INTO requests (employee_id, request_type, request_date, reason) VALUES (?, ?, ?, ?)',
             [targetId, request_type, request_date, reason]
         );
@@ -83,7 +83,7 @@ class RequestService {
             });
         }
 
-        return { success: true };
+        return { success: true, data: { id: insertRes ? insertRes.insertId : null } };
     }
 
     async updateRequestStatus(reqId, status, current_user = null) {
@@ -250,7 +250,8 @@ class RequestService {
                 reason = VALUES(reason),
                 status = 'pending'
         `;
-        await query(sql, [targetId, work_date, hours, reason || '']);
+        const insertRes = await query(sql, [targetId, work_date, hours, reason || '']);
+        const otId = insertRes ? insertRes.insertId : null;
 
         await logAuditEvent({
             actor_id: current_user.ma_nv || current_user.username,
@@ -260,7 +261,11 @@ class RequestService {
             details: { employee_id: targetId, work_date, expected_hours: hours, reason }
         });
 
-        return { success: true, message: 'Đăng ký làm thêm giờ thành công, đang chờ quản lý phê duyệt!' };
+        return { 
+            success: true, 
+            message: 'Đăng ký làm thêm giờ thành công, đang chờ quản lý phê duyệt!',
+            data: { id: otId, employee_id: targetId, work_date, expected_hours: hours }
+        };
     }
 
     async getOtRegistrations(month, year) {
@@ -272,7 +277,7 @@ class RequestService {
                    DATE_FORMAT(o.work_date, '%d/%m/%Y') as work_date_display,
                    o.work_date, o.expected_hours, o.reason, o.approved_by, o.status, o.created_at
             FROM ot_registrations o
-            LEFT JOIN employees e ON o.employee_id = e.ma_nv
+            LEFT JOIN employees e ON o.employee_id COLLATE utf8mb4_unicode_ci = e.ma_nv COLLATE utf8mb4_unicode_ci
             WHERE MONTH(o.work_date) = ? AND YEAR(o.work_date) = ?
             ORDER BY o.work_date DESC, o.created_at DESC
         `;

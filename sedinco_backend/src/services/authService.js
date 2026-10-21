@@ -18,7 +18,8 @@ class AuthService {
         const emp = results[0];
         
         // Kiểm tra xem tài khoản có bị tạm khóa bởi Quản trị viên hay không
-        if (emp.status === 'inactive' || emp.is_locked === 1 || emp.is_locked === true) {
+        const isBlocked = emp.status === 'inactive' || emp.status === 'locked' || emp.is_locked === 1 || emp.is_locked === true;
+        if (isBlocked) {
             return {
                 success: false,
                 message: 'Tài khoản nhân sự của bạn đã bị TẠM KHÓA bởi Quản trị viên. Vui lòng liên hệ bộ phận Nhân sự hoặc Ban giám đốc!'

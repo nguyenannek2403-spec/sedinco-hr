@@ -126,8 +126,9 @@ class EmployeeService {
     }
 
     async updateEmployeeStatus(ma_nv, { status, is_locked }, current_user = null) {
-        const newStatus = status || (is_locked ? 'inactive' : 'active');
-        const newLocked = is_locked !== undefined ? (is_locked ? 1 : 0) : (status === 'inactive' ? 1 : 0);
+        const isBlocked = status === 'inactive' || status === 'locked' || is_locked === 1 || is_locked === true;
+        const newStatus = status ? status : (isBlocked ? 'inactive' : 'active');
+        const newLocked = is_locked !== undefined ? (is_locked ? 1 : 0) : (isBlocked ? 1 : 0);
         await query('UPDATE employees SET status = ?, is_locked = ? WHERE ma_nv = ?', [newStatus, newLocked, ma_nv]);
 
         if (current_user) {

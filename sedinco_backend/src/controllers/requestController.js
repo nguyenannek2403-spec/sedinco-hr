@@ -26,14 +26,14 @@ class RequestController {
     async createRequest(req, res, next) {
         try {
             const { employee_id, request_type, request_date, reason } = req.body;
-            await requestService.createRequest({ 
+            const result = await requestService.createRequest({ 
                 employee_id: employee_id || (req.user ? req.user.ma_nv : null), 
                 request_type, 
                 request_date, 
                 reason, 
                 current_user: req.user 
             });
-            return res.json({ success: true, message: 'Tạo đơn thành công!' });
+            return res.status(201).json({ success: true, message: 'Tạo đơn thành công!', data: result.data });
         } catch (err) {
             next(err);
         }
@@ -70,7 +70,7 @@ class RequestController {
                 reason,
                 current_user: req.user
             });
-            return res.json(result);
+            return res.status(201).json(result);
         } catch (err) {
             next(err);
         }

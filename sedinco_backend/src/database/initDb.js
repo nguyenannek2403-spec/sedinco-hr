@@ -276,7 +276,8 @@ async function initDatabase() {
             status VARCHAR(20) DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY unique_emp_ot_date (employee_id, work_date)
-        )`);
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+        await query('ALTER TABLE ot_registrations CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci').catch(() => {});
 
         console.log('✅ Khởi tạo cấu trúc Database (12 bảng quan hệ + Multi-Factor Anti-Fraud RBAC) thành công!');
     } catch (err) {

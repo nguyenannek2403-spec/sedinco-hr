@@ -25,7 +25,7 @@ class EmployeeController {
     async createEmployee(req, res, next) {
         try {
             await employeeService.createEmployee(req.body, req.user);
-            return res.json({ success: true, message: 'Tạo hồ sơ nhân viên thành công!' });
+            return res.status(201).json({ success: true, message: 'Tạo hồ sơ nhân viên thành công!' });
         } catch (err) {
             next(err);
         }

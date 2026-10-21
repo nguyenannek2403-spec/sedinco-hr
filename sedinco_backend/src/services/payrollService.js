@@ -26,8 +26,8 @@ class PayrollService {
         const safeLogs = logs || [];
 
         const otRegs = await query(
-            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE MONTH(work_date) = ? AND YEAR(work_date) = ? AND status = "approved"',
-            [m, y]
+            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE MONTH(work_date) = ? AND YEAR(work_date) = ? AND status = ?',
+            [m, y, 'approved']
         );
         const safeOtRegs = otRegs || [];
 
@@ -96,8 +96,8 @@ class PayrollService {
         const safeLogs = logs || [];
 
         const otRegs = await query(
-            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE employee_id = ? AND MONTH(work_date) = ? AND YEAR(work_date) = ? AND status = "approved"',
-            [ma_nv, m, y]
+            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE employee_id = ? AND MONTH(work_date) = ? AND YEAR(work_date) = ? AND status = ?',
+            [ma_nv, m, y, 'approved']
         );
         const safeOtRegs = otRegs || [];
 
