@@ -39,7 +39,6 @@ export default function DesktopSidebar({
         { id: "company", label: "Cấu Hình Vị Trí & Trụ Sở", icon: Building },
         { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", icon: Gift },
         { id: "audit_logs", label: "Nhật Ký Thao Tác", icon: ShieldCheck },
-        { id: "checkin", label: "Điểm Danh Thử Nghiệm", icon: Clock },
         { id: "profile", label: "Hồ Sơ Quản Trị", icon: User }
       ];
     }
@@ -49,8 +48,6 @@ export default function DesktopSidebar({
         { id: "matrix", label: "Bảng Công (Chốt Sổ)", icon: Calendar, badge: "Chấm công" },
         { id: "payroll", label: "Bảng Lương Doanh Nghiệp", icon: DollarSign },
         { id: "requests", label: "Xử Lý Đơn Từ", icon: FileText, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null, badgeColor: "bg-rose-500 text-white" },
-        { id: "history", label: "Lịch Sử Công Cá Nhân", icon: Calendar },
-        { id: "checkin", label: "Điểm Danh Thử Nghiệm", icon: Clock },
         { id: "profile", label: "Hồ Sơ Kế Toán", icon: User }
       ];
     }

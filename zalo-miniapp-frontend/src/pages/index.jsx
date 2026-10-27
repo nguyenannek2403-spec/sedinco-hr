@@ -65,7 +65,8 @@ import {
   safePost,
   safePut,
   cancelInflightRequests,
-  setOnUnauthorizedCallback
+  setOnUnauthorizedCallback,
+  setAuthToken
 } from "../utils/api";
 
 import DesktopSidebar from "../components/DesktopSidebar";
@@ -98,7 +99,14 @@ export default function HomePage() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem("sedinco_miniapp_user");
-      return saved ? JSON.parse(saved) : null;
+      const user = saved ? JSON.parse(saved) : null;
+      if (user?.token) {
+        setAuthToken(user.token);
+      } else {
+        const storedToken = localStorage.getItem("sedinco_auth_token");
+        if (storedToken) setAuthToken(storedToken);
+      }
+      return user;
     } catch (e) {
       return null;
     }
@@ -546,8 +554,25 @@ export default function HomePage() {
     if (isLoginSubmittingRef.current) return;
 
     setLoginError("");
-    const u = loginMaNv.trim().toUpperCase();
-    const p = loginPass.trim();
+    let rawU = (loginMaNv || "").trim();
+    let rawP = (loginPass || "").trim();
+
+    // Hỗ trợ tự động phân tách nếu người dùng nhập gộp "admin-123456" hoặc "admin:123456" vào ô tài khoản
+    if (rawU.includes("-") || rawU.includes(":")) {
+      const sep = rawU.includes(":") ? ":" : "-";
+      const parts = rawU.split(sep);
+      const possibleUser = parts[0].trim();
+      const possiblePass = parts.slice(1).join(sep).trim();
+      if (!rawP || rawP === possiblePass) {
+        rawU = possibleUser;
+        rawP = possiblePass;
+        setLoginMaNv(rawU);
+        setLoginPass(rawP);
+      }
+    }
+
+    const u = rawU.toUpperCase();
+    const p = rawP;
 
     if (!u || !p) {
       setLoginError("Vui lòng nhập đầy đủ mã nhân viên và mật khẩu!");
@@ -558,9 +583,9 @@ export default function HomePage() {
     setIsLoggingIn(true);
 
     try {
-      // 1. Kiểm tra tài khoản trong danh sách tài khoản đã cấp (Admin tạo hoặc chỉnh sửa)
+      // 1. Kiểm tra tài khoản trong danh sách tài khoản đã cấp (Không can thiệp tài khoản ADMIN hệ thống)
       const storedAccounts = JSON.parse(localStorage.getItem("sedinco_employee_accounts") || "{}");
-      if (storedAccounts[u]) {
+      if (storedAccounts[u] && u !== "ADMIN") {
         const acc = storedAccounts[u];
         if (acc.is_locked || acc.status === "inactive") {
           setLoginError("Tài khoản của bạn đã bị TẠM KHÓA bởi Quản trị viên. Vui lòng liên hệ phòng Nhân sự / Ban giám đốc!");
@@ -568,6 +593,10 @@ export default function HomePage() {
         }
         if (acc.password === p) {
           const resolvedRole = acc.role || ROLES.EMPLOYEE;
+          const mockToken = `local_token_${Date.now()}`;
+          setAuthToken(mockToken);
+          localStorage.setItem("sedinco_auth_token", mockToken);
+
           const safeUser = {
             ma_nv: acc.ma_nv,
             ho_ten: acc.ho_ten || `Nhân viên ${u}`,
@@ -575,7 +604,8 @@ export default function HomePage() {
             avatar_url: acc.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
             dien_thoai: acc.dien_thoai || "0905123456",
             email: acc.email || `${u.toLowerCase()}@sedinco.vn`,
-            role: resolvedRole
+            role: resolvedRole,
+            token: mockToken
           };
           resetAllSessionData();
           localStorage.setItem("sedinco_miniapp_user", JSON.stringify(safeUser));
@@ -603,20 +633,24 @@ export default function HomePage() {
 
       if (res?.success && res.data) {
         const rawUser = res.data;
-        if (rawUser.is_locked || rawUser.status === "inactive" || storedAccounts[u]?.is_locked || storedAccounts[u]?.status === "inactive") {
+        if (rawUser.is_locked || rawUser.status === "inactive" || (u !== "ADMIN" && (storedAccounts[u]?.is_locked || storedAccounts[u]?.status === "inactive"))) {
           setLoginError("Tài khoản của bạn đã bị TẠM KHÓA bởi Quản trị viên. Vui lòng liên hệ phòng Nhân sự / Ban giám đốc!");
           return;
         }
         let resolvedRole = ROLES.EMPLOYEE;
-        if (u === "ADMIN" || rawUser.username === "admin") {
+        if (u === "ADMIN" || rawUser.username === "admin" || rawUser.role === "admin") {
           resolvedRole = ROLES.ADMIN;
-        } else if (u === "NV002" || (rawUser.chuc_danh && rawUser.chuc_danh.toLowerCase().includes("kế toán"))) {
+        } else if (u === "NV002" || (rawUser.chuc_danh && rawUser.chuc_danh.toLowerCase().includes("kế toán")) || rawUser.role === "accountant") {
           resolvedRole = ROLES.ACCOUNTANT;
-        } else if (u === "NV003" || (rawUser.chuc_danh && rawUser.chuc_danh.toLowerCase().includes("nhân sự"))) {
+        } else if (u === "NV003" || (rawUser.chuc_danh && rawUser.chuc_danh.toLowerCase().includes("nhân sự")) || rawUser.role === "hr") {
           resolvedRole = ROLES.HR;
         } else if (rawUser.role) {
           resolvedRole = rawUser.role;
         }
+
+        const validToken = rawUser.token || `token_${Date.now()}`;
+        setAuthToken(validToken);
+        localStorage.setItem("sedinco_auth_token", validToken);
 
         const safeUser = {
           ma_nv: rawUser.ma_nv || rawUser.username || u,
@@ -625,7 +659,8 @@ export default function HomePage() {
           avatar_url: rawUser.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
           dien_thoai: rawUser.dien_thoai || "0905123456",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
-          role: resolvedRole
+          role: resolvedRole,
+          token: validToken
         };
 
         resetAllSessionData();
@@ -637,6 +672,10 @@ export default function HomePage() {
       } else {
         // Fallback kiểm thử tài khoản mặc định
         if (u === "ADMIN" && p === "123456") {
+          const mockToken = `admin_mock_token_${Date.now()}`;
+          setAuthToken(mockToken);
+          localStorage.setItem("sedinco_auth_token", mockToken);
+
           const safeUser = {
             ma_nv: "ADMIN",
             ho_ten: "Ban Giám Đốc",
@@ -644,7 +683,8 @@ export default function HomePage() {
             avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
             dien_thoai: "0905123456",
             email: "admin@sedinco.vn",
-            role: ROLES.ADMIN
+            role: ROLES.ADMIN,
+            token: mockToken
           };
           resetAllSessionData();
           localStorage.setItem("sedinco_miniapp_user", JSON.stringify(safeUser));
@@ -655,6 +695,10 @@ export default function HomePage() {
           return;
         }
         if (u === "NV001" && (p === "1234567" || p === "123456")) {
+          const mockToken = `nv001_mock_token_${Date.now()}`;
+          setAuthToken(mockToken);
+          localStorage.setItem("sedinco_auth_token", mockToken);
+
           const safeUser = {
             ma_nv: "NV001",
             ho_ten: "Ngô Trường Sa",
@@ -662,7 +706,8 @@ export default function HomePage() {
             avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
             dien_thoai: "0867007444",
             email: "johnathan.nts@gmail.com",
-            role: ROLES.EMPLOYEE
+            role: ROLES.EMPLOYEE,
+            token: mockToken
           };
           resetAllSessionData();
           localStorage.setItem("sedinco_miniapp_user", JSON.stringify(safeUser));
@@ -676,6 +721,10 @@ export default function HomePage() {
       }
     } catch (err) {
       if (u === "ADMIN" && p === "123456") {
+        const mockToken = `admin_mock_token_${Date.now()}`;
+        setAuthToken(mockToken);
+        localStorage.setItem("sedinco_auth_token", mockToken);
+
         const safeUser = {
           ma_nv: "ADMIN",
           ho_ten: "Ban Giám Đốc",
@@ -683,7 +732,8 @@ export default function HomePage() {
           avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
           dien_thoai: "0905123456",
           email: "admin@sedinco.vn",
-          role: ROLES.ADMIN
+          role: ROLES.ADMIN,
+          token: mockToken
         };
         resetAllSessionData();
         localStorage.setItem("sedinco_miniapp_user", JSON.stringify(safeUser));
@@ -694,6 +744,10 @@ export default function HomePage() {
         return;
       }
       if (u === "NV001" && (p === "1234567" || p === "123456")) {
+        const mockToken = `nv001_mock_token_${Date.now()}`;
+        setAuthToken(mockToken);
+        localStorage.setItem("sedinco_auth_token", mockToken);
+
         const safeUser = {
           ma_nv: "NV001",
           ho_ten: "Ngô Trường Sa",
@@ -701,7 +755,8 @@ export default function HomePage() {
           avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
           dien_thoai: "0867007444",
           email: "johnathan.nts@gmail.com",
-          role: ROLES.EMPLOYEE
+          role: ROLES.EMPLOYEE,
+          token: mockToken
         };
         resetAllSessionData();
         localStorage.setItem("sedinco_miniapp_user", JSON.stringify(safeUser));
@@ -721,6 +776,8 @@ export default function HomePage() {
   const handleForceLogout = (reasonMsg = "Đã đăng xuất khỏi hệ thống.") => {
     resetAllSessionData();
     localStorage.removeItem("sedinco_miniapp_user");
+    localStorage.removeItem("sedinco_auth_token");
+    setAuthToken("");
     setCurrentUser(null);
     setLoginPass("");
     showToast(reasonMsg, "info");
@@ -737,6 +794,7 @@ export default function HomePage() {
       resetAllSessionData();
       localStorage.clear();
       sessionStorage.clear();
+      setAuthToken("");
       setLoginMaNv("");
       setLoginPass("");
       setLoginError("");
@@ -2455,7 +2513,7 @@ export default function HomePage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase text-[11px]">
+                       <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase text-[11px]">
                         <th className="p-3 pl-4">Thời Gian</th>
                         <th className="p-3">Tác Nhân (Actor)</th>
                         <th className="p-3">Hành Động</th>
@@ -2495,7 +2553,7 @@ export default function HomePage() {
             )}
 
             {/* TAB: ĐIỂM DANH & CHẤM CÔNG TRÊN PC (VỚI BANNER THÔNG BÁO MOBILE CHO NHÂN SỰ) */}
-            {currentTab === "checkin" && (
+            {currentTab === "checkin" && hasPermission(activeRole, "canCheckIn") && (
               <EmployeeCheckinPC
                 currentUser={currentUser}
                 currentTime={currentTime}
@@ -2515,7 +2573,7 @@ export default function HomePage() {
             )}
 
             {/* TAB: LỊCH SỬ CHẤM CÔNG CÁ NHÂN (31 NGÀY TRÊN PC) */}
-            {currentTab === "history" && (
+            {currentTab === "history" && hasPermission(activeRole, "canViewOwnAttendance") && (
               <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4 max-w-4xl">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
@@ -3292,7 +3350,7 @@ export default function HomePage() {
         <main className="p-4 flex-1 space-y-4 overflow-y-auto">
 
           {/* TAB 1: CHẤM CÔNG DI ĐỘNG (QUÉT KHUÔN MẶT & GPS) */}
-          {(currentTab === "checkin" || (!allowedTabs.includes(currentTab) && getDefaultTabForRole(activeRole) === "checkin")) && (
+          {(currentTab === "checkin" || (!allowedTabs.includes(currentTab) && getDefaultTabForRole(activeRole) === "checkin")) && hasPermission(activeRole, "canCheckIn") && (
             <div className="space-y-4 animate-in fade-in">
               <OneTouchCheckIn
                 currentUser={currentUser}
@@ -3336,7 +3394,7 @@ export default function HomePage() {
           )}
 
           {/* TAB 2: LỊCH SỬ CHẤM CÔNG */}
-          {currentTab === "history" && (
+          {currentTab === "history" && hasPermission(activeRole, "canViewOwnAttendance") && (
             <div className="bg-white rounded-3xl p-4 border-2 border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center justify-between px-2">
                 <button

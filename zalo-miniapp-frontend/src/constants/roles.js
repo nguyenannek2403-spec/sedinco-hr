@@ -48,18 +48,18 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.ACCOUNTANT]: {
     name: "Kế Toán",
-    allowedTabs: ["matrix", "requests", "payroll", "history", "checkin", "profile"],
+    allowedTabs: ["matrix", "requests", "payroll", "profile"],
     defaultTab: "matrix",
-    canCheckIn: true,
-    canViewOwnAttendance: true,
-    canViewAllAttendance: true, // Xem bảng công 31 ngày
+    canCheckIn: false,
+    canViewOwnAttendance: false,
+    canViewAllAttendance: true, // Xem bảng công 31 ngày toàn công ty
     canEditAttendance: false, // Phụ thuộc dynamic permission
     canLockPeriod: false, // Phụ thuộc dynamic permission
     canUnlockPeriod: false, // Chỉ Admin mở khóa
     canCreateRequest: true,
     canCancelOwnRequest: true,
     canApproveRequests: false, // Phụ thuộc dynamic permission
-    canViewOwnPayroll: true,
+    canViewOwnPayroll: false,
     canViewCompanyPayroll: true, // Bảng lương toàn công ty
     canExportPayrollExcel: true,
     canManageEmployees: false,
@@ -73,10 +73,10 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.ADMIN]: {
     name: "Quản Trị Viên (Giám Đốc)",
-    allowedTabs: ["matrix", "payroll", "requests", "management", "company", "holidays", "permissions", "audit_logs", "checkin", "profile"],
+    allowedTabs: ["matrix", "payroll", "requests", "management", "company", "holidays", "permissions", "audit_logs", "profile"],
     defaultTab: "matrix",
-    canCheckIn: true,
-    canViewOwnAttendance: true,
+    canCheckIn: false,
+    canViewOwnAttendance: false,
     canViewAllAttendance: true,
     canEditAttendance: true,
     canLockPeriod: true,
@@ -84,7 +84,7 @@ export const ROLE_PERMISSIONS = {
     canCreateRequest: true,
     canCancelOwnRequest: true,
     canApproveRequests: true,
-    canViewOwnPayroll: true,
+    canViewOwnPayroll: false,
     canViewCompanyPayroll: true,
     canExportPayrollExcel: true,
     canManageEmployees: true,
