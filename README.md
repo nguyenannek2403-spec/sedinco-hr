@@ -10,7 +10,9 @@ sedinco-hr/
 ├── .gitignore               # Bộ lọc bỏ qua node_modules, build & env bảo mật
 ├── sedinco_hr.sql           # Cấu trúc CSDL và dữ liệu hạt giống ban đầu
 ├── README.md                # Tài liệu tổng quan dự án
-└── AGENTS.md                # Quy chuẩn hoạt động cho AI Agent
+├── AGENTS.md                # Quy chuẩn hoạt động cho AI Agent
+└── docs/
+    └── PROJECT.md           # Tài liệu kỹ thuật, kiến trúc & nghiệp vụ toàn diện
 ```
 
 ---
@@ -23,21 +25,21 @@ sedinco-hr/
   - `src/config/`: Cấu hình kết nối MySQL và biến môi trường.
   - `src/controllers/`: Tiếp nhận HTTP Request và điều hướng JSON Response.
   - `src/services/`: Nghiệp vụ tính lương tự động, ma trận công, quy trình duyệt đơn.
-  - `src/routes/`: 14 REST API endpoints (`/api/...`).
-  - `src/middlewares/`: Thẩm tra dữ liệu đầu vào (khống chế trần OT 24h), phân quyền RBAC và xử lý lỗi tập trung.
-  - `src/database/`: Tự động khởi tạo schema (`initDb.js`) và nạp seed data.
-  - `src/utils/`: Công thức tính lương độc lập (`payrollCalculator.js`).
-  - `__tests__/`: 16 test cases tự động (`node:test`) kiểm thử tiền lương, bảo mật và thẩm định dữ liệu.
+  - `src/routes/`: 25 REST API endpoints (`/api/...`).
+  - `src/middlewares/`: Thẩm tra dữ liệu đầu vào, phân quyền RBAC 3 role, kiểm soát bảo mật và xử lý lỗi tập trung.
+  - `src/database/`: Tự động khởi tạo schema 10 bảng (`initDb.js`) và nạp seed data.
+  - `src/utils/`: Công thức tính lương độc lập (`payrollCalculator.js`), hỗ trợ GPS (`geoHelper.js`), Dynamic QR (`dynamicQrHelper.js`).
+  - `__tests__/`: 41 test cases tự động (`node:test`) kiểm thử chống gian lận, tiền lương, RBAC và chu trình mô phỏng 3 roles.
 - **Triển khai Cloud**: Render Web Service (kết nối Aiven Cloud MySQL qua TLS/SSL).
 
 ### 📱 Frontend (`zalo-miniapp-frontend/`)
 - **Công nghệ**: Zalo Mini App SDK (`zmp-sdk`, `zmp-ui`), React 18, Vite, Tailwind CSS, Lucide React.
 - **Chức năng người dùng**:
-  - Chấm công vào/ra hàng ngày, định vị GPS an toàn.
+  - Chấm công vào/ra hàng ngày, định vị GPS an toàn & quét Dynamic QR.
   - Theo dõi ma trận bảng công tháng cá nhân.
   - Xem chi tiết phiếu lương tự động hàng tháng.
   - Nộp đơn xin nghỉ phép, báo làm thêm giờ (OT), báo quên chấm công.
-  - Bảng quản trị duyệt đơn & quản lý nhân sự dành cho Ban Giám Đốc/Kế toán.
+  - Bảng quản trị Web PC duyệt đơn, quản lý nhân sự & phân quyền Kế toán dành cho Ban Giám Đốc.
 - **Triển khai**: Đóng gói và phát hành trực tiếp qua Zalo Mini App CLI (`zmp deploy`).
 
 ---
@@ -54,15 +56,15 @@ cd zalo-miniapp-frontend && npm install && cd ..
 ```
 
 ### Khởi chạy dịch vụ từ thư mục gốc
-- **Khởi chạy Backend API** (cổng 5000):
+- **Khởi chạy Backend API** (cổng 5001 / 5000):
   ```bash
   npm run backend
   ```
-- **Khởi chạy Frontend Zalo Mini App**:
+- **Khởi chạy Frontend Zalo Mini App & Admin Web**:
   ```bash
   npm run miniapp
   ```
-- **Chạy toàn bộ 16 ca kiểm thử tự động Backend**:
+- **Chạy toàn bộ 41 ca kiểm thử tự động Backend**:
   ```bash
   npm test
   ```
@@ -84,3 +86,11 @@ cd zalo-miniapp-frontend && npm install && cd ..
   ```
 - **Frontend** (`zalo-miniapp-frontend/src/utils/api.js`):
   Mặc định kết nối tới Backend Production: `https://sedinco-backend.onrender.com/api` hoặc `http://localhost:5000/api` khi chạy cục bộ.
+
+---
+
+## 📚 4. Tài Liệu Dự Án
+- [docs/PROJECT.md](docs/PROJECT.md): Tài liệu kỹ thuật, kiến trúc phân tầng, 14 chức năng, 10 bảng CSDL và checklist kiểm thử.
+- [AGENTS.md](AGENTS.md): Quy chuẩn tác vụ, lệnh thực thi và tiêu chuẩn hoàn thành DoD cho AI Agent.
+- [CHANGELOG.md](CHANGELOG.md): Nhật ký phiên bản và lịch sử phát hành.
+
