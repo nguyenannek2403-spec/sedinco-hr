@@ -5,12 +5,72 @@
  */
 
 const crypto = require('crypto');
-const JWT_SECRET = process.env.JWT_SECRET || 'sedinco-secret-key-2026-secure';
+
+// BẮT BUỘC: JWT_SECRET phải có độ dài tối thiểu 32 ký tự, tuyệt đối không dùng secret mặc định yếu ở môi trường chạy
+const RAW_JWT_SECRET = process.env.JWT_SECRET;
+if (!RAW_JWT_SECRET || RAW_JWT_SECRET.length < 32) {
+    if (process.env.NODE_ENV !== 'test') {
+        throw new Error('[FATAL SECURITY ERROR] JWT_SECRET bắt buộc phải khai báo trong biến môi trường với độ dài tối thiểu 32 ký tự!');
+    }
+}
+const JWT_SECRET = RAW_JWT_SECRET && RAW_JWT_SECRET.length >= 32
+    ? RAW_JWT_SECRET 
+    : (process.env.NODE_ENV === 'test' ? 'sedinco-secret-key-test-environment-min-32-chars!' : '');
 
 // Cache quyền kế toán trong memory (TTL: 10 giây)
 let permissionsCache = null;
 let cacheTime = 0;
 const CACHE_TTL_MS = 10000;
+
+// B7 (G4): Xác thực trực tiếp trạng thái tài khoản và vai trò từ CSDL ở MỖI request (0-delay)
+const userStatusCache = new Map();
+const USER_CACHE_TTL_MS = 0; // Đọc trực tiếp từ CSDL tại mỗi request
+
+function invalidateUserCache(identifier) {
+    if (identifier) {
+        userStatusCache.delete(String(identifier));
+    } else {
+        userStatusCache.clear();
+    }
+}
+
+async function verifyUserStatusInDb(user) {
+    if (!user || (!user.id && !user.ma_nv && !user.username)) return null;
+    const identifier = user.ma_nv || user.id || user.username;
+    const now = Date.now();
+
+    try {
+        const { query } = require('../config/db');
+        if (user.role === 'worker' || user.role === 'accountant' || user.ma_nv) {
+            const rows = await query('SELECT ma_nv, role, status, is_locked FROM employees WHERE ma_nv = ? LIMIT 1', [user.ma_nv || user.id]);
+            if (!rows || rows.length === 0) {
+                const data = { notFound: true };
+                userStatusCache.set(String(identifier), { time: now, data });
+                return data;
+            }
+            const emp = rows[0];
+            const data = {
+                isLocked: Boolean(emp.is_locked === 1 || emp.status === 'inactive' || emp.status === 'locked'),
+                role: emp.role || resolveUserRole(emp)
+            };
+            userStatusCache.set(String(identifier), { time: now, data });
+            return data;
+        } else if (user.role === 'admin' || user.username) {
+            const rows = await query('SELECT id, username FROM admins WHERE username = ? OR id = ? LIMIT 1', [user.username || user.id, user.id || 0]);
+            if (!rows || rows.length === 0) {
+                const data = { notFound: true };
+                userStatusCache.set(String(identifier), { time: now, data });
+                return data;
+            }
+            const data = { isLocked: false, role: 'admin' };
+            userStatusCache.set(String(identifier), { time: now, data });
+            return data;
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
 
 // 1. Tạo JWT Token an toàn không dùng thư viện ngoài
 function generateToken(payload, expiresInSeconds = 7 * 24 * 3600) {
@@ -123,8 +183,9 @@ function invalidatePermissionCache() {
     cacheTime = 0;
 }
 
-// 7. Middleware trích xuất và xác thực danh tính người dùng (Bearer token hoặc Header)
-function authenticateToken(req, res, next) {
+// 7. Middleware trích xuất và xác thực danh tính người dùng (CHỈ chấp nhận Bearer JWT Token hợp lệ)
+// Tuyệt đối KHÔNG tin cậy x-user-role / x-user-id ở bất kỳ môi trường nào
+async function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     let token = null;
 
@@ -137,27 +198,24 @@ function authenticateToken(req, res, next) {
     if (token) {
         const user = verifyToken(token);
         if (user) {
+            // Xác thực tức thì trạng thái tài khoản từ CSDL (Chống dùng token cũ khi bị khóa hoặc đổi vai trò)
+            const dbCheck = await verifyUserStatusInDb(user);
+            if (dbCheck) {
+                if (dbCheck.notFound || dbCheck.isLocked) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Tài khoản của bạn đã bị TẠM KHÓA hoặc không còn tồn tại trên hệ thống!'
+                    });
+                }
+                if (dbCheck.role && dbCheck.role !== user.role) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Vai trò tài khoản của bạn đã thay đổi. Vui lòng đăng nhập lại!'
+                    });
+                }
+            }
             req.user = user;
             return next();
-        }
-    }
-
-    // Hỗ trợ kiểm thử tự động (CHỈ chấp nhận khi NODE_ENV === 'test' để chống Header Spoofing)
-    if (process.env.NODE_ENV === 'test') {
-        const testUserId = req.headers['x-user-id'];
-        const testUserRole = req.headers['x-user-role'];
-        if (testUserId && testUserRole) {
-            const validRoles = ['worker', 'accountant', 'admin'];
-            const role = validRoles.includes(testUserRole) ? testUserRole : (testUserRole === 'employee' ? 'worker' : null);
-            if (role) {
-                req.user = {
-                    id: testUserId,
-                    ma_nv: testUserId,
-                    role: role,
-                    ho_ten: req.headers['x-user-name'] || 'Test User'
-                };
-                return next();
-            }
         }
     }
 
@@ -178,6 +236,7 @@ function requireAuth(req, res, next) {
 
 // 9. Middleware bắt buộc role
 function requireRole(allowedRoles) {
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
     return (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({
@@ -186,10 +245,10 @@ function requireRole(allowedRoles) {
             });
         }
         const userRole = req.user.role === 'employee' ? 'worker' : req.user.role;
-        if (!allowedRoles.includes(userRole)) {
+        if (!roles.includes(userRole)) {
             return res.status(403).json({
                 success: false,
-                message: `Từ chối truy cập: Tài khoản không có quyền hạn này (Yêu cầu: ${allowedRoles.join(', ')}).`
+                message: `Từ chối truy cập: Tài khoản không có quyền hạn này (Yêu cầu: ${roles.join(', ')}).`
             });
         }
         next();
@@ -266,6 +325,7 @@ module.exports = {
     resolveUserRole,
     getAccountantPermissions,
     invalidatePermissionCache,
+    invalidateUserCache,
     authenticateToken,
     requireAuth,
     requireRole,

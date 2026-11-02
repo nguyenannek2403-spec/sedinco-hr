@@ -46,6 +46,8 @@ class PayrollService {
                 luong_cb: emp.luong_cb,
                 cong_chuan: emp.cong_chuan,
                 ngay_chinh_thuc: emp.ngay_chinh_thuc,
+                status: emp.status,
+                chuc_danh: emp.chuc_danh,
                 logs: empLogs,
                 holidays: safeHolidays,
                 allowances: allowances,
@@ -66,7 +68,8 @@ class PayrollService {
                 totalAllowance: calc.totalAllowance,
                 otAmount: calc.otAmount,
                 totalInsurance: calc.totalInsurance,
-                netSalary: calc.netSalary
+                netSalary: calc.netSalary,
+                warning: calc.warning || null
             };
         });
     }
@@ -114,6 +117,8 @@ class PayrollService {
             luong_cb: emp.luong_cb,
             cong_chuan: emp.cong_chuan,
             ngay_chinh_thuc: emp.ngay_chinh_thuc,
+            status: emp.status,
+            chuc_danh: emp.chuc_danh,
             logs: safeLogs,
             holidays: safeHolidays,
             allowances: allowances,
@@ -135,7 +140,8 @@ class PayrollService {
             totalAllowance: calc.totalAllowance,
             otAmount: calc.otAmount,
             totalInsurance: calc.totalInsurance,
-            netSalary: calc.netSalary
+            netSalary: calc.netSalary,
+            warning: calc.warning || null
         };
     }
 

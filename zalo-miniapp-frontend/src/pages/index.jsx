@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { getLocation, chooseImage } from "zmp-sdk/apis";
 import {
   Clock,
@@ -47,7 +47,8 @@ import {
   ExternalLink,
   Navigation,
   Compass,
-  Edit3
+  Edit3,
+  Activity
 } from "lucide-react";
 
 import {
@@ -71,16 +72,22 @@ import {
 
 import DesktopSidebar from "../components/DesktopSidebar";
 import DesktopHeader from "../components/DesktopHeader";
-import AttendanceMatrixTable from "../components/AttendanceMatrixTable";
-import PayrollGridTable from "../components/PayrollGridTable";
-import EmployeeCheckinPC from "../components/EmployeeCheckinPC";
-import SalarySlipModal from "../components/SalarySlipModal";
 import CompanyLogo from "../components/CompanyLogo";
 import sedincoLogo from "../static/sedinco-logo.png";
 import OneTouchCheckIn from "../components/OneTouchCheckIn";
-import SmartLeaveRequestModal from "../components/SmartLeaveRequestModal";
-import AccountantPermissionView from "../components/AccountantPermissionView";
 import { resolveSession, logoutSession } from "../services/authService";
+
+// F.2: Lazy-load phân hệ Admin, Kiosk và Modals nặng ra khỏi worker bundle
+const AttendanceMatrixTable = lazy(() => import("../components/AttendanceMatrixTable"));
+const PayrollGridTable = lazy(() => import("../components/PayrollGridTable"));
+const EmployeeCheckinPC = lazy(() => import("../components/EmployeeCheckinPC"));
+const SalarySlipModal = lazy(() => import("../components/SalarySlipModal"));
+const SmartLeaveRequestModal = lazy(() => import("../components/SmartLeaveRequestModal"));
+const AccountantPermissionView = lazy(() => import("../components/AccountantPermissionView"));
+const ForcePasswordChangeModal = lazy(() => import("../components/ForcePasswordChangeModal"));
+const AdminDeviceApproval = lazy(() => import("../components/AdminDeviceApproval"));
+const KioskDisplayView = lazy(() => import("../components/KioskDisplayView"));
+const DiagnosticsView = lazy(() => import("../components/DiagnosticsView"));
 
 // Helper style mã công
 const getStatusBadgeStyle = (status) => {
@@ -94,7 +101,7 @@ const getStatusBadgeStyle = (status) => {
   return { bg: "bg-white text-slate-400 border-slate-200", label: "Chưa chấm" };
 };
 
-export default function HomePage() {
+function MainHomePageContent() {
   // ================= 1. TRẠNG THÁI PHIÊN ĐĂNG NHẬP & THIẾT BỊ =================
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -660,6 +667,7 @@ export default function HomePage() {
           dien_thoai: rawUser.dien_thoai || "0905123456",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
           role: resolvedRole,
+          must_change_password: Boolean(rawUser.must_change_password),
           token: validToken
         };
 
@@ -916,19 +924,20 @@ export default function HomePage() {
     }
   };
 
-  // Chụp ảnh Selfie
+  // B5 (G5): Chụp ảnh Selfie trực tiếp bằng Camera & nén ảnh phía client
   const handleCapturePhoto = async () => {
     try {
-      const res = await chooseImage({ count: 1, sourceType: ["camera", "album"] });
-      if (res && res.filePaths && res.filePaths.length > 0) {
-        setSelfiePhoto(res.filePaths[0]);
-        showToast("Đã ghi nhận ảnh khuôn mặt thành công!", "success");
+      const { captureDirectCameraPhoto } = await import("../utils/imageHelper");
+      const res = await captureDirectCameraPhoto();
+      if (res && res.success && res.photoUrl) {
+        setSelfiePhoto(res.photoUrl);
+        showToast("Đã chụp & nén ảnh camera khuôn mặt thành công!", "success");
         return;
       }
-    } catch (e) {}
-
-    setSelfiePhoto(currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200");
-    showToast("Đã nhận diện khuôn mặt nhân sự thành công!", "success");
+      showToast(res?.error || "Không thể chụp ảnh từ Camera thiết bị!", "warning");
+    } catch (err) {
+      showToast("Lỗi khi mở camera chụp ảnh!", "warning");
+    }
   };
 
   // Nộp đơn từ
@@ -2552,6 +2561,27 @@ export default function HomePage() {
               <AccountantPermissionView />
             )}
 
+            {/* TAB: DUYỆT ĐỔI THIẾT BỊ (ADMIN TRÊN PC) */}
+            {currentTab === "devices" && hasPermission(activeRole, "canManageEmployees") && (
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
+                <AdminDeviceApproval token={currentUser?.token} />
+              </div>
+            )}
+
+            {/* TAB: MÀN HÌNH KIOSK QR ĐỘC LẬP TRÊN PC */}
+            {currentTab === "kiosk" && (
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
+                <KioskDisplayView />
+              </div>
+            )}
+
+            {/* TAB: MÀN HÌNH TỰ CHẨN ĐOÁN SDK TRÊN PC (STAGING ONLY) */}
+            {currentTab === "diagnostics" && (
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
+                <DiagnosticsView />
+              </div>
+            )}
+
             {/* TAB: ĐIỂM DANH & CHẤM CÔNG TRÊN PC (VỚI BANNER THÔNG BÁO MOBILE CHO NHÂN SỰ) */}
             {currentTab === "checkin" && hasPermission(activeRole, "canCheckIn") && (
               <EmployeeCheckinPC
@@ -3333,15 +3363,33 @@ export default function HomePage() {
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-xl font-black text-white text-xs border-2 border-rose-400 shadow-sm cursor-pointer active:scale-95 transition-all shrink-0"
-                title="Đăng xuất khỏi hệ thống"
-              >
-                <LogOut size={13} />
-                <span>Thoát</span>
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {activeRole === ROLES.ADMIN && (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentTab(currentTab === "diagnostics" ? "matrix" : "diagnostics")}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-black text-xs border cursor-pointer active:scale-95 transition-all ${
+                      currentTab === "diagnostics"
+                        ? "bg-indigo-700 text-white border-white"
+                        : "bg-indigo-600/80 hover:bg-indigo-600 text-white border-indigo-400"
+                    }`}
+                    title="Chẩn đoán hệ thống SDK Zalo (Staging)"
+                  >
+                    <Activity size={13} />
+                    <span>Chẩn Đoán</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-xl font-black text-white text-xs border-2 border-rose-400 shadow-sm cursor-pointer active:scale-95 transition-all"
+                  title="Đăng xuất khỏi hệ thống"
+                >
+                  <LogOut size={13} />
+                  <span>Thoát</span>
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -4241,6 +4289,27 @@ export default function HomePage() {
             </div>
           )}
 
+          {/* TAB 9 (MOBILE): DUYỆT ĐỔI THIẾT BỊ (ADMIN) */}
+          {currentTab === "devices" && hasPermission(activeRole, "canManageEmployees") && (
+            <div className="p-3">
+              <AdminDeviceApproval token={currentUser?.token} />
+            </div>
+          )}
+
+          {/* TAB 10 (MOBILE): MÀN HÌNH KIOSK QR ĐỘC LẬP */}
+          {currentTab === "kiosk" && (
+            <div className="p-3">
+              <KioskDisplayView />
+            </div>
+          )}
+
+          {/* TAB 11 (MOBILE): MÀN HÌNH TỰ CHẨN ĐOÁN SDK (STAGING ONLY) */}
+          {currentTab === "diagnostics" && (
+            <div className="p-3">
+              <DiagnosticsView />
+            </div>
+          )}
+
         </main>
 
         {/* 3. THANH ĐIỀU HƯỚNG ĐÁY MÀN HÌNH DI ĐỘNG */}
@@ -4398,7 +4467,31 @@ export default function HomePage() {
           />
         )}
 
+        {/* MODAL BẮT BUỘC ĐỔI MẬT KHẨU (G3 / G4) */}
+        {Boolean(currentUser?.must_change_password) && (
+          <ForcePasswordChangeModal
+            visible={true}
+            maNv={currentUser.ma_nv}
+            token={currentUser.token || getAuthToken()}
+            onPasswordChanged={(newPass) => {
+              const updated = { ...currentUser, must_change_password: false };
+              setCurrentUser(updated);
+              localStorage.setItem("sedinco_miniapp_user", JSON.stringify(updated));
+              showToast("Đổi mật khẩu thành công! Tài khoản đã được kích hoạt đầy đủ.", "success");
+            }}
+          />
+        )}
+
       </div>
     </div>
   );
 }
+
+export default function HomePage(props) {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-black text-sm">Đang tải Sedinco HR...</div>}>
+      <MainHomePageContent {...props} />
+    </Suspense>
+  );
+}
+

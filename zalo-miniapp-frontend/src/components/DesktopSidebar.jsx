@@ -12,7 +12,9 @@ import {
   LogOut,
   RotateCcw,
   Smartphone,
-  ChevronRight
+  ChevronRight,
+  QrCode,
+  Activity
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../constants/roles";
 
@@ -35,6 +37,9 @@ export default function DesktopSidebar({
         { id: "payroll", label: "Bảng Lương Doanh Nghiệp", icon: DollarSign },
         { id: "requests", label: "Phê Duyệt Đơn Từ", icon: FileText, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null, badgeColor: "bg-rose-500 text-white" },
         { id: "management", label: "Quản Lý Nhân Sự", icon: Users },
+        { id: "devices", label: "Duyệt Đổi Thiết Bị", icon: Smartphone },
+        { id: "kiosk", label: "Màn Hình Kiosk QR", icon: QrCode },
+        { id: "diagnostics", label: "Tự Chẩn Đoán SDK", icon: Activity, badge: "Staging" },
         { id: "permissions", label: "Phân Quyền Kế Toán", icon: ShieldCheck, badge: "RBAC" },
         { id: "company", label: "Cấu Hình Vị Trí & Trụ Sở", icon: Building },
         { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", icon: Gift },

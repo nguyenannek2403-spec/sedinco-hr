@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Lock, Unlock, AlertTriangle, X, CheckCircle2, ShieldAlert } from "lucide-react";
-import { safePost, generateIdempotencyKey } from "../utils/api";
+import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 
 /**
  * F5: Modal Chốt Công Kỳ Lương (Dành cho Kế toán & Mở lại bởi Quản trị)
@@ -16,8 +16,31 @@ export default function PeriodLockModal({
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [lowTrustCount, setLowTrustCount] = useState(0);
+  const [lowTrustLogs, setLowTrustLogs] = useState([]);
+  const [confirmLowTrust, setConfirmLowTrust] = useState(false);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
 
   const isLockAction = !isCurrentlyLocked;
+
+  useEffect(() => {
+    if (isLockAction) {
+      setIsLoadingStatus(true);
+      safeGet(`/attendance/period-status?month=${month}&year=${year}`)
+        .then((res) => {
+          if (res?.data) {
+            setLowTrustCount(res.data.low_trust_count || 0);
+            setLowTrustLogs(res.data.low_trust_logs || []);
+          }
+        })
+        .catch((err) => {
+          console.warn("Không thể tải trạng thái kỳ công:", err.message);
+        })
+        .finally(() => {
+          setIsLoadingStatus(false);
+        });
+    }
+  }, [isLockAction, month, year]);
 
   const handleAction = async (e) => {
     e.preventDefault();
@@ -36,6 +59,11 @@ export default function PeriodLockModal({
       return;
     }
 
+    if (isLockAction && lowTrustCount > 0 && !confirmLowTrust) {
+      setErrorMessage(`Kỳ công có ${lowTrustCount} bản ghi độ tin cậy thấp (is_low_trust > 0). Vui lòng tích chọn xác nhận trước khi chốt!`);
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage("");
 
@@ -46,7 +74,8 @@ export default function PeriodLockModal({
       const payload = {
         month,
         year,
-        reason: reason.trim() || (isLockAction ? "Kế toán chốt số liệu công tính lương" : "")
+        reason: reason.trim() || (isLockAction ? "Kế toán chốt số liệu công tính lương" : ""),
+        confirm_low_trust: confirmLowTrust
       };
 
       try {
@@ -132,6 +161,43 @@ export default function PeriodLockModal({
         </div>
 
         <form onSubmit={handleAction} className="space-y-4">
+          {/* Cảnh báo bản ghi độ tin cậy thấp (is_low_trust > 0: mức 1 raw, mức 2 hạ cấp) */}
+          {isLockAction && lowTrustCount > 0 && (
+            <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-950 space-y-3">
+              <div className="flex items-center gap-2 font-black text-sm text-rose-900">
+                <AlertTriangle size={18} className="text-rose-600 shrink-0" />
+                <span>Phát hiện {lowTrustCount} bản ghi độ tin cậy thấp (is_low_trust &gt; 0)</span>
+              </div>
+              <p className="text-xs text-rose-800 font-semibold">
+                Kỳ công này có các bản ghi chấm công bằng tọa độ thô (raw) hoặc có dấu hiệu hạ cấp phương thức. Kế toán cần đối soát kỹ trước khi xác nhận.
+              </p>
+              {lowTrustLogs.length > 0 && (
+                <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                  {lowTrustLogs.slice(0, 10).map((item, idx) => (
+                    <div key={idx} className="bg-white/80 p-2 rounded-lg border border-rose-200 text-xs flex justify-between items-center">
+                      <span className="font-bold text-slate-800">{item.ho_ten || item.employee_id} ({item.employee_id})</span>
+                      <span className="text-rose-700 font-semibold">{item.reason || `Mức ${item.is_low_trust}`}</span>
+                    </div>
+                  ))}
+                  {lowTrustLogs.length > 10 && (
+                    <p className="text-xs text-slate-500 italic text-center">Và {lowTrustLogs.length - 10} bản ghi khác...</p>
+                  )}
+                </div>
+              )}
+              <label className="flex items-start gap-2.5 pt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={confirmLowTrust}
+                  onChange={(e) => setConfirmLowTrust(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500"
+                />
+                <span className="text-xs font-bold text-rose-950">
+                  Tôi đã kiểm tra danh sách và xác nhận chốt sổ mặc dù có {lowTrustCount} bản ghi độ tin cậy thấp
+                </span>
+              </label>
+            </div>
+          )}
+
           {!isLockAction && (
             <div>
               <label className="block text-sm font-black text-slate-800 mb-1.5">

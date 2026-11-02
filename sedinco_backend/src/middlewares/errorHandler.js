@@ -2,17 +2,27 @@
  * Middleware Xử Lý Lỗi Tập Trung (Centralized Error Handler)
  */
 
-function errorHandler(err, req, res, next) {
-    console.error(`❌ [API Error] ${req.method} ${req.url}:`, err.message);
+const { logRejection } = require('../utils/structuredLogger');
 
-    // Không trả về chi tiết SQL nội bộ (table/column) ra ngoài client
+function errorHandler(err, req, res, next) {
     const statusCode = err.statusCode || 500;
-    const clientMessage = process.env.NODE_ENV === 'production'
+    const errorCode = err.code || (statusCode === 403 ? 'FORBIDDEN' : (statusCode === 400 ? 'BAD_REQUEST' : 'SERVER_ERROR'));
+
+    logRejection({
+        code: errorCode,
+        message: err.message,
+        actor_id: req.user ? (req.user.ma_nv || req.user.username) : null,
+        ip: req.ip,
+        details: { path: req.originalUrl, method: req.method, statusCode }
+    });
+
+    const clientMessage = process.env.NODE_ENV === 'production' && statusCode >= 500
         ? 'Lỗi xử lý yêu cầu trên máy chủ!'
         : (err.message || 'Lỗi xử lý yêu cầu trên máy chủ!');
 
     res.status(statusCode).json({
         success: false,
+        code: err.code || undefined,
         message: clientMessage
     });
 }

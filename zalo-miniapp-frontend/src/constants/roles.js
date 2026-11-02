@@ -73,7 +73,7 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.ADMIN]: {
     name: "Quản Trị Viên (Giám Đốc)",
-    allowedTabs: ["matrix", "payroll", "requests", "management", "company", "holidays", "permissions", "audit_logs", "profile"],
+    allowedTabs: ["matrix", "payroll", "requests", "management", "devices", "kiosk", "diagnostics", "company", "holidays", "permissions", "audit_logs", "profile"],
     defaultTab: "matrix",
     canCheckIn: false,
     canViewOwnAttendance: false,

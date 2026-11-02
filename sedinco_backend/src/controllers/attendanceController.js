@@ -49,13 +49,14 @@ class AttendanceController {
 
     async lockPeriod(req, res, next) {
         try {
-            const { month, year, reason, locked_by } = req.body;
+            const { month, year, reason, locked_by, confirm_low_trust } = req.body;
             const user = req.user ? (req.user.ma_nv || req.user.username) : (locked_by || 'admin');
             const result = await attendanceService.lockPeriod({ 
                 month, 
                 year, 
                 reason, 
                 locked_by: user,
+                confirm_low_trust: Boolean(confirm_low_trust),
                 current_user: req.user 
             });
             return res.json(result);
@@ -103,12 +104,13 @@ class AttendanceController {
 
     async checkInMultiFactor(req, res, next) {
         try {
-            const { token, lat, lng, image_snapshot, device_info } = req.body;
+            const { token, lat, lng, zalo_location_token, image_snapshot, device_info } = req.body;
             const ip = req.ip || (req.connection && req.connection.remoteAddress) || '';
             const result = await attendanceService.checkInMultiFactor({
                 token,
                 lat,
                 lng,
+                zalo_location_token,
                 image_snapshot,
                 device_info,
                 current_user: req.user,
@@ -125,6 +127,19 @@ class AttendanceController {
             const limit = parseInt(req.query.limit, 10) || 100;
             const data = await attendanceService.getSuspiciousLogs(limit);
             return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getAttendanceImage(req, res, next) {
+        try {
+            const logId = parseInt(req.params.id, 10);
+            const image = await attendanceService.getAttendanceImageById(logId);
+            if (!image) {
+                return res.status(404).json({ success: false, message: 'Không tìm thấy ảnh chụp chấm công của bản ghi này!' });
+            }
+            return res.json({ success: true, data: { image } });
         } catch (err) {
             next(err);
         }

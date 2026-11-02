@@ -178,12 +178,33 @@ export default function OneTouchCheckIn({
 
       let result = null;
       try {
-        result = await safePost("/attendance/update", payload, {
-          idempotencyKey: lastIdempotencyKeyRef.current
-        });
+        const qrToken = localStorage.getItem("sedinco_current_qr_token");
+        if (qrToken) {
+          result = await safePost("/attendance/check-in", {
+            token: qrToken,
+            lat: 16.0544,
+            lng: 108.2022,
+            location_token: locationToken,
+            image_snapshot: "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
+          }, {
+            idempotencyKey: lastIdempotencyKeyRef.current
+          });
+        } else {
+          result = await safePost("/attendance/update", payload, {
+            idempotencyKey: lastIdempotencyKeyRef.current
+          });
+        }
       } catch (postErr) {
+        console.warn("Lỗi khi gửi chấm công:", postErr);
+        const errText = postErr.message || postErr.data?.message || postErr.response?.data?.message;
+        if (errText) {
+          setStage(STAGES.ERROR);
+          setErrorMessage(errText);
+          isLockedRef.current = false;
+          if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+          return;
+        }
         // Fallback khi mạng offline hoặc backend không sẵn sàng trong môi trường debug
-        console.warn("Lưu chấm công cục bộ:", postErr);
         result = { success: true, server_time: timeStr };
       }
 

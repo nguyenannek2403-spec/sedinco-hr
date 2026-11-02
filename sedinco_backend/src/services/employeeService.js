@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
-const { SAFE_EMPLOYEE_FIELDS, resolveUserRole, logAuditEvent } = require('../middlewares/authMiddleware');
+const { SAFE_EMPLOYEE_FIELDS, resolveUserRole, logAuditEvent, invalidateUserCache } = require('../middlewares/authMiddleware');
+const { verifyZaloUserToken } = require('../utils/zaloAdapter');
 
 class EmployeeService {
     async getAllEmployees() {
@@ -111,6 +112,7 @@ class EmployeeService {
         values.push(id);
 
         await query(sql, values);
+        invalidateUserCache(id);
 
         if (current_user) {
             await logAuditEvent({
@@ -130,6 +132,7 @@ class EmployeeService {
         const newStatus = status ? status : (isBlocked ? 'inactive' : 'active');
         const newLocked = is_locked !== undefined ? (is_locked ? 1 : 0) : (isBlocked ? 1 : 0);
         await query('UPDATE employees SET status = ?, is_locked = ? WHERE ma_nv = ?', [newStatus, newLocked, ma_nv]);
+        invalidateUserCache(ma_nv);
 
         if (current_user) {
             await logAuditEvent({
@@ -150,6 +153,7 @@ class EmployeeService {
             : (role === 'employee' ? 'worker' : 'worker');
 
         await query('UPDATE employees SET role = ? WHERE ma_nv = ?', [validRole, ma_nv]);
+        invalidateUserCache(ma_nv);
 
         if (current_user) {
             await logAuditEvent({
@@ -179,6 +183,311 @@ class EmployeeService {
 
         return { success: true };
     }
+
+    /**
+     * Kiểm tra ràng buộc thiết bị (Proposal 1: Chỉ áp dụng cho worker / Mini App)
+     */
+    async checkDeviceBinding({ ma_nv, role, device_info }) {
+        // Chỉ áp dụng cho worker
+        if (role !== 'worker' && role !== 'employee') {
+            return { allowed: true };
+        }
+
+        if (!ma_nv) {
+            return { allowed: true };
+        }
+
+        const rows = await query('SELECT bound_device_id, device_binding_mode FROM employees WHERE ma_nv = ?', [ma_nv]);
+        if (!rows || rows.length === 0) {
+            return { allowed: true };
+        }
+
+        const emp = rows[0];
+        const mode = emp.device_binding_mode || 'recording';
+
+        // Lần đầu: Tự động ghi nhận (Recording Mode)
+        if (!emp.bound_device_id) {
+            if (device_info) {
+                await query('UPDATE employees SET bound_device_id = ? WHERE ma_nv = ?', [device_info, ma_nv]);
+                await logAuditEvent({
+                    actor_id: ma_nv,
+                    actor_role: 'worker',
+                    action: 'BIND_DEVICE_AUTO',
+                    resource: 'employee_device',
+                    details: { bound_device_id: device_info, mode }
+                });
+            }
+            return { allowed: true, newlyBound: true };
+        }
+
+        // Thiết bị khớp với thiết bị đã đăng ký
+        if (emp.bound_device_id === device_info) {
+            return { allowed: true };
+        }
+
+        // Thiết bị khác thiết bị đã đăng ký:
+        // Chế độ bắt buộc (Enforced Mode): Chặn ngay lập tức
+        if (mode === 'enforced') {
+            return {
+                allowed: false,
+                reason: `Thiết bị này (${device_info || 'Không rõ'}) chưa được liên kết với tài khoản của bạn! Vui lòng gửi yêu cầu đổi thiết bị tới Quản trị viên.`
+            };
+        }
+
+        // Chế độ ghi nhận (Recording Mode): Vẫn cho qua nhưng gắn cờ nghi vấn
+        return {
+            allowed: true,
+            is_suspicious: true,
+            suspicious_reason: `Phát hiện thiết bị khác (${device_info}) với thiết bị đã đăng ký (${emp.bound_device_id}) ở chế độ ghi nhận`
+        };
+    }
+
+    /**
+     * Liên kết tài khoản Zalo thông qua Access Token được Server xác minh với Zalo
+     */
+    async bindZalo(ma_nv, zalo_token, current_user = null) {
+        if (!zalo_token || typeof zalo_token !== 'string') {
+            const error = new Error('Thiếu Zalo access token để xác thực với máy chủ Zalo!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // Server-side verification với Zalo Open API
+        const verified = await verifyZaloUserToken(zalo_token);
+        if (!verified || !verified.zaloId) {
+            const error = new Error('Zalo access token không hợp lệ hoặc đã hết hạn!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        await query('UPDATE employees SET zalo_id = ? WHERE ma_nv = ?', [verified.zaloId, ma_nv]);
+
+        await logAuditEvent({
+            actor_id: ma_nv,
+            actor_role: current_user?.role || 'worker',
+            action: 'BIND_ZALO',
+            resource: 'employee_zalo',
+            details: { zalo_id: verified.zaloId, provider: verified.provider }
+        });
+
+        return {
+            ma_nv,
+            zalo_id: verified.zaloId,
+            verified_by: verified.provider
+        };
+    }
+
+    /**
+     * Worker gửi yêu cầu đổi/mất thiết bị
+     */
+    async requestDeviceChange(ma_nv, { new_device_id, reason }, current_user = null) {
+        if (!new_device_id || typeof new_device_id !== 'string' || new_device_id.trim().length === 0) {
+            const error = new Error('Vui lòng cung cấp mã định danh thiết bị mới!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        await query(
+            'UPDATE employees SET pending_device_id = ?, device_change_reason = ? WHERE ma_nv = ?',
+            [new_device_id.trim(), reason || 'Đổi thiết bị mới', ma_nv]
+        );
+
+        await logAuditEvent({
+            actor_id: ma_nv,
+            actor_role: current_user?.role || 'worker',
+            action: 'REQUEST_DEVICE_CHANGE',
+            resource: 'employee_device',
+            details: { new_device_id: new_device_id.trim(), reason }
+        });
+
+        return { success: true, message: 'Đã gửi yêu cầu đổi thiết bị tới Quản trị viên!' };
+    }
+
+    /**
+     * Danh sách yêu cầu đổi thiết bị chờ duyệt (Chỉ Admin)
+     */
+    async getPendingDeviceChanges() {
+        const rows = await query(`
+            SELECT ma_nv, ho_ten, chuc_danh, bound_device_id, pending_device_id, device_change_reason, device_binding_mode
+            FROM employees 
+            WHERE pending_device_id IS NOT NULL AND pending_device_id != ''
+            ORDER BY ma_nv ASC
+        `);
+        return rows || [];
+    }
+
+    /**
+     * Admin duyệt đổi thiết bị cho nhân viên
+     */
+    async approveDeviceChange(ma_nv, current_user = null) {
+        const rows = await query('SELECT pending_device_id, device_change_reason FROM employees WHERE ma_nv = ?', [ma_nv]);
+        if (!rows || rows.length === 0 || !rows[0].pending_device_id) {
+            const error = new Error('Không tìm thấy yêu cầu đổi thiết bị của nhân viên này!');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const newDevice = rows[0].pending_device_id;
+        await query(
+            'UPDATE employees SET bound_device_id = pending_device_id, pending_device_id = NULL, device_change_reason = NULL WHERE ma_nv = ?',
+            [ma_nv]
+        );
+
+        await logAuditEvent({
+            actor_id: current_user?.username || current_user?.ma_nv || 'admin',
+            actor_role: 'admin',
+            action: 'APPROVE_DEVICE_CHANGE',
+            resource: 'employee_device',
+            details: { target_ma_nv: ma_nv, approved_device: newDevice }
+        });
+
+        return { success: true, message: `Đã phê duyệt đổi thiết bị cho nhân viên ${ma_nv}!` };
+    }
+
+    /**
+     * Admin từ chối đổi thiết bị
+     */
+    async rejectDeviceChange(ma_nv, current_user = null) {
+        await query(
+            'UPDATE employees SET pending_device_id = NULL, device_change_reason = NULL WHERE ma_nv = ?',
+            [ma_nv]
+        );
+
+        await logAuditEvent({
+            actor_id: current_user?.username || current_user?.ma_nv || 'admin',
+            actor_role: 'admin',
+            action: 'REJECT_DEVICE_CHANGE',
+            resource: 'employee_device',
+            details: { target_ma_nv: ma_nv }
+        });
+
+        return { success: true, message: `Đã từ chối yêu cầu đổi thiết bị của nhân viên ${ma_nv}!` };
+    }
+
+    /**
+     * Admin thay đổi chế độ liên kết thiết bị ('recording' | 'enforced')
+     */
+    async setDeviceBindingMode(ma_nv, mode, current_user = null) {
+        if (!['recording', 'enforced'].includes(mode)) {
+            const error = new Error("Chế độ ràng buộc thiết bị phải là 'recording' hoặc 'enforced'!");
+            error.statusCode = 400;
+            throw error;
+        }
+
+        await query('UPDATE employees SET device_binding_mode = ? WHERE ma_nv = ?', [mode, ma_nv]);
+
+        await logAuditEvent({
+            actor_id: current_user?.username || current_user?.ma_nv || 'admin',
+            actor_role: 'admin',
+            action: 'SET_DEVICE_BINDING_MODE',
+            resource: 'employee_device',
+            details: { target_ma_nv: ma_nv, mode }
+        });
+
+        return { success: true, message: `Đã cập nhật chế độ liên kết thiết bị thành ${mode}!` };
+    }
+
+    /**
+     * B2 (G5): Kích hoạt đổi mật khẩu theo đợt (Staged Rollout)
+     * Hỗ trợ dry-run, chọn theo vai trò (role), chức danh (chuc_danh/tổ/ca), hoặc danh sách mã nhân viên
+     */
+    async stagedForcePasswordChange({
+        role = null,
+        chuc_danh = null,
+        ma_nv_list = null,
+        limit = 50,
+        offset = 0,
+        dry_run = false,
+        current_user = null
+    } = {}) {
+        const conditions = ["status = 'active'", "is_locked = 0"];
+        const params = [];
+
+        if (role) {
+            conditions.push("role = ?");
+            params.push(role);
+        }
+
+        if (chuc_danh) {
+            conditions.push("chuc_danh LIKE ?");
+            params.push(`%${chuc_danh}%`);
+        }
+
+        if (Array.isArray(ma_nv_list) && ma_nv_list.length > 0) {
+            const placeholders = ma_nv_list.map(() => '?').join(', ');
+            conditions.push(`ma_nv IN (${placeholders})`);
+            params.push(...ma_nv_list);
+        }
+
+        const safeLimit = Math.max(1, Math.min(500, parseInt(limit, 10) || 50));
+        const safeOffset = Math.max(0, parseInt(offset, 10) || 0);
+
+        const selectSql = `
+            SELECT ma_nv, ho_ten, role, chuc_danh, must_change_password
+            FROM employees
+            WHERE ${conditions.join(' AND ')}
+            ORDER BY ma_nv ASC
+            LIMIT ? OFFSET ?
+        `;
+        params.push(safeLimit, safeOffset);
+
+        const targetEmployees = await query(selectSql, params);
+
+        if (!targetEmployees || targetEmployees.length === 0) {
+            return {
+                success: true,
+                dry_run: Boolean(dry_run),
+                target_count: 0,
+                target_employees: [],
+                message: 'Không tìm thấy nhân viên nào phù hợp với tiêu chí lọc.'
+            };
+        }
+
+        const targetIds = targetEmployees.map(e => e.ma_nv);
+
+        if (dry_run) {
+            return {
+                success: true,
+                dry_run: true,
+                target_count: targetEmployees.length,
+                target_employees: targetEmployees.map(e => ({
+                    ma_nv: e.ma_nv,
+                    ho_ten: e.ho_ten,
+                    role: e.role,
+                    chuc_danh: e.chuc_danh,
+                    current_must_change: Boolean(e.must_change_password)
+                })),
+                message: `[DRY-RUN] Dự kiến đặt cờ must_change_password=1 cho ${targetEmployees.length} nhân viên (Không thay đổi DB thật).`
+            };
+        }
+
+        // Thực thi cập nhật thực tế
+        const idPlaceholders = targetIds.map(() => '?').join(', ');
+        const updateSql = `UPDATE employees SET must_change_password = 1 WHERE ma_nv IN (${idPlaceholders})`;
+        await query(updateSql, targetIds);
+
+        // Ghi nhận Audit Log
+        await logAuditEvent({
+            actor_id: current_user?.username || current_user?.ma_nv || 'system',
+            actor_role: current_user?.role || 'admin',
+            action: 'STAGED_FORCE_PASSWORD_CHANGE',
+            resource: 'employees',
+            details: {
+                target_count: targetIds.length,
+                target_ids: targetIds,
+                filter: { role, chuc_danh, limit: safeLimit, offset: safeOffset }
+            }
+        });
+
+        return {
+            success: true,
+            dry_run: false,
+            updated_count: targetIds.length,
+            target_employees: targetIds,
+            message: `Đã kích hoạt đổi mật khẩu bắt buộc cho ${targetIds.length} nhân viên thành công!`
+        };
+    }
 }
 
 module.exports = new EmployeeService();
+

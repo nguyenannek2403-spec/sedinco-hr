@@ -1,4 +1,5 @@
 const { pool, query } = require('../config/db');
+const bcrypt = require('bcryptjs');
 
 async function initDatabase() {
     try {
@@ -30,6 +31,13 @@ async function initDatabase() {
         await query("ALTER TABLE employees ADD COLUMN status VARCHAR(20) DEFAULT 'active'").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN is_locked BOOLEAN DEFAULT FALSE").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN role VARCHAR(20) DEFAULT 'worker'").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE").catch(() => {});
+        await query("ALTER TABLE employees MODIFY COLUMN password VARCHAR(255) DEFAULT '123456'").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN zalo_id VARCHAR(100) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN bound_device_id VARCHAR(100) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN device_binding_mode VARCHAR(20) DEFAULT 'recording'").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN pending_device_id VARCHAR(100) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN device_change_reason TEXT NULL").catch(() => {});
         
         // Migrate dữ liệu role ban đầu từ chức danh (CHỈ thực hiện một lần khi role chưa được thiết lập)
         await query(`
@@ -49,6 +57,19 @@ async function initDatabase() {
             SET role = 'worker' 
             WHERE role IS NULL OR role = '' OR role NOT IN ('admin', 'accountant', 'worker')
         `).catch(() => {});
+
+        // Đảm bảo nhân sự mẫu cốt lõi (NV001, NV002, NV003) luôn tồn tại cho các bộ kiểm thử
+        const empCount = await query("SELECT COUNT(*) as cnt FROM employees WHERE ma_nv IN ('NV001', 'NV002', 'NV003')");
+        if (empCount && empCount[0].cnt < 3) {
+            const hash123456 = bcrypt.hashSync('123456', 10);
+            await query(`
+                INSERT INTO employees (ma_nv, ho_ten, chuc_danh, role, status, password, luong_cb, has_insurance) VALUES
+                ('NV001', 'Nguyễn Văn An', 'Kỹ sư công trường', 'worker', 'active', ?, 10000000, 1),
+                ('NV002', 'Trần Thị Bình', 'Kế toán viên', 'accountant', 'active', ?, 12000000, 1),
+                ('NV003', 'Lê Văn Cường', 'Công nhân vận hành', 'worker', 'active', ?, 8000000, 1)
+                ON DUPLICATE KEY UPDATE status = 'active', password = VALUES(password)
+            `, [hash123456, hash123456, hash123456]).catch(() => {});
+        }
 
         // 2. Bảng Cấu hình thông tin công ty (company_settings)
         await query(`CREATE TABLE IF NOT EXISTS company_settings (
@@ -123,8 +144,8 @@ async function initDatabase() {
         await query("ALTER TABLE attendance_logs ADD COLUMN check_in_method VARCHAR(30) DEFAULT 'dynamic_qr'").catch(() => {});
         await query("ALTER TABLE attendance_logs MODIFY COLUMN check_in_image LONGTEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN check_in_image LONGTEXT NULL").catch(() => {});
-        await query("ALTER TABLE attendance_logs ADD COLUMN is_suspicious BOOLEAN DEFAULT FALSE").catch(() => {});
-        await query("ALTER TABLE attendance_logs ADD COLUMN suspicious_reason VARCHAR(255) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN suspicious_reason TEXT NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs MODIFY COLUMN suspicious_reason TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN device_fingerprint VARCHAR(150) NULL").catch(() => {});
 
         // 5. Bảng Đơn từ (requests)
@@ -158,11 +179,15 @@ async function initDatabase() {
             id INT AUTO_INCREMENT PRIMARY KEY,
             username VARCHAR(50) UNIQUE NOT NULL,
             password VARCHAR(100) NOT NULL,
-            ho_ten VARCHAR(100)
+            ho_ten VARCHAR(100),
+            must_change_password BOOLEAN DEFAULT FALSE
         )`);
+        await query("ALTER TABLE admins MODIFY COLUMN password VARCHAR(255) NOT NULL").catch(() => {});
+        await query("ALTER TABLE admins ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE").catch(() => {});
         const adminCount = await query('SELECT COUNT(*) as cnt FROM admins');
         if (adminCount && adminCount[0].cnt === 0) {
-            await query(`INSERT INTO admins (username, password, ho_ten) VALUES ('admin', '123456', 'Giám đốc Điều hành')`);
+            const adminHash = bcrypt.hashSync('123456', 10);
+            await query(`INSERT INTO admins (username, password, ho_ten) VALUES ('admin', ?, 'Giám đốc Điều hành')`, [adminHash]);
         }
 
         // 8. Bảng Khóa/Mở Khóa Kỳ Công Tháng (period_locks)
@@ -279,7 +304,37 @@ async function initDatabase() {
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
         await query('ALTER TABLE ot_registrations CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci').catch(() => {});
 
-        console.log('✅ Khởi tạo cấu trúc Database (12 bảng quan hệ + Multi-Factor Anti-Fraud RBAC) thành công!');
+        // 13. Bảng Thiết bị Kiosk QR (kiosk_devices - Kiosk Token Isolation)
+        await query(`CREATE TABLE IF NOT EXISTS kiosk_devices (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            kiosk_name VARCHAR(100) NOT NULL,
+            branch_id INT DEFAULT 1,
+            api_key VARCHAR(128) NOT NULL UNIQUE,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_by VARCHAR(50) NULL,
+            last_seen_at DATETIME NULL,
+            last_ip VARCHAR(45) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+        await query('ALTER TABLE kiosk_devices ADD COLUMN last_ip VARCHAR(45) NULL').catch(() => {});
+
+        // 14. Bảng Bộ đếm Rate Limit Dùng Chung (login_rate_limits - Distributed / Multi-process Shared Store)
+        await query(`CREATE TABLE IF NOT EXISTS login_rate_limits (
+            key_name VARCHAR(191) PRIMARY KEY,
+            target_type VARCHAR(20) NOT NULL,
+            identifier VARCHAR(100) NOT NULL,
+            attempt_count INT DEFAULT 1,
+            first_attempt DATETIME NOT NULL,
+            last_attempt DATETIME NOT NULL,
+            locked_until DATETIME NULL,
+            INDEX idx_rate_lookup (target_type, identifier),
+            INDEX idx_rate_expires (locked_until)
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+
+        await query("ALTER TABLE attendance_logs ADD COLUMN location_source VARCHAR(20) DEFAULT 'raw'").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN is_low_trust TINYINT(1) DEFAULT 0").catch(() => {});
+
+        console.log('✅ Khởi tạo cấu trúc Database (14 bảng quan hệ + Multi-Factor Anti-Fraud RBAC + Kiosk QR + Shared Rate Limit) thành công!');
     } catch (err) {
         console.error('❌ Lỗi khởi tạo cấu trúc Database:', err.message);
     }

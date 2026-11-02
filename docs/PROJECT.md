@@ -1,370 +1,276 @@
-# TÀI LIỆU TOÀN DIỆN DỰ ÁN SEDINCO HR (DOCS/PROJECT.MD)
-> **Phiên bản tài liệu**: 3.0 (Đã hợp nhất và chuẩn hóa toàn bộ tài liệu dự án)  
-> **Ngày cập nhật**: 27/10/2026  
-> **Trạng thái**: [ĐÃ XÁC MINH] Khớp 100% với mã nguồn thực tế và kết quả kiểm thử 41/41 tests.
+# TÀI LIỆU KỸ THUẬT & KIẾN TRÚC HỆ THỐNG SEDINCO HR (DOCS/PROJECT.MD)
+> **Phiên bản tài liệu**: 7.0 (Đóng băng phạm vi phục vụ chạy thử có kiểm soát - G7)  
+> **Ngày cập nhật**: 02/11/2026  
+> **Trạng thái**: [ĐÃ XÁC MINH L2] Khớp với mã nguồn thực tế và kết quả kiểm thử trên CSDL `sedinco_hr_test`.  
+> **Cờ vận hành thử nghiệm**: `LOCATION_MODE=both`, `REJECT_DOWNGRADE_TO_RAW=false`, `device_binding_mode=recording`, `ALLOW_LEGACY_ADMIN_QR=false`.
 
 ---
 
-## MỤC LỤC TỔNG HỢP
-1. [Tổng Quan Dự Án & Bài Toán Nghiệp Vụ](#1-tổng-quan-dự-án--bài-toán-nghiệp-vụ)
+## 📌 MỤC LỤC TỔNG HỢP
+1. [Tổng Quan Nghiệp Vụ & 3 Vai Trò Chuẩn Hóa](#1-tổng-quan-nghiệp-vụ--3-vai-trò-chuẩn-hóa)
 2. [Kiến Trúc Kỹ Thuật & Ngăn Xếp Công Nghệ](#2-kiến-trúc-kỹ-thuật--ngăn-xếp-công-nghệ)
-3. [Danh Mục 14 Chức Năng Hệ Thống Chi Tiết](#3-danh-mục-14-chức-năng-hệ-thống-chi-tiết)
-4. [Mô Hình Dữ Liệu & Chi Tiết 10 Bảng MySQL](#4-mô-hình-dữ-liệu--chi-tiết-10-bảng-mysql)
-5. [Quyết Định Kỹ Thuật & Cơ Chế An Toàn Bảo Mật](#5-quyết-định-kỹ-thuật--cơ-chế-an-toàn-bảo-mật)
-6. [Danh Mục 25 REST API Endpoints Chuẩn Hóa](#6-danh-mục-25-rest-api-endpoints-chuẩn-hóa)
-7. [Kế Hoạch & Trạng Thái Triển Khai Hiện Tại](#7-kế-hoạch--trạng-thái-triển-khai-hiện-tại)
-8. [Checklist Kiểm Thử Tự Động (41/41 Tests Pass)](#8-checklist-kiểm-thử-tự-động-4141-tests-pass)
-9. [Mục Chưa Xác Minh & Hướng Mở Rộng](#9-mục-chưa-xác-minh--hướng-mở-rộng)
+3. [Mô Hình Dữ Liệu Thực Tế (14 Bảng MySQL)](#3-mô-hình-dữ-liệu-thực-tế-14-bảng-mysql)
+4. [Các Luồng Nghiệp Vụ Cốt Lõi](#4-các-luồng-nghiệp-vụ-cốt-lõi)
+5. [Cơ Chế Bảo Mật & Phòng Thủ Đa Lớp](#5-cơ-chế-bảo-mật--phòng-thủ-đa-lớp)
+6. [Danh Mục 54 REST API Endpoints Thực Tế](#6-danh-mục-54-rest-api-endpoints-thực-tế)
+7. [Môi Trường Vận Hành & Khuyến Nghị Phiên Bản Node.js](#7-môi-trường-vận-hành--khuyến-nghị-phiên-bản-nodejs)
+8. [Các Giới Hạn Đã Biết (Known Limitations)](#8-các-giới-hạn-đã-biết-known-limitations)
 
 ---
 
-## 1. TỔNG QUAN DỰ ÁN & BÀI TOÁN NGHIỆP VỤ
+## 1. TỔNG QUAN NGHIỆP VỤ & 3 VAI TRÒ CHUẨN HÓA
 
-### 1.1 Bối Cảnh Doanh Nghiệp
-**Công ty Cổ phần Vật Liệu Xây Dựng Sedinco** vận hành lực lượng lao động đặc thù gồm công nhân sản xuất tại nhà máy, kỹ sư thi công tại công trường, đội bảo vệ phân ca và khối văn phòng/kế toán. Dự án **Sedinco HR** giải quyết trọn vẹn 3 bài toán lớn:
-1. **Chống gian lận chấm công**: Chấm dứt tình trạng dùng ứng dụng Fake GPS, chụp mã QR tĩnh gửi qua mạng để nhờ người khác chấm công hộ.
-2. **Quy trình đơn từ tự động**: Đơn nghỉ phép, làm thêm giờ (OT), bổ sung công sau khi được cấp quản lý duyệt (`status = 'approved'`) sẽ tự động đồng bộ sang bảng chấm công hàng ngày (`attendance_logs`).
-3. **Tính toán tiền lương chuẩn xác thời gian thực**: Tự động tính lương chi tiết theo công chuẩn 26 ngày/tháng, phân tách lương thử việc (85%), chính thức (100%), hệ số tăng ca OT (1.5x ngày thường, 2.0x chủ nhật, 3.0x ngày lễ) và trích nộp 10.5% bảo hiểm xã hội.
+### 1.1 Bối Cảnh Nghiệp Vụ [ĐÃ XÁC MINH L2]
+**Sedinco HR** là giải pháp số hóa công tác chấm công, quản lý đơn từ và tiền lương cho cán bộ nhân viên, đặc thù gồm công nhân sản xuất tại xưởng và khối văn phòng/kế toán:
+1. **Chấm công phòng thủ gian lận**: Kết hợp định vị địa lý (Geofencing Haversine) và mã Dynamic QR Code v2 đổi mới mỗi 30 giây hiển thị tại thiết bị Kiosk chuyên dụng.
+2. **Quy trình đơn từ tự động**: Đơn nghỉ phép (`LEAVE`), làm thêm giờ (`OT`), báo quên chấm công (`ATTENDANCE_COMPENSATION`) sau khi được phê duyệt sẽ tự động cập nhật vào ma trận chấm công ngày.
+3. **Tính lương tự động**: Chu kỳ công chuẩn 26 ngày, lương thử việc (85%), chính thức (100%), hệ số OT (1.5x ngày thường, 2.0x chủ nhật, 3.0x ngày lễ) và trích nộp bảo hiểm xã hội 10.5%.
 
-### 1.2 Ba Vai Trò Người Dùng Chuẩn Hóa (3 Roles) `[ĐÃ XÁC MINH]`
-Hệ thống tuân thủ nguyên tắc chỉ có đúng 3 Role nghiệp vụ độc lập:
-- **`worker` (Công Nhân / Cán Bộ Nhân Viên)**:
-  - Khách hàng tiêu thụ chính trên di động (Zalo Mini App).
-  - Nghiệp vụ: Chấm công 1 chạm (GPS + Quét Dynamic QR), xem bảng công cá nhân 31 ngày, nộp đơn từ (nghỉ phép, làm thêm, báo quên chấm), xem phiếu lương điện tử cá nhân, đổi mật khẩu.
+### 1.2 Ba Vai Trò Duy Nhất Được Chấp Nhận [ĐÃ XÁC MINH L2]
+Hệ thống chuẩn hóa đúng 3 vai trò, từ chối mọi vai trò thứ 4 (`manager`, `hr`):
+- **`worker` (Công Nhân / Nhân Viên)**:
+  - Nền tảng: Zalo Mini App trên điện thoại thông minh.
+  - Chức năng: Chấm công (GPS + QR), xem lịch sử công cá nhân, nộp đơn từ, đổi mật khẩu, xem phiếu lương.
 - **`accountant` (Kế Toán Tiền Lương & Báo Cáo)**:
-  - Sử dụng giao diện Web Dashboard PC để quản lý nghiệp vụ tiền lương.
-  - Nghiệp vụ: Xem bảng chấm công ma trận 31 ngày toàn công ty, chốt kỳ công tháng (`lock-period`), tính toán bảng lương tự động, xuất file CSV/Excel chi trả, đối soát đơn từ.
-  - *Lưu ý*: Kế toán không chấm công cá nhân, chỉ quản lý dữ liệu toàn công ty.
-- **`admin` (Quản Trị Viên / Ban Giám Đốc)**:
-  - Quyền hạn tối cao trên hệ thống Web Dashboard PC.
-  - Nghiệp vụ: Xem và can thiệp toàn bộ dữ liệu, phân quyền động cho Kế toán theo chuẩn Least Privilege, quản lý hồ sơ nhân sự và phân vai trò, tạm khóa tài khoản nhân viên, mở lại kỳ công đã chốt (`unlock-period` kèm giải trình), cấu hình vị trí GPS & giờ làm việc, quản lý lịch nghỉ lễ, giám sát nhật ký thao tác (`audit_logs`).
-  - *Lưu ý*: Admin không chấm công cá nhân.
+  - Nền tảng: Web Dashboard trên máy tính.
+  - Chức năng: Đối soát bảng công ma trận toàn công ty, chốt khóa kỳ công tháng (`period_locks`), tính toán và xuất bảng lương CSV/Excel (đã khử formula injection).
+  - Phân quyền: Cấp quyền động qua bảng `accountant_permissions` theo chuẩn Least Privilege.
+- **`admin` (Quản Trị Hệ Thống / Ban Giám Đốc)**:
+  - Nền tảng: Web Dashboard trên máy tính.
+  - Chức năng: Quản lý hồ sơ nhân viên, phê duyệt đơn từ, duyệt yêu cầu đổi thiết bị, đăng ký/thu hồi khóa Kiosk, mở khóa kỳ công có giải trình, cấu hình tọa độ GPS, xem nhật ký kiểm toán bất biến (`audit_logs`).
 
 ---
 
 ## 2. KIẾN TRÚC KỸ THUẬT & NGĂN XẾP CÔNG NGHỆ
 
-### 2.1 Kiến Trúc Tổng Thể Phân Tầng
-Hệ thống gồm 2 thành phần chính kết nối qua giao thức RESTful HTTP/JSON:
-
-```mermaid
-graph TD
-    subgraph Clients [Ứng Dụng Khách]
-        WorkerClient[📱 Zalo Mini App - Worker]
-        AdminClient[💻 Admin Web PC Dashboard - Admin / Accountant]
-    end
-
-    subgraph BackendLayer [Node.js Express REST API - Port 5001]
-        Routes[Router Phân Tuyến /api/...]
-        Middlewares[Auth & RBAC Middleware: JWT, requireRole, requirePermission]
-        Controllers[Tầng Điều Khiển - Controllers]
-        Services[Tầng Nghiệp Vụ - Services]
-        Utils[Công cụ độc lập: geoHelper, dynamicQrHelper, payrollCalculator]
-    end
-
-    subgraph DataLayer [Cơ Sở Dữ Liệu]
-        MySQL[(MySQL Database - 10 Bảng Quan Hệ)]
-    end
-
-    WorkerClient -->|HTTP + JWT| Routes
-    AdminClient -->|HTTP + JWT| Routes
-    Routes --> Middlewares
-    Middlewares --> Controllers
-    Controllers --> Services
-    Services --> Utils
-    Services --> MySQL
+### 2.1 Sơ Đồ Kiến Trúc Hệ Thống [ĐÃ XÁC MINH L2]
+```
++------------------------------------+        +------------------------------------+
+|  📱 Zalo Mini App Client (Worker)  |        | 💻 Admin Web PC (Admin/Accountant) |
+|     (ZMP-SDK, ZMP-UI, React 18)    |        |      (React 18, Tailwind, Vite)    |
++-----------------+------------------+        +-----------------+------------------+
+                  |                                             |
+                  +----------------------+----------------------+
+                                         | HTTP REST API + JWT Bearer
+                                         v
++----------------------------------------------------------------------------------+
+|                     Node.js Express API Server (Cổng 5001)                       |
+|                                                                                  |
+|  [Security Middlewares]                                                          |
+|  ├── Trust Proxy Validator (req.ip / X-Forwarded-For)                            |
+|  ├── Composite Rate Limiter (MySQL login_rate_limits: IP + Account)              |
+|  ├── JWT Authentication & Instant Revocation Check (is_locked=1, 0-delay)        |
+|  └── RBAC (requireRole: worker | accountant | admin, requirePermission)          |
+|                                                                                  |
+|  [Worker Threads Pool]                                                           |
+|  └── bcryptWorkerPool (Offload bcrypt sang Worker Threads theo số CPU server)    |
++----------------------------------------+-----------------------------------------+
+                                         |
+                                         | Connection Pool (mysql2/promise)
+                                         v
++----------------------------------------------------------------------------------+
+|                      MySQL Database (sedinco_hr_test)                            |
+|                                                                                  |
+|  [Runtime App User: Least Privilege DML Only]                                    |
+|  ├── 13 Bảng Nghiệp Vụ: SELECT, INSERT, UPDATE, DELETE                           |
+|  └── Bảng audit_logs: APPEND-ONLY (CHỈ SELECT, INSERT; CẤM UPDATE, DELETE)       |
++----------------------------------------------------------------------------------+
 ```
 
-### 2.2 Ngăn Xếp Công Nghệ (Technology Stack) `[ĐÃ XÁC MINH]`
+### 2.2 Ngăn Xếp Công Nghệ Thực Tế [ĐÃ XÁC MINH L1]
 - **Backend API**:
-  - Runtime: Node.js (v20+ / v26 LTS), Express.js.
-  - Cơ sở dữ liệu: MySQL 8 (kết nối qua `mysql2/promise` Pool, hỗ trợ SSL Aiven Cloud / Localhost).
-  - Bảo mật: `jsonwebtoken` (JWT), `bcryptjs`, `crypto` (HMAC SHA-256, `timingSafeEqual`).
-  - Kiểm thử: Framework gốc `node:test` và `node:assert/strict` (không phụ thuộc thư viện ngoài).
+  - Runtime: Node.js (hỗ trợ `>=20.18.0 <=26.x`, khuyến nghị Node 22 LTS cho server).
+  - Framework: Express.js v5.2.1.
+  - Database Driver: `mysql2` v3.24.5 (Connection Pool).
+  - Mật mã học: `bcryptjs` v3.0.3, `crypto` gốc (HMAC SHA-256).
+  - Đa luồng: Node.js `worker_threads` (Worker Pool xử lý băm mật khẩu).
+  - Kiểm thử: Framework gốc `node:test` và `node:assert/strict`.
 - **Frontend**:
-  - Giao diện di động: Zalo Mini App framework (`zmp-sdk`, `zmp-ui`).
-  - Giao diện Quản trị PC: React 18, TailwindCSS, Lucide React, đóng gói bằng Vite 5.
-  - State Management & API: React Hooks, Axios, Jotai.
+  - Giao diện Zalo Mini App: `zmp-sdk`, `zmp-ui` (gói bản quyền Zalo).
+  - Giao diện Quản trị PC: React 18.3.1, TailwindCSS 3.4.3, Lucide React, Vite 5.2.13.
 
 ---
 
-## 3. DANH MỤC 14 CHỨC NĂNG HỆ THỐNG CHI TIẾT
+## 3. MÔ HÌNH DỮ LIỆU THỰC TẾ (14 BẢNG MYSQL)
 
-| Mã CN | Tên Chức Năng | Mô Tả Nghiệp Vụ & Quy Tắc | Vai Trò | Thành Phần / API Phụ Trách | Trạng Thái |
-|---|---|---|---|---|:---:|
-| **FN-01** | **Đăng Nhập Cán Bộ Nhân Viên** | Đăng nhập bằng `ma_nv` và `password`. Trả về JWT token và role. Chặn nếu tài khoản bị tạm khóa (`is_locked = 1`). Không trả trường password. | `worker`, `accountant` | `POST /api/login`<br/>`authController.js` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-02** | **Đăng Nhập Quản Trị Viên** | Đăng nhập tài khoản `admin` trong bảng `admins`. Cấp quyền Admin cao nhất. | `admin` | `POST /api/admin/login`<br/>`authController.js` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-03** | **Chấm Công Đa Lớp (GPS + QR)** | Chấm công qua Geofence Haversine ($\le$ 100m) và Dynamic QR code (30s, Single-Use). Ghi nhận giờ vào/ra, ảnh snapshot khuôn mặt. | `worker` | `POST /api/attendance/check-in`<br/>`attendanceController.js` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-04** | **Bảng Công Ma Trận 31 Ngày** | Hiển thị bảng công toàn doanh nghiệp với ký hiệu chuẩn (`1`, `0.5`, `P`, `OT`, `L`, `KP`). Hỗ trợ xuất file CSV chống formula injection. | `accountant`, `admin` | `GET /api/attendance`<br/>`AttendanceMatrixTable.jsx` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-05** | **Khóa Sổ Kỳ Công Tháng** | Đóng băng bảng công sau khi đối soát. Khi đã khóa (`is_locked = 1`), chặn mọi hành vi sửa công hoặc duyệt đơn làm thay đổi công tháng đó. | `accountant`, `admin` | `POST /api/attendance/lock-period`<br/>`PeriodLockModal.jsx` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-06** | **Mở Khóa Kỳ Công Đã Chốt** | Cho phép mở lại bảng công đã khóa. Bắt buộc nhập lý do giải trình để phục vụ kiểm toán. | Chỉ `admin` | `POST /api/attendance/unlock-period`<br/>`attendanceService.js` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-07** | **Nộp Đơn Trực Tuyến** | Nộp đơn nghỉ phép, làm thêm giờ (OT), bổ sung công. Khống chế tối đa 3 đơn bổ sung công/tháng. | `worker`, `accountant`, `admin` | `POST /api/requests`<br/>`SmartLeaveRequestModal.jsx` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-08** | **Phê Duyệt Đơn Từ (SoD)** | Cấp quản lý duyệt/từ chối đơn. Tự động đồng bộ công sang `attendance_logs`. Chặn tự phê duyệt đơn của chính mình (Separation of Duties). | `accountant`, `admin` | `PUT /api/requests/:id`<br/>`requestService.js` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-09** | **Tính Lương Chuẩn 26 Ngày** | Tự động tính toán bảng lương: Thử việc 85%, chính thức 100%, phụ cấp, tiền OT (1.5x/2.0x/3.0x), trừ BHXH 10.5%. | `accountant`, `admin` | `GET /api/payroll`<br/>`payrollCalculator.js` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-10** | **Xem Phiếu Lương Điện Tử** | Nhân viên tự xem phiếu lương chi tiết từng tháng của mình (chỉ xem được của chính mình, bảo vệ BOLA). | `worker` | `GET /api/payroll/me`<br/>`SalarySlipModal.jsx` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-11** | **Quản Lý & Phân Quyền Nhân Sự** | Thêm mới nhân sự, đổi vai trò RBAC, tạm khóa/mở khóa tài khoản nhân viên. Vô hiệu hóa tự khóa tài khoản Admin. | Chỉ `admin` | `GET/POST /api/employees`<br/>`PUT /api/employees/:ma_nv/status` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-12** | **Cấu Hình Vị Trí & Khung Giờ** | Thiết lập tọa độ GPS trụ sở, bán kính cho phép, giờ làm việc (08:00 - 17:00), thang phạt đi trễ, sinh Dynamic QR. | Chỉ `admin` | `POST /api/settings/penalties`<br/>`companyService.js` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-13** | **Quản Lý Danh Mục Ngày Lễ** | Cấu hình các ngày nghỉ lễ hưởng nguyên lương. Tự động liên kết hệ số lương OT 3.0x khi làm thêm ngày lễ. | Chỉ `admin` | `GET/POST/DELETE /api/holidays`<br/>`initDb.js` | `[ĐÃ XÁC MINH]` Hoạt động |
-| **FN-14** | **Phân Quyền Kế Toán Động** | Bật/tắt linh hoạt 6 nhóm quyền nghiệp vụ của Kế toán theo chuẩn Least Privilege. Xóa cache quyền tức thì. | Chỉ `admin` | `GET/PUT /api/settings/accountant-permissions` | `[ĐÃ XÁC MINH]` Hoạt động |
+Qua lệnh `SHOW TABLES` trên CSDL thực tế `sedinco_hr_test`, hệ thống có **chính xác 14 bảng quan hệ** `[ĐÃ XÁC MINH L2]`.  
+**Lưu ý đặc biệt**: Bảng `branches` **KHÔNG TỒN TẠI** trong CSDL thực tế.
 
----
-
-## 4. MÔ HÌNH DỮ LIỆU & CHI TIẾT 10 BẢNG MYSQL
-
-### 4.1 Sơ Đồ Quan Hệ Thực Thể (Mermaid ERD) `[ĐÃ XÁC MINH: initDb.js]`
-
-```mermaid
-erDiagram
-    employees ||--o{ attendance_logs : "has"
-    employees ||--o{ attendance : "summarizes"
-    employees ||--o{ requests : "submits"
-    period_locks ||--o{ attendance_logs : "locks"
-    company_settings ||--o{ attendance_logs : "geofences"
-    admins ||--o{ audit_logs : "acts"
-    accountant_permissions ||--o{ audit_logs : "configured_by"
-
-    employees {
-        varchar ma_nv PK
-        varchar ho_ten
-        varchar dien_thoai
-        varchar email
-        varchar chuc_danh
-        varchar password
-        varchar role "worker | accountant | admin"
-        varchar status "active | inactive"
-        boolean is_locked
-        decimal luong_cb
-    }
-
-    attendance_logs {
-        int id PK
-        varchar employee_id FK
-        date record_date
-        varchar status "1 | 0.5 | P | OT | L | KP"
-        decimal ot_hours
-        varchar check_in_time
-        varchar check_out_time
-        decimal check_in_lat
-        decimal check_in_lng
-        varchar check_in_method "dynamic_qr | manual"
-        longtext check_in_image
-        boolean is_suspicious
-        varchar device_fingerprint
-    }
-
-    attendance {
-        int id PK
-        varchar ma_nv FK
-        int thang
-        int nam
-        decimal cong_chuan
-        decimal cong_thu_viec
-        decimal cong_chinh_thuc
-        decimal ot_cn
-    }
-
-    requests {
-        int id PK
-        varchar employee_id FK
-        varchar request_type
-        date request_date
-        text reason
-        varchar status "pending | approved | rejected | cancelled"
-        timestamp created_at
-    }
-
-    period_locks {
-        int id PK
-        int month
-        int year
-        boolean is_locked
-        varchar locked_by
-        timestamp locked_at
-        text reason
-    }
-
-    company_settings {
-        int id PK
-        varchar company_name
-        decimal latitude
-        decimal longitude
-        int radius_meters
-        varchar work_start
-        varchar work_end
-        decimal penalty_per_minute
-    }
-
-    public_holidays {
-        int id PK
-        varchar holiday_name
-        date start_date
-        date end_date
-    }
-
-    admins {
-        int id PK
-        varchar username UK
-        varchar password
-        varchar ho_ten
-    }
-
-    accountant_permissions {
-        varchar permission_key PK
-        varchar permission_name
-        varchar category
-        boolean is_enabled
-        varchar updated_by
-        timestamp updated_at
-    }
-
-    audit_logs {
-        int id PK
-        varchar actor_id
-        varchar actor_role
-        varchar action
-        varchar resource
-        json details
-        varchar ip_address
-        timestamp created_at
-    }
-```
-
-### 4.2 Chi Tiết Chức Năng Của 10 Bảng
-1. **`employees`**: Quản lý hồ sơ nhân viên, mã nhân sự, mật khẩu (mặc định 123456 hoặc băm), mức lương hợp đồng và cờ khóa tài khoản `is_locked`.
-2. **`company_settings`**: Tọa độ GPS trụ sở chính, bán kính Geofencing (mặc định 100m), khung giờ ca làm và thang phạt đi trễ.
-3. **`attendance`**: Tổng hợp số ngày công chuẩn, công chính thức, công thử việc theo từng tháng của nhân viên.
-4. **`attendance_logs`**: Nhật ký điểm danh hàng ngày, ghi nhận GPS vào/ra, ảnh snapshot, cờ nghi vấn `is_suspicious` và mã nhận diện thiết bị.
-5. **`requests`**: Quản lý đơn xin nghỉ phép, làm thêm giờ OT, bổ sung công và trạng thái phê duyệt.
-6. **`public_holidays`**: Danh mục ngày nghỉ lễ được nhà nước quy định để tự động nhân hệ số làm thêm x3.0.
-7. **`admins`**: Quản lý tài khoản quản trị tối cao của Ban Giám Đốc.
-8. **`period_locks`**: Khóa sổ kỳ công tháng để bảo vệ tính toàn vẹn số liệu bảng lương.
-9. **`accountant_permissions`**: Cấu hình bật/tắt động các quyền hạn nghiệp vụ của Kế toán.
-10. **`audit_logs`**: Nhật ký kiểm toán thao tác hệ thống theo cơ chế **Append-only** (không thể sửa hoặc xóa).
+| STT | Tên Bảng | Mục Đích Lưu Trữ | Quyền Cấp Cho Runtime User |
+|:---:|---|---|---|
+| 1 | `accountant_permissions` | Phân quyền động chi tiết theo mô-đun cho vai trò kế toán | SELECT, INSERT, UPDATE, DELETE |
+| 2 | `admins` | Tài khoản quản trị viên và ban giám đốc | SELECT, INSERT, UPDATE, DELETE |
+| 3 | `attendance` | Bảng tổng hợp công tháng (công chuẩn, công thử việc, chính thức, OT) | SELECT, INSERT, UPDATE, DELETE |
+| 4 | `attendance_logs` | Nhật ký từng lần chấm công (giờ vào/ra, GPS, ảnh, cờ nghi vấn, is_low_trust) | SELECT, INSERT, UPDATE, DELETE |
+| 5 | `audit_logs` | Nhật ký kiểm toán các thao tác quan trọng (đăng nhập, đổi quyền, khóa sổ) | **CHỈ SELECT, INSERT (Append-Only)** |
+| 6 | `company_settings` | Tọa độ GPS trụ sở, bán kính cho phép, giờ làm việc, mức phạt | SELECT, INSERT, UPDATE, DELETE |
+| 7 | `dynamic_qr_sessions` | Phiên mã QR động dùng một lần (session_token, expires_at, is_used) | SELECT, INSERT, UPDATE, DELETE |
+| 8 | `employees` | Hồ sơ nhân viên, mật khẩu bcrypt hash, cờ must_change_password, bound_device_id | SELECT, INSERT, UPDATE, DELETE |
+| 9 | `kiosk_devices` | Danh sách thiết bị Kiosk đặt tại cổng, API key băm, IP giám sát | SELECT, INSERT, UPDATE, DELETE |
+| 10 | `login_rate_limits` | Bộ đếm thất bại đăng nhập phân tầng IP và Tài khoản (MySQL shared state) | SELECT, INSERT, UPDATE, DELETE |
+| 11 | `ot_registrations` | Đăng ký làm thêm giờ trước khi thực hiện để đối soát giờ công | SELECT, INSERT, UPDATE, DELETE |
+| 12 | `period_locks` | Trạng thái chốt sổ kỳ công tháng (is_locked, locked_by, lý do) | SELECT, INSERT, UPDATE, DELETE |
+| 13 | `public_holidays` | Lịch ngày nghỉ lễ quốc gia dùng để tính hệ số lương OT 3.0x | SELECT, INSERT, UPDATE, DELETE |
+| 14 | `requests` | Đơn xin nghỉ phép, bổ sung công, làm thêm giờ của người lao động | SELECT, INSERT, UPDATE, DELETE |
 
 ---
 
-## 5. QUYẾT ĐỊNH KỸ THUẬT & CƠ CHẾ AN TOÀN BẢO MẬT
+## 4. CÁC LUỒNG NGHIỆP VỤ CỐT LÕI
 
-### 5.1 Hệ Thống Chống Gian Lận Chấm Công Đa Lớp (Multi-Factor Anti-Fraud) `[ĐÃ XÁC MINH]`
-1. **Geofencing Haversine Server-Side**: Khoảng cách từ thiết bị nhân viên tới trụ sở công ty được tính toán bằng công thức toán học Haversine ngay tại Backend, từ chối mọi tọa độ có khoảng cách $> 100\text{m}$.
-2. **Dynamic QR Code Thời Gian Thực (30s)**: Mã QR được sinh động bằng chữ ký số HMAC SHA-256 kèm epoch timestamp, tự động đổi mã mỗi 30 giây.
-3. **Cơ Chế Single-Use Atomic**: Mỗi mã QR chỉ có giá trị cho đúng 1 lượt quét điểm danh. Mã đã dùng bị đánh dấu ngay lập tức, chặn đứng hình thức chụp ảnh QR gửi Zalo cho người khác.
-4. **Phát Hiện Bất Thường (Anomaly Detection)**: Nếu cùng 1 địa chỉ IP hoặc cùng 1 thiết bị thực hiện chấm công cho 2 nhân viên khác nhau trong vòng dưới 60 giây, hệ thống tự động gắn cờ `is_suspicious = true` và ghi cảnh báo vào `audit_logs`.
-5. **Khống Chế Giờ Làm Thêm (Pre-Approval OT Clamping)**: Giờ OT chỉ được tính vào lương khi có đơn được duyệt trước, với thuật toán khống chế trần:
-   $$\text{OT Tính Lương} = \min(\text{Số giờ thực tế}, \text{Số giờ được duyệt})$$
-6. **Giới Hạn Đơn Bổ Sung Công**: Mỗi nhân sự chỉ được nộp tối đa 3 đơn báo quên chấm / bổ sung công trong 1 tháng.
+### 4.1 Luồng Đăng Nhập & Bảo Vệ Mật Khẩu [ĐÃ XÁC MINH L2]
+1. Client gửi `POST /api/login` với `{ ma_nv, password }`.
+2. Kiểm tra bộ đếm brute-force trong `login_rate_limits` (IP composite lock ở lần 5 sai, IP lock ở 50 lần).
+3. Truy vấn `employees`:
+   - Nếu `!emp || !emp.password || !isBcryptHash(emp.password)`: Trả ngay lỗi chung `Tài khoản hoặc mật khẩu không chính xác`, ghi nhận `audit_logs` vi phạm, kích hoạt rate limit `[ĐÃ XÁC MINH L2]`.
+   - Tuyệt đối không còn nhánh so sánh chuỗi thô hay fallback `'123456'`.
+4. So sánh mật khẩu bằng Worker Threads Pool (`comparePasswordAsync`):
+   - Mật khẩu đúng: Reset bộ đếm thất bại, sinh JWT token (chứa `ma_nv`, `role`).
+   - Nếu `emp.must_change_password = 1`: Trả kèm cờ `must_change_password: true`, UI hiển thị modal bắt buộc đổi mật khẩu và khóa các điều hướng khác.
 
-### 5.2 Bảo Vệ Phân Quyền & Chống Lỗ Hổng OWASP API Top 10
-- **Phân tách nhiệm vụ (Separation of Duties - SoD)**: API `PUT /api/requests/:id` và `PUT /api/requests/ot-registrations/:id` chặn đứng mã lỗi HTTP 403 nếu `current_user.ma_nv === request.employee_id`.
-- **Chống BOLA / IDOR**: API xem phiếu lương cá nhân (`/api/payroll/me`), xem đơn (`/api/requests/me`) và đổi mật khẩu bắt buộc sử dụng định danh từ token JWT đã giải mã, không tin cậy dữ liệu truyền lên từ client.
-- **Chống Tấn Công Timing Attack**: Sử dụng `crypto.timingSafeEqual` khi so sánh chữ ký mã QR động và token xác thực.
-- **Chống CSV Formula Injection**: Mọi dữ liệu xuất CSV từ bảng công và bảng lương đều được khử các ký tự bắt đầu bằng `=`, `+`, `-`, `@` bằng hàm `sanitizeFormula`.
-- **Nhật ký bất biến**: Bảng `audit_logs` không có bất kỳ API cập nhật hoặc xóa nào (`PUT`/`DELETE`), đảm bảo khả năng truy vết 100%.
+### 4.2 Luồng Chấm Công Đa Lớp (GPS + QR v2) [ĐÃ XÁC MINH L2]
+1. **Thiết bị Kiosk tại cổng**:
+   - Gửi `GET /api/kiosk/qr` kèm header `x-kiosk-key`.
+   - Server sinh Dynamic QR Token v2 (HMAC SHA-256 ký với `QR_SECRET`, chứa `kiosk_id`, `ts`, `nonce`, TTL 30 giây).
+2. **Công nhân quét mã trên Zalo Mini App**:
+   - Ứng dụng lấy vị trí qua Zalo SDK:
+     - Nhánh Token Zalo: Gửi `location_token` lên server -> server gọi API Zalo giải mã -> ghi `location_source='token'`, `is_low_trust=0`.
+     - Nhánh Raw Fallback: Gửi tọa độ thô `{ latitude, longitude }` -> ghi `location_source='raw'`, `is_low_trust=1`.
+     - Nhánh Chống Hạ Cấp: Nếu công nhân đã từng chấm công bằng Token Zalo thành công mà lần này gửi tọa độ raw -> Server gắn `is_low_trust=2` (hoặc từ chối 403 nếu bật `REJECT_DOWNGRADE_TO_RAW=true`).
+   - Kiểm tra Geofence: Tính khoảng cách Haversine tới tọa độ trong `company_settings`. Nếu vượt quá bán kính quy định (mặc định 100m - 200m) -> Từ chối HTTP 400.
+   - Kiểm tra mã QR: Xác minh chữ ký token, kiểm tra phiên trong `dynamic_qr_sessions`. Nếu mã đã quét rồi hoặc quá 30 giây -> Từ chối (Replay Attack Prevention).
+   - Kiểm tra ràng buộc thiết bị (`bound_device_id`): Ở chế độ `recording`, tự động ghi nhận thiết bị lần đầu. Thiết bị lạ gắn cờ cảnh báo `is_suspicious=1`.
+   - Ghi nhận bản ghi vào `attendance_logs` và cập nhật bảng `attendance`.
 
----
+### 4.3 Luồng Duyệt Đơn Từ & Đồng Bộ Ký Hiệu Công [ĐÃ XÁC MINH L2]
+1. Worker gửi `POST /api/requests` (loại đơn: `LEAVE`, `OVERTIME`, `ATTENDANCE_COMPENSATION`).
+2. Quản lý / Admin duyệt đơn (`PUT /api/requests/:id` -> `APPROVED`):
+   - Chốt chặn Phân tách nhiệm vụ (SoD): Người tạo đơn bị từ chối 403 nếu cố tình tự phê duyệt đơn của chính mình `[ĐÃ XÁC MINH L2]`.
+   - Nếu kỳ công của ngày nộp đơn đã bị khóa (`is_locked=1` trong `period_locks`): Hệ thống từ chối cập nhật để bảo vệ kỳ lương đã chốt.
+   - Khi duyệt đơn nghỉ phép `LEAVE` thành công: Bảng ma trận công ngày tương ứng tự động ghi nhận ký hiệu `P` (Nghỉ phép có hưởng lương).
 
-## 6. DANH MỤC 25 REST API ENDPOINTS CHUẨN HÓA
-
-| Nhóm Nghiệp Vụ | Method + Route | Vai Trò Cho Phép | Scope Dữ Liệu | Mục Đích & Ghi Chú Bảo Mật |
-| :--- | :--- | :--- | :--- | :--- |
-| **Xác thực** | `POST /api/login` | Public | Cá nhân | Đăng nhập nhân viên, trả JWT token |
-| | `POST /api/admin/login` | Public | Quản trị | Đăng nhập admin |
-| | `GET /api/me` | Mọi role | Cá nhân | Lấy thông tin phiên hiện tại |
-| | `POST /api/change-password` | Mọi role | Cá nhân | Đổi mật khẩu cá nhân (Chống IDOR) |
-| **Bảng Lương** | `GET /api/payroll/me` | `worker` | Cá nhân | Xem phiếu lương của chính mình |
-| | `GET /api/payroll` | `accountant`, `admin` | Toàn công ty | Xem bảng lương tổng hợp toàn doanh nghiệp |
-| | `POST /api/payroll/calculate` | `accountant`, `admin` | Toàn công ty | Tính toán lại bảng lương tháng |
-| | `POST /api/payroll/approve` | Chỉ `admin` | Toàn công ty | Chốt duyệt bảng lương chi trả |
-| | `PUT /api/payroll/payment-status`| `accountant`, `admin` | Toàn công ty | Cập nhật trạng thái đã chi trả lương |
-| **Đơn Từ** | `GET /api/requests/me` | `worker` | Cá nhân | Xem danh sách đơn từ của bản thân |
-| | `GET /api/requests` | `accountant`, `admin` | Toàn công ty | Xem toàn bộ đơn từ chờ duyệt |
-| | `POST /api/requests` | Mọi role | Cá nhân | Nộp đơn từ trực tuyến |
-| | `PUT /api/requests/:id` | `accountant`, `admin` | Toàn công ty | Duyệt/Từ chối đơn (SoD: Chặn tự duyệt) |
-| | `DELETE /api/requests/:id` | `worker`, `admin` | Cá nhân | Hủy đơn pending của chính mình |
-| **Chấm Công** | `POST /api/attendance/check-in` | `worker` | Cá nhân | Điểm danh đa lớp GPS + Dynamic QR |
-| | `GET /api/attendance/dynamic-qr` | `admin` | Trụ sở | Lấy mã QR động thời gian thực (30s) |
-| | `GET /api/attendance/me` | `worker` | Cá nhân | Xem lịch sử chấm công cá nhân |
-| | `GET /api/attendance` | `accountant`, `admin` | Toàn công ty | Lấy dữ liệu bảng chấm công ma trận 31 ngày |
-| | `POST /api/attendance/update` | `accountant`, `admin` | Toàn công ty | Điều chỉnh ô công thủ công (bắt buộc lý do) |
-| | `POST /api/attendance/lock-period` | `accountant`, `admin`| Kỳ công | Chốt sổ khóa kỳ công tháng |
-| | `POST /api/attendance/unlock-period`| Chỉ `admin` | Kỳ công | Mở lại kỳ công đã khóa kèm lý do giải trình |
-| **Quản Trị** | `GET/POST /api/employees` | Chỉ `admin` | Toàn công ty | Xem và tạo mới hồ sơ nhân sự |
-| | `PUT /api/employees/:ma_nv/status` | Chỉ `admin` | Nhân viên | Tạm khóa / Mở khóa tài khoản nhân sự |
-| | `GET/PUT /api/settings/accountant-permissions`| Chỉ `admin` | Cấu hình | Quản lý phân quyền động Kế toán |
-| | `GET /api/settings/audit-logs` | Chỉ `admin` | Hệ thống | Xem nhật ký kiểm toán bất biến |
+### 4.4 Luồng Chốt Sổ Kỳ Công Tháng [ĐÃ XÁC MINH L2]
+1. Kế toán kiểm tra danh sách bản ghi có cờ `is_low_trust` (tọa độ raw hoặc nghi vấn hạ cấp).
+2. Gửi `POST /api/attendance/lock-period` kèm `month`, `year`.
+3. Nếu có bản ghi `is_low_trust` mà chưa xác nhận `confirm_low_trust=true`: Hệ thống yêu cầu kế toán đối soát.
+4. Khi đã chốt (`is_locked=1`): Toàn bộ API sửa đổi chấm công (`POST /api/attendance`, `PUT /api/requests`) thuộc kỳ đó bị khóa. Mở khóa bắt buộc dùng tài khoản Admin kèm lý do giải trình.
 
 ---
 
-## 7. KẾ HOẠCH & TRẠNG THÁI TRIỂN KHAI HIỆN TẠI
-- [x] **Chuẩn hóa RBAC 3 Role**: Xóa bỏ hoàn toàn vai trò `hr` cũ, phân quyền nghiêm ngặt tại Backend.
-- [x] **Bảo vệ toàn diện 25 Endpoints**: Khắc phục 100% các lỗ hổng BOLA/IDOR/SoD.
-- [x] **Triển khai Hệ thống Chống Gian Lận Chấm Công Đa Lớp**: Geofencing Haversine, Dynamic QR 30s Single-Use, Anomaly Detection.
-- [x] **Tinh gọn giao diện Admin & Kế toán**: Loại bỏ các chức năng chấm công cá nhân không cần thiết, tối ưu thanh điều hướng di động.
-- [x] **Đạt chuẩn kiểm thử tự động**: 41/41 tests pass 100%.
+## 5. CƠ CHẾ BẢO MẬT & PHÒNG THỦ ĐA LỚP
+
+1. **Khử BOLA / IDOR [ĐÃ XÁC MINH L2]**: Toàn bộ thao tác cá nhân (chấm công, xem lương, nộp đơn) căn cứ vào `req.user.ma_nv` từ JWT token, loại bỏ hoàn toàn việc tin cậy tham số `employee_id` từ body/query.
+2. **Thu hồi quyền tức thì (0-delay Instant Revocation) [ĐÃ XÁC MINH L2]**: Middleware `authMiddleware` đối soát trực tiếp cờ `is_locked=1` và vai trò thực tế trong MySQL ở mỗi request. Khi tài khoản bị vô hiệu hóa trong CSDL, phiên làm việc bị ngắt ngay lập tức mà không cần chờ JWT hết hạn.
+3. **Phân Tách DDL và DML (Least Privilege Database User) [ĐÃ XÁC MINH L2]**:
+   - Tài khoản ứng dụng chạy thường nhật chỉ có quyền DML trên 13 bảng.
+   - Cấm hoàn toàn quyền DDL (`DROP`, `ALTER`, `CREATE`).
+   - Bảng `audit_logs` là Append-Only (chỉ cho phép SELECT, INSERT; cấm UPDATE, DELETE).
+4. **Bcrypt Worker Threads Pool [ĐÃ XÁC MINH L2]**:
+   - Đẩy toàn bộ chi phí tính toán băm mật khẩu ra khỏi Node.js Event Loop.
+   - Hạn chế hàng đợi (tối đa 500 yêu cầu) và cơ chế tự phục hồi worker khi bị ngắt.
+5. **Chống Tấn Công DoS Khóa Hộ (Split Rate Limiting) [ĐÃ XÁC MINH L2]**:
+   - Tách biệt bộ đếm IP lạ và IP quen thuộc trong `login_rate_limits`.
+   - Kẻ tấn công đổi nhiều IP dò mật khẩu không làm khóa tài khoản của người dùng hợp lệ đang truy cập từ IP công ty.
 
 ---
 
-## 8. CHECKLIST KIỂM THỬ TỰ ĐỘNG (41/41 TESTS PASS)
+## 6. DANH MỤC 54 REST API ENDPOINTS THỰC TẾ
 
-Chạy lệnh kiểm thử: `npm --prefix sedinco_backend test`
+Qua rà soát mã nguồn router tại `sedinco_backend/src/routes/`, hệ thống định nghĩa chính xác **54 endpoints** `[ĐÃ XÁC MINH L1]`:
 
-### Nhóm 1: Kiểm thử Chống Gian Lận (Anti-Fraud Tests)
-- [x] `TC-ANTI-01`: Chấm công bằng mã QR đã hết hạn (> 30 giây) bị từ chối HTTP 400.
-- [x] `TC-ANTI-02`: Chấm công bằng mã QR đã có người quét trước (Replay Attack) bị từ chối HTTP 400.
-- [x] `TC-ANTI-03`: Chấm công với GPS vượt bán kính quy định (> 100m) bị từ chối HTTP 400.
-- [x] `TC-ANTI-04`: Chấm công hợp lệ trong bán kính với Dynamic QR thành công và lưu ảnh snapshot.
-- [x] `TC-ANTI-05`: Chấm công cho 2 nhân viên khác nhau trên cùng 1 IP trong 60s bị gắn cờ `is_suspicious = true`.
-- [x] `TC-ANTI-06`: Giới hạn tối đa 3 đơn bổ sung công / quên chấm công trong 1 tháng.
-- [x] `TC-ANTI-07`: Tính toán giờ OT siết chặt theo đơn duyệt trước (Pre-Approval Clamping).
-- [x] `TC-ANTI-08`: Ngăn chặn tự phê duyệt đơn đăng ký OT của chính mình (Separation of Duties).
+### Nhóm 1: Xác Thực & Tài Khoản (`/api`)
+1. `POST /api/login` - Đăng nhập nhân viên (Worker / Accountant)
+2. `POST /api/admin/login` - Đăng nhập Quản trị viên
+3. `POST /api/admin/register` - Đăng ký tài khoản Admin nội bộ
+4. `GET /api/me` - Lấy thông tin cá nhân hiện hành
+5. `GET /api/profile` - Lấy hồ sơ người dùng
+6. `POST /api/change-password` - Đổi mật khẩu cá nhân
+7. `POST /api/update-avatar` - Cập nhật ảnh đại diện
 
-### Nhóm 2: Mô Phỏng Chu Trình 3 Roles (Simulation Tests)
-- [x] `SIMULATION VÒNG 1`: Thực hiện tuần tự đầy đủ các chức năng của Admin, Accountant, Worker.
-- [x] `SIMULATION VÒNG 2`: Lặp lại chu trình kiểm tra tính ổn định dữ liệu và ngăn chặn race condition.
-- [x] `SIMULATION VÒNG 3`: Kiểm thử khả năng chịu lỗi và ngăn chặn vượt quyền liên tục.
+### Nhóm 2: Chấm Công (`/api/attendance`)
+8. `POST /api/attendance` - Cập nhật dữ liệu công hàng ngày (Kế toán/Admin)
+9. `GET /api/attendance` - Lấy ma trận công 31 ngày toàn công ty
+10. `POST /api/attendance/check-in` - Chấm công một chạm (Worker)
+11. `GET /api/attendance/my-logs` - Lịch sử chấm công của cá nhân
+12. `GET /api/attendance/my-monthly` - Bảng công tháng cá nhân
+13. `GET /api/attendance/qr` - Lấy mã QR động từ Web Admin cũ (ALLOW_LEGACY_ADMIN_QR)
+14. `POST /api/attendance/lock-period` - Khóa kỳ công tháng
+15. `POST /api/attendance/unlock-period` - Mở khóa kỳ công kèm giải trình
+16. `GET /api/attendance/period-lock-status` - Tra cứu trạng thái khóa sổ kỳ công
+17. `GET /api/attendance/suspicious-logs` - Danh sách bản ghi chấm công nghi vấn
+18. `GET /api/attendance/stats` - Thống kê tỷ lệ đi làm theo ngày
 
-### Nhóm 3: Kiểm thử Tính Lương (Payroll Tests)
-- [x] `TC-PAY-01`: Tính lương cơ bản 1 ngày & 1 giờ chuẩn 26 ngày.
-- [x] `TC-PAY-02`: Phân tách công thử việc (85%) và chính thức (100%).
-- [x] `TC-PAY-03`: Tính tiền OT ngày thường với hệ số 1.5x.
-- [x] `TC-PAY-04`: Tính tiền OT ngày Chủ Nhật với hệ số 2.0x.
-- [x] `TC-PAY-05`: Tính tiền OT ngày Lễ với hệ số 3.0x.
-- [x] `TC-PAY-06`: Trích trừ bảo hiểm xã hội 10.5% khi `has_insurance = true`.
-- [x] `TC-PAY-07`: Không trích bảo hiểm khi `has_insurance = false`.
-- [x] `TC-PAY-08`: Tính tổng thực lĩnh Net Salary đầy đủ (Lương công + Phụ cấp + OT - BHXH).
+### Nhóm 3: Tiền Lương (`/api/payroll`)
+19. `GET /api/payroll/calculate` - Tính toán bảng lương toàn doanh nghiệp
+20. `GET /api/payroll/my-payslip` - Xem phiếu lương cá nhân
+21. `POST /api/payroll/save` - Lưu bảng lương đã duyệt vào CSDL
+22. `GET /api/payroll/export` - Xuất file bảng lương chi trả
 
-### Nhóm 4: Kiểm thử Phân Quyền & Bảo Mật (RBAC & Security Tests)
-- [x] `TC-RBAC-01`: Token JWT ký và xác thực toàn vẹn, từ chối token giả mạo chữ ký.
-- [x] `TC-RBAC-02`: Middleware `requireAuth` từ chối 401 khi chưa đăng nhập.
-- [x] `TC-RBAC-03`: Middleware `requireRole` kiểm soát nghiêm ngặt 3 role chuẩn.
-- [x] `TC-RBAC-04`: Middleware `requirePermission` thực thi chính sách Least Privilege cho Kế toán.
-- [x] `TC-BOLA-01`: Ngăn chặn tự phê duyệt đơn xin nghỉ của chính mình (Separation of Duties).
-- [x] `TC-BOLA-02`: Ngăn chặn công nhân chỉnh sửa chấm công của người khác (IDOR).
-- [x] `TC-BOLA-03`: Ngăn chặn nhân viên thay đổi mật khẩu của người khác trái phép.
-- [x] `TC-SEC-01`: Loại bỏ trường password khỏi đối tượng người dùng khi đăng nhập.
-- [x] `TC-SEC-02`: Chuẩn hóa đúng 3 Role nghiệp vụ (`worker`, `accountant`, `admin`).
-- [x] `TC-SEC-03`: Kiểm tra câu lệnh SELECT nhân viên không lấy trường password.
-- [x] `TC-SEC-04`: Bảng nhân viên có đủ trường `status`, `is_locked` và `role`.
-- [x] `TC-SEC-05`: Chặn khai thác token JWT đã hết hạn (`exp < now`).
-- [x] `TC-SEC-06`: Chặn giả mạo vai trò qua `x-user-role` header khi chạy production.
-- [x] `TC-SEC-07`: Chặn người dùng không phải Admin đăng ký tài khoản Quản trị.
-- [x] `TC-SEC-08`: Chặn Mass Assignment leo thang quyền thành admin trong `createEmployee`.
-- [x] `TC-SEC-09`: Kiểm soát trạng thái đơn từ (State Machine) - Chặn duyệt đơn đã xử lý.
-- [x] `TC-SEC-10`: Cho phép Worker hủy đơn pending của chính mình và chặn hủy đơn của người khác.
-- [x] `TC-SEC-11`: Chặn Worker tự ý xóa bản ghi chấm công.
-- [x] `TC-SEC-12`: Thu hồi tức thì quyền Kế toán (Cache Invalidation).
+### Nhóm 4: Quản Lý Đơn Từ (`/api/requests`)
+23. `POST /api/requests` - Nộp đơn từ mới (Nghỉ phép, OT, Bổ sung công)
+24. `GET /api/requests/my` - Danh sách đơn từ cá nhân đã gửi
+25. `GET /api/requests/all` - Danh sách toàn bộ đơn từ (Admin/Accountant)
+26. `PUT /api/requests/:id` - Phê duyệt hoặc từ chối đơn
+27. `DELETE /api/requests/:id` - Hủy đơn khi còn trạng thái PENDING
 
-### Nhóm 5: Kiểm thử Thẩm Tra Dữ Liệu Chấm Công (Input Validation Tests)
-- [x] `TC-ATT-01`: Thẩm tra input chấm công hợp lệ.
-- [x] `TC-ATT-02`: Thẩm tra khi status rỗng hoặc null -> Đánh dấu xóa công.
-- [x] `TC-ATT-03`: Thẩm tra ngày không hợp lệ (`day > 31` hoặc `day < 1`).
-- [x] `TC-ATT-04`: Thẩm tra tháng không hợp lệ (`month > 12` hoặc `month < 1`).
-- [x] `TC-ATT-05`: Giới hạn số giờ OT không được vượt quá 24h và không âm.
+### Nhóm 5: Quản Lý Nhân Sự (`/api/employees`)
+28. `GET /api/employees` - Danh sách nhân viên
+29. `POST /api/employees` - Tạo hồ sơ nhân viên mới
+30. `PUT /api/employees/:id` - Cập nhật thông tin nhân viên
+31. `DELETE /api/employees/:id` - Xóa/Ngừng hoạt động nhân viên
+32. `POST /api/employees/:id/toggle-lock` - Tạm khóa / Mở khóa tài khoản
+33. `POST /api/employees/batch-require-password-change` - Yêu cầu đổi mật khẩu theo đợt
+34. `POST /api/employees/request-device-change` - Gửi yêu cầu đổi thiết bị
+35. `GET /api/employees/pending-device-requests` - Danh sách chờ duyệt thiết bị
+36. `POST /api/employees/approve-device-change` - Phê duyệt đổi thiết bị
+37. `POST /api/employees/reject-device-change` - Từ chối đổi thiết bị
+
+### Nhóm 6: Phân Quyền Kế Toán (`/api/employees/permissions`)
+38. `GET /api/employees/:id/permissions` - Xem quyền kế toán
+39. `PUT /api/employees/:id/permissions` - Cập nhật phân quyền Least Privilege
+
+### Nhóm 7: Cấu Hình Nhà Xưởng & GPS (`/api/company`)
+40. `GET /api/company/settings` - Lấy tọa độ GPS và thông tin công ty
+41. `PUT /api/company/settings` - Cập nhật vị trí và bán kính nhà máy
+
+### Nhóm 8: Lịch Nghỉ Lễ (`/api/holidays`)
+42. `GET /api/holidays` - Danh sách ngày nghỉ lễ
+43. `POST /api/holidays` - Thêm ngày nghỉ lễ
+44. `DELETE /api/holidays/:id` - Xóa ngày nghỉ lễ
+
+### Nhóm 9: Cài Đặt Mức Phạt (`/api/settings`)
+45. `GET /api/settings/penalties` - Cấu hình phạt đi muộn/về sớm
+46. `PUT /api/settings/penalties` - Cập nhật mức phạt
+
+### Nhóm 10: Thiết Bị Kiosk Chuyên Dụng (`/api/kiosk`)
+47. `POST /api/kiosk/register` - Đăng ký Kiosk mới nhận API key
+48. `GET /api/kiosk/list` - Danh sách các Kiosk hoạt động
+49. `POST /api/kiosk/revoke/:id` - Thu hồi quyền hoạt động của Kiosk
+50. `GET /api/kiosk/qr` - Kiosk lấy mã Dynamic QR v2 (xác thực `x-kiosk-key`)
+51. `POST /api/kiosk/rotate-key/:id` - Xoay khóa API key cho Kiosk
+
+### Nhóm 11: Màn Hình Chẩn Đoán Kỹ Thuật (`/api/diagnostics` - Staging Only)
+52. `GET /api/diagnostics/system-status` - Kiểm tra kết nối CSDL và Commit hash
+53. `POST /api/diagnostics/verify-zalo-user` - Thẩm tra User ID với Zalo
+54. `POST /api/diagnostics/decode-location` - Thẩm tra giải mã tọa độ Zalo
 
 ---
 
-## 9. MỤC CHƯA XÁC MINH & HƯỚNG MỞ RỘNG `[CHƯA XÁC MINH]`
+## 7. MÔI TRƯỜNG VẬN HÀNH & KHUYẾN NGHỊ PHIÊN BẢN NODE.JS
 
-1. **Nhận diện khuôn mặt AI tự động (Face Matching)**: Hiện tại hệ thống lưu ảnh chụp snapshot thời gian thực của nhân viên tại thời điểm chấm công để đối soát bằng mắt, chưa tích hợp mô hình so khớp AI Face Vector tự động trên server.
-2. **Tích hợp máy chấm công vân tay vật lý**: Kế hoạch đồng bộ qua giao thức ZKLib kết nối các máy quét Ronald Jack tại công trường vào CSDL MySQL.
-3. **Thông báo tin nhắn Zalo Notification Service (ZNS)**: Dự kiến kích hoạt webhook gửi tin nhắn Zalo tự động cho nhân viên khi đơn nghỉ phép/OT được Ban Giám Đốc phê duyệt.
+### 7.1 Phiên Bản Node.js [ĐÃ XÁC MINH L1]
+- Thuộc tính `"engines"` trong `package.json`: `"node": ">=20.18.0 <=26.x"`.
+- **Khuyến nghị cho Máy Chủ Staging / Production**:
+  - Bản LTS khuyến nghị: **Node.js v22 LTS (Active LTS - Codename: Jod, phiên bản khuyến nghị: v22.23.4+)** hoặc **Node.js v24 LTS (Krypton, v24.22.2+)**.
+  - Lý do: Bản Active LTS đảm bảo tính ổn định cao nhất, tương thích rộng rãi với các native addon, driver MySQL connection pool và các thư viện mã hóa.
+- **Môi trường phát triển cục bộ**: Đang vận hành trên Node.js `v26.7.0` (Lithium).
+
+---
+
+## 8. CÁC GIỚI HẠN ĐÃ BIẾT (KNOWN LIMITATIONS) [ĐÃ XÁC MINH L2]
+
+Hệ thống ghi nhận trung thực các giới hạn hiện hành để làm căn cứ quản lý rủi ro trong giai đoạn chạy thử có kiểm soát:
+1. **Một điểm làm việc duy nhất**: Toàn bộ quy tắc Geofencing hiện tại phụ thuộc vào 1 bản ghi trong `company_settings`. Bảng `branches` không tồn tại; chưa hỗ trợ nhiều chi nhánh hoặc công trường độc lập.
+2. **Không có ca làm việc xoay tua**: Hệ thống chỉ thiết kế cho một ca làm việc hành chính cố định (08:00 - 17:00). Chưa có cơ chế phân ca ngày/đêm, ca gãy, đổi ca linh hoạt.
+3. **Lưu trữ ảnh Base64 trong CSDL**: Ảnh selfie chụp lúc chấm công được lưu chuỗi Base64 trực tiếp vào cột `check_in_image` của bảng `attendance_logs`. Điều này làm dung lượng CSDL tăng trưởng nhanh theo thời gian, chưa có chính sách chuyển đổi sang Object Storage (S3/GCS) và chưa có chính sách tự động xóa sau 60/90 ngày.
+4. **Phụ thuộc Wi-Fi chung (IP NAT)**: Khi toàn bộ công nhân cùng kết nối mạng Wi-Fi công ty ra ngoài internet qua 1 IP tĩnh duy nhất, nếu có kẻ cố ý nhập sai mật khẩu để phá hoại, cơ chế khóa IP có thể ảnh hưởng đến trải nghiệm của những người khác nếu không cấu hình đúng whitelist hoặc ngưỡng IP.
+5. **Rủi ro Fake GPS cấp hệ điều hành**: Dù có token Zalo và Dynamic QR, nếu thiết bị bị root/jailbreak hoặc can thiệp sâu vào mock location cấp OS, việc định vị vẫn có rủi ro bị đánh lừa. Cần kết hợp ảnh chụp khuôn mặt và giám sát của Kiosk tại cổng.

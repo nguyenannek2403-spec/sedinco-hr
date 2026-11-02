@@ -1,6 +1,11 @@
 import axios from "axios";
 
-export const API_BASE = "https://sedinco-backend.onrender.com/api";
+export const API_BASE =
+  typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? `${window.location.origin}/api`
+    : (typeof window !== "undefined" && window.__API_BASE__)
+      ? window.__API_BASE__
+      : "https://sedinco-backend.onrender.com/api";
 
 // Tạo instance axios có timeout 15s để tránh treo xoay vĩnh viễn
 const apiClient = axios.create({
@@ -98,8 +103,9 @@ apiClient.interceptors.response.use(
     const status = error.response?.status;
     let userMessage = "Lỗi kết nối máy chủ, vui lòng thử lại sau.";
 
-    if (status === 401) {
-      userMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập hoặc liên kết lại.";
+    const isRevoked = status === 401 || (status === 403 && (error.response?.data?.code === 'ACCOUNT_REVOKED' || error.response?.data?.message?.includes('chấm dứt') || error.response?.data?.message?.includes('khóa')));
+    if (isRevoked) {
+      userMessage = error.response?.data?.message || "Phiên đăng nhập đã bị chấm dứt hoặc tài khoản bị khóa.";
       currentAuthToken = "";
       if (onUnauthorizedCallback) onUnauthorizedCallback();
     } else if (status === 403) {

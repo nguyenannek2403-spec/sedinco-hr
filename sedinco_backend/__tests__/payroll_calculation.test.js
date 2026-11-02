@@ -146,3 +146,20 @@ test('TC-PAY-08: Tính tổng thực lĩnh Net Salary đầy đủ (Công + Ph�
     assert.equal(res.totalInsurance, 1365000);
     assert.equal(res.netSalary, 13740000);
 });
+
+test('TC-PAY-09: Cảnh báo khi nhân viên thử việc thiếu ngay_chinh_thuc bị tính 100% lương', () => {
+    const res = calculateEmployeeSalary({
+        luong_cb: 10400000,
+        cong_chuan: 26,
+        status: 'probation',
+        ngay_chinh_thuc: null,
+        logs: [
+            { record_date: '2026-10-01', status: '1', dow: 5 }
+        ]
+    });
+    assert.equal(res.congChinhThuc, 1);
+    assert.equal(res.congThuViec, 0);
+    assert.ok(res.warning, 'Phải có cảnh báo khi nhân viên thử việc thiếu ngay_chinh_thuc');
+    assert.match(res.warning, /thử việc.*thiếu.*chính thức/i);
+});
+

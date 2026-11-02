@@ -20,6 +20,10 @@ www/
 */.env.*
 *.env.production
 
+# Cho phép commit các file cấu hình mẫu / example
+!*.example
+!**/.env*.example
+
 # Báo cáo tạm & file bảng tính rác
 *.xlsx
 *.xls
@@ -46,3 +50,15 @@ Thumbs.db
 
 # Mobile / Expo
 .expo/
+
+# Backup di trú mật khẩu — TUYỆT ĐỐI không commit plaintext vào git
+backups/
+reports/backup/
+reports/logs/
+reports/screens/
+reports/screenshots/
+reports/sim/
+
+# File xuất thông tin bàn giao thông tin đăng nhập tạm thời
+data/*credentials*.csv
+data/*distribution*.csv

@@ -97,7 +97,8 @@ class RequestService {
         const reqData = results[0];
 
         // 1. Ngăn chặn tự phê duyệt đơn của chính mình (Separation of Duties - 403 Forbidden)
-        if (current_user && current_user.ma_nv && current_user.ma_nv === reqData.employee_id) {
+        const actorId = current_user ? (current_user.ma_nv || current_user.username) : null;
+        if (actorId && actorId === reqData.employee_id) {
             if (status === 'approved') {
                 const error = new Error('Bảo mật: Bạn không thể tự phê duyệt đơn từ của chính mình!');
                 error.statusCode = 403;

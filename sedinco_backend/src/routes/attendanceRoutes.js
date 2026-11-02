@@ -36,4 +36,7 @@ router.post('/check-in', authenticateToken, requireAuth, (req, res, next) => att
 // 9. Danh sách chấm công nghi vấn / phát hiện chấm công hộ (Yêu cầu permission: attendance_view_all)
 router.get('/suspicious-logs', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getSuspiciousLogs(req, res, next));
 
+// 10. Tải ảnh snapshot chi tiết của một bản ghi nghi vấn (Yêu cầu permission: attendance_view_all)
+router.get('/logs/:id/image', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getAttendanceImage(req, res, next));
+
 module.exports = router;

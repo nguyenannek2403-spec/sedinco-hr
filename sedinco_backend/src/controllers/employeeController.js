@@ -68,6 +68,92 @@ class EmployeeController {
             next(err);
         }
     }
+
+    async bindZalo(req, res, next) {
+        try {
+            const { zalo_token } = req.body;
+            const ma_nv = req.user ? req.user.ma_nv : null;
+            if (!ma_nv) {
+                return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
+            }
+            const data = await employeeService.bindZalo(ma_nv, zalo_token, req.user);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async requestDeviceChange(req, res, next) {
+        try {
+            const { new_device_id, reason } = req.body;
+            const ma_nv = req.user ? req.user.ma_nv : null;
+            if (!ma_nv) {
+                return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
+            }
+            const result = await employeeService.requestDeviceChange(ma_nv, { new_device_id, reason }, req.user);
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getPendingDeviceChanges(req, res, next) {
+        try {
+            const data = await employeeService.getPendingDeviceChanges();
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async approveDeviceChange(req, res, next) {
+        try {
+            const { ma_nv } = req.params;
+            const result = await employeeService.approveDeviceChange(ma_nv, req.user);
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async rejectDeviceChange(req, res, next) {
+        try {
+            const { ma_nv } = req.params;
+            const result = await employeeService.rejectDeviceChange(ma_nv, req.user);
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async setDeviceBindingMode(req, res, next) {
+        try {
+            const { ma_nv } = req.params;
+            const { mode } = req.body;
+            const result = await employeeService.setDeviceBindingMode(ma_nv, mode, req.user);
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async stagedForcePasswordChange(req, res, next) {
+        try {
+            const { role, chuc_danh, ma_nv_list, limit, offset, dry_run } = req.body;
+            const result = await employeeService.stagedForcePasswordChange({
+                role,
+                chuc_danh,
+                ma_nv_list,
+                limit,
+                offset,
+                dry_run,
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 module.exports = new EmployeeController();

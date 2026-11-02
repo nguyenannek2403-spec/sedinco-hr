@@ -7,6 +7,8 @@ function calculateEmployeeSalary({
     luong_cb,
     cong_chuan = 26,
     ngay_chinh_thuc,
+    status = 'active',
+    chuc_danh = '',
     logs = [],
     holidays = [],
     allowances = {},
@@ -16,6 +18,12 @@ function calculateEmployeeSalary({
     const luongCb = Number(luong_cb) || 0;
     const congChuan = Number(cong_chuan) || 26;
     const luong1Gio = (luongCb / congChuan) / 8;
+
+    let warning = null;
+    const isProbationProfile = (status === 'probation' || String(chuc_danh).toLowerCase().includes('thử việc'));
+    if (isProbationProfile && !ngay_chinh_thuc) {
+        warning = 'CẢNH BÁO: Nhân viên đang ở trạng thái thử việc nhưng thiếu ngày chính thức (ngay_chinh_thuc). Hệ thống đang tính 100% lương theo mặc định!';
+    }
 
     const ngayChinhThuc = ngay_chinh_thuc ? new Date(ngay_chinh_thuc) : null;
     if (ngayChinhThuc) ngayChinhThuc.setHours(0, 0, 0, 0);
@@ -90,7 +98,8 @@ function calculateEmployeeSalary({
         totalAllowance: Math.round(allowanceByWork),
         otAmount: Math.round(tienOt),
         totalInsurance: Math.round(baoHiem),
-        netSalary: Math.round(salaryByWork + allowanceByWork + tienOt - baoHiem)
+        netSalary: Math.round(salaryByWork + allowanceByWork + tienOt - baoHiem),
+        warning
     };
 }
 
