@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Sedinco HR - Core REST API Backend (Node.js Express & MySQL)",
   "engines": {
-    "node": ">=20.18.0 <=26.x",
+    "node": ">=26.0.0 <27.0.0",
     "npm": ">=10.0.0"
   },
   "main": "server.js",

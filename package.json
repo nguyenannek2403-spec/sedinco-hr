@@ -4,7 +4,7 @@
   "private": true,
   "description": "Sedinco HR - Monorepo (Backend Node.js API & Zalo Mini App Frontend)",
   "engines": {
-    "node": ">=20.18.0 <=26.x",
+    "node": ">=26.0.0 <27.0.0",
     "npm": ">=10.0.0"
   },
   "scripts": {
