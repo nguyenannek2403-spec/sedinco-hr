@@ -562,7 +562,9 @@ class AttendanceService {
         }
 
         // 7. Thuật toán phát hiện bất thường / Chấm công hộ (Anomaly Detection)
-        if (ip_address || device_info) {
+        // LƯU Ý BẢO MẬT: Không cắm cờ theo địa chỉ IP (vì công nhân cùng mạng Wi-Fi NAT công ty)
+        // CHỈ cắm cờ khi phát hiện chấm công trên CÙNG MỘT THIẾT BỊ (sameDevice)
+        if (device_info) {
             const recentLogs = await query(`
                 SELECT actor_id, ip_address, details, created_at 
                 FROM audit_logs 
@@ -575,7 +577,6 @@ class AttendanceService {
 
             if (recentLogs && recentLogs.length > 0) {
                 for (const log of recentLogs) {
-                    const sameIp = ip_address && log.ip_address === ip_address;
                     let sameDevice = false;
                     try {
                         const parsedDetails = JSON.parse(log.details || '{}');
@@ -584,9 +585,9 @@ class AttendanceService {
                         }
                     } catch {}
 
-                    if (sameIp || sameDevice) {
+                    if (sameDevice) {
                         is_suspicious = true;
-                        suspicious_reason = `Phát hiện chấm công liên tiếp trên cùng ${sameDevice ? 'thiết bị' : 'địa chỉ mạng'} với nhân viên ${log.actor_id} trong vòng 60 giây`;
+                        suspicious_reason = `Phát hiện chấm công liên tiếp trên cùng thiết bị với nhân viên ${log.actor_id} trong vòng 60 giây`;
                         break;
                     }
                 }
