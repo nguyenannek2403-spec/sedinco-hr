@@ -632,6 +632,7 @@ async function main() {
         console.log("=============================================================================\n");
 
     } finally {
+        await query('UPDATE accountant_permissions SET is_enabled = 0 WHERE permission_key IN ("leave_approve", "attendance_lock", "payroll_approve", "attendance_edit")').catch(() => {});
         await browser.close();
     }
 }
