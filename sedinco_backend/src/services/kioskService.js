@@ -239,6 +239,52 @@ class KioskService {
     }
 
     /**
+     * Phương án A: Kiểm tra trạng thái mã QR hiện tại (polling mỗi 2-3s)
+     * Giúp Kiosk đổi mã mới ngay khi mã cũ đã được sử dụng (Early Renewal)
+     */
+    async getKioskQrStatus(apiKey, sessionToken) {
+        if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+            const error = new Error('Thiếu x-kiosk-key API header!');
+            error.statusCode = 401;
+            throw error;
+        }
+
+        if (!sessionToken || typeof sessionToken !== 'string') {
+            const error = new Error('Thiếu session token cần kiểm tra!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const kiosks = await query('SELECT id, is_active FROM kiosk_devices WHERE api_key = ? LIMIT 1', [apiKey.trim()]);
+        if (!kiosks || kiosks.length === 0) {
+            const error = new Error('Khóa Kiosk API không hợp lệ!');
+            error.statusCode = 401;
+            throw error;
+        }
+
+        if (!kiosks[0].is_active) {
+            const error = new Error('Thiết bị Kiosk này đã bị thu hồi quyền hoạt động!');
+            error.statusCode = 403;
+            throw error;
+        }
+
+        const rows = await query('SELECT is_used, expires_at FROM dynamic_qr_sessions WHERE session_token = ? LIMIT 1', [sessionToken.trim()]);
+        if (!rows || rows.length === 0) {
+            return { is_used: true, is_expired: true, can_renew: true };
+        }
+
+        const row = rows[0];
+        const isUsed = Boolean(row.is_used);
+        const isExpired = new Date(row.expires_at) <= new Date();
+
+        return {
+            is_used: isUsed,
+            is_expired: isExpired,
+            can_renew: isUsed || isExpired
+        };
+    }
+
+    /**
      * Dùng cho test cleanup
      */
     resetRateLimit() {

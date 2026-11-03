@@ -57,6 +57,23 @@ class KioskController {
         }
     }
 
+    async getQrStatus(req, res, next) {
+        try {
+            let apiKey = req.headers['x-kiosk-key'];
+            if (!apiKey && req.headers['authorization']) {
+                const parts = req.headers['authorization'].split(' ');
+                if (parts.length === 2 && parts[0].toLowerCase() === 'bearer') {
+                    apiKey = parts[1];
+                }
+            }
+            const token = req.query.token || req.body?.token;
+            const data = await kioskService.getKioskQrStatus(apiKey, token);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async rotateKey(req, res, next) {
         try {
             const { id } = req.params;

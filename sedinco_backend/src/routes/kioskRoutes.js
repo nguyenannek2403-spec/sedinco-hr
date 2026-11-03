@@ -12,6 +12,8 @@ const { authenticateToken, requireRole } = require('../middlewares/authMiddlewar
 // 1. Sinh QR dành cho Kiosk phần cứng (chỉ cần x-kiosk-key, không cần token Admin/Accountant)
 router.get('/qr', (req, res, next) => kioskController.getQr(req, res, next));
 router.get('/dynamic-qr', (req, res, next) => kioskController.getQr(req, res, next));
+// Phương án A: Kiosk kiểm tra trạng thái QR hiện tại (polling 2-3s để đổi mã ngay khi đã quét)
+router.get('/qr-status', (req, res, next) => kioskController.getQrStatus(req, res, next));
 
 // 2. Các API quản trị Kiosk (Chỉ dành cho Admin)
 router.post('/register', authenticateToken, requireRole(['admin']), (req, res, next) => kioskController.register(req, res, next));

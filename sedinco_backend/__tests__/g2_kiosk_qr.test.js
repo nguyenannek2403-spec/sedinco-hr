@@ -248,3 +248,109 @@ it('TC-G2-KIOSK-08: Hành động lấy QR của Kiosk được ghi nhận vào 
     assert.equal(logs[0].actor_role, 'kiosk');
     assert.equal(logs[0].action, 'KIOSK_GENERATE_QR');
 });
+
+let planAKioskKey;
+
+// ─────────────────────────────────────────────────
+// TC-G2-KIOSK-09: Phương án A - Kiosk polling trạng thái và đổi mã ngay khi đã sử dụng
+// ─────────────────────────────────────────────────
+it('TC-G2-KIOSK-09: Phương án A - Kiosk phát hiện QR đã quét qua /qr-status và lấy mã mới ngay lập tức', async () => {
+    // 0. Đăng ký 1 kiosk active mới
+    const kioskRes = await request('/api/kiosk/register', {
+        method: 'POST',
+        token: adminToken,
+        body: { kiosk_name: 'TEST_KIOSK_PLAN_A', branch_id: 1 }
+    });
+    assert.equal(kioskRes.status, 201);
+    planAKioskKey = kioskRes.data.data.api_key;
+
+    // 1. Sinh QR ban đầu cho Kiosk
+    const qrRes = await request('/api/kiosk/qr', {
+        method: 'GET',
+        headers: { 'x-kiosk-key': planAKioskKey }
+    });
+    assert.equal(qrRes.status, 200);
+    const token1 = qrRes.data.data.token;
+
+    // 2. Kiosk kiểm tra trạng thái ban đầu: Chưa dùng (is_used = false)
+    const statusBefore = await request(`/api/kiosk/qr-status?token=${token1}`, {
+        method: 'GET',
+        headers: { 'x-kiosk-key': planAKioskKey }
+    });
+    assert.equal(statusBefore.status, 200);
+    assert.equal(statusBefore.data.data.is_used, false);
+    assert.equal(statusBefore.data.data.can_renew, false);
+
+    // 3. Công nhân 1 quét chấm công thành công
+    const checkInRes = await request('/api/attendance/check-in', {
+        method: 'POST',
+        token: workerToken,
+        body: {
+            token: token1,
+            lat: 16.0544,
+            lng: 108.2022,
+            device_info: 'iPhone-Worker-01'
+        }
+    });
+    assert.equal(checkInRes.status, 200);
+
+    // 4. Kiosk polling lại sau khi công nhân quét: Phát hiện is_used = true, can_renew = true
+    const statusAfter = await request(`/api/kiosk/qr-status?token=${token1}`, {
+        method: 'GET',
+        headers: { 'x-kiosk-key': planAKioskKey }
+    });
+    assert.equal(statusAfter.status, 200);
+    assert.equal(statusAfter.data.data.is_used, true);
+    assert.equal(statusAfter.data.data.can_renew, true);
+
+    // 5. Kiosk lập tức lấy mã QR mới (Early renewal)
+    const qrRes2 = await request('/api/kiosk/qr', {
+        method: 'GET',
+        headers: { 'x-kiosk-key': planAKioskKey }
+    });
+    assert.equal(qrRes2.status, 200);
+    const token2 = qrRes2.data.data.token;
+    assert.notEqual(token1, token2, 'Mã QR mới phải khác mã QR cũ');
+
+    // 6. Công nhân 2 đến sau quét mã mới thành công
+    const checkInRes2 = await request('/api/attendance/check-in', {
+        method: 'POST',
+        token: workerToken,
+        body: {
+            token: token2,
+            lat: 16.0544,
+            lng: 108.2022,
+            device_info: 'iPhone-Worker-02'
+        }
+    });
+    assert.equal(checkInRes2.status, 200, 'Công nhân thứ 2 quét mã mới phải thành công, không bị lỗi Replay Attack');
+});
+
+// ─────────────────────────────────────────────────
+// TC-G2-KIOSK-10: Mutation Test - Tắt đổi mã sớm khiến người thứ 2 bị từ chối Replay
+// ─────────────────────────────────────────────────
+it('TC-G2-KIOSK-10: Mutation Test - Tắt đổi mã sớm (cố tình giữ mã cũ) khiến công nhân kế tiếp bị từ chối Replay', async () => {
+    // 1. Sinh QR
+    const qrRes = await request('/api/kiosk/qr', {
+        method: 'GET',
+        headers: { 'x-kiosk-key': planAKioskKey }
+    });
+    assert.equal(qrRes.status, 200);
+    const token = qrRes.data.data.token;
+
+    // 2. Người thứ nhất quét
+    await request('/api/attendance/check-in', {
+        method: 'POST',
+        token: workerToken,
+        body: { token, lat: 16.0544, lng: 108.2022, device_info: 'Phone-A' }
+    });
+
+    // 3. Người thứ hai quét cùng mã cũ (khi chưa đổi) -> Bị từ chối HTTP 400
+    const failRes = await request('/api/attendance/check-in', {
+        method: 'POST',
+        token: workerToken,
+        body: { token, lat: 16.0544, lng: 108.2022, device_info: 'Phone-B' }
+    });
+    assert.equal(failRes.status, 400);
+    assert.ok(failRes.data.message.includes('quét trước đó') || failRes.data.message.includes('sử dụng'));
+});

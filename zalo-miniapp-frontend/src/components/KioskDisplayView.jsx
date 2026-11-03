@@ -59,6 +59,29 @@ export default function KioskDisplayView({ kioskKey = '' }) {
         return () => clearInterval(timerRef.current);
     }, [qrData, apiKey]);
 
+    // Phương án A: Polling trạng thái mã QR hiện tại mỗi 2.5 giây.
+    // Ngay khi có công nhân quét xong (is_used = true), Kiosk tự động đổi mã mới.
+    useEffect(() => {
+        if (!qrData || !qrData.token || !apiKey) return;
+
+        const pollTimer = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/kiosk/qr-status?token=${encodeURIComponent(qrData.token)}`, {
+                    headers: { 'x-kiosk-key': apiKey.trim() }
+                });
+                const json = await res.json();
+                if (json && json.success && json.data && json.data.is_used) {
+                    // Mã đã được dùng -> Đổi mã QR mới ngay lập tức
+                    fetchKioskQr();
+                }
+            } catch (err) {
+                // Bỏ qua lỗi polling mạng tạm thời
+            }
+        }, 2500);
+
+        return () => clearInterval(pollTimer);
+    }, [qrData, apiKey]);
+
     const handleSaveKey = (e) => {
         e.preventDefault();
         if (apiKey.trim()) {
