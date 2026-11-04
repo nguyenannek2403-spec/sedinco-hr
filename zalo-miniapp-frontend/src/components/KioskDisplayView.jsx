@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, Button } from 'zmp-ui';
-import { QrCode, RefreshCw, Monitor, ShieldCheck, Clock, Wifi } from 'lucide-react';
+import { QrCode, RefreshCw, Monitor, ShieldCheck, Clock, Wifi, ShieldAlert } from 'lucide-react';
 
 /**
  * KioskDisplayView (G3 Security Hardening - Proposal 2 Kiosk Isolation)
@@ -14,6 +14,7 @@ export default function KioskDisplayView({ kioskKey = '' }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isReconnecting, setIsReconnecting] = useState(false);
     const timerRef = useRef(null);
 
     const fetchKioskQr = async (keyToUse) => {
@@ -28,19 +29,36 @@ export default function KioskDisplayView({ kioskKey = '' }) {
                     'x-kiosk-key': key.trim()
                 }
             });
+            if (res.status === 429) {
+                setError('Giới hạn tần suất Kiosk (429 Too Many Requests). Đang tạm dừng và tự khôi phục sau 5 giây...');
+                setIsReconnecting(true);
+                setTimeout(() => fetchKioskQr(key), 5000);
+                return;
+            }
             const data = await res.json();
             if (data.success && data.data) {
                 setQrData(data.data);
                 setCountdown(30);
+                setIsReconnecting(false);
+                setError('');
             } else {
                 setError(data.message || 'Không thể lấy mã QR Kiosk.');
             }
         } catch (err) {
-            setError('Lỗi kết nối tới máy chủ Kiosk.');
+            setError('Lỗi kết nối mạng tới máy chủ Kiosk. Đang tự động kết nối lại sau 3 giây...');
+            setIsReconnecting(true);
+            setTimeout(() => fetchKioskQr(key), 3000);
         } finally {
             setLoading(false);
         }
     };
+
+    // Tự động tải mã QR khi đã có apiKey (từ props hoặc localStorage)
+    useEffect(() => {
+        if (apiKey && !qrData) {
+            fetchKioskQr(apiKey);
+        }
+    }, [apiKey]);
 
     // Countdown 30s
     useEffect(() => {
@@ -69,13 +87,19 @@ export default function KioskDisplayView({ kioskKey = '' }) {
                 const res = await fetch(`/api/kiosk/qr-status?token=${encodeURIComponent(qrData.token)}`, {
                     headers: { 'x-kiosk-key': apiKey.trim() }
                 });
+                if (!res.ok) {
+                    setIsReconnecting(true);
+                    return;
+                }
                 const json = await res.json();
+                setIsReconnecting(false);
                 if (json && json.success && json.data && json.data.is_used) {
                     // Mã đã được dùng -> Đổi mã QR mới ngay lập tức
                     fetchKioskQr();
                 }
             } catch (err) {
-                // Bỏ qua lỗi polling mạng tạm thời
+                // Xử lý lỗi polling / rớt mạng: Hiển thị trạng thái đang thử kết nối lại, giữ nguyên màn hình, không treo
+                setIsReconnecting(true);
             }
         }, 2500);
 
@@ -142,11 +166,16 @@ export default function KioskDisplayView({ kioskKey = '' }) {
             {/* Header thông tin Kiosk */}
             <div className="w-full flex justify-between items-center mb-6 border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 bg-emerald-500 rounded-full animate-ping" />
-                    <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
-                        {qrData?.kiosk_name || 'Kiosk Trực Tuyến'}
+                    <div className={`h-3 w-3 ${isReconnecting ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-ping'} rounded-full`} />
+                    <span className={`text-xs font-semibold ${isReconnecting ? 'text-amber-400' : 'text-emerald-400'} uppercase tracking-wider`}>
+                        {isReconnecting ? 'Đang thử kết nối lại...' : (qrData?.kiosk_name || 'Kiosk Trực Tuyến')}
                     </span>
                     <span className="text-xs text-slate-400">| {qrData?.kiosk_code}</span>
+                    {isReconnecting && (
+                        <span className="text-[10px] bg-amber-950/80 text-amber-300 px-2 py-0.5 rounded border border-amber-600/50">
+                            Mất mạng (Kiosk tự kết nối lại)
+                        </span>
+                    )}
                 </div>
                 <div className="flex items-center gap-2">
                     <button
@@ -164,11 +193,18 @@ export default function KioskDisplayView({ kioskKey = '' }) {
                 </div>
             </div>
 
+            {error && (
+                <div className="w-full mb-4 p-3 bg-rose-950/90 text-rose-300 text-xs rounded-xl border border-rose-600/60 flex items-center gap-2 shadow-lg animate-pulse">
+                    <ShieldAlert size={18} className="shrink-0 text-rose-400" />
+                    <span>{error}</span>
+                </div>
+            )}
+
             {/* Khung QR Code */}
             <div className="bg-white p-6 rounded-3xl shadow-xl flex flex-col items-center">
-                {qrData?.qr_data ? (
+                {(qrData?.qr_data || qrData?.token) ? (
                     <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrData.qr_data)}`}
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrData.qr_data || qrData.token)}`}
                         alt="Dynamic QR Kiosk"
                         className="w-64 h-64 object-contain"
                     />

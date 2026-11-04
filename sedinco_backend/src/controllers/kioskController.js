@@ -49,7 +49,7 @@ class KioskController {
                 }
             }
 
-            const ipAddress = req.ip || (req.connection && req.connection.remoteAddress) || '';
+            const ipAddress = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || (req.connection && req.connection.remoteAddress) || '';
             const data = await kioskService.generateKioskQr(apiKey, ipAddress);
             return res.json({ success: true, data });
         } catch (err) {
