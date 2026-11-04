@@ -58,6 +58,8 @@ reports/logs/
 reports/screens/
 reports/screenshots/
 reports/sim/
+reports/*.csv
+
 
 # File xuất thông tin bàn giao thông tin đăng nhập tạm thời
 data/*credentials*.csv

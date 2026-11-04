@@ -78,16 +78,21 @@ export const generateIdempotencyKey = (prefix = "idemp") => {
 };
 
 /**
- * Chống Formula Injection cho các ô trong file CSV / Excel xuất ra
- * Ô bắt đầu bằng =, +, -, @ sẽ được vô hiệu hóa bằng cách thêm dấu nháy đơn '
+ * Chống Formula Injection và đảm bảo chuẩn RFC 4180 cho các ô CSV / Excel:
+ * 1. Ô bắt đầu bằng =, +, -, @, \t, \r được vô hiệu hóa bằng dấu nháy đơn '
+ * 2. Ký tự nháy kép " bên trong chuỗi được nhân đôi thành "" theo chuẩn RFC 4180
  */
 export const sanitizeFormula = (val) => {
   if (val === null || val === undefined) return "";
-  const str = String(val);
+  let str = String(val);
   if (/^[=+\-@\t\r]/.test(str)) {
-    return `'${str}`;
+    str = `'${str}`;
   }
-  return str;
+  return str.replace(/"/g, '""');
+};
+
+export const formatCsvCellRFC4180 = (val) => {
+  return `"${sanitizeFormula(val)}"`;
 };
 
 // Response Interceptor xử lý tập trung các nhóm mã lỗi theo đặc tả

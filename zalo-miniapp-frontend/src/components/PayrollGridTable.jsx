@@ -11,10 +11,11 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
-  Eye
+  Eye,
+  AlertTriangle
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
-import { sanitizeFormula } from "../utils/api";
+import { sanitizeFormula, formatCsvCellRFC4180 } from "../utils/api";
 
 export default function PayrollGridTable({
   payrollData,
@@ -67,9 +68,9 @@ export default function PayrollGridTable({
       const totalAllowance = Number(item.totalAllowance) || 0;
       const respAllowance = totalAllowance > 3730000 ? totalAllowance - 3730000 : 0;
       return [
-        `"${sanitizeFormula(item.ma_nv || item.id_nhan_vien || "")}"`,
-        `"${sanitizeFormula(item.ho_ten || "")}"`,
-        `"${sanitizeFormula(item.chuc_danh || "Nhân viên")}"`,
+        formatCsvCellRFC4180(item.ma_nv || item.id_nhan_vien || ""),
+        formatCsvCellRFC4180(item.ho_ten || ""),
+        formatCsvCellRFC4180(item.chuc_danh || "Nhân viên"),
         Number(item.baseSalary) || 0,
         Number(item.totalWorkDays) || 0,
         Number(item.salaryByWork) || 0,
@@ -85,7 +86,7 @@ export default function PayrollGridTable({
       ];
     });
 
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const csvContent = "\uFEFF" + [headers.map(formatCsvCellRFC4180).join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -253,6 +254,18 @@ export default function PayrollGridTable({
           </div>
         </div>
 
+        {/* Cảnh báo Thực lĩnh âm nếu có (Sổ lỗi P1: Chờ Kế toán trưởng phê duyệt quy tắc) */}
+        {filteredList.some(item => Number(item.netSalary) < 0) && (
+          <div className="mb-4 p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-amber-900 text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+              <div>
+                <strong>Cảnh báo nghiệp vụ (Sổ lỗi P1):</strong> Phát hiện nhân viên có thực lĩnh âm (do 0 ngày công nhưng vẫn trừ BHXH). Đang chờ Kế toán trưởng phê duyệt quy tắc khấu trừ.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bảng Dữ Liệu Grid */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
@@ -317,8 +330,21 @@ export default function PayrollGridTable({
                       <td className="p-3.5 text-right font-bold text-rose-700 text-sm">
                         -{Number(item.insuranceDeduction || item.totalInsurance || 0).toLocaleString("vi-VN")} đ
                       </td>
-                      <td className="p-3.5 text-right text-emerald-800 font-black text-base">
-                        {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
+                      <td className="p-3.5 text-right font-black text-base">
+                        {Number(item.netSalary || 0) < 0 ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-rose-600 font-black">
+                              {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold border border-rose-300 mt-0.5">
+                              ⚠️ Thực lĩnh âm
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-emerald-800">
+                            {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
+                          </span>
+                        )}
                       </td>
                       <td className="p-3.5 text-center pr-5">
                         <button
