@@ -13,36 +13,86 @@ if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DIAGNOSTICS === 
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Trust Proxy (B2)
+// Trust Proxy (B2, B4, B5)
 // ─────────────────────────────────────────────────────────────────────────────
 // Cấu hình qua biến môi trường TRUST_PROXY:
 //   TRUST_PROXY=false  → Không tin cậy X-Forwarded-For (default cho local/dev).
 //                        req.ip = socket.remoteAddress (thường 127.0.0.1 nếu sau Nginx).
-//                        Nguy cơ: mọi request đều cùng IP 127.0.0.1 → IP rate limit vô nghĩa.
 //   TRUST_PROXY=1      → Tin cậy 1 hop ngay trước (Render.com, Nginx trên cùng server).
-//                        req.ip = địa chỉ đầu tiên trong X-Forwarded-For.
-//                        Nguy cơ: nếu không có reverse proxy, client có thể giả mạo X-Forwarded-For.
 //   TRUST_PROXY=loopback → Chỉ tin cậy kết nối từ loopback (127.0.0.1, ::1).
-// QUAN TRỌNG: Chỉ đặt TRUST_PROXY=1 khi chắc chắn có reverse proxy xác thực ở trước.
+// Bắt buộc xác thực cấu hình hợp lệ khi khởi động, ném lỗi rõ ràng nếu sai.
 // ─────────────────────────────────────────────────────────────────────────────
-// Cấu hình qua biến môi trường TRUST_PROXY:
-//   TRUST_PROXY=false (hoặc 'false', undefined) → app.set('trust proxy', false) (default an toàn cho local/dev).
-//   TRUST_PROXY=1 (hoặc số hop n)               → app.set('trust proxy', n) (khi chạy sau Reverse Proxy chuẩn).
-//   TRUST_PROXY='loopback'                      → app.set('trust proxy', 'loopback').
+const net = require('net');
+
+function isValidIpOrCidr(str) {
+    const trimmed = str.trim();
+    if (net.isIP(trimmed)) return true;
+    if (trimmed.includes('/')) {
+        const [ip, maskStr] = trimmed.split('/');
+        const ipType = net.isIP(ip);
+        const mask = Number(maskStr);
+        if (!isNaN(mask)) {
+            if (ipType === 4 && mask >= 0 && mask <= 32) return true;
+            if (ipType === 6 && mask >= 0 && mask <= 128) return true;
+        }
+    }
+    return false;
+}
+
+function parseAndValidateTrustProxy(val) {
+    if (val === false || val === 'false' || val === undefined || val === null || val === '') {
+        return false;
+    }
+    if (val === true || val === 'true') {
+        return true;
+    }
+    const str = String(val).trim();
+    if (/^\d+$/.test(str)) {
+        return Number(str);
+    }
+    const predefined = ['loopback', 'linklocal', 'uniquelocal'];
+    if (predefined.includes(str.toLowerCase())) {
+        return str.toLowerCase();
+    }
+    const items = str.split(',').map(s => s.trim()).filter(Boolean);
+    if (items.length > 0 && items.every(isValidIpOrCidr)) {
+        return str;
+    }
+    throw new Error(`FATAL: Cấu hình TRUST_PROXY không hợp lệ: "${val}". Chỉ chấp nhận: false, true, số nguyên >= 0, "loopback", "linklocal", "uniquelocal", hoặc IP/CIDR hợp lệ.`);
+}
+
 const rawTrustProxy = env.TRUST_PROXY;
-if (rawTrustProxy === false || rawTrustProxy === 'false' || rawTrustProxy === undefined || rawTrustProxy === '') {
-    app.set('trust proxy', false);
-} else if (!isNaN(Number(rawTrustProxy))) {
-    app.set('trust proxy', Number(rawTrustProxy));
-} else {
-    app.set('trust proxy', rawTrustProxy);
+const validatedTrustProxy = parseAndValidateTrustProxy(rawTrustProxy);
+app.set('trust proxy', validatedTrustProxy);
+
+// Bộ nhớ đệm throttle cảnh báo XFF theo IP socket (tối đa 1 lần/phút/IP socket)
+const lastXffWarnBySocketIp = new Map();
+
+function sanitizeLogString(str, maxLen = 100) {
+    if (typeof str !== 'string') return '';
+    // Strip control characters (ASCII 0-31, 127) và dấu xuống dòng
+    const cleaned = str.replace(/[\x00-\x1F\x7F]/g, '');
+    return cleaned.length > maxLen ? cleaned.substring(0, maxLen) + '...' : cleaned;
 }
 
 // Middleware chuẩn hóa trích xuất IP: Tuyệt đối không đọc trực tiếp header x-forwarded-for thô
 app.use((req, res, next) => {
     const isTrustDisabled = !app.get('trust proxy');
     if (req.headers['x-forwarded-for'] && isTrustDisabled) {
-        console.warn(`[CẢNH BÁO BẢO MẬT] Bỏ qua header X-Forwarded-For="${req.headers['x-forwarded-for']}" vì TRUST_PROXY=false. Sử dụng IP socket thực tế: ${req.socket?.remoteAddress || req.ip}`);
+        const socketIp = req.socket?.remoteAddress || (req.connection && req.connection.remoteAddress) || req.ip || 'unknown';
+        const now = Date.now();
+        const lastWarn = lastXffWarnBySocketIp.get(socketIp) || 0;
+        // Rate limit log tối đa 1 lần/phút/IP socket (60.000 ms)
+        if (now - lastWarn >= 60000) {
+            lastXffWarnBySocketIp.set(socketIp, now);
+            if (lastXffWarnBySocketIp.size > 1000) {
+                for (const [k, v] of lastXffWarnBySocketIp.entries()) {
+                    if (now - v > 60000) lastXffWarnBySocketIp.delete(k);
+                }
+            }
+            const sanitizedXff = sanitizeLogString(String(req.headers['x-forwarded-for']), 100);
+            console.warn(`[CẢNH BÁO BẢO MẬT] Bỏ qua header X-Forwarded-For="${sanitizedXff}" vì TRUST_PROXY=false. Sử dụng IP socket thực tế: ${socketIp}`);
+        }
     }
     // Gán req.clientIp chuẩn hóa từ req.ip của Express đã qua trust proxy filter
     req.clientIp = req.ip || (req.socket && req.socket.remoteAddress) || (req.connection && req.connection.remoteAddress) || '127.0.0.1';
@@ -112,6 +162,10 @@ app.use((req, res, next) => {
 // Xử lý 404 và Error Handler
 app.use(notFoundHandler);
 app.use(errorHandler);
+
+app.parseAndValidateTrustProxy = parseAndValidateTrustProxy;
+app.sanitizeLogString = sanitizeLogString;
+app.lastXffWarnBySocketIp = lastXffWarnBySocketIp;
 
 module.exports = app;
 

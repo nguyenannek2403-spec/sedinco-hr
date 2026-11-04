@@ -48,12 +48,31 @@ const IP_MAX_ATTEMPTS = 50;                // Số lần thất bại tối đa 
 const IP_LOCKOUT_MS = 15 * 60 * 1000;
 const IP_LOCKOUT_SEC = 15 * 60;
 
+const net = require('net');
+
 // Bộ nhớ đệm fallback và mock
 const accountAttempts = new Map();
 const ipAttempts = new Map();
 
 // Thông báo lỗi đăng nhập chung chung — chống User Enumeration
 const GENERIC_LOGIN_ERROR = 'Thông tin đăng nhập không hợp lệ!';
+
+function expandIpv6(ip) {
+    if (net.isIP(ip) !== 6) return null;
+    let [main, v4] = ip.includes('.') ? [ip.substring(0, ip.lastIndexOf(':')), ip.substring(ip.lastIndexOf(':') + 1)] : [ip, null];
+    let parts = main.split('::');
+    let left = parts[0] ? parts[0].split(':').filter(Boolean) : [];
+    let right = parts[1] ? parts[1].split(':').filter(Boolean) : [];
+    let totalNeeded = 8 - (v4 ? 2 : 0);
+    let middle = new Array(Math.max(0, totalNeeded - (left.length + right.length))).fill('0');
+    let full = [...left, ...middle, ...right];
+    if (v4) {
+        let v4Nums = v4.split('.').map(Number);
+        full.push(((v4Nums[0] << 8) + v4Nums[1]).toString(16));
+        full.push(((v4Nums[2] << 8) + v4Nums[3]).toString(16));
+    }
+    return full.map(p => p.padStart(4, '0').toLowerCase());
+}
 
 function normalizeClientIp(ip_address) {
     if (!ip_address) return 'unknown';
@@ -62,7 +81,25 @@ function normalizeClientIp(ip_address) {
     const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
     const candidate = parts.length > 0 ? parts[parts.length - 1] : raw;
     // Bỏ tiền tố IPv6-mapped IPv4 nếu có (::ffff:127.0.0.1 -> 127.0.0.1)
-    return candidate.replace(/^::ffff:/, '');
+    const stripped = candidate.replace(/^::ffff:/i, '');
+
+    // Nếu là IPv4 chuẩn
+    if (net.isIP(stripped) === 4) {
+        return stripped;
+    }
+
+    // Nếu là IPv6 chuẩn: chuẩn hóa về subnet prefix /64 (cấu hình qua biến môi trường IPV6_SUBNET_MASK)
+    if (net.isIP(stripped) === 6) {
+        const prefixLen = Number(process.env.IPV6_SUBNET_MASK) || 64;
+        const full = expandIpv6(stripped);
+        if (full) {
+            const words = Math.min(8, Math.max(1, Math.floor(prefixLen / 16)));
+            const prefixWords = full.slice(0, words).map(w => parseInt(w, 16).toString(16));
+            return `${prefixWords.join(':')}::/${prefixLen}`;
+        }
+    }
+
+    return stripped;
 }
 
 /**
@@ -575,6 +612,14 @@ class AuthService {
     }
 }
 
-module.exports = new AuthService();
-module.exports.validatePasswordPolicy = validatePasswordPolicy;
-module.exports.GENERIC_LOGIN_ERROR = GENERIC_LOGIN_ERROR;
+const authServiceInstance = new AuthService();
+authServiceInstance.validatePasswordPolicy = validatePasswordPolicy;
+authServiceInstance.GENERIC_LOGIN_ERROR = GENERIC_LOGIN_ERROR;
+authServiceInstance.normalizeClientIp = normalizeClientIp;
+authServiceInstance.expandIpv6 = expandIpv6;
+authServiceInstance.ACCOUNT_MAX_ATTEMPTS = ACCOUNT_MAX_ATTEMPTS;
+authServiceInstance.ACCOUNT_SOFT_LOCK_THRESHOLD = ACCOUNT_SOFT_LOCK_THRESHOLD;
+authServiceInstance.ACCOUNT_GLOBAL_MAX_ATTEMPTS = ACCOUNT_GLOBAL_MAX_ATTEMPTS;
+authServiceInstance.IP_MAX_ATTEMPTS = IP_MAX_ATTEMPTS;
+
+module.exports = authServiceInstance;
