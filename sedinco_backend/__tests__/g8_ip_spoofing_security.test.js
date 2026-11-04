@@ -239,4 +239,154 @@ describe('G8.4 Mục A: IP Spoofing Prevention & Trust Proxy Hardening', () => {
             kioskService.resetRateLimit();
         }
     });
+
+    it('(f) TC-G8-IP-06: Khóa toàn cục (B.2) - 100 IP khác nhau tấn công sai pass -> Kẻ thứ 3 không thể khóa công nhân từ IP quen thuộc với pass đúng', async () => {
+        const victimMaNv = 'NV_SEC_GLOBAL_01';
+        const correctPass = 'SedincoPass2026!';
+        const hash = hashPassword(correctPass);
+
+        await query(`
+            INSERT INTO employees (ma_nv, ho_ten, password, role, status, is_locked)
+            VALUES (?, 'NV Global Lockout Test', ?, 'worker', 'active', 0)
+            ON DUPLICATE KEY UPDATE password=VALUES(password), status='active', is_locked=0
+        `, [victimMaNv, hash]);
+
+        const legitIp = '10.20.30.40';
+        await query(`
+            INSERT INTO audit_logs (actor_id, actor_role, action, resource, ip_address, created_at)
+            VALUES (?, 'worker', 'LOGIN_SUCCESS', 'auth', ?, NOW())
+        `, [victimMaNv, legitIp]);
+
+        try {
+            // Xác nhận hằng số cấu hình
+            assert.equal(authService.ACCOUNT_SOFT_LOCK_THRESHOLD, 10);
+            assert.equal(authService.ACCOUNT_GLOBAL_MAX_ATTEMPTS, 30);
+
+            // Giả lập kẻ thứ 3 tấn công phân tán từ 100 IP thật khác nhau (mô phỏng req.ip)
+            for (let i = 1; i <= 100; i++) {
+                const attackerIp = `198.51.100.${i}`;
+                const res = await authService.employeeLogin(victimMaNv, `WrongPass_${i}`, attackerIp);
+                assert.equal(res.success, false, `Attacker thử sai lần ${i} phải thất bại`);
+            }
+
+            // Kiểm tra bộ đếm toàn cục trong DB: đã đạt 100 lần (> ngưỡng 30)
+            const globalRows = await query('SELECT attempt_count, locked_until FROM login_rate_limits WHERE key_name = ?', [`account:${victimMaNv}`]);
+            assert.ok(globalRows.length > 0);
+            assert.equal(globalRows[0].attempt_count, 100, 'Bộ đếm toàn cục tài khoản phải tích lũy đủ 100 lần thử sai');
+            assert.ok(globalRows[0].locked_until !== null, 'Trạng thái locked_until toàn cục phải được kích hoạt');
+
+            // 1. Kiểm tra hành vi đối với công nhân: Đăng nhập từ IP QUEN THUỘC với mật khẩu ĐÚNG
+            const legitLogin = await authService.employeeLogin(victimMaNv, correctPass, legitIp);
+            assert.equal(legitLogin.success, true, 'Công nhân từ IP quen thuộc với mật khẩu ĐÚNG không bao giờ bị khóa cứng!');
+            assert.equal(legitLogin.statusCode, undefined, 'Không được trả về HTTP 429');
+            assert.ok(legitLogin.data && legitLogin.data.token, 'Phải sinh JWT token hợp lệ');
+
+            // 2. Kiểm tra hành vi đối với mật khẩu ĐÚNG từ một IP MỚI lạ (172.16.99.1)
+            const newIpLogin = await authService.employeeLogin(victimMaNv, correctPass, '172.16.99.1');
+            assert.equal(newIpLogin.success, true, 'Mật khẩu đúng từ IP mới vẫn thành công (chỉ bị làm chậm/throttle, không bị khóa cứng)!');
+            assert.ok(newIpLogin.data && newIpLogin.data.token);
+        } finally {
+            await query('DELETE FROM employees WHERE ma_nv = ?', [victimMaNv]);
+            await query('DELETE FROM audit_logs WHERE actor_id = ?', [victimMaNv]);
+            await query('DELETE FROM login_rate_limits WHERE key_name LIKE ?', [`%${victimMaNv}%`]);
+        }
+    });
+
+    it('(g) TC-G8-IP-07: Chuẩn hóa IPv6 Subnet /64 & IPv4-mapped IPv6 (B.3) - 100 địa chỉ IPv6 cùng prefix /64 tính chung 1 quota', async () => {
+        // 1. Kiểm tra 100 địa chỉ IPv6 khác nhau cùng nằm trong subnet 2001:db8:abcd:12::/64
+        const expectedPrefix = '2001:db8:abcd:12::/64';
+        for (let i = 1; i <= 100; i++) {
+            const hexSuffix = i.toString(16).padStart(4, '0');
+            const ipv6Addr = `2001:db8:abcd:0012:0000:0000:0000:${hexSuffix}`;
+            const normalized = authService.normalizeClientIp(ipv6Addr);
+            assert.equal(normalized, expectedPrefix, `IPv6 ${ipv6Addr} phải chuẩn hóa về subnet prefix ${expectedPrefix}`);
+        }
+
+        // 2. Kiểm tra IPv4-mapped IPv6
+        assert.equal(authService.normalizeClientIp('::ffff:192.0.2.1'), '192.0.2.1');
+        assert.equal(authService.normalizeClientIp('::ffff:127.0.0.1'), '127.0.0.1');
+
+        // 3. Kiểm tra tính chung quota rate limit trên cùng subnet /64
+        const testMaNv = 'NV_SEC_IPV6_01';
+        const correctPass = 'SedincoIPv6Pass2026!';
+        const hash = hashPassword(correctPass);
+
+        await query(`
+            INSERT INTO employees (ma_nv, ho_ten, password, role, status, is_locked)
+            VALUES (?, 'NV IPv6 Test', ?, 'worker', 'active', 0)
+            ON DUPLICATE KEY UPDATE password=VALUES(password), status='active', is_locked=0
+        `, [testMaNv, hash]);
+
+        try {
+            // Thử sai 5 lần từ 5 địa chỉ IPv6 khác nhau trong cùng subnet /64
+            for (let i = 1; i <= 5; i++) {
+                const ip = `2001:db8:abcd:0012:0000:0000:0000:000${i}`;
+                const res = await authService.employeeLogin(testMaNv, `WrongPass_${i}`, ip);
+                assert.equal(res.success, false);
+            }
+
+            // Lần thứ 6 thử từ một địa chỉ IPv6 THỨ 6 KHÁC BIỆT nhưng cùng subnet /64
+            const ip6 = '2001:db8:abcd:0012:ffff:eeee:dddd:0006';
+            const res6 = await authService.employeeLogin(testMaNv, 'WrongPass_6', ip6);
+            assert.equal(res6.success, false);
+            assert.equal(res6.statusCode, 429, 'Lần thứ 6 từ cùng subnet IPv6 /64 phải bị chặn 429 vì chung quota');
+            assert.ok(res6.message.includes('quá 5 lần'));
+        } finally {
+            await query('DELETE FROM employees WHERE ma_nv = ?', [testMaNv]);
+            await query('DELETE FROM login_rate_limits WHERE key_name LIKE ?', [`%${testMaNv}%`]);
+        }
+    });
+
+    it('(h) TC-G8-IP-08: TRUST_PROXY cấu hình chuỗi từ process.env (B.4) - test hợp lệ và ném lỗi khi không hợp lệ', () => {
+        // Các giá trị chuỗi hợp lệ
+        assert.equal(app.parseAndValidateTrustProxy('false'), false);
+        assert.equal(app.parseAndValidateTrustProxy('true'), true);
+        assert.equal(app.parseAndValidateTrustProxy('1'), 1);
+        assert.equal(app.parseAndValidateTrustProxy('2'), 2);
+        assert.equal(app.parseAndValidateTrustProxy('0'), 0);
+        assert.equal(app.parseAndValidateTrustProxy('loopback'), 'loopback');
+        assert.equal(app.parseAndValidateTrustProxy('linklocal'), 'linklocal');
+        assert.equal(app.parseAndValidateTrustProxy('uniquelocal'), 'uniquelocal');
+        assert.equal(app.parseAndValidateTrustProxy('127.0.0.1'), '127.0.0.1');
+        assert.equal(app.parseAndValidateTrustProxy('10.0.0.0/8, 192.168.0.0/16'), '10.0.0.0/8, 192.168.0.0/16');
+
+        // Các giá trị không hợp lệ phải ném lỗi rõ ràng
+        assert.throws(() => app.parseAndValidateTrustProxy('invalid_proxy'), /FATAL: Cấu hình TRUST_PROXY không hợp lệ/);
+        assert.throws(() => app.parseAndValidateTrustProxy('-1'), /FATAL: Cấu hình TRUST_PROXY không hợp lệ/);
+        assert.throws(() => app.parseAndValidateTrustProxy('evil;drop table'), /FATAL: Cấu hình TRUST_PROXY không hợp lệ/);
+        assert.throws(() => app.parseAndValidateTrustProxy('999.999.999.999'), /FATAL: Cấu hình TRUST_PROXY không hợp lệ/);
+    });
+
+    it('(i) TC-G8-IP-09: Cảnh báo XFF (B.5) - sanitize control chars, max 100 ký tự và rate limit 1 lần/phút/IP socket', async () => {
+        // 1. Kiểm tra làm sạch chuỗi và cắt ngắn
+        const rawMalicious = 'XFF\x00\x1b[31m_evil_\r\n_header_' + 'A'.repeat(120);
+        const sanitized = app.sanitizeLogString(rawMalicious, 100);
+        assert.ok(!sanitized.includes('\x00'), 'Không được chứa null byte');
+        assert.ok(!sanitized.includes('\x1b'), 'Không được chứa ESC byte');
+        assert.ok(!sanitized.includes('\r') && !sanitized.includes('\n'), 'Không được chứa ký tự xuống dòng');
+        assert.ok(sanitized.endsWith('...'), 'Phải kết thúc bằng dấu chấm lửng khi quá 100 ký tự');
+        assert.ok(sanitized.length <= 103, `Độ dài không được vượt quá maxLen + 3, thực tế: ${sanitized.length}`);
+
+        // 2. Kiểm tra rate limit log cảnh báo: 50 request liên tiếp từ cùng IP socket chỉ in cảnh báo tối đa 1 lần/phút
+        const origWarn = console.warn;
+        let warnCount = 0;
+        app.lastXffWarnBySocketIp.clear(); // Xóa sạch state trước test
+        console.warn = (...args) => {
+            const msg = args.join(' ');
+            if (msg.includes('Bỏ qua header X-Forwarded-For')) {
+                warnCount++;
+            }
+        };
+
+        try {
+            for (let i = 0; i < 50; i++) {
+                await fetch(`${testBaseUrl}/api/health`, {
+                    headers: { 'X-Forwarded-For': `10.0.0.${i}` }
+                });
+            }
+            assert.equal(warnCount, 1, `Cảnh báo XFF chỉ được log đúng 1 lần cho cùng IP socket trong 1 phút, thực tế log: ${warnCount}`);
+        } finally {
+            console.warn = origWarn;
+        }
+    });
 });

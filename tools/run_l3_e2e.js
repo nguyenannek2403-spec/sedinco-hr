@@ -19,8 +19,8 @@ process.env.DB_USER = 'root';
 process.env.DB_PASSWORD = '123456';
 process.env.DB_NAME = 'sedinco_hr_test';
 process.env.DB_SSL = 'false';
-process.env.JWT_SECRET = 'sedinco_super_secure_jwt_secret_key_2026_local_test_32chars';
-process.env.QR_SECRET = 'sedinco_super_secure_qr_secret_key_2026_local_test_32chars';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'sedinco-automated-test-environment-jwt-secret-key-min-32-chars!';
+process.env.QR_SECRET = process.env.QR_SECRET || 'sedinco_super_secure_qr_secret_key_2026_local_test_32chars';
 
 const fs = require('fs');
 const path = require('path');
