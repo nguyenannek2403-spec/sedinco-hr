@@ -125,11 +125,9 @@ class ErrorBoundary extends React.Component {
 // Detect whether app is running inside Zalo Mini App runtime or standard Web Browser
 const isZaloEnvironment = () => {
   if (typeof window === "undefined") return false;
-  // Cờ test ép nhánh ZMPRouter (Mock Zalo) chỉ kích hoạt trong môi trường DEV / Test
-  if (import.meta.env.DEV) {
-    if (window.__FORCE_ZMP_ROUTER__ === true || window.location.search.includes("force_zmp_router=1")) {
-      return true;
-    }
+  // Cờ test ép nhánh ZMPRouter (Mock Zalo) khi chạy E2E test
+  if (window.__FORCE_ZMP_ROUTER__ === true || window.location.search.includes("force_zmp_router=1")) {
+    return true;
   }
   return (
     window.location.pathname.startsWith("/zapps") ||
@@ -145,7 +143,7 @@ const isZaloEnvironment = () => {
 
 const SmartRouter = ({ children }) => {
   if (isZaloEnvironment()) {
-    const isMockTesting = import.meta.env.DEV && typeof window !== "undefined" && Boolean(window.__FORCE_ZMP_ROUTER__);
+    const isMockTesting = typeof window !== "undefined" && Boolean(window.__FORCE_ZMP_ROUTER__);
     return (
       <ZMPRouter memoryRouter={isMockTesting}>
         <AnimationRoutes>{children}</AnimationRoutes>

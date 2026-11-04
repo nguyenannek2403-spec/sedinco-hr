@@ -30,6 +30,12 @@ const STAGES = {
 
 // Khóa module-level chống double click phần cứng trên mọi nền tảng
 let globalCheckInLockTimestamp = 0;
+export function getGlobalCheckInLockTimestamp() {
+  return globalCheckInLockTimestamp;
+}
+export function resetGlobalCheckInLockTimestamp() {
+  globalCheckInLockTimestamp = 0;
+}
 
 /**
  * F2: Thành phần Chấm Công 1 Chạm (Trọng tâm trải nghiệm Nhân viên Sedinco)
@@ -203,16 +209,21 @@ export default function OneTouchCheckIn({
         }
       } catch (postErr) {
         console.warn("Lỗi khi gửi chấm công:", postErr);
-        const errText = postErr.message || postErr.data?.message || postErr.response?.data?.message;
-        if (errText) {
-          setStage(STAGES.ERROR);
+        const errText = postErr.message || postErr.data?.message || postErr.response?.data?.message || "Lỗi kết nối mạng khi gửi chấm công";
+        setStage(STAGES.ERROR);
+        // Sửa thông báo chuẩn tiếng Việt khi QR đã được sử dụng (G8.5 Mục E)
+        if (errText.includes("đã được sử dụng") || errText.includes("vừa có người dùng")) {
+          setErrorMessage("Mã vừa có người dùng, vui lòng quét mã mới");
+          setErrorDetails("Mã vừa có người dùng hoặc đã được sử dụng trước đó. Vui lòng quét mã mới trên màn hình Kiosk.");
+        } else {
           setErrorMessage(errText);
-          isLockedRef.current = false;
-          if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
-          return;
+          setErrorDetails("Vui lòng kiểm tra lại kết nối mạng 4G/Wifi hoặc thử lại.");
         }
-        // Fallback khi mạng offline hoặc backend không sẵn sàng trong môi trường debug
-        result = { success: true, server_time: timeStr };
+        // GIẢI PHÓNG KHÓA NGAY LẬP TỨC KHI THẤT BẠI: Cho phép công nhân thử lại ngay lập tức trong vòng 1s
+        isLockedRef.current = false;
+        globalCheckInLockTimestamp = 0;
+        if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+        return;
       }
 
       // 6. Hoàn tất thành công: Hiển thị GIỜ DO SERVER TRẢ & ĐÁNH GIÁ CÔNG TỰ ĐỘNG
@@ -250,6 +261,9 @@ export default function OneTouchCheckIn({
     } catch (err) {
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
       setStage(STAGES.ERROR);
+      // Mở khóa ngay lập tức khi gặp ngoại lệ để người dùng có thể bấm lại
+      isLockedRef.current = false;
+      globalCheckInLockTimestamp = 0;
 
       // Phân tích mã lỗi theo danh mục yêu cầu
       if (err.code === "LOCATION_PERMISSION_DENIED") {
@@ -322,6 +336,7 @@ export default function OneTouchCheckIn({
       {/* NÚT CHẤM CÔNG 1 CHẠM LỚN (BIG BUTTON - DỄ BẤM CHO NGƯỜI LỚN TUỔI) */}
       <div className="relative my-4 flex flex-col items-center">
         <button
+          id="btn-start-checkin"
           type="button"
           onClick={() => handleStartCheckIn(false)}
           disabled={isLockedRef.current || stage === STAGES.SUBMITTING || isLockedPeriod}

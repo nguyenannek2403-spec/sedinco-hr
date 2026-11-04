@@ -465,7 +465,7 @@ class AttendanceService {
 
         const session = sessions[0];
         if (session.is_used === 1 || session.is_used === true) {
-            const error = new Error('Mã QR này đã được sử dụng! Vui lòng quét mã QR mới trên màn hình.');
+            const error = new Error('Mã vừa có người dùng, vui lòng quét mã mới! (Mã QR này đã được sử dụng)');
             error.statusCode = 400;
             throw error;
         }
