@@ -15,27 +15,55 @@ const { query } = require('../config/db');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
 const { generateDynamicQrToken } = require('../utils/dynamicQrHelper');
 
-// Rate limiting in-memory: map of kiosk_id -> { count, firstRequest }
-const kioskRateLimits = new Map();
-const KIOSK_MAX_REQUESTS_PER_MINUTE = 60;
+// Rate limiting in-memory riêng biệt cho 2 nhóm thao tác:
+// 1. Nhóm sinh mã QR mới: 60 req/phút/kiosk
+// 2. Nhóm polling trạng thái: 120 req/phút/kiosk
+const kioskQrLimits = new Map();
+const kioskPollLimits = new Map();
+const kioskRecentPolls = new Map(); // kiosk_id -> mảng timestamp các request trong 3s
+const lastConcurrentWarnByKiosk = new Map();
+const KIOSK_QR_LIMIT = 60;
+const KIOSK_POLL_LIMIT = 120;
 const KIOSK_RATE_WINDOW_MS = 60 * 1000;
 
-function checkKioskRateLimit(kioskId) {
+function checkKioskRateLimit(kioskId, type = 'qr') {
     const now = Date.now();
-    let record = kioskRateLimits.get(kioskId);
+    const map = type === 'poll' ? kioskPollLimits : kioskQrLimits;
+    const maxReqs = type === 'poll' ? KIOSK_POLL_LIMIT : KIOSK_QR_LIMIT;
 
+    let record = map.get(kioskId);
     if (!record || (now - record.firstRequest > KIOSK_RATE_WINDOW_MS)) {
         record = { count: 1, firstRequest: now };
-        kioskRateLimits.set(kioskId, record);
+        map.set(kioskId, record);
         return true;
     }
 
     record.count++;
-    if (record.count > KIOSK_MAX_REQUESTS_PER_MINUTE) {
+    if (record.count > maxReqs) {
         return false;
     }
 
     return true;
+}
+
+function trackConcurrentPolling(kioskId) {
+    const now = Date.now();
+    let timestamps = kioskRecentPolls.get(kioskId) || [];
+    // Chỉ giữ lại các request trong cửa sổ 3 giây gần nhất
+    timestamps = timestamps.filter(t => now - t <= 3000);
+    timestamps.push(now);
+    kioskRecentPolls.set(kioskId, timestamps);
+
+    // Cảnh báo khi có > 4 phiên polling đồng thời trong 3s
+    if (timestamps.length > 4) {
+        const lastWarn = lastConcurrentWarnByKiosk.get(kioskId) || 0;
+        if (now - lastWarn >= 5000) {
+            lastConcurrentWarnByKiosk.set(kioskId, now);
+            console.warn(`[CẢNH BÁO BẢO MẬT] KIOSK_CONCURRENT_POLL_EXCEEDED: Khóa Kiosk ID ${kioskId} có ${timestamps.length} phiên polling đồng thời trong 3s!`);
+        }
+        return true;
+    }
+    return false;
 }
 
 class KioskService {
@@ -262,10 +290,30 @@ class KioskService {
             throw error;
         }
 
-        if (!kiosks[0].is_active) {
+        const kiosk = kiosks[0];
+        if (!kiosk.is_active) {
             const error = new Error('Thiết bị Kiosk này đã bị thu hồi quyền hoạt động!');
             error.statusCode = 403;
             throw error;
+        }
+
+        // Kiểm tra Rate limit riêng cho Polling: tối đa 120 req/phút/kiosk
+        if (!checkKioskRateLimit(kiosk.id, 'poll')) {
+            const error = new Error('Vượt quá hạn mức polling trạng thái QR của Kiosk (120 req/phút)!');
+            error.statusCode = 429;
+            throw error;
+        }
+
+        // Kiểm tra cảnh báo nếu có > 4 phiên polling đồng thời trong 3s
+        const hasExceededConcurrency = trackConcurrentPolling(kiosk.id);
+        if (hasExceededConcurrency) {
+            await logAuditEvent({
+                actor_id: `kiosk:${kiosk.id}`,
+                actor_role: 'kiosk',
+                action: 'KIOSK_CONCURRENT_POLL_EXCEEDED',
+                resource: 'kiosk',
+                details: { kiosk_id: kiosk.id, session_token: sessionToken }
+            }).catch(() => {});
         }
 
         const rows = await query('SELECT is_used, expires_at FROM dynamic_qr_sessions WHERE session_token = ? LIMIT 1', [sessionToken.trim()]);
@@ -277,6 +325,7 @@ class KioskService {
         const isUsed = Boolean(row.is_used);
         const isExpired = new Date(row.expires_at) <= new Date();
 
+        // CHỈ TRẢ VỀ TRẠNG THÁI, TUYỆT ĐỐI KHÔNG TRẢ TOKEN QR
         return {
             is_used: isUsed,
             is_expired: isExpired,
@@ -288,7 +337,10 @@ class KioskService {
      * Dùng cho test cleanup
      */
     resetRateLimit() {
-        kioskRateLimits.clear();
+        kioskQrLimits.clear();
+        kioskPollLimits.clear();
+        kioskRecentPolls.clear();
+        lastConcurrentWarnByKiosk.clear();
     }
 }
 

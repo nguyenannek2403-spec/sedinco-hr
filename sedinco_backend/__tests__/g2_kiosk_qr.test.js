@@ -354,3 +354,118 @@ it('TC-G2-KIOSK-10: Mutation Test - Tắt đổi mã sớm (cố tình giữ mã
     assert.equal(failRes.status, 400);
     assert.ok(failRes.data.message.includes('quét trước đó') || failRes.data.message.includes('sử dụng'));
 });
+
+// ─────────────────────────────────────────────────
+// TC-G2-KIOSK-11: Tách biệt hạn mức QR (60/phút) và Polling (120/phút); QR-status không trả token (G8.5 Mục G)
+// ─────────────────────────────────────────────────
+it('TC-G2-KIOSK-11: Tách biệt 2 nhóm hạn mức Kiosk (QR 60/phút, Poll 120/phút) và endpoint qr-status không trả token', async () => {
+    const kioskService = require('../src/services/kioskService');
+    kioskService.resetRateLimit();
+
+    const regRes = await request('/api/kiosk/register', {
+        method: 'POST',
+        token: adminToken,
+        body: { kiosk_name: 'TEST_KIOSK_LIMIT_SPLIT', branch_id: 1 }
+    });
+    assert.equal(regRes.status, 201);
+    const key = regRes.data.data.api_key;
+    const kioskId = regRes.data.data.id;
+
+    try {
+        // Sinh 1 mã QR đầu tiên
+        const qrInit = await request('/api/kiosk/qr', {
+            method: 'GET',
+            headers: { 'x-kiosk-key': key }
+        });
+        assert.equal(qrInit.status, 200);
+        const sessionToken = qrInit.data.data.token;
+
+        // 1. Kiểm tra response của /api/kiosk/qr-status: CHỈ TRẢ VỀ TRẠNG THÁI, KHÔNG TRẢ TOKEN
+        const statusRes = await request(`/api/kiosk/qr-status?token=${sessionToken}`, {
+            method: 'GET',
+            headers: { 'x-kiosk-key': key }
+        });
+        assert.equal(statusRes.status, 200);
+        assert.equal(typeof statusRes.data.data.is_used, 'boolean');
+        assert.equal(typeof statusRes.data.data.is_expired, 'boolean');
+        assert.equal(typeof statusRes.data.data.can_renew, 'boolean');
+        assert.equal(statusRes.data.data.token, undefined, 'Endpoint qr-status TUYỆT ĐỐI KHÔNG được trả trường token');
+        assert.equal(statusRes.data.data.session_token, undefined, 'Không được trả trường session_token');
+        assert.equal(statusRes.data.data.qr_code, undefined, 'Không được trả qr_code');
+
+        // 2. Thử nghiệm hạn mức Polling: Gửi 119 request tiếp theo (tổng 120 req polling) -> Đều thành công
+        for (let i = 2; i <= 120; i++) {
+            const pRes = await request(`/api/kiosk/qr-status?token=${sessionToken}`, {
+                method: 'GET',
+                headers: { 'x-kiosk-key': key }
+            });
+            assert.equal(pRes.status, 200);
+        }
+
+        // Lần thứ 121: Vượt quá 120 req/phút của polling -> Bị chặn 429
+        const pollBlocked = await request(`/api/kiosk/qr-status?token=${sessionToken}`, {
+            method: 'GET',
+            headers: { 'x-kiosk-key': key }
+        });
+        assert.equal(pollBlocked.status, 429, 'Polling lần thứ 121 phải bị chặn HTTP 429');
+        assert.ok(pollBlocked.data.message.includes('120 req/phút'));
+
+        // 3. Chứng minh tính độc lập: Dù polling đã hết quota (429), nhóm sinh QR vẫn còn quota (mới dùng 1 lần)
+        const qrStillAllowed = await request('/api/kiosk/qr', {
+            method: 'GET',
+            headers: { 'x-kiosk-key': key }
+        });
+        assert.equal(qrStillAllowed.status, 200, 'Sinh QR vẫn phải thành công 200 do quota 60/phút độc lập hoàn toàn với polling');
+    } finally {
+        await query('DELETE FROM kiosk_devices WHERE id = ?', [kioskId]);
+        await query('DELETE FROM dynamic_qr_sessions WHERE branch_id = 1 AND session_token LIKE "kiosk:%"');
+        kioskService.resetRateLimit();
+    }
+});
+
+// ─────────────────────────────────────────────────
+// TC-G2-KIOSK-12: Cảnh báo và ghi log KIOSK_CONCURRENT_POLL_EXCEEDED khi > 4 phiên polling đồng thời (G8.5 Mục G)
+// ─────────────────────────────────────────────────
+it('TC-G2-KIOSK-12: Cảnh báo log và ghi Audit Log khi 1 khóa Kiosk có > 4 phiên polling đồng thời trong 3s', async () => {
+    const kioskService = require('../src/services/kioskService');
+    kioskService.resetRateLimit();
+
+    const regRes = await request('/api/kiosk/register', {
+        method: 'POST',
+        token: adminToken,
+        body: { kiosk_name: 'TEST_KIOSK_CONCURRENT_POLL', branch_id: 1 }
+    });
+    assert.equal(regRes.status, 201);
+    const key = regRes.data.data.api_key;
+    const kioskId = regRes.data.data.id;
+
+    try {
+        const qrRes = await request('/api/kiosk/qr', {
+            method: 'GET',
+            headers: { 'x-kiosk-key': key }
+        });
+        const sessionToken = qrRes.data.data.token;
+
+        // Bắn 5 request polling đồng thời trong vòng 50ms (giả lập 5 tab trình duyệt cùng mở)
+        const pollPromises = [];
+        for (let i = 0; i < 5; i++) {
+            pollPromises.push(request(`/api/kiosk/qr-status?token=${sessionToken}`, {
+                method: 'GET',
+                headers: { 'x-kiosk-key': key }
+            }));
+        }
+        await Promise.all(pollPromises);
+
+        // Kiểm tra audit log có ghi nhận sự kiện KIOSK_CONCURRENT_POLL_EXCEEDED
+        const auditRows = await query(
+            'SELECT action, details FROM audit_logs WHERE actor_id = ? AND action = "KIOSK_CONCURRENT_POLL_EXCEEDED" ORDER BY id DESC LIMIT 1',
+            [`kiosk:${kioskId}`]
+        );
+        assert.ok(auditRows.length > 0, 'Phải có bản ghi audit log KIOSK_CONCURRENT_POLL_EXCEEDED');
+        assert.equal(auditRows[0].action, 'KIOSK_CONCURRENT_POLL_EXCEEDED');
+    } finally {
+        await query('DELETE FROM kiosk_devices WHERE id = ?', [kioskId]);
+        await query('DELETE FROM audit_logs WHERE actor_id = ?', [`kiosk:${kioskId}`]);
+        kioskService.resetRateLimit();
+    }
+});
