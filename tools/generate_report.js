@@ -428,10 +428,50 @@ async function generateReport() {
         {
             stt: 1,
             test_id: 'TC-HAND-01',
-            item: 'Chẩn đoán Extension Zalo Mini App',
+            item: 'Xác Minh Access Token với Zalo Server qua Backend',
+            env: 'Zalo Mini App trên điện thoại thật',
+            steps: '1. Gọi getAccessToken ở client (SDK Zalo) để lấy access token thô.\n2. Client gửi token lên server backend qua endpoint /api/auth/zalo-verify.\n3. Server xác minh với Zalo Server Open API.\n4. Màn hình hiện NGUYÊN VĂN phản hồi của server (không dùng getUserInfo ở bước này).',
+            expected: 'Màn hình hiển thị nguyên văn phản hồi từ server backend (status code, body JSON từ Zalo API, không che giấu lỗi mã/thông điệp lỗi).',
+            user_result: 'CẦN NGƯỜI THỬ',
+            user_note: 'getUserInfo là mục riêng nếu cần sau khi xác minh token'
+        },
+        {
+            stt: 2,
+            test_id: 'TC-HAND-ENV-01',
+            item: 'Chẩn đoán Extension VS Code (Môi Trường Ngoài App)',
             env: 'VS Code Extension Zalo Mini App',
-            steps: '1. Mở VS Code -> Tab Zalo Mini App.\n2. Chọn mục "Chẩn đoán" (Diagnostics).\n3. Bấm icon Refresh làm mới kiểm tra.',
-            expected: 'Tất cả các mục: Mini App ID, SDK, ZaUI, Vite, Plugin ZMP, Plugin React đều XANH (PASS). Ghi nhận log npm ls sạch.',
+            steps: '1. Mở VS Code -> Tab Zalo Mini App.\n2. Chọn mục "Chẩn đoán" (Diagnostics).\n3. Bấm icon Refresh làm mới kiểm tra.\n(Tách biệt hoàn toàn khỏi màn hình /diagnostics trong app).',
+            expected: 'Tất cả 6 mục: Mini App ID, SDK, ZaUI, Vite, Plugin ZMP, Plugin React đều XANH (PASS). Log npm ls sạch.',
+            user_result: 'CẦN NGƯỜI THỬ',
+            user_note: ''
+        },
+        {
+            stt: 3,
+            test_id: 'TC-HAND-KIOSK-02',
+            item: 'Mở 2 Tab Kiosk Đồng Thời Cùng Khóa Kiosk (Biên 48/60)',
+            env: 'Trình duyệt PC / Tablet (2 tab)',
+            steps: '1. Mở tab 1 Kiosk nhập khóa ksk_*.\n2. Mở tab 2 cùng trình duyệt nhập cùng khóa ksk_*.\n3. Cả 2 tab cùng polling mỗi 2.5s (48 req/phút).\n4. Thử F5 / tải lại tab 1.',
+            expected: 'Cả 2 tab hiển thị mã QR và tự làm mới độc lập. Không bị lỗi 429 khi polling. Khi chạm trần sinh QR thì kích hoạt backoff 5s hiển thị rõ và tự khôi phục.',
+            user_result: 'CẦN NGƯỜI THỬ',
+            user_note: ''
+        },
+        {
+            stt: 4,
+            test_id: 'TC-HAND-ATT-NET-01',
+            item: 'Mất Mạng Giữa Lúc Chấm Công (In-Flight Offline)',
+            env: 'Điện thoại di động thật',
+            steps: '1. Quét mã QR Kiosk hoặc bấm nút Chấm công.\n2. Ngắt Wi-Fi/4G ngay lập tức trước khi nhận phản hồi từ server.\n3. Bật lại mạng sau 5 giây.',
+            expected: 'Giao diện hiển thị thông báo lỗi mạng rõ ràng, không treo spinner, không sinh bản ghi chấm công rác hoặc trùng lặp trong CSDL.',
+            user_result: 'CẦN NGƯỜI THỬ',
+            user_note: ''
+        },
+        {
+            stt: 5,
+            test_id: 'TC-HAND-KIOSK-WAKE-01',
+            item: 'Tablet Kiosk Không Tự Tắt Màn Hình (Screen Wake Lock)',
+            env: 'Tablet Android / iPad chuyên dụng tại cổng',
+            steps: '1. Mở màn hình Kiosk trên tablet.\n2. Bật chế độ Toàn Màn Hình.\n3. Để yên không chạm vào màn hình trong 15-30 phút.',
+            expected: 'Màn hình Kiosk duy trì sáng liên tục (Screen Wake Lock API), không bị khóa màn hình, không chuyển sang chế độ ngủ (sleep mode).',
             user_result: 'CẦN NGƯỜI THỬ',
             user_note: ''
         },

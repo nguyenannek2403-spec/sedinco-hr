@@ -114,6 +114,24 @@ async function main() {
             'Thử nghiệm giao diện ứng dụng trên 3 cỡ máy thực tế: Màn hình nhỏ (iPhone SE / 360x640), Màn hình tiêu chuẩn (iPhone 12/13/14 / 375x812) và Màn hình lớn (iPhone Plus/Max / 414x896).',
             'Giao diện co giãn chuẩn responsive, không bị tràn chữ (text overflow), nút bấm dễ chạm, bảng ma trận công cuộn mượt mà.',
             'CẦN NGƯỜI THỬ', 'reports/screens/L3_Run1_TC-L3-UI-LOGIN-WORKER-01_360x640.png', ''
+        ],
+        [
+            11, 'PILOT-STEP-11', 'Mở 2 Tab Kiosk đồng thời cùng khóa (Biên 48/60)', 'admin / kiosk',
+            'Mở đồng thời 2 tab trình duyệt cùng truy cập màn hình Kiosk với cùng một API Key (ksk_*). Theo dõi polling 2.5s và thử F5 tải lại.',
+            'Cả 2 tab hoạt động ổn định, polling nhịp nhàng không bị 429; khi chạm trần kích hoạt cơ chế backoff 5s hiển thị rõ và tự khôi phục.',
+            'CẦN NGƯỜI THỬ', '', ''
+        ],
+        [
+            12, 'PILOT-STEP-12', 'Mất mạng giữa lúc chấm công (In-Flight Offline)', 'worker',
+            'Bấm nút Chấm công hoặc quét QR Kiosk, lập tức ngắt Wi-Fi/4G trước khi nhận phản hồi từ server, bật lại mạng sau 5s.',
+            'Giao diện hiển thị thông báo lỗi mạng rõ ràng, không treo spinner, không sinh bản ghi chấm công rác hoặc trùng lặp.',
+            'CẦN NGƯỜI THỬ', '', ''
+        ],
+        [
+            13, 'PILOT-STEP-13', 'Tablet Kiosk duy trì sáng màn hình (Screen Wake Lock)', 'kiosk',
+            'Mở Kiosk trên tablet chuyên dụng tại cổng nhà máy, bật toàn màn hình, để yên không chạm trong 15-30 phút.',
+            'Màn hình Kiosk duy trì sáng liên tục (Screen Wake Lock API), không bị khóa màn hình, không chuyển sang chế độ ngủ (sleep mode).',
+            'CẦN NGƯỜI THỬ', '', ''
         ]
     ];
 
