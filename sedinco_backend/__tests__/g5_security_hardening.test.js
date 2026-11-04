@@ -26,6 +26,7 @@ const attendanceService = require('../src/services/attendanceService');
 const kioskService = require('../src/services/kioskService');
 const { generateDynamicQrToken, verifyDynamicQrToken } = require('../src/utils/dynamicQrHelper');
 const { hashPassword } = require('../src/utils/passwordHelper');
+const app = require('../src/app');
 
 describe('G5: Security Hardening & Staged Rollout (B2, B3, B4)', () => {
 
@@ -231,6 +232,149 @@ describe('G5: Security Hardening & Staged Rollout (B2, B3, B4)', () => {
             });
         } finally {
             process.env.ALLOW_LEGACY_ADMIN_QR = prevEnv;
+        }
+    });
+
+    // ═════════════════════════════════════════════════════════════════
+    // G8.3: TRANSACTION ACID (S9_02), BODY SIZE LIMIT & KIOSK CONCURRENCY
+    // ═════════════════════════════════════════════════════════════════
+
+    it('TC-G8-TX-FAULT-INJECTION-01: Chèn lỗi giữa tiêu QR và ghi công -> Transaction Rollback, QR còn nguyên (is_used=0), không có công rác', async () => {
+        const qrRes = await attendanceService.generateDynamicQr(1);
+        const workerUser = { ma_nv: 'NV001', role: 'worker' };
+
+        // Kiểm tra QR ban đầu là is_used = 0
+        const [initialSession] = await query('SELECT is_used FROM dynamic_qr_sessions WHERE session_token = ?', [qrRes.token]);
+        assert.equal(initialSession.is_used, 0);
+
+        // Đếm số công ban đầu của NV001 hôm nay
+        const [{ countBefore }] = await query('SELECT COUNT(*) as countBefore FROM attendance_logs WHERE employee_id = ? AND record_date = CURRENT_DATE()', ['NV001']);
+
+        // Chạy checkInMultiFactor với fault injection hook ném lỗi ngay sau khi UPDATE is_used = 1
+        await assert.rejects(async () => {
+            await attendanceService.checkInMultiFactor({
+                token: qrRes.token,
+                lat: 16.0544,
+                lng: 108.2022,
+                current_user: workerUser,
+                faultInjectionHook: async (txQuery) => {
+                    throw new Error('SIMULATED_DB_CRASH_DURING_ATTENDANCE_INSERT');
+                }
+            });
+        }, (err) => {
+            return err.message === 'SIMULATED_DB_CRASH_DURING_ATTENDANCE_INSERT';
+        });
+
+        // Chứng minh: Transaction đã Rollback!
+        // 1. dynamic_qr_sessions VẪN LÀ is_used = 0 (QR không bị tiêu hủy oan!)
+        const [afterSession] = await query('SELECT is_used FROM dynamic_qr_sessions WHERE session_token = ?', [qrRes.token]);
+        assert.equal(afterSession.is_used, 0, 'Transaction phải rollback: QR session không được bị đánh dấu is_used=1');
+
+        // 2. Không có bản ghi rác mới nào trong attendance_logs
+        const [{ countAfter }] = await query('SELECT COUNT(*) as countAfter FROM attendance_logs WHERE employee_id = ? AND record_date = CURRENT_DATE()', ['NV001']);
+        assert.equal(countAfter, countBefore, 'Không có bản ghi chấm công rác nào được lưu lại');
+
+        // 3. Sau khi sự cố qua đi, chính mã QR này VẪN CÓ THỂ chấm công thành công
+        const retryCheck = await attendanceService.checkInMultiFactor({
+            token: qrRes.token,
+            lat: 16.0544,
+            lng: 108.2022,
+            current_user: workerUser
+        });
+        assert.equal(retryCheck.success, true, 'Mã QR vẫn sử dụng được sau khi rollback');
+
+        // Dọn dẹp
+        await query('DELETE FROM dynamic_qr_sessions WHERE session_token = ?', [qrRes.token]);
+    });
+
+    it('TC-G8-BODY-LIMIT-01: Payload quá 100 KB gửi vào /api/auth/employee-login bị từ chối HTTP 413 trước khi vào Service', async () => {
+        let testServer;
+        let testBaseUrl;
+        await new Promise((resolve) => {
+            testServer = app.listen(0, () => {
+                testBaseUrl = `http://127.0.0.1:${testServer.address().port}`;
+                resolve();
+            });
+        });
+
+        try {
+            // Tạo payload kích thước 150 KB (> 100 KB giới hạn mặc định)
+            const hugeData = 'A'.repeat(150 * 1024);
+            const res = await fetch(`${testBaseUrl}/api/auth/employee-login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ma_nv: 'NV001', password: 'Password123', garbage: hugeData })
+            });
+
+            assert.equal(res.status, 413, 'Payload > 100 KB vào login phải bị từ chối với HTTP 413 Payload Too Large');
+            const data = await res.json();
+            assert.equal(data.success, false);
+        } finally {
+            await new Promise((res) => testServer.close(res));
+        }
+    });
+
+    it('TC-G8-BODY-LIMIT-02: Payload ảnh snapshot ~1.5 MB gửi vào route /api/attendance vượt qua body parser an toàn (không bị 413)', async () => {
+        let testServer;
+        let testBaseUrl;
+        await new Promise((resolve) => {
+            testServer = app.listen(0, () => {
+                testBaseUrl = `http://127.0.0.1:${testServer.address().port}`;
+                resolve();
+            });
+        });
+
+        try {
+            // Tạo payload kích thước ~1.5 MB (cho ảnh Base64 hợp lệ của camera công nhân)
+            const imagePayload = 'data:image/jpeg;base64,' + 'B'.repeat(1.5 * 1024 * 1024);
+            const res = await fetch(`${testBaseUrl}/api/attendance/check-in`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_snapshot: imagePayload })
+            });
+
+            // Không bị chặn bởi 413 Payload Too Large, mà vượt qua body-parser tới tầng auth middleware (trả về 401 Unauthorized do thiếu token)
+            assert.notEqual(res.status, 413, 'Ảnh snapshot 1.5 MB không được bị 413');
+            assert.equal(res.status, 401, 'Request đã lọt qua body-parser tới auth middleware');
+        } finally {
+            await new Promise((res) => testServer.close(res));
+        }
+    });
+
+    it('TC-G8-KIOSK-CONCURRENT-RATE-01: 2 Kiosk chạy đồng thời có rate limiter độc lập (60 req/phút/kiosk), polling 24 req/phút không chạm ngưỡng', async () => {
+        // Đăng ký 2 Kiosk riêng biệt
+        const k1 = await kioskService.registerKiosk({ kiosk_name: 'KIOSK_CONCURRENT_1', branch_id: 1, created_by: 'system' });
+        const k2 = await kioskService.registerKiosk({ kiosk_name: 'KIOSK_CONCURRENT_2', branch_id: 1, created_by: 'system' });
+        kioskService.resetRateLimit();
+
+        try {
+            // Cả 2 Kiosk cùng sinh QR ban đầu
+            const qr1 = await kioskService.generateKioskQr(k1.api_key, '192.168.1.101');
+            const qr2 = await kioskService.generateKioskQr(k2.api_key, '192.168.1.102');
+
+            // Giả lập 24 nhịp polling trạng thái (tương đương 1 phút chạy liên tục mỗi 2.5s) cho cả 2 Kiosk
+            for (let i = 0; i < 24; i++) {
+                const s1 = await kioskService.getKioskQrStatus(k1.api_key, qr1.token);
+                const s2 = await kioskService.getKioskQrStatus(k2.api_key, qr2.token);
+                assert.equal(s1.is_used, false);
+                assert.equal(s2.is_used, false);
+            }
+
+            // Kiosk 1 sinh thêm 5 lần QR đổi mã mới -> vẫn dưới 60 req/phút
+            for (let i = 0; i < 5; i++) {
+                const newQr = await kioskService.generateKioskQr(k1.api_key, '192.168.1.101');
+                assert.ok(newQr.token);
+            }
+
+            // Kiosk 2 sinh thêm 5 lần QR đổi mã mới -> độc lập hoàn toàn, không bị ảnh hưởng bởi Kiosk 1
+            for (let i = 0; i < 5; i++) {
+                const newQr = await kioskService.generateKioskQr(k2.api_key, '192.168.1.102');
+                assert.ok(newQr.token);
+            }
+        } finally {
+            await query('DELETE FROM kiosk_devices WHERE id IN (?, ?)', [k1.id, k2.id]);
+            await query('DELETE FROM dynamic_qr_sessions WHERE branch_id = 1 AND session_token LIKE "kiosk:%"');
+            kioskService.resetRateLimit();
         }
     });
 });

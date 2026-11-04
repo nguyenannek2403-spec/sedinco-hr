@@ -5,8 +5,8 @@
 const { logRejection } = require('../utils/structuredLogger');
 
 function errorHandler(err, req, res, next) {
-    const statusCode = err.statusCode || 500;
-    const errorCode = err.code || (statusCode === 403 ? 'FORBIDDEN' : (statusCode === 400 ? 'BAD_REQUEST' : 'SERVER_ERROR'));
+    const statusCode = err.statusCode || err.status || 500;
+    const errorCode = err.code || (statusCode === 413 ? 'PAYLOAD_TOO_LARGE' : (statusCode === 403 ? 'FORBIDDEN' : (statusCode === 400 ? 'BAD_REQUEST' : 'SERVER_ERROR')));
 
     logRejection({
         code: errorCode,

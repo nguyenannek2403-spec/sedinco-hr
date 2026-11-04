@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const { logAuditEvent, getAccountantPermissions } = require('../middlewares/authMiddleware');
 const { calculateDistanceMeters } = require('../utils/geoHelper');
 const { generateDynamicQrToken, verifyDynamicQrToken } = require('../utils/dynamicQrHelper');
@@ -381,7 +381,7 @@ class AttendanceService {
         };
     }
 
-    async checkInMultiFactor({ token, lat, lng, zalo_location_token, image_snapshot, device_info, current_user = null, ip_address = '', currentTime = null }) {
+    async checkInMultiFactor({ token, lat, lng, zalo_location_token, image_snapshot, device_info, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
             error.statusCode = 401;
@@ -594,18 +594,9 @@ class AttendanceService {
             }
         }
 
-        // 8. Đánh dấu Token đã sử dụng (Atomic Single-Use update)
-        const updateRes = await query(
-            'UPDATE dynamic_qr_sessions SET is_used = 1, used_by = ?, used_at = NOW() WHERE session_token = ? AND is_used = 0',
-            [ma_nv, token]
-        );
-        if (!updateRes || updateRes.affectedRows === 0) {
-            const error = new Error('Mã QR đã vừa được sử dụng bởi phiên khác! Vui lòng quét mã mới.');
-            error.statusCode = 400;
-            throw error;
-        }
-
-        // 9. Ghi nhận nhật ký chấm công vào attendance_logs (Chuẩn hóa múi giờ Việt Nam Asia/Ho_Chi_Minh)
+        // 8 & 9. Giao dịch ACID nguyên khối (Atomic Transaction S9_02):
+        // Tiêu thụ mã QR và ghi nhận chấm công trong cùng một Database Transaction.
+        // Ngăn chặn hoàn toàn tình trạng: QR bị tiêu mà không có công, hoặc có công mà QR vẫn dùng tiếp được.
         const { getVietnamDateString, getVietnamTimeString } = require('../utils/timeHelper');
         const dateStr = getVietnamDateString(today);
         const timeStr = getVietnamTimeString(today);
@@ -631,19 +622,38 @@ class AttendanceService {
                 is_low_trust = CASE WHEN VALUES(is_low_trust) > is_low_trust THEN VALUES(is_low_trust) ELSE is_low_trust END
         `;
 
-        await query(insertLogSql, [
-            ma_nv,
-            dateStr,
-            timeStr,
-            numLat,
-            numLng,
-            image_snapshot || null,
-            is_suspicious ? 1 : 0,
-            suspicious_reason || null,
-            device_info || null,
-            location_source,
-            is_low_trust
-        ]);
+        await withTransaction(async (txQuery) => {
+            // Bước 8: Đánh dấu Token đã sử dụng (Atomic Single-Use update)
+            const updateRes = await txQuery(
+                'UPDATE dynamic_qr_sessions SET is_used = 1, used_by = ?, used_at = NOW() WHERE session_token = ? AND is_used = 0',
+                [ma_nv, token]
+            );
+            if (!updateRes || updateRes.affectedRows === 0) {
+                const error = new Error('Mã QR đã vừa được sử dụng bởi phiên khác! Vui lòng quét mã mới.');
+                error.statusCode = 400;
+                throw error;
+            }
+
+            // Hook kiểm thử chèn lỗi (Fault Injection hook chỉ được phép hoạt động trong môi trường test an toàn)
+            if (faultInjectionHook && process.env.NODE_ENV === 'test') {
+                await faultInjectionHook(txQuery);
+            }
+
+            // Bước 9: Ghi nhận nhật ký chấm công vào attendance_logs
+            await txQuery(insertLogSql, [
+                ma_nv,
+                dateStr,
+                timeStr,
+                numLat,
+                numLng,
+                image_snapshot || null,
+                is_suspicious ? 1 : 0,
+                suspicious_reason || null,
+                device_info || null,
+                location_source,
+                is_low_trust
+            ]);
+        });
 
         // 10. Ghi Audit Log
         await logAuditEvent({

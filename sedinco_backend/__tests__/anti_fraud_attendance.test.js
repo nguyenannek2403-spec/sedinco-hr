@@ -181,34 +181,36 @@ test('TC-ANTI-09: 30 công nhân cùng IP Wi-Fi công ty chấm công liên ti�
 
     let flaggedCount = 0;
 
-    for (let i = 0; i < 30; i++) {
-        const qr = await attendanceService.generateDynamicQr(1);
-        sessionsToClean.push(qr.token);
+    try {
+        for (let i = 0; i < 30; i++) {
+            const qr = await attendanceService.generateDynamicQr(1);
+            sessionsToClean.push(qr.token);
 
-        const res = await attendanceService.checkInMultiFactor({
-            token: qr.token,
-            lat: 16.0544,
-            lng: 108.2022,
-            ip_address: sharedWifiIp, // Tất cả 30 người đều dùng chung 1 IP Wi-Fi
-            device_info: `Employee-Personal-Phone-Unique-${i}`, // Mỗi người có thiết bị riêng
-            current_user: testWorkers[i]
-        });
+            const res = await attendanceService.checkInMultiFactor({
+                token: qr.token,
+                lat: 16.0544,
+                lng: 108.2022,
+                ip_address: sharedWifiIp, // Tất cả 30 người đều dùng chung 1 IP Wi-Fi
+                device_info: `Employee-Personal-Phone-Unique-${i}`, // Mỗi người có thiết bị riêng
+                current_user: testWorkers[i]
+            });
 
-        assert.equal(res.success, true, `Nhân viên ${testWorkers[i].ma_nv} phải chấm công thành công`);
-        if (res.data.is_suspicious) {
-            flaggedCount++;
+            assert.equal(res.success, true, `Nhân viên ${testWorkers[i].ma_nv} phải chấm công thành công`);
+            if (res.data.is_suspicious) {
+                flaggedCount++;
+            }
         }
-    }
 
-    assert.equal(flaggedCount, 0, '30 công nhân cùng IP Wi-Fi nhưng thiết bị riêng tuyệt đối KHÔNG BỊ cắm cờ nghi vấn (0 cờ)');
-
-    // Dọn dẹp session và dữ liệu test
-    if (sessionsToClean.length > 0) {
-        await query('DELETE FROM dynamic_qr_sessions WHERE session_token IN (?)', [sessionsToClean]);
+        assert.equal(flaggedCount, 0, '30 công nhân cùng IP Wi-Fi nhưng thiết bị riêng tuyệt đối KHÔNG BỊ cắm cờ nghi vấn (0 cờ)');
+    } finally {
+        // Dọn dẹp session và dữ liệu test luôn được thực thi kể cả khi assert thất bại
+        if (sessionsToClean.length > 0) {
+            await query('DELETE FROM dynamic_qr_sessions WHERE session_token IN (?)', [sessionsToClean]);
+        }
+        await query('DELETE FROM attendance_logs WHERE employee_id LIKE "NV_NAT_%"');
+        await query('DELETE FROM audit_logs WHERE actor_id LIKE "NV_NAT_%"');
+        await query('DELETE FROM employees WHERE ma_nv LIKE "NV_NAT_%"');
     }
-    await query('DELETE FROM attendance_logs WHERE employee_id LIKE "NV_NAT_%"');
-    await query('DELETE FROM audit_logs WHERE actor_id LIKE "NV_NAT_%"');
-    await query('DELETE FROM employees WHERE ma_nv LIKE "NV_NAT_%"');
 });
 
 test('TC-ANTI-06: Giới hạn tối đa 3 đơn bổ sung công / quên chấm công trong 1 tháng', async () => {

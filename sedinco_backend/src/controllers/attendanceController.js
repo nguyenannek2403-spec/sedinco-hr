@@ -105,7 +105,7 @@ class AttendanceController {
     async checkInMultiFactor(req, res, next) {
         try {
             const { token, lat, lng, zalo_location_token, image_snapshot, device_info } = req.body;
-            const ip = req.ip || (req.connection && req.connection.remoteAddress) || '';
+            const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || (req.connection && req.connection.remoteAddress) || '';
             const result = await attendanceService.checkInMultiFactor({
                 token,
                 lat,
