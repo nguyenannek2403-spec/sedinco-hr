@@ -262,7 +262,42 @@ Qua rà soát mã nguồn router tại `sedinco_backend/src/routes/`, hệ thố
 - **Khuyến nghị cho Máy Chủ Staging / Production**:
   - Bản LTS khuyến nghị: **Node.js v22 LTS (Active LTS - Codename: Jod, phiên bản khuyến nghị: v22.23.4+)** hoặc **Node.js v24 LTS (Krypton, v24.22.2+)**.
   - Lý do: Bản Active LTS đảm bảo tính ổn định cao nhất, tương thích rộng rãi với các native addon, driver MySQL connection pool và các thư viện mã hóa.
-- **Môi trường phát triển cục bộ**: Đang vận hành trên Node.js `v26.7.0` (Lithium).
+- **Môi trường phát triển cục bộ**: Đang vận hành trên Node.js `v26.13.0` (Lithium LTS, phát hành 28/10/2026).
+
+### 7.2 Kiểm Đếm Bộ Test Tự Động Backend (Đợt G8.5) [ĐÃ XÁC MINH L1]
+- **Tổng số bài kiểm thử**: **155 tests** trên 21 file test độc lập (155 PASS, 0 FAIL, 0 SKIPPED).
+- **Lịch sử biến động số lượng test**:
+  - Tại commit baseline `f578675`: **138 tests**.
+  - Đợt G8.4: bổ sung 11 tests (+5 trong `g8_ip_spoofing_security.test.js`, +6 trong `g5_security_hardening.test.js`) $\rightarrow$ **149 tests**.
+  - Đợt G8.5: bổ sung 6 tests (+4 trong `g8_ip_spoofing_security.test.js` kiểm tra DoS Lockout, IPv6 /64, TRUST_PROXY validation, XFF sanitization; +2 trong `g2_kiosk_qr.test.js` kiểm tra tách hạn mức Kiosk và cảnh báo polling đồng thời) $\rightarrow$ **155 tests**.
+- **Giải trình nguyên nhân 29 test fail trong G7**:
+  - Xảy ra khi chạy trực tiếp `node --test` mà không nạp file cấu hình môi trường `.env.test`.
+  - Thiếu biến `JWT_SECRET` (rỗng hoặc dưới 32 ký tự) khiến middleware `requireAuth` và hàm `generateToken` ném ngoại lệ cấu hình, kéo theo 29 test liên quan đến phân quyền và xác thực bị fail đồng loạt. Khi khai báo đầy đủ qua `dotenv.config({ path: '.env.test' })`, toàn bộ các bài test đều đạt trạng thái PASS.
+
+| STT | File Kiểm Thử | Số Test | PASS | FAIL | Trạng Thái |
+| :---: | :--- | :---: | :---: | :---: | :---: |
+| 1 | `anti_fraud_attendance.test.js` | 9 | 9 | 0 | PASS |
+| 2 | `g2_anomaly_detection.test.js` | 6 | 6 | 0 | PASS |
+| 3 | `g2_bcrypt_login.test.js` | 9 | 9 | 0 | PASS |
+| 4 | `g2_kiosk_qr.test.js` | 12 | 12 | 0 | PASS |
+| 5 | `g2_zalo_device_binding.test.js` | 7 | 7 | 0 | PASS |
+| 6 | `g3_security_hardening.test.js` | 5 | 5 | 0 | PASS |
+| 7 | `g4_security_hardening.test.js` | 15 | 15 | 0 | PASS |
+| 8 | `g5_security_hardening.test.js` | 12 | 12 | 0 | PASS |
+| 9 | `g5_worker_threads_bcrypt.test.js` | 4 | 4 | 0 | PASS |
+| 10 | `g6_db_least_privilege.test.js` | 4 | 4 | 0 | PASS |
+| 11 | `g6_diagnostics.test.js` | 4 | 4 | 0 | PASS |
+| 12 | `g6_security_hardening.test.js` | 10 | 10 | 0 | PASS |
+| 13 | `g7_security_hardening.test.js` | 5 | 5 | 0 | PASS |
+| 14 | `g8_ip_spoofing_security.test.js` | 9 | 9 | 0 | PASS |
+| 15 | `g8_timezone_and_simulation.test.js` | 1 | 1 | 0 | PASS |
+| 16 | `multi_role_simulation.test.js` | 1 | 1 | 0 | PASS |
+| 17 | `p0_security_fixes.test.js` | 9 | 9 | 0 | PASS |
+| 18 | `payroll_calculation.test.js` | 9 | 9 | 0 | PASS |
+| 19 | `rbac_and_security_deep.test.js` | 15 | 15 | 0 | PASS |
+| 20 | `security_rules.test.js` | 4 | 4 | 0 | PASS |
+| 21 | `validation.test.js` | 5 | 5 | 0 | PASS |
+| **TỔNG** | **21 Files Kiểm Thử** | **155** | **155** | **0** | **PASS 100%** |
 
 ---
 

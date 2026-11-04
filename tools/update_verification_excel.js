@@ -132,6 +132,12 @@ async function main() {
             'Mở Kiosk trên tablet chuyên dụng tại cổng nhà máy, bật toàn màn hình, để yên không chạm trong 15-30 phút.',
             'Màn hình Kiosk duy trì sáng liên tục (Screen Wake Lock API), không bị khóa màn hình, không chuyển sang chế độ ngủ (sleep mode).',
             'CẦN NGƯỜI THỬ', '', ''
+        ],
+        [
+            14, 'PILOT-STEP-14', 'Xác thực User ID qua endpoint chuẩn (/api/auth/zalo-verify)', 'worker',
+            'Ứng dụng gửi Zalo access_token lên endpoint Backend DUY NHẤT: POST /api/auth/zalo-verify để đối soát User ID và gán token JWT. [LƯU Ý: Đường dẫn ngoài graph.zalo.me/v2.0/me được gắn nhãn [CHƯA XÁC MINH] do phụ thuộc dịch vụ bên thứ 3].',
+            'Backend giải mã Zalo token, xác thực danh tính nhân viên, trả về JWT phiên làm việc. Không gọi trực tiếp graph.zalo.me từ frontend.',
+            'CẦN NGƯỜI THỬ', '', ''
         ]
     ];
 
@@ -147,8 +153,32 @@ async function main() {
         rowIdx++;
     }
 
-    // Bảng 2: Điều kiện dừng Pilot
+    // Bảng 2: Kế hoạch triển khai Pilot Ca Ngày
     rowIdx += 2;
+    wsPilot.mergeCells(`A${rowIdx}:I${rowIdx}`);
+    wsPilot.getCell(`A${rowIdx}`).value = 'KẾ HOẠCH TRIỂN KHAI PILOT CA NGÀY (THỰC ĐỊA NHÀ XƯỞNG SEDINCO)';
+    wsPilot.getCell(`A${rowIdx}`).font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+    wsPilot.getCell(`A${rowIdx}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } };
+    wsPilot.getRow(rowIdx).height = 24;
+
+    const pilotPlanDetails = [
+        ['1. Quy mô nhân sự pilot: 20 - 30 công nhân CA NGÀY thuộc Tổ sản xuất cơ khí & Lắp ráp.'],
+        ['2. Bố trí thiết bị phần cứng: 02 Kiosk đặt tại Cổng chính xưởng (01 Kiosk chính phục vụ quét, 01 Kiosk dự phòng nóng sẵn sàng chuyển đổi khi có sự cố).'],
+        ['3. Phân luồng thời gian: Chia nhỏ thành các nhóm 5 - 10 công nhân, mỗi nhóm vào quét cách nhau 5 - 10 phút trước giờ vào ca (07:40 - 08:00) để đo đạc thông lượng thực tế.'],
+        ['4. Cơ chế dự phòng sự cố (Fallback): Nếu quét QR thất bại quá 2 lần, công nhân ký sổ chấm công giấy tại bàn bảo vệ; đội kỹ thuật thu thập log ngay lập tức.']
+    ];
+
+    rowIdx++;
+    for (const plan of pilotPlanDetails) {
+        wsPilot.mergeCells(`A${rowIdx}:I${rowIdx}`);
+        wsPilot.getCell(`A${rowIdx}`).value = plan[0];
+        wsPilot.getCell(`A${rowIdx}`).font = { bold: false, color: { argb: 'FF1E293B' } };
+        wsPilot.getRow(rowIdx).height = 20;
+        rowIdx++;
+    }
+
+    // Bảng 3: Điều kiện dừng Pilot
+    rowIdx += 1;
     wsPilot.mergeCells(`A${rowIdx}:I${rowIdx}`);
     wsPilot.getCell(`A${rowIdx}`).value = 'ĐIỀU KIỆN DỪNG CHẠY THỬ PILOT (STOP CRITERIA / KILL SWITCHES)';
     wsPilot.getCell(`A${rowIdx}`).font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -172,18 +202,19 @@ async function main() {
         rowIdx++;
     }
 
-    // Bảng 3: Người nhận phản hồi
+    // Bảng 4: Người nhận phản hồi & Thông tin liên hệ đầu mối
     rowIdx++;
     wsPilot.mergeCells(`A${rowIdx}:I${rowIdx}`);
-    wsPilot.getCell(`A${rowIdx}`).value = 'ĐẦU MỐI TIẾP NHẬN PHẢN HỒI & XỬ LÝ SỰ CỐ PILOT';
+    wsPilot.getCell(`A${rowIdx}`).value = 'DANH SÁCH ĐẦU MỐI TIẾP NHẬN PHẢN HỒI & ĐIỀU PHỐI PILOT CA NGÀY';
     wsPilot.getCell(`A${rowIdx}`).font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
     wsPilot.getCell(`A${rowIdx}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF059669' } };
     wsPilot.getRow(rowIdx).height = 24;
 
     const contacts = [
-        ['1. Kỹ thuật viên phụ trách hệ thống (Technical Lead): Nguyễn Văn An (SĐT/Zalo: 09xx-xxx-xxx)'],
-        ['2. Cán bộ điều phối tại nhà máy (Plant Coordinator): Trưởng ca sản xuất Sedinco'],
-        ['3. Kênh tiếp nhận sự cố khẩn cấp: Nhóm Zalo "Sedinco HR - Đội Phản Ứng Nhanh Pilot" (Hỗ trợ 24/7 trong tuần chạy thử)']
+        ['1. Kỹ thuật viên phụ trách Hệ thống & Backend: Nguyễn Văn An | SĐT: [Điền SĐT đầu mối kỹ thuật] | Email: an.nguyen@sedinco.com.vn'],
+        ['2. Cán bộ Điều phối Sản xuất / Trưởng ca ngày: [Điền họ và tên Trưởng ca] | SĐT: [Điền SĐT Trưởng ca sản xuất]'],
+        ['3. Cán bộ Phụ trách Nhân sự & Chế độ (HR Lead): [Điền họ và tên HR Lead] | SĐT: [Điền SĐT HR]'],
+        ['4. Kênh tiếp nhận sự cố khẩn cấp: Nhóm Zalo "Sedinco HR - Đội Phản Ứng Nhanh Pilot" (Hỗ trợ 24/7 trong tuần chạy thử)']
     ];
     rowIdx++;
     for (const c of contacts) {
