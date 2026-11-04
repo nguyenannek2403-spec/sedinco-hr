@@ -5,10 +5,11 @@ class AuthController {
     async login(req, res, next) {
         try {
             const { ma_nv, password } = req.body;
-            const ip = req.ip || req.connection.remoteAddress;
+            const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
             const result = await authService.employeeLogin(ma_nv, password, ip);
             if (!result.success) {
-                return res.json({ success: false, message: result.message });
+                const status = result.statusCode || 200;
+                return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode });
             }
             return res.json({ success: true, data: result.data });
         } catch (err) {
@@ -19,10 +20,11 @@ class AuthController {
     async adminLogin(req, res, next) {
         try {
             const { username, password } = req.body;
-            const ip = req.ip || req.connection.remoteAddress;
+            const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
             const result = await authService.adminLogin(username, password, ip);
             if (!result.success) {
-                return res.json({ success: false, message: result.message });
+                const status = result.statusCode || 200;
+                return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode });
             }
             return res.json({ success: true, data: result.data });
         } catch (err) {

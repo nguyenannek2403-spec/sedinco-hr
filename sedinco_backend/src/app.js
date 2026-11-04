@@ -25,29 +25,52 @@ if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DIAGNOSTICS === 
 //   TRUST_PROXY=loopback → Chỉ tin cậy kết nối từ loopback (127.0.0.1, ::1).
 // QUAN TRỌNG: Chỉ đặt TRUST_PROXY=1 khi chắc chắn có reverse proxy xác thực ở trước.
 // ─────────────────────────────────────────────────────────────────────────────
-if (env.TRUST_PROXY !== false && env.TRUST_PROXY !== 'false') {
-    // Chuyển '1' (string từ env) → 1 (number) nếu cần
-    const trustValue = !isNaN(Number(env.TRUST_PROXY)) ? Number(env.TRUST_PROXY) : env.TRUST_PROXY;
-    app.set('trust proxy', trustValue);
+// Cấu hình qua biến môi trường TRUST_PROXY:
+//   TRUST_PROXY=false (hoặc 'false', undefined) → app.set('trust proxy', false) (default an toàn cho local/dev).
+//   TRUST_PROXY=1 (hoặc số hop n)               → app.set('trust proxy', n) (khi chạy sau Reverse Proxy chuẩn).
+//   TRUST_PROXY='loopback'                      → app.set('trust proxy', 'loopback').
+const rawTrustProxy = env.TRUST_PROXY;
+if (rawTrustProxy === false || rawTrustProxy === 'false' || rawTrustProxy === undefined || rawTrustProxy === '') {
+    app.set('trust proxy', false);
+} else if (!isNaN(Number(rawTrustProxy))) {
+    app.set('trust proxy', Number(rawTrustProxy));
+} else {
+    app.set('trust proxy', rawTrustProxy);
 }
-// Nếu TRUST_PROXY=false (default): không gọi app.set('trust proxy') → Express dùng socket IP
 
-// Cảnh báo nếu nhận header X-Forwarded-For nhưng TRUST_PROXY chưa được cấu hình
-let warnedAboutTrustProxy = false;
+// Middleware chuẩn hóa trích xuất IP: Tuyệt đối không đọc trực tiếp header x-forwarded-for thô
 app.use((req, res, next) => {
-    if (req.headers['x-forwarded-for'] && (env.TRUST_PROXY === false || env.TRUST_PROXY === 'false' || !app.get('trust proxy'))) {
-        if (!warnedAboutTrustProxy) {
-            console.warn('[CẢNH BÁO BẢO MẬT] Nhận header X-Forwarded-For nhưng TRUST_PROXY đang tắt! IP client có thể bị giả mạo hoặc rate limit không nhận đúng IP thật.');
-            warnedAboutTrustProxy = true;
-        }
+    const isTrustDisabled = !app.get('trust proxy');
+    if (req.headers['x-forwarded-for'] && isTrustDisabled) {
+        console.warn(`[CẢNH BÁO BẢO MẬT] Bỏ qua header X-Forwarded-For="${req.headers['x-forwarded-for']}" vì TRUST_PROXY=false. Sử dụng IP socket thực tế: ${req.socket?.remoteAddress || req.ip}`);
     }
+    // Gán req.clientIp chuẩn hóa từ req.ip của Express đã qua trust proxy filter
+    req.clientIp = req.ip || (req.socket && req.socket.remoteAddress) || (req.connection && req.connection.remoteAddress) || '127.0.0.1';
     next();
 });
 
-// Middlewares toàn cục
+// Middlewares toàn cục: Phân bổ kích thước body parser tối ưu
+// Mặc định giới hạn nhỏ (100kb) để phòng chống DoS/Payload Too Large vào các route nhạy cảm (/api/login, /api/auth...)
+// Riêng route chấm công (/api/attendance) cho phép tới 3mb để nạp ảnh snapshot Base64
+const defaultJsonParser = express.json({ limit: '100kb' });
+const attendanceJsonParser = express.json({ limit: '3mb' });
+const defaultUrlParser = express.urlencoded({ limit: '100kb', extended: true });
+const attendanceUrlParser = express.urlencoded({ limit: '3mb', extended: true });
+
 app.use(cors({ origin: env.CORS_ORIGIN }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/attendance')) {
+        return attendanceJsonParser(req, res, (err) => {
+            if (err) return next(err);
+            attendanceUrlParser(req, res, next);
+        });
+    }
+    return defaultJsonParser(req, res, (err) => {
+        if (err) return next(err);
+        defaultUrlParser(req, res, next);
+    });
+});
 
 const path = require('path');
 const frontendDistPath = path.join(__dirname, '../../zalo-miniapp-frontend/www');

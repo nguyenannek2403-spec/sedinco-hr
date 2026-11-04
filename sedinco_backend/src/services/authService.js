@@ -57,7 +57,12 @@ const GENERIC_LOGIN_ERROR = 'Thông tin đăng nhập không hợp lệ!';
 
 function normalizeClientIp(ip_address) {
     if (!ip_address) return 'unknown';
-    return String(ip_address).split(',')[0].trim();
+    // Chuẩn hóa chuỗi IP: nếu có danh sách IP phân tách bởi dấu phẩy, lấy phần tử cuối (client IP do proxy thêm)
+    const raw = String(ip_address).trim();
+    const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+    const candidate = parts.length > 0 ? parts[parts.length - 1] : raw;
+    // Bỏ tiền tố IPv6-mapped IPv4 nếu có (::ffff:127.0.0.1 -> 127.0.0.1)
+    return candidate.replace(/^::ffff:/, '');
 }
 
 /**
