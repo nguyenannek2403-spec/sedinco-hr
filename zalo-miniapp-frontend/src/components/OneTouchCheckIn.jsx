@@ -28,6 +28,9 @@ const STAGES = {
   ERROR: "error" // Có lỗi (kèm thông điệp chi tiết & nút thử lại)
 };
 
+// Khóa module-level chống double click phần cứng trên mọi nền tảng
+let globalCheckInLockTimestamp = 0;
+
 /**
  * F2: Thành phần Chấm Công 1 Chạm (Trọng tâm trải nghiệm Nhân viên Sedinco)
  */
@@ -62,8 +65,11 @@ export default function OneTouchCheckIn({
 
   // Bắt đầu luồng Chấm Công 1 Chạm
   const handleStartCheckIn = async (bypassPermExplain = false) => {
-    // 1. Khóa nút ngay lập tức bằng cờ Ref
-    if (isLockedRef.current) return;
+    const nowMs = Date.now();
+    // 1. Khóa nút ngay lập tức bằng cờ Ref và Timestamp module-level
+    if (isLockedRef.current || (nowMs - globalCheckInLockTimestamp < 3000)) return;
+    globalCheckInLockTimestamp = nowMs;
+    isLockedRef.current = true;
     if (isLockedPeriod) {
       setStage(STAGES.ERROR);
       setErrorMessage("Kỳ chấm công tháng này đã được Kế toán chốt. Không thể ghi nhận thêm.");
@@ -180,6 +186,7 @@ export default function OneTouchCheckIn({
       try {
         const qrToken = localStorage.getItem("sedinco_current_qr_token");
         if (qrToken) {
+          localStorage.removeItem("sedinco_current_qr_token");
           result = await safePost("/attendance/check-in", {
             token: qrToken,
             lat: 16.0544,

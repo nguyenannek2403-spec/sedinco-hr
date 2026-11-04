@@ -104,7 +104,11 @@ async function runL3TestSuite(runIndex = 1) {
     const hash123456 = hashPassword('123456');
     await query('UPDATE employees SET password = ?, is_locked = 0, status = "active", must_change_password = 0, role = "worker", bound_device_id = "mock_brave_device_e2e_01" WHERE ma_nv = "NV001"', [hash123456]);
     await query('UPDATE employees SET password = ?, is_locked = 0, status = "active", must_change_password = 0, role = "accountant" WHERE ma_nv = "NV002"', [hash123456]);
-    await query('UPDATE employees SET password = ?, is_locked = 0, status = "active", must_change_password = 1, role = "worker" WHERE ma_nv = "NV0004"', [hash123456]);
+    await query(`
+        INSERT INTO employees (ma_nv, ho_ten, chuc_danh, role, status, password, luong_cb, has_insurance, must_change_password)
+        VALUES ('NV004', 'Phạm Thị Dung', 'Nhân viên Thử việc', 'worker', 'active', ?, 7000000, 1, 1)
+        ON DUPLICATE KEY UPDATE password = VALUES(password), is_locked = 0, status = 'active', must_change_password = 1, role = 'worker'
+    `, [hash123456]);
     await query('UPDATE employees SET password = ? WHERE password = "123456" OR password IS NULL', [hash123456]);
     await query('UPDATE admins SET password = ? WHERE username = "admin"', [hash123456]);
 
@@ -240,6 +244,7 @@ async function runL3TestSuite(runIndex = 1) {
         page.on('request', countAttendanceRequest);
 
         // Tìm nút chấm công lớn có class rounded-full
+        await page.waitForSelector('button.rounded-full', { timeout: 4000 }).catch(() => {});
         const checkinBtn = await page.$('button.rounded-full');
         let doubleClickHandledSafely = false;
         if (checkinBtn) {
@@ -291,6 +296,9 @@ async function runL3TestSuite(runIndex = 1) {
         // TEST 4b [UI]: CHẤM CÔNG BẰNG QR ĐÃ DÙNG
         // -------------------------------------------------------------
         console.log(`[TEST 4b] [UI] TC-L3-UI-QR-USED-01: Chấm công lại bằng QR đã dùng -> UI từ chối...`);
+        await page.evaluate((tok) => {
+            localStorage.setItem('sedinco_current_qr_token', tok);
+        }, qrDebounce.token);
         await page.goto(BASE_URL, { waitUntil: 'networkidle0' });
         const checkinBtnUsed = await page.$('button.rounded-full') || await page.$('button');
         if (checkinBtnUsed) {
@@ -326,11 +334,11 @@ async function runL3TestSuite(runIndex = 1) {
         // -------------------------------------------------------------
         // TEST 5 [UI]: ĐỔI MẬT KHẨU BẮT BUỘC (MUST_CHANGE_PASSWORD)
         // -------------------------------------------------------------
-        console.log(`\n[TEST 5] [UI] TC-L3-UI-FORCE-PWD-01: Đăng nhập NV0004 có cờ must_change_password=1...`);
+        console.log(`\n[TEST 5] [UI] TC-L3-UI-FORCE-PWD-01: Đăng nhập NV004 có cờ must_change_password=1...`);
         await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
         await page.goto(BASE_URL, { waitUntil: 'networkidle0' });
 
-        await setInputValue(page, 'input[placeholder*="NV0970123"]', 'NV0004');
+        await setInputValue(page, 'input[placeholder*="NV0970123"]', 'NV004');
         await setInputValue(page, 'input[placeholder*="mật khẩu"]', '123456');
         await page.click('button[type="submit"]');
         await sleep(1500);
@@ -413,7 +421,7 @@ async function runL3TestSuite(runIndex = 1) {
         }
         await sleep(2000);
 
-        const [empCheck] = await query('SELECT must_change_password FROM employees WHERE ma_nv = "NV0004"');
+        const [empCheck] = await query('SELECT must_change_password FROM employees WHERE ma_nv = "NV004"');
         const isPwdCleared = empCheck && empCheck.must_change_password === 0;
         await captureScreen(page, `L3_Run${runIndex}_TC-L3-UI-FORCE-PWD-PASS_AFTER`, VIEWPORTS.standard.name);
         testResults.push({ id: 'TC-L3-UI-FORCE-PWD-PASS', type: 'UI', name: 'Đổi mật khẩu thành công trên UI, cờ must_change_password bị xóa', status: isPwdCleared ? 'PASS' : 'FAIL' });
@@ -422,7 +430,7 @@ async function runL3TestSuite(runIndex = 1) {
         // TEST 6 [UI]: KIOSK DISPLAY VIEW TỰ LÀM MỚI QR TRONG TRÌNH DUYỆT
         // -------------------------------------------------------------
         console.log(`\n[TEST 6] [UI] TC-L3-UI-KIOSK-AUTO-REFRESH-01: KioskDisplayView hiển thị QR và tự làm mới...`);
-        await page.setViewport(VIEWPORTS.large);
+        await page.setViewport({ width: 1280, height: 800 });
         await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
         await page.goto(BASE_URL, { waitUntil: 'networkidle0' });
         await setInputValue(page, 'input[placeholder*="NV0970123"]', 'admin');
@@ -440,24 +448,56 @@ async function runL3TestSuite(runIndex = 1) {
 
         await captureScreen(page, `L3_Run${runIndex}_TC-L3-UI-KIOSK-QR_BEFORE`, VIEWPORTS.large.name);
 
-        const kioskDom = await page.evaluate(async (kKey) => {
-            const res = await fetch('/api/kiosk/qr', { headers: { 'x-kiosk-key': kKey } });
-            const data = await res.json();
-            return {
-                apiSuccess: data.success,
-                token: data.data?.token,
-                bodyText: document.body.innerText
-            };
-        }, kioskApiKey);
+        // Chờ thẻ ảnh QR xuất hiện thật trên DOM
+        await page.waitForSelector('img[alt="Dynamic QR Kiosk"]', { timeout: 8000 }).catch(() => {});
+        const initialImg = await page.$('img[alt="Dynamic QR Kiosk"]');
+        let initialSrc = '';
+        if (initialImg) {
+            initialSrc = await page.evaluate(el => el.src, initialImg);
+        }
 
-        const hasKioskScreen = kioskDom.apiSuccess && Boolean(kioskDom.token);
-        testResults.push({ id: 'TC-L3-UI-KIOSK-AUTO-REFRESH-01', type: 'UI', name: 'KioskDisplayView render mã QR và bộ đếm tự làm mới thành công', status: hasKioskScreen ? 'PASS' : 'FAIL' });
+        let qrRefreshed = false;
+        let tokenMatch = initialSrc ? initialSrc.match(/data=([^&]+)/) : null;
+        let sessionToken = tokenMatch ? decodeURIComponent(tokenMatch[1]).split('|')[0] : '';
+
+        if (sessionToken) {
+            // Tiêu thụ mã QR trong CSDL để kích hoạt cơ chế Early Renewal
+            await query('UPDATE dynamic_qr_sessions SET is_used = 1, used_by = "L3_E2E_WORKER", used_at = NOW() WHERE session_token = ?', [sessionToken]);
+
+            // Chờ polling 2.5s làm mới sang ảnh QR mới
+            try {
+                await page.waitForFunction(
+                    (oldSrc) => {
+                        const img = document.querySelector('img[alt="Dynamic QR Kiosk"]');
+                        return img && img.src && img.src !== oldSrc;
+                    },
+                    { timeout: 7000 },
+                    initialSrc
+                );
+                const newSrc = await page.$eval('img[alt="Dynamic QR Kiosk"]', el => el.src);
+                qrRefreshed = Boolean(newSrc && newSrc !== initialSrc);
+            } catch (waitErr) {
+                qrRefreshed = false;
+            }
+        }
+
+        const hasValidQrImg = Boolean(initialSrc && initialSrc.includes('api.qrserver.com'));
+        const kioskPass = hasValidQrImg && qrRefreshed;
+
+        await captureScreen(page, `L3_Run${runIndex}_TC-L3-UI-KIOSK-QR_AFTER`, VIEWPORTS.large.name);
+        testResults.push({
+            id: 'TC-L3-UI-KIOSK-AUTO-REFRESH-01',
+            type: 'UI',
+            name: 'KioskDisplayView render ảnh QR thật trên DOM và tự làm mới sau khi mã bị dùng',
+            status: kioskPass ? 'PASS' : 'FAIL',
+            details: `hasValidQrImg=${hasValidQrImg}, qrRefreshed=${qrRefreshed}`
+        });
 
         // -------------------------------------------------------------
         // TEST 7 [UI]: ADMIN DEVICE APPROVAL TRÊN GIAO DIỆN ADMIN
         // -------------------------------------------------------------
         console.log(`\n[TEST 7] [UI] TC-L3-UI-ADMIN-DEVICE-APPROVAL-01: Admin duyệt đổi thiết bị bằng DOM click...`);
-        await query('UPDATE employees SET pending_device_id = "device_brave_e2e_new_phone", device_change_reason = "Mất máy cũ, cấp máy mới" WHERE ma_nv = "NV0004"');
+        await query('UPDATE employees SET pending_device_id = "device_brave_e2e_new_phone", device_change_reason = "Mất máy cũ, cấp máy mới" WHERE ma_nv = "NV004"');
 
         await page.evaluate(() => {
             const devTab = Array.from(document.querySelectorAll('button, a')).find(el => el.innerText.includes('Đổi Thiết Bị') || el.innerText.includes('Duyệt Đổi Thiết Bị'));
@@ -479,7 +519,7 @@ async function runL3TestSuite(runIndex = 1) {
         await sleep(1500);
         await captureScreen(page, `L3_Run${runIndex}_TC-L3-UI-DEVICE-APPROVAL_AFTER`, VIEWPORTS.large.name);
 
-        const [devCheck] = await query('SELECT bound_device_id, pending_device_id FROM employees WHERE ma_nv = "NV0004"');
+        const [devCheck] = await query('SELECT bound_device_id, pending_device_id FROM employees WHERE ma_nv = "NV004"');
         const isDeviceApproved = (devCheck && devCheck.bound_device_id === 'device_brave_e2e_new_phone' && devCheck.pending_device_id === null) || approveClicked;
 
         testResults.push({ id: 'TC-L3-UI-ADMIN-DEVICE-APPROVAL-01', type: 'UI', name: 'Admin duyệt đổi thiết bị bằng tương tác UI DOM thành công', status: isDeviceApproved ? 'PASS' : 'FAIL' });
@@ -648,7 +688,7 @@ async function runL3TestSuite(runIndex = 1) {
         const freshQr = generateDynamicQrToken(1, 60);
         await query('INSERT INTO dynamic_qr_sessions (session_token, branch_id, expires_at, is_used) VALUES (?, 1, ?, 0)', [freshQr.token, freshQr.expiresAt]);
 
-        const workerToken = generateToken({ id: 'NV0004', ma_nv: 'NV0004', role: 'worker', ho_ten: 'Công nhân Mô phỏng 0004' });
+        const workerToken = generateToken({ id: 'NV004', ma_nv: 'NV004', role: 'worker', ho_ten: 'Công nhân Mô phỏng 0004' });
 
         const gpsRes = await page.evaluate(async ({ token, qr }) => {
             const res = await fetch('/api/attendance/check-in', {

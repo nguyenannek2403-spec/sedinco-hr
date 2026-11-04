@@ -284,13 +284,98 @@ async function runTests() {
 
         await page.close();
 
+        // ─────────────────────────────────────────────────────────────────
+        // TEST 6: XUẤT BẢNG LƯƠNG CSV RFC 4180 (TC-L3-UI-ACCOUNTANT-PAYROLL-EXPORT-CSV-01)
+        // ─────────────────────────────────────────────────────────────────
+        console.log('[TEST 6/6] [UI] TC-L3-UI-ACCOUNTANT-PAYROLL-EXPORT-CSV-01: Kế toán xuất bảng lương CSV...');
+        const payrollPage = await browser.newPage();
+        await payrollPage.setViewport({ width: 1280, height: 800 });
+        await loginViaDom(payrollPage, 'NV002', '123456');
+
+        // Hook bắt link download CSV trong DOM
+        await payrollPage.evaluate(() => {
+            window.__downloadedCsv = null;
+            window.__downloadedBytes = null;
+            const origCreate = window.URL.createObjectURL;
+            window.URL.createObjectURL = function(blob) {
+                if (blob) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        window.__downloadedCsv = reader.result;
+                    };
+                    reader.readAsText(blob);
+
+                    const byteReader = new FileReader();
+                    byteReader.onload = () => {
+                        window.__downloadedBytes = Array.from(new Uint8Array(byteReader.result));
+                    };
+                    byteReader.readAsArrayBuffer(blob);
+                }
+                return origCreate.apply(this, arguments);
+            };
+        });
+
+        // Chuyển sang tab Bảng Lương
+        await payrollPage.evaluate(() => {
+            const btns = Array.from(document.querySelectorAll('button'));
+            const pBtn = btns.find(b => b.innerText && b.innerText.includes('Bảng Lương'));
+            if (pBtn) pBtn.click();
+        });
+        await sleep(3000);
+
+        // Click nút "Xuất CSV (Excel)"
+        const clickedExport = await payrollPage.evaluate(() => {
+            const btns = Array.from(document.querySelectorAll('button'));
+            const expBtn = btns.find(b => b.innerText && (b.innerText.includes('Xuất CSV') || b.innerText.includes('Xuất Excel')));
+            if (expBtn) {
+                expBtn.click();
+                return true;
+            }
+            return false;
+        });
+
+        await sleep(2500);
+        await captureScreen(payrollPage, 'UI_21_Accountant_Payroll_Export_CSV_1280x800');
+
+        // Lấy nội dung CSV và bytes đã bắt được
+        const { csvContent, csvBytes } = await payrollPage.evaluate(() => ({
+            csvContent: window.__downloadedCsv,
+            csvBytes: window.__downloadedBytes
+        }));
+        await payrollPage.close();
+
+        let isCsvValid = false;
+        let csvValidationMsg = '';
+        if (csvContent || csvBytes) {
+            const hasByteBom = csvBytes && csvBytes.length >= 3 && csvBytes[0] === 0xEF && csvBytes[1] === 0xBB && csvBytes[2] === 0xBF;
+            const hasCharBom = csvContent && csvContent.charCodeAt(0) === 0xFEFF;
+            const hasBom = Boolean(hasByteBom || hasCharBom);
+
+            const textToParse = csvContent || Buffer.from(csvBytes).toString('utf8');
+            const cleanContent = hasCharBom ? textToParse.slice(1) : textToParse;
+            const lines = cleanContent.trim().split('\n');
+            const headerCols = lines[0].split(',').map(s => s.replace(/^"|"$/g, ''));
+
+            isCsvValid = hasBom && headerCols.length === 15 && lines.length >= 2;
+            csvValidationMsg = `BOM UTF-8: ${hasBom ? 'Có (0xEF 0xBB 0xBF)' : 'Không'}, Tổng dòng: ${lines.length}, Số cột: ${headerCols.length}`;
+        } else {
+            csvValidationMsg = 'Không bắt được blob tải về từ trình duyệt!';
+        }
+
+        testResults.push({
+            id: 'TC-L3-UI-ACCOUNTANT-PAYROLL-EXPORT-CSV-01',
+            name: 'Kế toán viên click xuất bảng lương CSV đúng chuẩn RFC 4180 có BOM UTF-8',
+            status: isCsvValid ? 'PASS' : 'FAIL'
+        });
+        console.log(`    -> Kết quả: ${isCsvValid ? 'PASS' : 'FAIL'} (${csvValidationMsg})\n`);
+
         // TỔNG KẾT
         console.log('═════════════════════════════════════════════════════════════════════');
-        console.log('  TỔNG KẾT 5 BÀI KIỂM THỬ BỔ SUNG GIAO DIỆN (G8.2 MỤC F)');
+        console.log('  TỔNG KẾT 6 BÀI KIỂM THỬ BỔ SUNG GIAO DIỆN (G8.3 MỤC D.2)');
         console.log('═════════════════════════════════════════════════════════════════════');
         let passCount = 0;
         for (const t of testResults) {
-            console.log(`  [${t.status}] ${t.id.padEnd(32)}: ${t.name}`);
+            console.log(`  [${t.status}] ${t.id.padEnd(36)}: ${t.name}`);
             if (t.status === 'PASS') passCount++;
         }
         console.log('─────────────────────────────────────────────────────────────────────');
@@ -299,6 +384,7 @@ async function runTests() {
 
     } finally {
         await browser.close();
+        process.exit(0);
     }
 }
 
