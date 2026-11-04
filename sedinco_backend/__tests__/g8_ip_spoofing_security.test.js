@@ -340,7 +340,7 @@ describe('G8.4 Mục A: IP Spoofing Prevention & Trust Proxy Hardening', () => {
     it('(h) TC-G8-IP-08: TRUST_PROXY cấu hình chuỗi từ process.env (B.4) - test hợp lệ và ném lỗi khi không hợp lệ', () => {
         // Các giá trị chuỗi hợp lệ
         assert.equal(app.parseAndValidateTrustProxy('false'), false);
-        assert.equal(app.parseAndValidateTrustProxy('true'), true);
+        assert.equal(app.parseAndValidateTrustProxy('true', 'development'), true);
         assert.equal(app.parseAndValidateTrustProxy('1'), 1);
         assert.equal(app.parseAndValidateTrustProxy('2'), 2);
         assert.equal(app.parseAndValidateTrustProxy('0'), 0);
@@ -349,6 +349,10 @@ describe('G8.4 Mục A: IP Spoofing Prevention & Trust Proxy Hardening', () => {
         assert.equal(app.parseAndValidateTrustProxy('uniquelocal'), 'uniquelocal');
         assert.equal(app.parseAndValidateTrustProxy('127.0.0.1'), '127.0.0.1');
         assert.equal(app.parseAndValidateTrustProxy('10.0.0.0/8, 192.168.0.0/16'), '10.0.0.0/8, 192.168.0.0/16');
+
+        // B.3: Cấm TRUST_PROXY=true ở production và staging
+        assert.throws(() => app.parseAndValidateTrustProxy('true', 'production'), /Cấm cấu hình TRUST_PROXY=true trong môi trường production/);
+        assert.throws(() => app.parseAndValidateTrustProxy('true', 'staging'), /Cấm cấu hình TRUST_PROXY=true trong môi trường staging/);
 
         // Các giá trị không hợp lệ phải ném lỗi rõ ràng
         assert.throws(() => app.parseAndValidateTrustProxy('invalid_proxy'), /FATAL: Cấu hình TRUST_PROXY không hợp lệ/);

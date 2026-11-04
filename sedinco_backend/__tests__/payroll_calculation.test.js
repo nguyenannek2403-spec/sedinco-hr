@@ -163,3 +163,20 @@ test('TC-PAY-09: Cảnh báo khi nhân viên thử việc thiếu ngay_chinh_thu
     assert.match(res.warning, /thử việc.*thiếu.*chính thức/i);
 });
 
+test('TC-PAY-10: Nhân viên 0 ngày công nhưng bị trừ BHXH 10.5% lương cơ bản -> Thực lĩnh âm (Hành vi hiện tại, chờ quy tắc kế toán)', () => {
+    // Trường hợp nhân viên như NV_W016: lương_cb = 7,400,000, has_insurance = true, 0 ngày công trong tháng
+    const res = calculateEmployeeSalary({
+        luong_cb: 7400000,
+        cong_chuan: 26,
+        ngay_chinh_thuc: '2024-03-01',
+        has_insurance: true,
+        logs: [] // 0 ngày công
+    });
+    assert.equal(res.salaryByWork, 0);
+    assert.equal(res.totalWorkDays, 0);
+    assert.equal(res.totalInsurance, 777000); // 7,400,000 * 0.105
+    assert.equal(res.netSalary, -777000); // 0 - 777,000 = -777,000 VNĐ
+    assert.ok(res.netSalary < 0, 'Thực lĩnh âm khi nhân viên không có ngày công nhưng vẫn trích nộp BHXH bắt buộc');
+});
+
+

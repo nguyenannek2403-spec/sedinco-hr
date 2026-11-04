@@ -1,0 +1,202 @@
+[
+  {
+    "fn_id": "FN-01",
+    "name": "Đăng nhập vai trò Worker",
+    "role": "worker",
+    "test_id": "TC-L3-UI-LOGIN-WORKER-01",
+    "image": "UI_Worker_01_Home.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-02",
+    "name": "Bắt buộc đổi mật khẩu lần đầu",
+    "role": "worker",
+    "test_id": "TC-L3-UI-FORCE-PWD-01",
+    "image": "L3_Run1_TC-L3-UI-FORCE-PWD-01_MODAL_375x812.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-03",
+    "name": "Chấm công một chạm vào/ra",
+    "role": "worker",
+    "test_id": "TC-L3-UI-DEBOUNCE-01",
+    "image": "L3_Run1_TC-L3-UI-DEBOUNCE-01_AFTER_375x812.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-04",
+    "name": "Chấm công QR đã dùng (bị từ chối)",
+    "role": "worker",
+    "test_id": "TC-L3-UI-QR-USED-01",
+    "image": "L3_Run1_TC-L3-UI-QR-USED-01_AFTER_375x812.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-05",
+    "name": "Chấm công QR hết hạn (bị từ chối)",
+    "role": "worker",
+    "test_id": "TC-L3-UI-QR-EXPIRED-01",
+    "image": "L3_Run1_TC-L3-UI-QR-EXPIRED-01_AFTER_375x812.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-06",
+    "name": "Xem lịch sử chấm công cá nhân",
+    "role": "worker",
+    "test_id": "TC-L3-UI-LOGIN-WORKER-01",
+    "image": "UI_Worker_02_History.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-07",
+    "name": "Xem phiếu lương cá nhân (worker)",
+    "role": "worker",
+    "test_id": "TC-PAY-08",
+    "image": "UI_Worker_03_Payroll.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-08",
+    "name": "Nộp đơn xin nghỉ phép",
+    "role": "worker",
+    "test_id": "TC-L3-UI-LEAVE-APPROVE-P-01",
+    "image": "UI_Worker_04_Leave_Form.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-09",
+    "name": "Hủy đơn xin nghỉ phép pending",
+    "role": "worker",
+    "test_id": "TC-SEC-10",
+    "image": "UI_Worker_06_Leave_Cancelled.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-10",
+    "name": "Nộp đơn đăng ký làm thêm giờ (OT)",
+    "role": "worker",
+    "test_id": "TC-ATT-05",
+    "image": "UI_02_Worker_OT_Request_Submitted_375x812.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-11",
+    "name": "Nộp đơn giải trình bổ sung công",
+    "role": "worker",
+    "test_id": "TC-L3-UI-LEAVE-APPROVE-P-01",
+    "image": "UI_03_Worker_Supplement_Request_Submitted_375x812.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-12",
+    "name": "Gửi yêu cầu đổi thiết bị chấm công",
+    "role": "worker",
+    "test_id": "TC-L3-UI-ADMIN-DEVICE-APPROVAL-01",
+    "image": "UI_04_Worker_Device_Change_Requested_375x812.png",
+    "viewport": "375x812"
+  },
+  {
+    "fn_id": "FN-13",
+    "name": "Đăng nhập vai trò Kế toán",
+    "role": "accountant",
+    "test_id": "TC-L3-UI-LOGIN-ROLES-01",
+    "image": "L3_Run1_TC-L3-UI-LOGIN-ACCOUNTANT_414x896.png",
+    "viewport": "414x896"
+  },
+  {
+    "fn_id": "FN-14",
+    "name": "Kế toán viên duyệt đơn nghỉ / OT",
+    "role": "accountant",
+    "test_id": "TC-L3-UI-LEAVE-APPROVE-P-01",
+    "image": "UI_Accountant_02_Requests_List.png",
+    "viewport": "1280x800"
+  },
+  {
+    "fn_id": "FN-15",
+    "name": "Xem ma trận chấm công toàn xưởng",
+    "role": "accountant",
+    "test_id": "TC-L3-UI-PERIOD-LOCK-01",
+    "image": "UI_Accountant_01_Matrix.png",
+    "viewport": "1280x800"
+  },
+  {
+    "fn_id": "FN-16",
+    "name": "Phê duyệt nghỉ phép cập nhật ký hiệu P",
+    "role": "accountant",
+    "test_id": "TC-L3-UI-LEAVE-APPROVE-P-01",
+    "image": "L3_Run1_TC-L3-UI-LEAVE-P_AFTER_414x896.png",
+    "viewport": "414x896"
+  },
+  {
+    "fn_id": "FN-17",
+    "name": "Cảnh báo low-trust và khóa kỳ công",
+    "role": "accountant",
+    "test_id": "TC-L3-UI-PERIOD-LOCK-01",
+    "image": "UI_Accountant_05_Period_Locked.png",
+    "viewport": "1280x800"
+  },
+  {
+    "fn_id": "FN-18",
+    "name": "Tính toán bảng lương tổng hợp",
+    "role": "accountant",
+    "test_id": "TC-PAY-08",
+    "image": "UI_Accountant_06_Payroll_Grid.png",
+    "viewport": "1280x800"
+  },
+  {
+    "fn_id": "FN-19",
+    "name": "Xuất bảng lương ra tệp CSV an toàn",
+    "role": "accountant",
+    "test_id": "TC-PAY-08",
+    "image": "UI_21_Accountant_Payroll_Export_CSV_1280x800.png",
+    "viewport": "1280x800"
+  },
+  {
+    "fn_id": "FN-20",
+    "name": "Đăng nhập vai trò Quản trị viên (Admin)",
+    "role": "admin",
+    "test_id": "TC-L3-UI-LOGIN-ROLES-01",
+    "image": "L3_Run1_TC-L3-UI-LOGIN-ADMIN_414x896.png",
+    "viewport": "414x896"
+  },
+  {
+    "fn_id": "FN-21",
+    "name": "Admin tạo mới hồ sơ nhân viên",
+    "role": "admin",
+    "test_id": "TC-EMP-01",
+    "image": "UI_Admin_04_Employee_Created.png",
+    "viewport": "1280x800"
+  },
+  {
+    "fn_id": "FN-22",
+    "name": "Bảng lương Kế toán / Quản trị",
+    "role": "accountant",
+    "test_id": "TC-PAY-10",
+    "image": "G8_Accountant_01_Matrix_1280x800.png",
+    "viewport": "1280x800"
+  },
+  {
+    "fn_id": "FN-23",
+    "name": "Admin khóa tài khoản nhân viên",
+    "role": "admin",
+    "test_id": "TC-L3-UI-INSTANT-REVOKE-01",
+    "image": "UI_Admin_05_Employee_Locked.png",
+    "viewport": "1280x800"
+  },
+  {
+    "fn_id": "FN-24",
+    "name": "Admin mở khóa sổ kỳ công",
+    "role": "admin",
+    "test_id": "TC-L3-API-PERIOD-LOCK-01",
+    "image": "UI_Admin_02_Period_Unlocked.png",
+    "viewport": "1280x800"
+  },
+  {
+    "fn_id": "FN-25",
+    "name": "Kiosk hiển thị và tự động làm mới mã QR",
+    "role": "kiosk",
+    "test_id": "TC-L3-UI-KIOSK-AUTO-REFRESH-01",
+    "image": "UI_24_Kiosk_Displaying_And_Refreshing_QR_1280x800.png",
+    "viewport": "1280x800"
+  }
+]

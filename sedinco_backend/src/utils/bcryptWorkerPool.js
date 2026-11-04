@@ -19,7 +19,7 @@ const bcrypt = require('bcryptjs');
 const WORKER_SCRIPT = path.join(__dirname, 'bcryptWorker.js');
 const POOL_SIZE = process.env.BCRYPT_WORKER_POOL_SIZE 
     ? Math.max(1, parseInt(process.env.BCRYPT_WORKER_POOL_SIZE, 10)) 
-    : Math.max(2, (os.cpus() && os.cpus().length) || 2);
+    : (process.env.NODE_ENV === 'test' ? Math.max(2, (os.cpus() && os.cpus().length) || 2) : 2); // Mặc định an toàn 2 worker trong container production/staging
 const MAX_QUEUE_SIZE = 500;
 const TASK_TIMEOUT_MS = 10000; // 10 giây
 

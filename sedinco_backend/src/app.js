@@ -39,11 +39,14 @@ function isValidIpOrCidr(str) {
     return false;
 }
 
-function parseAndValidateTrustProxy(val) {
+function parseAndValidateTrustProxy(val, nodeEnv = process.env.NODE_ENV) {
     if (val === false || val === 'false' || val === undefined || val === null || val === '') {
         return false;
     }
     if (val === true || val === 'true') {
+        if (nodeEnv === 'production' || nodeEnv === 'staging') {
+            throw new Error(`FATAL: Cấm cấu hình TRUST_PROXY=true trong môi trường ${nodeEnv}! Chỉ chấp nhận số lớp proxy (ví dụ: 1 cho Render) hoặc danh sách subnet tin cậy.`);
+        }
         return true;
     }
     const str = String(val).trim();
@@ -58,7 +61,7 @@ function parseAndValidateTrustProxy(val) {
     if (items.length > 0 && items.every(isValidIpOrCidr)) {
         return str;
     }
-    throw new Error(`FATAL: Cấu hình TRUST_PROXY không hợp lệ: "${val}". Chỉ chấp nhận: false, true, số nguyên >= 0, "loopback", "linklocal", "uniquelocal", hoặc IP/CIDR hợp lệ.`);
+    throw new Error(`FATAL: Cấu hình TRUST_PROXY không hợp lệ: "${val}". Chỉ chấp nhận: false, số nguyên >= 0, "loopback", "linklocal", "uniquelocal", hoặc IP/CIDR hợp lệ.`);
 }
 
 const rawTrustProxy = env.TRUST_PROXY;
