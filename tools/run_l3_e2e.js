@@ -12,13 +12,13 @@
  */
 
 // Môi trường an toàn - khai báo trước mọi require
-process.env.NODE_ENV = 'test';
-process.env.DB_HOST = '127.0.0.1';
-process.env.DB_PORT = '3306';
-process.env.DB_USER = 'root';
-process.env.DB_PASSWORD = '123456';
-process.env.DB_NAME = 'sedinco_hr_test';
-process.env.DB_SSL = 'false';
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+process.env.DB_HOST = process.env.DB_HOST || '127.0.0.1';
+process.env.DB_PORT = process.env.DB_PORT || '3306';
+process.env.DB_USER = process.env.DB_USER || 'root';
+process.env.DB_PASSWORD = process.env.DB_PASSWORD || '123456';
+process.env.DB_NAME = process.env.DB_NAME || 'sedinco_hr_test';
+process.env.DB_SSL = process.env.DB_SSL || 'false';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'sedinco-automated-test-environment-jwt-secret-key-min-32-chars!';
 process.env.QR_SECRET = process.env.QR_SECRET || 'sedinco_super_secure_qr_secret_key_2026_local_test_32chars';
 
@@ -26,11 +26,15 @@ const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer-core');
 
+const { assertDestructiveDbAllowed } = require('./lib/dbSafetyGuard');
 const { initDatabase } = require('../sedinco_backend/src/database/initDb');
 const { query } = require('../sedinco_backend/src/config/db');
 const { hashPassword } = require('../sedinco_backend/src/utils/passwordHelper');
 const { generateDynamicQrToken } = require('../sedinco_backend/src/utils/dynamicQrHelper');
 const { generateToken } = require('../sedinco_backend/src/middlewares/authMiddleware');
+
+// Chốt chặn an toàn G9
+assertDestructiveDbAllowed(process.env.DB_NAME, process.env.DB_HOST);
 
 const BRAVE_BIN = '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser';
 const BASE_URL = 'http://127.0.0.1:5001';
