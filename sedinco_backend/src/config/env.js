@@ -2,10 +2,16 @@ const path = require('path');
 const dotenv = require('dotenv');
 
 if (process.env.NODE_ENV === 'test') {
-    dotenv.config({ path: path.resolve(__dirname, '../../.env.test') });
-    dotenv.config({ path: path.resolve(__dirname, '../../../.env.test') });
+    // Chế độ test: CHỈ nạp .env.test, TUYỆT ĐỐI KHÔNG nạp .env
+    dotenv.config({ path: path.resolve(__dirname, '../../.env.test'), quiet: true });
+    dotenv.config({ path: path.resolve(__dirname, '../../../.env.test'), quiet: true });
+} else if (process.env.NODE_ENV === 'staging') {
+    // Chế độ staging: Nạp .env.staging
+    dotenv.config({ path: path.resolve(__dirname, '../../.env.staging'), quiet: true });
+    dotenv.config({ path: path.resolve(__dirname, '../../../.env.staging'), quiet: true });
+} else {
+    dotenv.config();
 }
-dotenv.config();
 
 const env = {
     NODE_ENV: process.env.NODE_ENV || 'development',
