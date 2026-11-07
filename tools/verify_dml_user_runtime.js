@@ -16,13 +16,14 @@
  * 10. Dọn dẹp tài khoản test
  */
 
-const mysql = require('mysql2/promise');
-const fs = require('fs');
 const path = require('path');
+const mysql = require(path.join(__dirname, '../sedinco_backend/node_modules/mysql2/promise'));
+const fs = require('fs');
+const { assertDestructiveDbAllowed } = require('./lib/dbSafetyGuard');
 
 const DB_HOST = process.env.DB_HOST || '127.0.0.1';
 const DB_PORT = process.env.DB_PORT || 3306;
-const DB_NAME = 'sedinco_hr_test';
+const DB_NAME = process.env.DB_NAME || 'sedinco_hr_test';
 const ROOT_USER = process.env.DB_USER || 'root';
 const ROOT_PASS = process.env.DB_PASSWORD || '123456';
 
@@ -32,6 +33,7 @@ const DML_HOST = '127.0.0.1';
 
 async function main() {
     console.log('[XÁC MINH DML RUNTIME] Bắt đầu kiểm chứng Least Privilege App User trên DB test...');
+    assertDestructiveDbAllowed(DB_NAME, DB_HOST);
 
     // Bước 1: Kết nối bằng quyền root để áp dụng grant_staging_app_user.sql
     const rootConn = await mysql.createConnection({
@@ -196,6 +198,7 @@ async function main() {
     await dmlConn.query('DELETE FROM attendance WHERE ma_nv = ?', [testMaNv]);
     await dmlConn.query('DELETE FROM attendance_logs WHERE employee_id = ?', [testMaNv]);
     await dmlConn.query('DELETE FROM employees WHERE ma_nv = ?', [testMaNv]);
+    await dmlConn.query('DELETE FROM period_locks WHERE month = 11 AND year = 2026');
     await dmlConn.end();
 
     const cleanupConn = await mysql.createConnection({

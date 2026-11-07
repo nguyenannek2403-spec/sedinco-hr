@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "NODE_ENV=test DB_NAME=sedinco_hr_test DB_SSL=false node --test --test-concurrency=1 --test-reporter=spec --test-force-exit __tests__/*.test.js"
+    "test": "NODE_ENV=test DB_NAME=${DB_NAME:-sedinco_hr_test} DB_SSL=false node --test --test-concurrency=1 --test-reporter=spec --test-force-exit __tests__/*.test.js"
   },
   "keywords": [
     "sedinco",

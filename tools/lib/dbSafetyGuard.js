@@ -46,6 +46,20 @@ function getProductionHostHash() {
     return null;
 }
 
+function formatHost(host) {
+    if (!host || typeof host !== 'string') return '***';
+    const h = host.trim();
+    if (h === '127.0.0.1' || h === 'localhost' || h === '::1') {
+        return h;
+    }
+    const parts = h.split('.');
+    if (parts.length >= 2) {
+        const suffix = parts.slice(-2).join('.');
+        return `***.${suffix}`;
+    }
+    return maskString(h, 2, 2);
+}
+
 function assertDestructiveDbAllowed(targetDbName, targetHost = 'localhost') {
     const allowDestructiveDb = process.env.ALLOW_DESTRUCTIVE_DB;
 
@@ -80,23 +94,34 @@ function assertDestructiveDbAllowed(targetDbName, targetHost = 'localhost') {
         );
     }
 
-    // Chốt chặn so sánh HOST: Từ chối nếu host không phải local khi công cụ ở chế độ test cục bộ
-    const isLocalTestMode = process.env.NODE_ENV === 'test' || process.env.LOCAL_TEST_ONLY === 'true';
     const isLocalHost = targetHost === '127.0.0.1' || targetHost === 'localhost' || targetHost === '::1';
-    if (isLocalTestMode && !isLocalHost) {
+
+    // Chốt chặn so sánh HOST khi ở chế độ test cục bộ hoặc khi chưa đặt NODE_ENV=staging
+    if (!isLocalHost && process.env.NODE_ENV !== 'staging') {
         throw new Error(
             `[CHỐT CHẶN AN TOÀN G9] Thao tác bị TỪ CHỐI! ` +
-            `Máy chủ mục tiêu "${maskString(targetHost, 4, 6)}" KHÔNG PHẢI là máy chủ cục bộ (localhost/127.0.0.1) khi đang ở chế độ test cục bộ. Tuyệt đối không trỏ sang Cloud!`
+            `Máy chủ mục tiêu "${formatHost(targetHost)}" là máy chủ Cloud nhưng NODE_ENV="${process.env.NODE_ENV}". ` +
+            `Vui lòng đặt rõ ràng NODE_ENV=staging (và nạp .env.staging) trước khi kết nối tới Cloud.`
         );
     }
 
-    const maskedHost = maskString(targetHost, 4, 6);
-    const maskedDb = maskString(targetDbName, 3, 4);
-    console.log(`[SAFETY CHECK G9 PASSED] Máy chủ mục tiêu: ${maskedHost} | CSDL: ${maskedDb} (Đã đối soát khớp ALLOW_DESTRUCTIVE_DB)`);
+    // Khi ở chế độ staging: kiểm tra đuôi host hợp lệ (mặc định .aivencloud.com)
+    if (process.env.NODE_ENV === 'staging') {
+        const allowedSuffix = process.env.STAGING_HOST_SUFFIX || '.aivencloud.com';
+        if (!targetHost.endsWith(allowedSuffix)) {
+            throw new Error(
+                `[CHỐT CHẶN AN TOÀN G9] Thao tác bị TỪ CHỐI! ` +
+                `Máy chủ Staging "${formatHost(targetHost)}" không kết thúc bằng "${allowedSuffix}".`
+            );
+        }
+    }
+
+    console.log(`[SAFETY CHECK G9 PASSED] Máy chủ mục tiêu: ${formatHost(targetHost)} | CSDL: ${targetDbName} (Đã đối soát khớp ALLOW_DESTRUCTIVE_DB)`);
 }
 
 module.exports = {
     assertDestructiveDbAllowed,
     maskString,
+    formatHost,
     hashHost
 };

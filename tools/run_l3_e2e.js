@@ -96,7 +96,7 @@ async function runL3TestSuite(runIndex = 1) {
     console.log(`================================================================`);
 
     // 1. Reset Database test về trạng thái sạch sẽ
-    console.log(`[DB INIT] Đang khởi tạo và làm sạch CSDL sedinco_hr_test...`);
+    console.log(`[DB INIT] Đang khởi tạo và làm sạch CSDL ${process.env.DB_NAME}...`);
     await initDatabase();
     await query('DELETE FROM login_rate_limits');
     await query('DELETE FROM attendance_logs');

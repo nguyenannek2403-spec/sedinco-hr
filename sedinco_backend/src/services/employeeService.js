@@ -1,6 +1,7 @@
 const { query } = require('../config/db');
 const { SAFE_EMPLOYEE_FIELDS, resolveUserRole, logAuditEvent, invalidateUserCache } = require('../middlewares/authMiddleware');
 const { verifyZaloUserToken } = require('../utils/zaloAdapter');
+const { hashPassword } = require('../utils/passwordHelper');
 
 class EmployeeService {
     async getAllEmployees() {
@@ -34,14 +35,17 @@ class EmployeeService {
             normalizedRole = 'worker';
         }
 
+        const rawPassword = data.password || '123456';
+        const hashedPassword = hashPassword(rawPassword);
+
         const sql = `
             INSERT INTO employees (
                 ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, role,
                 ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb, 
                 phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, 
                 thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
-                status, is_locked
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                status, is_locked, password, must_change_password
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         const values = [
             ma_nv, ho_ten, ngay_sinh || null, dien_thoai || '', email || '', chuc_danh || '', normalizedRole,
@@ -50,7 +54,9 @@ class EmployeeService {
             thuong_htcv || 0, phu_cap_trach_nhiem || 0, phu_cap_tiep_khach || 0,
             has_insurance ? 1 : 0,
             status || 'active',
-            is_locked ? 1 : 0
+            is_locked ? 1 : 0,
+            hashedPassword,
+            1
         ];
         await query(sql, values);
 

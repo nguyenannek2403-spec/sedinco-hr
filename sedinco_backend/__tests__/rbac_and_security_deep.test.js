@@ -14,6 +14,7 @@ const authService = require('../src/services/authService');
 const employeeService = require('../src/services/employeeService');
 const permissionService = require('../src/services/permissionService');
 const { query } = require('../src/config/db');
+const { hashPassword } = require('../src/utils/passwordHelper');
 
 // Helper giả lập Request/Response cho Express Middleware
 function mockReqRes(user = null, headers = {}) {
@@ -204,7 +205,8 @@ test('TC-SEC-06: Chặn giả mạo vai trò qua x-user-role header khi không �
 
 test('TC-SEC-07: Chặn người dùng không phải Admin đăng ký tài khoản Quản trị', async () => {
     // Đảm bảo có ít nhất 1 admin trong DB
-    await query("INSERT INTO admins (username, password, ho_ten) VALUES ('admin_root', '123456', 'Root Admin') ON DUPLICATE KEY UPDATE ho_ten='Root Admin'");
+    const rootHash = hashPassword('123456');
+    await query("INSERT INTO admins (username, password, ho_ten) VALUES ('admin_root', ?, 'Root Admin') ON DUPLICATE KEY UPDATE ho_ten='Root Admin'", [rootHash]);
 
     // 1. Thử đăng ký admin mà không có session admin
     const unauthedResult = await authService.adminRegister('hacker_admin', '123456', 'Hacker', null);
@@ -215,6 +217,9 @@ test('TC-SEC-07: Chặn người dùng không phải Admin đăng ký tài kho�
     const workerResult = await authService.adminRegister('hacker_admin2', '123456', 'Hacker', { ma_nv: 'NV001', role: 'worker' });
     assert.equal(workerResult.success, false);
     assert.equal(workerResult.statusCode, 403, 'Worker không thể tạo tài khoản admin');
+
+    // Dọn dẹp
+    await query("DELETE FROM admins WHERE username = 'admin_root'");
 });
 
 test('TC-SEC-08: Chặn Mass Assignment leo thang quyền thành admin trong createEmployee và updateEmployee', async () => {

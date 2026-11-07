@@ -28,7 +28,7 @@ if (process.env.NODE_ENV === 'staging') {
     }
 }
 
-const { assertDestructiveDbAllowed, maskString } = require('../tools/lib/dbSafetyGuard');
+const { assertDestructiveDbAllowed, maskString, formatHost } = require('../tools/lib/dbSafetyGuard');
 
 const DB_HOST = process.env.DB_HOST || '127.0.0.1';
 const DB_PORT = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
@@ -45,7 +45,7 @@ async function runStagingMigration() {
     // 1. Chốt chặn an toàn
     assertDestructiveDbAllowed(DB_NAME, DB_HOST);
 
-    console.log(`Kết nối máy chủ: ${maskString(DB_HOST, 4, 6)} | CSDL: ${maskString(DB_NAME, 3, 4)}`);
+    console.log(`Kết nối máy chủ: ${formatHost(DB_HOST)} | CSDL: ${DB_NAME}`);
 
     const connectionConfig = {
         host: DB_HOST,
