@@ -174,7 +174,7 @@ describe('G6.2 - Mục E: Kiểm thử Phân Quyền CSDL Hạn Chế (Least Pri
     it('TC-G6-DB-04: Tài khoản hạn chế chạy đầy đủ DML trên 13 bảng nghiệp vụ thông thường', async () => {
         // 1. Thao tác trên employees
         await lpConn.query(
-            "INSERT INTO employees (ma_nv, ho_ten, role, status) VALUES ('LP_WORKER_01', 'Test LP Worker', 'worker', 'active') ON DUPLICATE KEY UPDATE ho_ten = VALUES(ho_ten)"
+            "INSERT INTO employees (ma_nv, ho_ten, role, status, password) VALUES ('LP_WORKER_01', 'Test LP Worker', 'worker', 'active', 'dummy_hash_pass') ON DUPLICATE KEY UPDATE ho_ten = VALUES(ho_ten)"
         );
         const [empRows] = await lpConn.query("SELECT ma_nv, ho_ten FROM employees WHERE ma_nv = 'LP_WORKER_01'");
         assert.equal(empRows.length, 1);
@@ -202,6 +202,7 @@ describe('G6.2 - Mục E: Kiểm thử Phân Quyền CSDL Hạn Chế (Least Pri
         assert.equal(lockRows.length, 1);
 
         // Dọn dẹp dữ liệu test
+        await lpConn.query("DELETE FROM period_locks WHERE month = 10 AND year = 2026");
         await lpConn.query("DELETE FROM requests WHERE employee_id = 'LP_WORKER_01'");
         await lpConn.query("DELETE FROM attendance_logs WHERE employee_id = 'LP_WORKER_01'");
         await lpConn.query("DELETE FROM employees WHERE ma_nv = 'LP_WORKER_01'");

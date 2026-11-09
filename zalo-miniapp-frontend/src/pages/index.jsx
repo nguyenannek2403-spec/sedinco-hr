@@ -1162,7 +1162,7 @@ function MainHomePageContent() {
       storedAccounts[editEmployeeForm.ma_nv] = {
         ...currentStored,
         ...editEmployeeForm,
-        password: editEmployeeForm.newPassword ? editEmployeeForm.newPassword : (currentStored.password || "123456")
+        password: editEmployeeForm.newPassword ? editEmployeeForm.newPassword : (currentStored.password || "")
       };
       localStorage.setItem("sedinco_employee_accounts", JSON.stringify(storedAccounts));
 
@@ -1221,7 +1221,7 @@ function MainHomePageContent() {
       const storedAccounts = JSON.parse(localStorage.getItem("sedinco_employee_accounts") || "{}");
       storedAccounts[newEmployeeForm.ma_nv] = {
         ...newEmployeeForm,
-        password: newEmployeeForm.password || "123456"
+        password: newEmployeeForm.password || ""
       };
       localStorage.setItem("sedinco_employee_accounts", JSON.stringify(storedAccounts));
 

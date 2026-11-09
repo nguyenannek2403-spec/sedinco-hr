@@ -206,8 +206,8 @@ describe('G6: Chống DoS Khóa Hộ, Chính Sách Mật Khẩu & Chống Hạ C
     // ─────────────────────────────────────────────────────────────
     it('TC-G6-DOWNGRADE-01A: Khi REJECT_DOWNGRADE_TO_RAW=true, nhân viên đã có token Zalo gửi tọa độ raw BỊ TỪ CHỐI HTTP 403 (ERR_METHOD_DOWNGRADE_DETECTED)', async () => {
         const ma_nv = 'EMP_G6_DOWN01A';
-        await query(`INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked)
-            VALUES (?, 'NV Test Downgrade A', 'worker', 'active', 0)
+        await query(`INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked, password)
+            VALUES (?, 'NV Test Downgrade A', 'worker', 'active', 0, 'dummy_test_pass')
             ON DUPLICATE KEY UPDATE status = 'active', is_locked = 0`, [ma_nv]);
 
         // Seed 1 bản ghi token hợp lệ trong quá khứ
@@ -244,8 +244,8 @@ describe('G6: Chống DoS Khóa Hộ, Chính Sách Mật Khẩu & Chống Hạ C
 
     it('TC-G6-DOWNGRADE-01B: Khi REJECT_DOWNGRADE_TO_RAW=false, nhân viên đã có token Zalo gửi tọa độ raw ĐƯỢC CHẤM CÔNG NHƯNG gắn cờ is_low_trust = 2 (risk cao)', async () => {
         const ma_nv = 'EMP_G6_DOWN01B';
-        await query(`INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked)
-            VALUES (?, 'NV Test Downgrade B', 'worker', 'active', 0)
+        await query(`INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked, password)
+            VALUES (?, 'NV Test Downgrade B', 'worker', 'active', 0, 'dummy_test_pass')
             ON DUPLICATE KEY UPDATE status = 'active', is_locked = 0`, [ma_nv]);
 
         // Seed 1 bản ghi token hợp lệ trong quá khứ
@@ -289,8 +289,8 @@ describe('G6: Chống DoS Khóa Hộ, Chính Sách Mật Khẩu & Chống Hạ C
 
         // Worker cố tình dùng mã preview này để chấm công
         const ma_nv = 'EMP_G6_PREVIEW01';
-        await query(`INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked)
-            VALUES (?, 'NV Test Preview QR', 'worker', 'active', 0)
+        await query(`INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked, password)
+            VALUES (?, 'NV Test Preview QR', 'worker', 'active', 0, 'dummy_test_pass')
             ON DUPLICATE KEY UPDATE status = 'active', is_locked = 0`, [ma_nv]);
 
         try {
@@ -323,8 +323,8 @@ describe('G6: Chống DoS Khóa Hộ, Chính Sách Mật Khẩu & Chống Hạ C
         await query('DELETE FROM period_locks WHERE month = ? AND year = ?', [testMonth, testYear]);
         await query('DELETE FROM attendance_logs WHERE employee_id = ?', [testEmp]);
 
-        await query(`INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked)
-            VALUES (?, 'NV Hạ Cấp Mức 2', 'worker', 'active', 0)
+        await query(`INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked, password)
+            VALUES (?, 'NV Hạ Cấp Mức 2', 'worker', 'active', 0, 'dummy_test_pass')
             ON DUPLICATE KEY UPDATE status = 'active', is_locked = 0`, [testEmp]);
 
         // Chèn bản ghi hạ cấp mức 2 (is_low_trust = 2)

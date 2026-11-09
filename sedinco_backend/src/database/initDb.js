@@ -13,7 +13,7 @@ async function initDatabase() {
             chuc_danh VARCHAR(100),
             ngay_bat_dau_lam DATE,
             ngay_chinh_thuc DATE,
-            password VARCHAR(100) DEFAULT '123456',
+            password VARCHAR(255) NULL,
             avatar_url LONGTEXT,
             luong_cb DECIMAL(15,2) DEFAULT 0,
             phu_cap_an_trua DECIMAL(15,2) DEFAULT 0,
@@ -32,7 +32,8 @@ async function initDatabase() {
         await query("ALTER TABLE employees ADD COLUMN is_locked BOOLEAN DEFAULT FALSE").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN role VARCHAR(20) DEFAULT 'worker'").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE").catch(() => {});
-        await query("ALTER TABLE employees MODIFY COLUMN password VARCHAR(255) DEFAULT '123456'").catch(() => {});
+        await query("ALTER TABLE employees MODIFY COLUMN password VARCHAR(255) NULL").catch(() => {});
+        await query("ALTER TABLE employees ALTER COLUMN password DROP DEFAULT").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN zalo_id VARCHAR(100) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN bound_device_id VARCHAR(100) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN device_binding_mode VARCHAR(20) DEFAULT 'recording'").catch(() => {});
@@ -58,17 +59,19 @@ async function initDatabase() {
             WHERE role IS NULL OR role = '' OR role NOT IN ('admin', 'accountant', 'worker')
         `).catch(() => {});
 
-        // Đảm bảo nhân sự mẫu cốt lõi (NV001, NV002, NV003) luôn tồn tại cho các bộ kiểm thử
-        const empCount = await query("SELECT COUNT(*) as cnt FROM employees WHERE ma_nv IN ('NV001', 'NV002', 'NV003')");
-        if (empCount && empCount[0].cnt < 3) {
-            const hash123456 = bcrypt.hashSync('123456', 10);
-            await query(`
-                INSERT INTO employees (ma_nv, ho_ten, chuc_danh, role, status, password, luong_cb, has_insurance) VALUES
-                ('NV001', 'Nguyễn Văn An', 'Kỹ sư công trường', 'worker', 'active', ?, 10000000, 1),
-                ('NV002', 'Trần Thị Bình', 'Kế toán viên', 'accountant', 'active', ?, 12000000, 1),
-                ('NV003', 'Lê Văn Cường', 'Công nhân vận hành', 'worker', 'active', ?, 8000000, 1)
-                ON DUPLICATE KEY UPDATE status = 'active', password = VALUES(password)
-            `, [hash123456, hash123456, hash123456]).catch(() => {});
+        // Đảm bảo nhân sự mẫu cốt lõi (NV001, NV002, NV003) CHỈ seed khi NODE_ENV=test
+        if (process.env.NODE_ENV === 'test') {
+            const empCount = await query("SELECT COUNT(*) as cnt FROM employees WHERE ma_nv IN ('NV001', 'NV002', 'NV003')");
+            if (empCount && empCount[0].cnt < 3) {
+                const hash123456 = bcrypt.hashSync('123456', 10);
+                await query(`
+                    INSERT INTO employees (ma_nv, ho_ten, chuc_danh, role, status, password, luong_cb, has_insurance) VALUES
+                    ('NV001', 'Nguyễn Văn An', 'Kỹ sư công trường', 'worker', 'active', ?, 10000000, 1),
+                    ('NV002', 'Trần Thị Bình', 'Kế toán viên', 'accountant', 'active', ?, 12000000, 1),
+                    ('NV003', 'Lê Văn Cường', 'Công nhân vận hành', 'worker', 'active', ?, 8000000, 1)
+                    ON DUPLICATE KEY UPDATE status = 'active', password = VALUES(password)
+                `, [hash123456, hash123456, hash123456]).catch(() => {});
+            }
         }
 
         // 2. Bảng Cấu hình thông tin công ty (company_settings)
@@ -104,6 +107,7 @@ async function initDatabase() {
         if (companyCount && companyCount[0].cnt === 0) {
             await query(`INSERT INTO company_settings (company_name, phone, address, tax_code, logo_url, latitude, longitude, radius_meters) VALUES 
                 ('Công ty Cổ phần Vật Liệu Xây Dựng Sedinco', '02363123456', 'Số 1 Nguyễn Văn Linh, Đà Nẵng', '0400123456', 'https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=200', 16.054400, 108.202200, 100)`);
+            console.warn('⚠️ [CẢNH BÁO TỌA ĐỘ MẪU] company_settings đang sử dụng tọa độ mẫu (16.054400, 108.202200, bán kính 100m). Phải thiết lập lại tọa độ thực tế qua tools/update_company_gps.js trước khi vận hành.');
         }
 
         // 3. Bảng Chấm công chuẩn tháng (attendance)
@@ -135,6 +139,7 @@ async function initDatabase() {
             is_suspicious BOOLEAN DEFAULT FALSE,
             suspicious_reason VARCHAR(255) NULL,
             device_fingerprint VARCHAR(150) NULL,
+            INDEX idx_att_record_date (record_date),
             UNIQUE KEY unique_emp_date (employee_id, record_date)
         )`);
         await query("ALTER TABLE attendance_logs ADD COLUMN check_in_time VARCHAR(20) DEFAULT NULL").catch(() => {});
@@ -147,6 +152,7 @@ async function initDatabase() {
         await query("ALTER TABLE attendance_logs ADD COLUMN suspicious_reason TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs MODIFY COLUMN suspicious_reason TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN device_fingerprint VARCHAR(150) NULL").catch(() => {});
+        await query("CREATE INDEX idx_att_record_date ON attendance_logs (record_date)").catch(() => {});
 
         // 5. Bảng Đơn từ (requests)
         await query(`CREATE TABLE IF NOT EXISTS requests (
@@ -166,12 +172,14 @@ async function initDatabase() {
             start_date DATE NOT NULL,
             end_date DATE NOT NULL
         )`);
-        const holidayCount = await query('SELECT COUNT(*) as cnt FROM public_holidays');
-        if (holidayCount && holidayCount[0].cnt === 0) {
-            await query(`INSERT INTO public_holidays (holiday_name, start_date, end_date) VALUES 
-                ('Tết Dương Lịch', '2026-01-01', '2026-01-01'),
-                ('Giải phóng miền Nam & Quốc tế Lao Động', '2026-04-30', '2026-05-01'),
-                ('Quốc Khánh', '2026-09-01', '2026-09-02')`);
+        if (process.env.NODE_ENV === 'test') {
+            const holidayCount = await query('SELECT COUNT(*) as cnt FROM public_holidays');
+            if (holidayCount && holidayCount[0].cnt === 0) {
+                await query(`INSERT INTO public_holidays (holiday_name, start_date, end_date) VALUES 
+                    ('Tết Dương Lịch', '2026-01-01', '2026-01-01'),
+                    ('Giải phóng miền Nam & Quốc tế Lao Động', '2026-04-30', '2026-05-01'),
+                    ('Quốc Khánh', '2026-09-01', '2026-09-02')`);
+            }
         }
 
         // 7. Bảng Admin (admins)
@@ -184,10 +192,12 @@ async function initDatabase() {
         )`);
         await query("ALTER TABLE admins MODIFY COLUMN password VARCHAR(255) NOT NULL").catch(() => {});
         await query("ALTER TABLE admins ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE").catch(() => {});
-        const adminCount = await query('SELECT COUNT(*) as cnt FROM admins');
-        if (adminCount && adminCount[0].cnt === 0) {
-            const adminHash = bcrypt.hashSync('123456', 10);
-            await query(`INSERT INTO admins (username, password, ho_ten) VALUES ('admin', ?, 'Giám đốc Điều hành')`, [adminHash]);
+        if (process.env.NODE_ENV === 'test') {
+            const adminCount = await query('SELECT COUNT(*) as cnt FROM admins');
+            if (adminCount && adminCount[0].cnt === 0) {
+                const adminHash = bcrypt.hashSync('123456', 10);
+                await query(`INSERT INTO admins (username, password, ho_ten) VALUES ('admin', ?, 'Giám đốc Điều hành')`, [adminHash]);
+            }
         }
 
         // 8. Bảng Khóa/Mở Khóa Kỳ Công Tháng (period_locks)

@@ -67,55 +67,61 @@ async function seedStagingData() {
         console.log(`Dung lượng hiện tại của schema: ${(initialSize / 1024 / 1024).toFixed(2)} MB`);
 
         // 1. Tạo 500 nhân viên có tiền tố SIM
+        // 1. Tạo 500 nhân viên mô phỏng
         console.log('\n[1/5] Khởi tạo 500 nhân viên tiền tố SIM00001 - SIM00500...');
-        const credentials = [];
-        const employeeValues = [];
-        const departments = ['Tổ may 1', 'Tổ may 2', 'Tổ may 3', 'Kho vải', 'Đóng gói', 'Bảo trì', 'KCS'];
+        const [simCount] = await conn.query("SELECT COUNT(*) as cnt FROM employees WHERE ma_nv LIKE 'SIM%'");
+        if (simCount[0].cnt >= 500) {
+            console.log(`✔ Đã tồn tại ${simCount[0].cnt} nhân viên SIM. Bỏ qua bước băm mật khẩu.`);
+        } else {
+            const credentials = [];
+            const employeeValues = [];
+            const departments = ['Tổ may 1', 'Tổ may 2', 'Tổ may 3', 'Kho vải', 'Đóng gói', 'Bảo trì', 'KCS'];
 
-        for (let i = 1; i <= 500; i++) {
-            const ma_nv = `SIM${String(i).padStart(5, '0')}`;
-            const ho_ten = `Công Nhân Mô Phỏng ${String(i).padStart(3, '0')}`;
-            const chuc_danh = departments[i % departments.length];
-            const luong_cb = 7000000 + (i % 10) * 400000;
-            
-            // Mật khẩu ngẫu nhiên riêng biệt
-            const rawPassword = `Sim@${crypto.randomBytes(4).toString('hex')}!`;
-            const passHash = hashPassword(rawPassword);
+            for (let i = 1; i <= 500; i++) {
+                const ma_nv = `SIM${String(i).padStart(5, '0')}`;
+                const ho_ten = `Công Nhân Mô Phỏng ${String(i).padStart(3, '0')}`;
+                const chuc_danh = departments[i % departments.length];
+                const luong_cb = 7000000 + (i % 10) * 400000;
+                
+                // Mật khẩu ngẫu nhiên riêng biệt
+                const rawPassword = `Sim@${crypto.randomBytes(4).toString('hex')}!`;
+                const passHash = hashPassword(rawPassword);
 
-            credentials.push({ ma_nv, ho_ten, chuc_danh, username: ma_nv, password: rawPassword });
-            employeeValues.push([
-                ma_nv, ho_ten, '1992-05-15', '0912345678', `${ma_nv.toLowerCase()}@sedinco.local`,
-                chuc_danh, '2024-01-01', '2024-03-01', passHash, luong_cb,
-                800000, 500000, 500000, 1000000, 0, 0, 1, 'active', 0, 'worker'
-            ]);
+                credentials.push({ ma_nv, ho_ten, chuc_danh, username: ma_nv, password: rawPassword });
+                employeeValues.push([
+                    ma_nv, ho_ten, '1992-05-15', '0912345678', `${ma_nv.toLowerCase()}@sedinco.local`,
+                    chuc_danh, '2024-01-01', '2024-03-01', passHash, luong_cb,
+                    800000, 500000, 500000, 1000000, 0, 0, 1, 'active', 0, 'worker'
+                ]);
+            }
+
+            // Chèn theo lô 100 nhân viên
+            for (let i = 0; i < employeeValues.length; i += 100) {
+                const batch = employeeValues.slice(i, i + 100);
+                await conn.query(`
+                    INSERT INTO employees (
+                        ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh,
+                        ngay_bat_dau_lam, ngay_chinh_thuc, password, luong_cb,
+                        phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv,
+                        phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance, status,
+                        is_locked, role
+                    ) VALUES ?
+                    ON DUPLICATE KEY UPDATE ho_ten=VALUES(ho_ten), password=VALUES(password)
+                `, [batch]);
+            }
+
+            // Xuất file thông tin đăng nhập vào thư mục gitignored (backups/)
+            const backupDir = path.join(__dirname, '../backups');
+            if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+            const credPath = path.join(backupDir, 'sim_credentials.json');
+            fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2), 'utf8');
+            console.log(`✔ Đã lưu danh sách thông tin đăng nhập an toàn vào: ${credPath} (Đã được gitignore)`);
         }
-
-        // Chèn theo lô 100 nhân viên
-        for (let i = 0; i < employeeValues.length; i += 100) {
-            const batch = employeeValues.slice(i, i + 100);
-            await conn.query(`
-                INSERT INTO employees (
-                    ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh,
-                    ngay_bat_dau_lam, ngay_chinh_thuc, password, luong_cb,
-                    phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv,
-                    phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance, status,
-                    is_locked, role
-                ) VALUES ?
-                ON DUPLICATE KEY UPDATE ho_ten=VALUES(ho_ten), password=VALUES(password)
-            `, [batch]);
-        }
-
-        // Xuất file thông tin đăng nhập vào thư mục gitignored (backups/)
-        const backupDir = path.join(__dirname, '../backups');
-        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-        const credPath = path.join(backupDir, 'sim_credentials.json');
-        fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2), 'utf8');
-        console.log(`✔ Đã lưu danh sách thông tin đăng nhập an toàn vào: ${credPath} (Đã được gitignore)`);
 
         // 2. Tạo Kiosk phục vụ chấm công
         console.log('\n[2/5] Đăng ký Kiosk mô phỏng...');
         await conn.query(`
-            INSERT INTO kiosk_devices (kiosk_name, api_key_hash, branch_id, is_active, created_by)
+            INSERT INTO kiosk_devices (kiosk_name, api_key, branch_id, is_active, created_by)
             VALUES ('KIOSK_SIM_01', 'sim_kiosk_key_hash_01', 1, 1, 'admin')
             ON DUPLICATE KEY UPDATE is_active=1
         `);
@@ -181,7 +187,7 @@ async function seedStagingData() {
                 ]);
             }
 
-            // Chèn theo lô
+            // Chèn theo lô vào attendance_logs
             await conn.query(`
                 INSERT INTO attendance_logs (
                     employee_id, record_date, status, ot_hours, check_in_time, check_out_time,
@@ -189,13 +195,6 @@ async function seedStagingData() {
                     suspicious_reason, device_fingerprint, location_source, is_low_trust
                 ) VALUES ?
             `, [batchLogs]);
-
-            await conn.query(`
-                INSERT INTO attendance (
-                    ma_nv, date, status, hours, ot_hours, check_in_time, check_out_time, is_deleted
-                ) VALUES ?
-                ON DUPLICATE KEY UPDATE status=VALUES(status), hours=VALUES(hours)
-            `, [batchDaily]);
 
             totalLogsInserted += batchLogs.length;
 
@@ -209,7 +208,26 @@ async function seedStagingData() {
             }
         }
 
-        console.log(`✔ Hoàn tất nạp chấm công: ${totalLogsInserted} bản ghi. Số ảnh đính kèm: ${imagesAttachedCount}/${totalLogsInserted} (${(imagesAttachedCount / totalLogsInserted * 100).toFixed(2)}%)`);
+        console.log(`✔ Hoàn tất nạp chấm công hàng ngày: ${totalLogsInserted} bản ghi. Số ảnh đính kèm: ${imagesAttachedCount}/${totalLogsInserted} (${(imagesAttachedCount / totalLogsInserted * 100).toFixed(2)}%)`);
+
+        // 3b. Nạp dữ liệu bảng tổng hợp công chuẩn tháng (attendance: ma_nv, thang, nam, cong_chuan, cong_thu_viec, cong_chinh_thuc, ot_cn)
+        console.log('\n[3b/5] Nạp dữ liệu tổng hợp công chuẩn 12 tháng (bảng attendance)...');
+        const monthlyAttendance = [];
+        for (let m = 1; m <= 12; m++) {
+            for (let i = 1; i <= 500; i++) {
+                const ma_nv = `SIM${String(i).padStart(5, '0')}`;
+                monthlyAttendance.push([ma_nv, m, 2026, 26, 0, 24, 4]);
+            }
+        }
+        for (let i = 0; i < monthlyAttendance.length; i += 1000) {
+            const batch = monthlyAttendance.slice(i, i + 1000);
+            await conn.query(`
+                INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, cong_thu_viec, cong_chinh_thuc, ot_cn)
+                VALUES ?
+                ON DUPLICATE KEY UPDATE cong_chinh_thuc = VALUES(cong_chinh_thuc)
+            `, [batch]);
+        }
+        console.log(`✔ Hoàn tất nạp ${monthlyAttendance.length} bản ghi tổng hợp công tháng.`);
 
         // 4. Sinh đơn từ mô phỏng & Đăng ký OT
         console.log('\n[4/5] Sinh đơn nghỉ phép và đăng ký OT...');
@@ -219,22 +237,22 @@ async function seedStagingData() {
         for (let i = 1; i <= 50; i++) {
             const ma_nv = `SIM${String(i).padStart(5, '0')}`;
             sampleRequests.push([
-                ma_nv, 'annual', '2026-10-15', '2026-10-16', 2, 'Việc gia đình', 'approved', 'admin', '2026-10-14 08:00:00'
+                ma_nv, 'leave_annual', '2026-10-15', 'Việc gia đình', 'approved'
             ]);
             sampleOt.push([
-                ma_nv, '2026-10-20', '17:30:00', '19:30:00', 2, 'Tăng ca hoàn thành đơn hàng', 'approved', 'admin', '2026-10-19 10:00:00'
+                ma_nv, '2026-10-20', 2.0, 'Tăng ca hoàn thành đơn hàng', 'admin', 'approved'
             ]);
         }
 
         await conn.query(`
             INSERT INTO requests (
-                employee_id, request_type, start_date, end_date, duration_days, reason, status, approved_by, approved_at
+                employee_id, request_type, request_date, reason, status
             ) VALUES ?
         `, [sampleRequests]);
 
         await conn.query(`
             INSERT INTO ot_registrations (
-                employee_id, work_date, start_time, end_time, expected_hours, reason, status, approved_by, approved_at
+                employee_id, work_date, expected_hours, reason, approved_by, status
             ) VALUES ?
         `, [sampleOt]);
 
@@ -247,8 +265,8 @@ async function seedStagingData() {
         `);
 
         await conn.query(`
-            INSERT INTO audit_logs (actor_id, action, target, details, ip_address)
-            VALUES ('admin', 'SEED_STAGING_LARGE_DATA', 'ALL_TABLES', 'Đã nạp thành công 500 nhân viên mô phỏng và 186.000 bản ghi chấm công', '127.0.0.1')
+            INSERT INTO audit_logs (actor_id, actor_role, action, resource, details, ip_address)
+            VALUES ('admin', 'admin', 'SEED_STAGING_LARGE_DATA', 'ALL_TABLES', 'Đã nạp thành công 500 nhân viên mô phỏng và 186.000 bản ghi chấm công', '127.0.0.1')
         `);
 
         const finalSize = await checkStorageUsage(conn);

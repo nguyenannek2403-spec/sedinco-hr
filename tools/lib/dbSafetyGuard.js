@@ -25,8 +25,11 @@ function hashHost(host) {
 }
 
 function getProductionHostHash() {
+    if (process.env.PRODUCTION_DB_HOST_HASH) {
+        return process.env.PRODUCTION_DB_HOST_HASH.trim();
+    }
     if (process.env.PROD_DB_HOST_HASH) {
-        return process.env.PROD_DB_HOST_HASH;
+        return process.env.PROD_DB_HOST_HASH.trim();
     }
     // Tìm trong file cấu hình production nếu có (không in giá trị)
     const possibleProdEnvPaths = [
@@ -87,11 +90,15 @@ function assertDestructiveDbAllowed(targetDbName, targetHost = 'localhost') {
 
     // Kiểm tra trùng lặp với host Production qua băm SHA-256 (không in giá trị)
     const prodHostHash = getProductionHostHash();
-    if (prodHostHash && hashHost(targetHost) === prodHostHash) {
-        throw new Error(
-            `[CHỐT CHẶN AN TOÀN G9] Thao tác phá hủy bị TỪ CHỐI! ` +
-            `Máy chủ mục tiêu trùng khớp với máy chủ Production (đối soát băm SHA-256: ${maskString(prodHostHash, 4, 4)}). Tuyệt đối cấm kết nối tới CSDL Production!`
-        );
+    if (prodHostHash) {
+        if (hashHost(targetHost) === prodHostHash) {
+            throw new Error(
+                `[CHỐT CHẶN AN TOÀN G9] Thao tác phá hủy bị TỪ CHỐI! ` +
+                `Máy chủ mục tiêu trùng khớp với máy chủ Production (đối soát băm SHA-256: ${maskString(prodHostHash, 4, 4)}). Tuyệt đối cấm kết nối tới CSDL Production!`
+            );
+        }
+    } else {
+        console.warn('⚠️ [CHỐT CHẶN AN TOÀN] Guard đối soát băm máy chủ Production: CHƯA HOẠT ĐỘNG (chưa thiết lập biến môi trường PRODUCTION_DB_HOST_HASH).');
     }
 
     const isLocalHost = targetHost === '127.0.0.1' || targetHost === 'localhost' || targetHost === '::1';
@@ -105,8 +112,8 @@ function assertDestructiveDbAllowed(targetDbName, targetHost = 'localhost') {
         );
     }
 
-    // Khi ở chế độ staging: kiểm tra đuôi host hợp lệ (mặc định .aivencloud.com)
-    if (process.env.NODE_ENV === 'staging') {
+    // Khi ở chế độ staging trên Cloud: kiểm tra đuôi host hợp lệ (mặc định .aivencloud.com)
+    if (process.env.NODE_ENV === 'staging' && !isLocalHost) {
         const allowedSuffix = process.env.STAGING_HOST_SUFFIX || '.aivencloud.com';
         if (!targetHost.endsWith(allowedSuffix)) {
             throw new Error(

@@ -49,11 +49,14 @@ async function runPasswordDefaultTests() {
     await conn.query("DELETE FROM admins WHERE username = 'admin_root'");
 
     try {
+        const bcrypt = require('../sedinco_backend/node_modules/bcryptjs');
+        const COMMON_PASSWORDS = ['123456', '12345678', '123456789', 'password', 'admin123', 'admin', 'root', '111111', '000000', 'qwerty'];
+
         // Đường 1: Admin tạo nhân viên qua createEmployee không truyền password
-        console.log('>>> [ĐƯỜNG 1] Admin tạo nhân viên qua createEmployee (không truyền password)...');
+        console.log('>>> [ĐƯỜNG 1] Admin tạo nhân viên qua createEmployee (không truyền password -> sinh ngẫu nhiên >= 16 ký tự)...');
         const id1 = 'TEST_PWD_01';
         await conn.query('DELETE FROM employees WHERE ma_nv = ?', [id1]);
-        await employeeService.createEmployee({
+        const res1 = await employeeService.createEmployee({
             ma_nv: id1,
             ho_ten: 'Nhân viên Mẫu Test 01',
             role: 'worker'
@@ -64,8 +67,21 @@ async function runPasswordDefaultTests() {
         const p1 = r1[0].password;
         const validBcrypt1 = isBcryptHash(p1);
         const notPlaintext1 = p1 !== '123456';
-        console.log(`    Mã: ${id1} | Bắt đầu $2: ${validBcrypt1} | Khác '123456': ${notPlaintext1} | must_change: ${r1[0].must_change_password}`);
-        if (!validBcrypt1 || !notPlaintext1) throw new Error(`Đường 1 thất bại: Mật khẩu không phải bcrypt hash!`);
+        
+        // Kiểm tra bcrypt.compare với toàn bộ danh sách mật khẩu phổ biến
+        let matchedCommon1 = null;
+        for (const commonPwd of COMMON_PASSWORDS) {
+            if (bcrypt.compareSync(commonPwd, p1)) {
+                matchedCommon1 = commonPwd;
+                break;
+            }
+        }
+        const notCommon1 = matchedCommon1 === null;
+
+        console.log(`    Mã: ${id1} | Bắt đầu $2: ${validBcrypt1} | Khác '123456': ${notPlaintext1} | Không trùng mật khẩu phổ biến: ${notCommon1} | must_change: ${r1[0].must_change_password}`);
+        if (!validBcrypt1 || !notPlaintext1 || !notCommon1) {
+            throw new Error(`Đường 1 thất bại: Mật khẩu trùng với mật khẩu phổ biến '${matchedCommon1}'!`);
+        }
 
         // Đường 2: Admin tạo nhân viên qua createEmployee có truyền password cụ thể
         console.log('>>> [ĐƯỜNG 2] Admin tạo nhân viên qua createEmployee (có truyền password tùy chỉnh)...');
@@ -83,8 +99,9 @@ async function runPasswordDefaultTests() {
         const p2 = r2[0].password;
         const validBcrypt2 = isBcryptHash(p2);
         const notPlaintext2 = p2 !== 'MyCustomSecurePass@2026' && p2 !== '123456';
-        console.log(`    Mã: ${id2} | Bắt đầu $2: ${validBcrypt2} | Khác plaintext: ${notPlaintext2}`);
-        if (!validBcrypt2 || !notPlaintext2) throw new Error(`Đường 2 thất bại: Mật khẩu không phải bcrypt hash!`);
+        const matchesCustom = bcrypt.compareSync('MyCustomSecurePass@2026', p2);
+        console.log(`    Mã: ${id2} | Bắt đầu $2: ${validBcrypt2} | Khác plaintext: ${notPlaintext2} | Khớp mật khẩu truyền vào: ${matchesCustom}`);
+        if (!validBcrypt2 || !notPlaintext2 || !matchesCustom) throw new Error(`Đường 2 thất bại!`);
 
         // Đường 3: Import qua CSV logic (băm bcrypt trước khi INSERT)
         console.log('>>> [ĐƯỜNG 3] Tạo nhân viên qua luồng Import CSV (bcrypt hash trước khi lưu)...');
@@ -129,13 +146,10 @@ async function runPasswordDefaultTests() {
         const id6 = 'TEST_PWD_API_06';
         await conn.query('DELETE FROM employees WHERE ma_nv = ?', [id6]);
         
-        const loginRes = await fetch('http://127.0.0.1:5001/api/admin/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: 'admin', password: '123456' })
-        });
-        const loginData = await loginRes.json();
-        const adminJwt = loginData.data?.token;
+        // Lấy admin id từ CSDL để tạo JWT admin chuẩn
+        const [adminRecord] = await conn.query("SELECT id, username FROM admins WHERE username = 'admin'");
+        const adminId = adminRecord[0]?.id || 1;
+        const adminJwt = generateToken({ id: adminId, username: 'admin', role: 'admin', ho_ten: 'Giám đốc Điều hành' });
 
         const apiRes = await fetch('http://127.0.0.1:5001/api/employees', {
             method: 'POST',
@@ -157,8 +171,18 @@ async function runPasswordDefaultTests() {
         const p6 = r6[0].password;
         const validBcrypt6 = isBcryptHash(p6);
         const notPlaintext6 = p6 !== '123456';
-        console.log(`    Mã: ${id6} | Bắt đầu $2: ${validBcrypt6} | Khác '123456': ${notPlaintext6}`);
-        if (!validBcrypt6 || !notPlaintext6) throw new Error(`Đường 6 thất bại!`);
+
+        let matchedCommon6 = null;
+        for (const commonPwd of COMMON_PASSWORDS) {
+            if (bcrypt.compareSync(commonPwd, p6)) {
+                matchedCommon6 = commonPwd;
+                break;
+            }
+        }
+        const notCommon6 = matchedCommon6 === null;
+
+        console.log(`    Mã: ${id6} | Bắt đầu $2: ${validBcrypt6} | Khác '123456': ${notPlaintext6} | Không trùng mật khẩu phổ biến: ${notCommon6}`);
+        if (!validBcrypt6 || !notPlaintext6 || !notCommon6) throw new Error(`Đường 6 thất bại!`);
 
         // TRUY VẤN TOÀN BỘ CƠ SỞ DỮ LIỆU ĐỂ KIỂM TRA
         console.log('\n=============================================================================');

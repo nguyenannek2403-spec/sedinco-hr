@@ -4,7 +4,7 @@
     "name": "Đăng nhập vai trò Worker",
     "role": "worker",
     "test_id": "TC-L3-UI-LOGIN-WORKER-01",
-    "image": "UI_Worker_01_Home.png",
+    "image": "L3_Run2_TC-L3-UI-LOGIN-WORKER-01_375x812.png",
     "viewport": "375x812"
   },
   {
@@ -12,7 +12,7 @@
     "name": "Bắt buộc đổi mật khẩu lần đầu",
     "role": "worker",
     "test_id": "TC-L3-UI-FORCE-PWD-01",
-    "image": "L3_Run1_TC-L3-UI-FORCE-PWD-01_MODAL_375x812.png",
+    "image": "L3_Run2_TC-L3-UI-FORCE-PWD-01_MODAL_375x812.png",
     "viewport": "375x812"
   },
   {
@@ -20,7 +20,7 @@
     "name": "Chấm công một chạm vào/ra",
     "role": "worker",
     "test_id": "TC-L3-UI-DEBOUNCE-01",
-    "image": "L3_Run1_TC-L3-UI-DEBOUNCE-01_AFTER_375x812.png",
+    "image": "L3_Run2_TC-L3-UI-DEBOUNCE-01_AFTER_375x812.png",
     "viewport": "375x812"
   },
   {
@@ -28,7 +28,7 @@
     "name": "Chấm công QR đã dùng (bị từ chối)",
     "role": "worker",
     "test_id": "TC-L3-UI-QR-USED-01",
-    "image": "L3_Run1_TC-L3-UI-QR-USED-01_AFTER_375x812.png",
+    "image": "L3_Run2_TC-L3-UI-QR-USED-01_AFTER_375x812.png",
     "viewport": "375x812"
   },
   {
@@ -36,87 +36,87 @@
     "name": "Chấm công QR hết hạn (bị từ chối)",
     "role": "worker",
     "test_id": "TC-L3-UI-QR-EXPIRED-01",
-    "image": "L3_Run1_TC-L3-UI-QR-EXPIRED-01_AFTER_375x812.png",
+    "image": "L3_Run2_TC-L3-UI-QR-EXPIRED-01_AFTER_375x812.png",
     "viewport": "375x812"
   },
   {
     "fn_id": "FN-06",
     "name": "Xem lịch sử chấm công cá nhân",
     "role": "worker",
-    "test_id": "TC-L3-UI-LOGIN-WORKER-01",
-    "image": "UI_Worker_02_History.png",
+    "test_id": "TC-L3-UI-ATT-HISTORY-01",
+    "image": "L3_Run2_TC-L3-UI-ATT-HISTORY-01_375x812.png",
     "viewport": "375x812"
   },
   {
     "fn_id": "FN-07",
     "name": "Xem phiếu lương cá nhân (worker)",
     "role": "worker",
-    "test_id": "TC-PAY-08",
-    "image": "UI_Worker_03_Payroll.png",
+    "test_id": "TC-L3-UI-WORKER-PAYSLIP-01",
+    "image": "L3_Run2_TC-L3-UI-WORKER-PAYSLIP-01_375x812.png",
     "viewport": "375x812"
   },
   {
     "fn_id": "FN-08",
     "name": "Nộp đơn xin nghỉ phép",
     "role": "worker",
-    "test_id": "TC-L3-UI-LEAVE-APPROVE-P-01",
-    "image": "UI_Worker_04_Leave_Form.png",
+    "test_id": "TC-L3-UI-LEAVE-SUBMIT-01",
+    "image": "L3_Run2_TC-L3-UI-LEAVE-SUBMIT-01_375x812.png",
     "viewport": "375x812"
   },
   {
     "fn_id": "FN-09",
-    "name": "Hủy đơn xin nghỉ phép pending",
+    "name": "Hủy đơn đã xử lý (bị từ chối)",
     "role": "worker",
-    "test_id": "TC-SEC-10",
-    "image": "UI_Worker_06_Leave_Cancelled.png",
+    "test_id": "TC-L3-UI-CANCEL-PROCESSED-REJECT-01",
+    "image": "L3_Run2_TC-L3-UI-CANCEL-PROCESSED-REJECT-01_375x812.png",
     "viewport": "375x812"
   },
   {
     "fn_id": "FN-10",
     "name": "Nộp đơn đăng ký làm thêm giờ (OT)",
     "role": "worker",
-    "test_id": "TC-ATT-05",
-    "image": "UI_02_Worker_OT_Request_Submitted_375x812.png",
+    "test_id": "TC-L3-UI-OT-SUBMIT-01",
+    "image": "L3_Run2_TC-L3-UI-OT-SUBMIT-01_375x812.png",
     "viewport": "375x812"
   },
   {
     "fn_id": "FN-11",
     "name": "Nộp đơn giải trình bổ sung công",
     "role": "worker",
-    "test_id": "TC-L3-UI-LEAVE-APPROVE-P-01",
-    "image": "UI_03_Worker_Supplement_Request_Submitted_375x812.png",
+    "test_id": "TC-L3-UI-SUPPLEMENT-SUBMIT-01",
+    "image": "L3_Run2_TC-L3-UI-SUPPLEMENT-SUBMIT-01_375x812.png",
     "viewport": "375x812"
   },
   {
     "fn_id": "FN-12",
-    "name": "Gửi yêu cầu đổi thiết bị chấm công",
-    "role": "worker",
+    "name": "Phê duyệt đổi thiết bị bằng Admin DOM click",
+    "role": "admin",
     "test_id": "TC-L3-UI-ADMIN-DEVICE-APPROVAL-01",
-    "image": "UI_04_Worker_Device_Change_Requested_375x812.png",
-    "viewport": "375x812"
+    "image": "L3_Run2_TC-L3-UI-DEVICE-APPROVAL_AFTER_414x896.png",
+    "viewport": "414x896"
   },
   {
     "fn_id": "FN-13",
     "name": "Đăng nhập vai trò Kế toán",
     "role": "accountant",
-    "test_id": "TC-L3-UI-LOGIN-ROLES-01",
-    "image": "L3_Run1_TC-L3-UI-LOGIN-ACCOUNTANT_414x896.png",
+    "test_id": "TC-L3-UI-LOGIN-ACCOUNTANT-01",
+    "image": "L3_Run2_TC-L3-UI-LOGIN-ACCOUNTANT_414x896.png",
     "viewport": "414x896"
   },
   {
     "fn_id": "FN-14",
-    "name": "Kế toán viên duyệt đơn nghỉ / OT",
+    "name": "Kế toán duyệt đơn OT",
     "role": "accountant",
-    "test_id": "TC-L3-UI-LEAVE-APPROVE-P-01",
-    "image": "UI_Accountant_02_Requests_List.png",
+    "test_id": "TC-L3-UI-OT-APPROVE-01",
+    "image": "L3_Run2_TC-L3-UI-OT-APPROVE-01_1280x800.png",
     "viewport": "1280x800"
   },
   {
     "fn_id": "FN-15",
     "name": "Xem ma trận chấm công toàn xưởng",
     "role": "accountant",
-    "test_id": "TC-L3-UI-PERIOD-LOCK-01",
-    "image": "UI_Accountant_01_Matrix.png",
+    "test_id": "TC-L3-UI-MATRIX-VIEW-01",
+    "image": "L3_Run2_TC-L3-UI-MATRIX-VIEW-01_1280x800.png",
     "viewport": "1280x800"
   },
   {
@@ -124,55 +124,55 @@
     "name": "Phê duyệt nghỉ phép cập nhật ký hiệu P",
     "role": "accountant",
     "test_id": "TC-L3-UI-LEAVE-APPROVE-P-01",
-    "image": "L3_Run1_TC-L3-UI-LEAVE-P_AFTER_414x896.png",
+    "image": "L3_Run2_TC-L3-UI-LEAVE-P_AFTER_414x896.png",
     "viewport": "414x896"
   },
   {
     "fn_id": "FN-17",
-    "name": "Cảnh báo low-trust và khóa kỳ công",
+    "name": "Đối soát low-trust / cảnh báo chấm công bất thường",
     "role": "accountant",
-    "test_id": "TC-L3-UI-PERIOD-LOCK-01",
-    "image": "UI_Accountant_05_Period_Locked.png",
+    "test_id": "TC-L3-UI-LOW-TRUST-ALERT-01",
+    "image": "L3_Run2_TC-L3-UI-LOW-TRUST-ALERT-01_1280x800.png",
     "viewport": "1280x800"
   },
   {
     "fn_id": "FN-18",
     "name": "Tính toán bảng lương tổng hợp",
     "role": "accountant",
-    "test_id": "TC-PAY-08",
-    "image": "UI_Accountant_06_Payroll_Grid.png",
+    "test_id": "TC-L3-UI-PAYROLL-CALC-01",
+    "image": "L3_Run2_TC-L3-UI-PAYROLL-CALC-01_1280x800.png",
     "viewport": "1280x800"
   },
   {
     "fn_id": "FN-19",
     "name": "Xuất bảng lương ra tệp CSV an toàn",
     "role": "accountant",
-    "test_id": "TC-PAY-08",
-    "image": "UI_21_Accountant_Payroll_Export_CSV_1280x800.png",
+    "test_id": "TC-L3-UI-PAYROLL-EXPORT-CSV-01",
+    "image": "L3_Run2_TC-L3-UI-PAYROLL-EXPORT-CSV-01_1280x800.png",
     "viewport": "1280x800"
   },
   {
     "fn_id": "FN-20",
     "name": "Đăng nhập vai trò Quản trị viên (Admin)",
     "role": "admin",
-    "test_id": "TC-L3-UI-LOGIN-ROLES-01",
-    "image": "L3_Run1_TC-L3-UI-LOGIN-ADMIN_414x896.png",
+    "test_id": "TC-L3-UI-LOGIN-ADMIN-01",
+    "image": "L3_Run2_TC-L3-UI-LOGIN-ADMIN_414x896.png",
     "viewport": "414x896"
   },
   {
     "fn_id": "FN-21",
     "name": "Admin tạo mới hồ sơ nhân viên",
     "role": "admin",
-    "test_id": "TC-EMP-01",
-    "image": "UI_Admin_04_Employee_Created.png",
+    "test_id": "TC-L3-UI-ADMIN-CREATE-EMP-01",
+    "image": "L3_Run2_TC-L3-UI-ADMIN-CREATE-EMP-01_1280x800.png",
     "viewport": "1280x800"
   },
   {
     "fn_id": "FN-22",
-    "name": "Bảng lương Kế toán / Quản trị",
-    "role": "accountant",
-    "test_id": "TC-PAY-10",
-    "image": "G8_Accountant_01_Matrix_1280x800.png",
+    "name": "Đăng ký và xoay khóa Kiosk QR",
+    "role": "admin",
+    "test_id": "TC-L3-UI-KIOSK-ROTATE-KEY-01",
+    "image": "L3_Run2_TC-L3-UI-KIOSK-ROTATE-KEY-01_1280x800.png",
     "viewport": "1280x800"
   },
   {
@@ -180,15 +180,15 @@
     "name": "Admin khóa tài khoản nhân viên",
     "role": "admin",
     "test_id": "TC-L3-UI-INSTANT-REVOKE-01",
-    "image": "UI_Admin_05_Employee_Locked.png",
-    "viewport": "1280x800"
+    "image": "L3_Run2_TC-L3-UI-INSTANT-REVOKE_AFTER_360x640.png",
+    "viewport": "360x640"
   },
   {
     "fn_id": "FN-24",
     "name": "Admin mở khóa sổ kỳ công",
     "role": "admin",
-    "test_id": "TC-L3-API-PERIOD-LOCK-01",
-    "image": "UI_Admin_02_Period_Unlocked.png",
+    "test_id": "TC-L3-UI-PERIOD-UNLOCK-01",
+    "image": "L3_Run2_TC-L3-UI-PERIOD-UNLOCK-01_1280x800.png",
     "viewport": "1280x800"
   },
   {
@@ -196,7 +196,7 @@
     "name": "Kiosk hiển thị và tự động làm mới mã QR",
     "role": "kiosk",
     "test_id": "TC-L3-UI-KIOSK-AUTO-REFRESH-01",
-    "image": "UI_24_Kiosk_Displaying_And_Refreshing_QR_1280x800.png",
-    "viewport": "1280x800"
+    "image": "L3_Run2_TC-L3-UI-KIOSK-QR_AFTER_414x896.png",
+    "viewport": "414x896"
   }
 ]

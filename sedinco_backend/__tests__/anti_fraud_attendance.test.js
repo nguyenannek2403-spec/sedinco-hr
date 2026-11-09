@@ -173,8 +173,8 @@ test('TC-ANTI-09: 30 công nhân cùng IP Wi-Fi công ty chấm công liên ti�
         const ma_nv = `NV_NAT_${idStr}`;
         testWorkers.push({ ma_nv, role: 'worker' });
         await query(`
-            INSERT INTO employees (ma_nv, ho_ten, chuc_danh, role, status, is_locked)
-            VALUES (?, ?, 'Công nhân xưởng', 'worker', 'active', 0)
+            INSERT INTO employees (ma_nv, ho_ten, chuc_danh, role, status, is_locked, password)
+            VALUES (?, ?, 'Công nhân xưởng', 'worker', 'active', 0, 'test_hashed_pwd')
             ON DUPLICATE KEY UPDATE status = 'active', is_locked = 0
         `, [ma_nv, `Công nhân Wi-Fi ${idStr}`]);
     }

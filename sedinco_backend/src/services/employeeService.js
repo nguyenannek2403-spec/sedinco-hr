@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { query } = require('../config/db');
 const { SAFE_EMPLOYEE_FIELDS, resolveUserRole, logAuditEvent, invalidateUserCache } = require('../middlewares/authMiddleware');
 const { verifyZaloUserToken } = require('../utils/zaloAdapter');
@@ -35,7 +36,20 @@ class EmployeeService {
             normalizedRole = 'worker';
         }
 
-        const rawPassword = data.password || '123456';
+        let rawPassword = data.password;
+        let oneTimePassword = null;
+        let mustChangePassword = 0;
+
+        if (rawPassword && typeof rawPassword === 'string' && rawPassword.trim().length > 0) {
+            rawPassword = rawPassword.trim();
+            mustChangePassword = data.must_change_password !== undefined ? (data.must_change_password ? 1 : 0) : 1;
+        } else {
+            // Sinh ngẫu nhiên mật khẩu một lần an toàn (>= 16 ký tự, gồm số, chữ hoa, thường và ký tự đặc biệt)
+            rawPassword = crypto.randomBytes(12).toString('base64url') + '!A9z';
+            oneTimePassword = rawPassword;
+            mustChangePassword = 1;
+        }
+
         const hashedPassword = hashPassword(rawPassword);
 
         const sql = `
@@ -56,7 +70,7 @@ class EmployeeService {
             status || 'active',
             is_locked ? 1 : 0,
             hashedPassword,
-            1
+            mustChangePassword
         ];
         await query(sql, values);
 
@@ -70,7 +84,10 @@ class EmployeeService {
             });
         }
 
-        return { success: true };
+        return { 
+            success: true,
+            ...(oneTimePassword ? { one_time_password: oneTimePassword } : {})
+        };
     }
 
     async updateEmployee(id, data, current_user = null) {

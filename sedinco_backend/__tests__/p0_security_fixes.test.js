@@ -200,7 +200,7 @@ test('TC-P0-HEADER-01: Header x-user-role và x-user-id bị vô hiệu hóa ho�
 // =========================================================================
 test('TC-P0-JWT-01: Token JWT cũ của tài khoản bị khóa (is_locked=1) phải bị từ chối HTTP 403', async () => {
     const testEmpId = 'EMP_LOCK_P0';
-    await query("INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked) VALUES (?, 'Test Locked User', 'worker', 'active', 0) ON DUPLICATE KEY UPDATE is_locked = 0", [testEmpId]);
+    await query("INSERT INTO employees (ma_nv, ho_ten, role, status, is_locked, password) VALUES (?, 'Test Locked User', 'worker', 'active', 0, 'dummy_test_pass') ON DUPLICATE KEY UPDATE is_locked = 0", [testEmpId]);
 
     // Sinh token hợp lệ cho EMP_LOCK_P0
     const token = generateToken({ id: testEmpId, ma_nv: testEmpId, role: 'worker', ho_ten: 'Test Locked User' });
