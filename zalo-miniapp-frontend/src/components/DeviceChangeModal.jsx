@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Box, Text, Input, Button } from 'zmp-ui';
 import { Smartphone, AlertTriangle } from 'lucide-react';
+import { API_BASE } from '../utils/api';
 
 /**
  * DeviceChangeModal (G3 Security Hardening - Proposal 1)
@@ -21,7 +22,7 @@ export default function DeviceChangeModal({ visible, onClose, token, newDeviceId
         setLoading(true);
         setError('');
         try {
-            const res = await fetch('/api/employees/request-device-change', {
+            const res = await fetch(`${API_BASE}/employees/request-device-change`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

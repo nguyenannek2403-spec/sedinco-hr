@@ -226,9 +226,14 @@ async function authenticateToken(req, res, next) {
 // 8. Middleware bắt buộc phải đăng nhập
 function requireAuth(req, res, next) {
     if (!req.user) {
+        if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+            req.app.setCorsHeadersIfAllowed(req, res);
+        }
         return res.status(401).json({
             success: false,
-            message: 'Yêu cầu đăng nhập để truy cập tài nguyên này!'
+            code: 'UNAUTHORIZED',
+            message: 'Yêu cầu đăng nhập để truy cập tài nguyên này!',
+            request_id: req.id || undefined
         });
     }
     next();
@@ -239,16 +244,26 @@ function requireRole(allowedRoles) {
     const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
     return (req, res, next) => {
         if (!req.user) {
+            if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+                req.app.setCorsHeadersIfAllowed(req, res);
+            }
             return res.status(401).json({
                 success: false,
-                message: 'Yêu cầu đăng nhập để truy cập tài nguyên này!'
+                code: 'UNAUTHORIZED',
+                message: 'Yêu cầu đăng nhập để truy cập tài nguyên này!',
+                request_id: req.id || undefined
             });
         }
         const userRole = req.user.role === 'employee' ? 'worker' : req.user.role;
         if (!roles.includes(userRole)) {
+            if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+                req.app.setCorsHeadersIfAllowed(req, res);
+            }
             return res.status(403).json({
                 success: false,
-                message: `Từ chối truy cập: Tài khoản không có quyền hạn này (Yêu cầu: ${roles.join(', ')}).`
+                code: 'FORBIDDEN',
+                message: `Từ chối truy cập: Tài khoản không có quyền hạn này (Yêu cầu: ${roles.join(', ')}).`,
+                request_id: req.id || undefined
             });
         }
         next();
@@ -259,9 +274,14 @@ function requireRole(allowedRoles) {
 function requirePermission(permissionKey) {
     return async (req, res, next) => {
         if (!req.user) {
+            if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+                req.app.setCorsHeadersIfAllowed(req, res);
+            }
             return res.status(401).json({
                 success: false,
-                message: 'Yêu cầu đăng nhập để truy cập tài nguyên này!'
+                code: 'UNAUTHORIZED',
+                message: 'Yêu cầu đăng nhập để truy cập tài nguyên này!',
+                request_id: req.id || undefined
             });
         }
 
@@ -278,16 +298,26 @@ function requirePermission(permissionKey) {
             if (permissions[permissionKey] === true || permissions[permissionKey] === 1) {
                 return next();
             }
+            if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+                req.app.setCorsHeadersIfAllowed(req, res);
+            }
             return res.status(403).json({
                 success: false,
-                message: `Quyền bị từ chối: Kế toán chưa được cấp quyền '${permissionKey}'. Vui lòng liên hệ Quản trị viên!`
+                code: 'FORBIDDEN',
+                message: `Quyền bị từ chối: Kế toán chưa được cấp quyền '${permissionKey}'. Vui lòng liên hệ Quản trị viên!`,
+                request_id: req.id || undefined
             });
         }
 
         // Công nhân (worker): Mặc định không có quyền nghiệp vụ
+        if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+            req.app.setCorsHeadersIfAllowed(req, res);
+        }
         return res.status(403).json({
             success: false,
-            message: `Quyền bị từ chối: Công nhân không thể thực hiện chức năng nghiệp vụ '${permissionKey}'!`
+            code: 'FORBIDDEN',
+            message: `Quyền bị từ chối: Công nhân không thể thực hiện chức năng nghiệp vụ '${permissionKey}'!`,
+            request_id: req.id || undefined
         });
     };
 }

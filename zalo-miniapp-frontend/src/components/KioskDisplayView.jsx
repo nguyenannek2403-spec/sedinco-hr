@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, Button } from 'zmp-ui';
 import { QrCode, RefreshCw, Monitor, ShieldCheck, Clock, Wifi, ShieldAlert } from 'lucide-react';
+import { API_BASE } from '../utils/api';
 
 /**
  * KioskDisplayView (G3 Security Hardening - Proposal 2 Kiosk Isolation)
@@ -24,7 +25,7 @@ export default function KioskDisplayView({ kioskKey = '' }) {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch('/api/kiosk/qr', {
+            const res = await fetch(`${API_BASE}/kiosk/qr`, {
                 headers: {
                     'x-kiosk-key': key.trim()
                 }
@@ -84,7 +85,7 @@ export default function KioskDisplayView({ kioskKey = '' }) {
 
         const pollTimer = setInterval(async () => {
             try {
-                const res = await fetch(`/api/kiosk/qr-status?token=${encodeURIComponent(qrData.token)}`, {
+                const res = await fetch(`${API_BASE}/kiosk/qr-status?token=${encodeURIComponent(qrData.token)}`, {
                     headers: { 'x-kiosk-key': apiKey.trim() }
                 });
                 if (!res.ok) {

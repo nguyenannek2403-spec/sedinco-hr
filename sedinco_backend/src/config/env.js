@@ -25,7 +25,9 @@ const env = {
     CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
     // TRUST_PROXY: số hop proxy tin cậy (1 = trực tiếp sau 1 reverse proxy như Nginx/Render)
     // false = không tin cậy X-Forwarded-For (default local), 1 = Render/Nginx, 'loopback' = chỉ local
-    TRUST_PROXY: process.env.TRUST_PROXY !== undefined ? process.env.TRUST_PROXY : false
+    TRUST_PROXY: process.env.TRUST_PROXY !== undefined ? process.env.TRUST_PROXY : false,
+    ENABLE_CLIENT_ERROR_REPORTING: process.env.ENABLE_CLIENT_ERROR_REPORTING === 'true',
+    ENABLE_DIAGNOSTICS: process.env.ENABLE_DIAGNOSTICS === 'true'
 };
 
 module.exports = env;

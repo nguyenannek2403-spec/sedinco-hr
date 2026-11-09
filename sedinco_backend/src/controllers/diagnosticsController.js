@@ -61,11 +61,18 @@ class DiagnosticsController {
                 gitCommit = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'N/A';
             }
 
+            const corsOrigins = (process.env.CORS_ORIGIN || '*')
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean);
+
             return res.json({
                 success: true,
                 environment: process.env.NODE_ENV || 'staging',
                 diagnostics_enabled: true,
                 git_commit: gitCommit,
+                request_origin: req.headers.origin || null,
+                cors_origins_configured: corsOrigins,
                 sdk_info: {
                     zalo_app_id_configured: Boolean(process.env.ZALO_APP_ID),
                     zalo_secret_configured: Boolean(process.env.ZALO_APP_SECRET),
@@ -73,6 +80,25 @@ class DiagnosticsController {
                 },
                 db_status: isDbOk ? 'CONNECTED' : 'DISCONNECTED',
                 timestamp: new Date().toISOString()
+            });
+        } catch (err) {
+            return res.status(500).json({
+                success: false,
+                error: err.message
+            });
+        }
+    }
+
+    async getRecentLogs(req, res) {
+        try {
+            const hours = Math.min(24, Math.max(1, Number(req.query.hours) || 1));
+            const { getRecentEvents } = require('../utils/stagingLogStore');
+            const summary = getRecentEvents(hours);
+
+            return res.json({
+                success: true,
+                environment: process.env.NODE_ENV || 'staging',
+                ...summary
             });
         } catch (err) {
             return res.status(500).json({

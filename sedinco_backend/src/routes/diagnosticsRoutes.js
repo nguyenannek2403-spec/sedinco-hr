@@ -15,6 +15,8 @@ router.use(authenticateToken);
 router.use((req, res, next) => diagnosticsController.checkDiagnosticsAccess(req, res, next));
 
 router.get('/status', (req, res) => diagnosticsController.getSystemStatus(req, res));
+router.get('/system-status', (req, res) => diagnosticsController.getSystemStatus(req, res));
+router.get('/recent-logs', (req, res) => diagnosticsController.getRecentLogs(req, res));
 router.post('/verify-zalo-user', (req, res) => diagnosticsController.verifyZaloUser(req, res));
 router.post('/decode-location', (req, res) => diagnosticsController.decodeZaloLocation(req, res));
 

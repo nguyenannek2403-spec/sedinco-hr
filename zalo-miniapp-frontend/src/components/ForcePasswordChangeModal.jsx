@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Box, Text, Input, Button, Icon } from 'zmp-ui';
 import { Lock, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { API_BASE } from '../utils/api';
 
 /**
  * ForcePasswordChangeModal (G3 Security Hardening)
@@ -30,7 +31,7 @@ export default function ForcePasswordChangeModal({ visible, maNv, token, onPassw
 
         setLoading(true);
         try {
-            const res = await fetch('/api/change-password', {
+            const res = await fetch(`${API_BASE}/change-password`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -11,6 +11,7 @@ const holidayRoutes = require('./holidayRoutes');
 const settingsRoutes = require('./settingsRoutes');
 const kioskRoutes = require('./kioskRoutes');
 const diagnosticsRoutes = require('./diagnosticsRoutes');
+const clientErrorRoutes = require('./clientErrorRoutes');
 
 // Mount từng router chức năng
 router.use('/', authRoutes); // /api/login, /api/admin/login, /api/change-password, etc.
@@ -23,5 +24,6 @@ router.use('/holidays', holidayRoutes); // /api/holidays
 router.use('/settings', settingsRoutes); // /api/settings (penalties, etc.)
 router.use('/kiosk', kioskRoutes); // /api/kiosk (QR Hardware Isolation)
 router.use('/diagnostics', diagnosticsRoutes); // /api/diagnostics (Staging Only)
+router.use('/client-errors', clientErrorRoutes); // /api/client-errors (Staging Only)
 
 module.exports = router;

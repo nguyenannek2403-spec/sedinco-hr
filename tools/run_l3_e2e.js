@@ -37,7 +37,9 @@ const { generateToken } = require('../sedinco_backend/src/middlewares/authMiddle
 assertDestructiveDbAllowed(process.env.DB_NAME, process.env.DB_HOST);
 
 const BRAVE_BIN = '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser';
-const BASE_URL = 'http://127.0.0.1:5001';
+const BASE_URL = process.env.L3_FRONTEND_URL || 'http://127.0.0.1:5001';
+const API_BASE_URL = process.env.L3_API_URL || 'http://127.0.0.1:5001/api';
+console.log(`🌐 [L3 CONFIG] Frontend URL: ${BASE_URL} | Backend API: ${API_BASE_URL}`);
 const SCREENS_DIR = path.join(__dirname, '../reports/screens');
 const ARTIFACT_DIR = '/Users/an/.gemini/antigravity-ide/brain/d749f6a7-1d47-4498-bc81-b05d5c937170';
 
@@ -382,14 +384,14 @@ async function runL3TestSuite(runIndex = 1) {
         // -------------------------------------------------------------
         console.log(`[TEST 4g] [UI] TC-L3-UI-CANCEL-PROCESSED-REJECT-01: Hủy đơn đã xử lý -> Bị từ chối...`);
         await query('INSERT INTO requests (id, employee_id, request_type, request_date, reason, status) VALUES (99991, "NV001", "Nghỉ phép", "2026-10-20", "Đã duyệt E2E", "approved") ON DUPLICATE KEY UPDATE status="approved"');
-        const cancelRes = await page.evaluate(async () => {
+        const cancelRes = await page.evaluate(async (apiBase) => {
             const tok = localStorage.getItem('sedinco_auth_token');
-            const r = await fetch('/api/requests/99991/cancel', {
+            const r = await fetch(`${apiBase}/requests/99991/cancel`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${tok}` }
             });
             return { status: r.status, data: await r.json() };
-        });
+        }, API_BASE_URL);
         const isCancelRejected = cancelRes.status === 400 && cancelRes.data.success === false;
         await captureScreen(page, `L3_Run${runIndex}_TC-L3-UI-CANCEL-PROCESSED-REJECT-01`, VIEWPORTS.standard.name);
         testResults.push({ id: 'TC-L3-UI-CANCEL-PROCESSED-REJECT-01', type: 'UI', name: 'Hủy đơn đã xử lý (bị từ chối bảo vệ toàn vẹn dữ liệu)', status: isCancelRejected ? 'PASS' : 'FAIL' });
@@ -631,13 +633,13 @@ async function runL3TestSuite(runIndex = 1) {
 
         await captureScreen(page, `L3_Run${runIndex}_TC-L3-UI-INSTANT-REVOKE_BEFORE`, VIEWPORTS.small.name);
 
-        await page.evaluate(async () => {
+        await page.evaluate(async (apiBase) => {
             try {
-                await fetch('/api/attendance/me', {
+                await fetch(`${apiBase}/attendance/me`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('sedinco_auth_token')}` }
                 });
             } catch (e) {}
-        });
+        }, API_BASE_URL);
         await sleep(1000);
 
         const anyWorkerBtn = await page.$('button');
@@ -764,21 +766,21 @@ async function runL3TestSuite(runIndex = 1) {
         await query('INSERT INTO requests (employee_id, request_type, request_date, reason, status) VALUES ("NV001", "Nghỉ phép", ?, "Nghỉ việc gia đình L3", "pending")', [targetLeaveDate]);
 
         // Admin đang đăng nhập: Duyệt đơn của NV001
-        const approveLeaveRes = await page.evaluate(async () => {
+        const approveLeaveRes = await page.evaluate(async (apiBase) => {
             const token = localStorage.getItem('sedinco_auth_token');
-            const res = await fetch('/api/requests', { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await fetch(`${apiBase}/requests`, { headers: { 'Authorization': `Bearer ${token}` } });
             const data = await res.json();
             const req = (data.data || []).find(r => (r.ma_nv === 'NV001' || r.employee_id === 'NV001') && r.status === 'pending');
             if (!req) return { success: false, reason: 'not_found' };
 
-            const putRes = await fetch(`/api/requests/${req.id}`, {
+            const putRes = await fetch(`${apiBase}/requests/${req.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ status: 'approved' })
             });
             const putData = await putRes.json();
             return { success: putData.success, reqId: req.id };
-        });
+        }, API_BASE_URL);
 
         // Kiểm tra trong Bảng chấm công tháng 10/2026 ngày 15 được gán status 'P'
         const [leaveRow] = await query('SELECT status FROM attendance_logs WHERE employee_id = "NV001" AND record_date = ?', [targetLeaveDate]);
@@ -793,20 +795,20 @@ async function runL3TestSuite(runIndex = 1) {
         await query('DELETE FROM requests WHERE employee_id = "admin"');
         await query('INSERT INTO requests (employee_id, request_type, request_date, reason, status) VALUES ("admin", "Nghỉ phép", CURRENT_DATE, "Admin tự nộp", "pending")');
 
-        const sodRes = await page.evaluate(async () => {
+        const sodRes = await page.evaluate(async (apiBase) => {
             const token = localStorage.getItem('sedinco_auth_token');
-            const res = await fetch('/api/requests', { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await fetch(`${apiBase}/requests`, { headers: { 'Authorization': `Bearer ${token}` } });
             const data = await res.json();
             const selfReq = (data.data || []).find(r => (r.ma_nv === 'admin' || r.employee_id === 'admin') && r.status === 'pending');
             if (!selfReq) return { status: 404 };
 
-            const putRes = await fetch(`/api/requests/${selfReq.id}`, {
+            const putRes = await fetch(`${apiBase}/requests/${selfReq.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ status: 'approved' })
             });
             return { status: putRes.status, body: await putRes.json() };
-        });
+        }, API_BASE_URL);
 
         const sodBlocked = sodRes.status === 403 || (sodRes.body && sodRes.body.success === false);
         await captureScreen(page, `L3_Run${runIndex}_TC-L3-UI-SOD-BLOCK_AFTER`, VIEWPORTS.large.name);
@@ -816,15 +818,15 @@ async function runL3TestSuite(runIndex = 1) {
         // TEST 13 [UI]: KHÓA KỲ CÔNG TRÊN UI (PERIOD LOCK MODAL)
         // -------------------------------------------------------------
         console.log(`\n[TEST 13] [UI] TC-L3-UI-PERIOD-LOCK-01: Khóa kỳ công trên giao diện UI -> Hiển thị Đã Khóa Sổ...`);
-        const uiLockRes = await page.evaluate(async () => {
+        const uiLockRes = await page.evaluate(async (apiBase) => {
             const token = localStorage.getItem('sedinco_auth_token');
-            const lockCall = await fetch('/api/attendance/lock-period', {
+            const lockCall = await fetch(`${apiBase}/attendance/lock-period`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ month: 10, year: 2026, reason: 'Chốt sổ UI E2E L3', confirm_low_trust: true })
             });
             return await lockCall.json();
-        });
+        }, API_BASE_URL);
 
         const [lockCheckRow] = await query('SELECT is_locked, reason FROM period_locks WHERE month = 10 AND year = 2026');
         const isPeriodLockedUi = Boolean(lockCheckRow && lockCheckRow.is_locked === 1) && uiLockRes.success;
@@ -840,14 +842,14 @@ async function runL3TestSuite(runIndex = 1) {
 
         const workerToken = generateToken({ id: 'NV004', ma_nv: 'NV004', role: 'worker', ho_ten: 'Công nhân Mô phỏng 0004' });
 
-        const gpsRes = await page.evaluate(async ({ token, qr }) => {
-            const res = await fetch('/api/attendance/check-in', {
+        const gpsRes = await page.evaluate(async ({ token, qr, apiBase }) => {
+            const res = await fetch(`${apiBase}/attendance/check-in`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ token: qr, lat: 21.0285, lng: 105.8542 })
             });
             return await res.json();
-        }, { token: workerToken, qr: freshQr.token });
+        }, { token: workerToken, qr: freshQr.token, apiBase: API_BASE_URL });
 
         const gpsBlocked = gpsRes && gpsRes.success === false && (gpsRes.message?.includes('bán kính') || gpsRes.message?.includes('khoảng cách') || gpsRes.message?.includes('Vị trí'));
         testResults.push({ id: 'TC-L3-API-GPS-RADIUS-01', type: 'API', name: 'Chặn chấm công khi tọa độ GPS ngoài bán kính trụ sở', status: gpsBlocked ? 'PASS' : 'FAIL' });
@@ -857,32 +859,32 @@ async function runL3TestSuite(runIndex = 1) {
         // -------------------------------------------------------------
         console.log(`\n[TEST 15] [API] TC-L3-API-PERIOD-LOCK-01: Khóa kỳ công từ chối mọi sửa đổi...`);
         const adminToken = generateToken({ id: 'admin', username: 'admin', role: 'admin' });
-        const lockRes = await page.evaluate(async (token) => {
-            const res = await fetch('/api/attendance/lock-period', {
+        const lockRes = await page.evaluate(async ({ token, apiBase }) => {
+            const res = await fetch(`${apiBase}/attendance/lock-period`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ month: 10, year: 2026, reason: 'Chốt sổ E2E', confirm_low_trust: true })
             });
             return await res.json();
-        }, adminToken);
+        }, { token: adminToken, apiBase: API_BASE_URL });
 
-        const editRes = await page.evaluate(async (token) => {
-            const res = await fetch('/api/attendance/update', {
+        const editRes = await page.evaluate(async ({ token, apiBase }) => {
+            const res = await fetch(`${apiBase}/attendance/update`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ ma_nv: 'NV001', day: 15, month: 10, year: 2026, status: '1' })
             });
             return { status: res.status, body: await res.json() };
-        }, adminToken);
+        }, { token: adminToken, apiBase: API_BASE_URL });
 
-        const unlockRes = await page.evaluate(async (token) => {
-            const res = await fetch('/api/attendance/unlock-period', {
+        const unlockRes = await page.evaluate(async ({ token, apiBase }) => {
+            const res = await fetch(`${apiBase}/attendance/unlock-period`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ month: 10, year: 2026, reason: 'Mở lại sổ E2E' })
             });
             return await res.json();
-        }, adminToken);
+        }, { token: adminToken, apiBase: API_BASE_URL });
 
         const periodLockPass = lockRes.success && editRes.status === 400 && unlockRes.success;
         testResults.push({ id: 'TC-L3-API-PERIOD-LOCK-01', type: 'API', name: 'Khóa kỳ công từ chối mọi sửa đổi dữ liệu chấm công', status: periodLockPass ? 'PASS' : 'FAIL' });

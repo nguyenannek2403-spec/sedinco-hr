@@ -1,11 +1,34 @@
 import axios from "axios";
 
-const isStagingMode = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.MODE === "staging");
-const configuredApiUrl = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL);
+export function normalizeApiUrl(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  let trimmed = raw.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (!trimmed.endsWith("/api")) {
+    trimmed = `${trimmed}/api`;
+  }
+  return trimmed;
+}
 
-export const API_BASE = (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"))
-  ? `${window.location.origin}/api`
-  : (configuredApiUrl || ((typeof window !== "undefined" && window.__API_BASE__) ? window.__API_BASE__ : (isStagingMode ? "" : "https://sedinco-backend.onrender.com/api")));
+export function resolveApiBase() {
+  const envUrl = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL);
+  if (envUrl && typeof envUrl === "string" && envUrl.trim()) {
+    return normalizeApiUrl(envUrl);
+  }
+  if (typeof window !== "undefined" && window.__API_BASE__) {
+    return normalizeApiUrl(window.__API_BASE__);
+  }
+  if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+    return `${window.location.origin}/api`;
+  }
+  const isStagingMode = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.MODE === "staging");
+  if (isStagingMode) {
+    return "";
+  }
+  return "https://sedinco-backend.onrender.com/api";
+}
+
+export const API_BASE = resolveApiBase();
 
 // Tạo instance axios có timeout 15s để tránh treo xoay vĩnh viễn
 const apiClient = axios.create({
@@ -130,6 +153,18 @@ apiClient.interceptors.response.use(
       userMessage = "Máy chủ gặp sự cố xử lý nội bộ (5xx). Vui lòng thử lại sau giây lát.";
     }
 
+    if (status && status >= 400) {
+      const isClientErrorEndpoint = error.config?.url && String(error.config.url).includes('client-errors');
+      if (!isClientErrorEndpoint) {
+        reportClientError({
+          route: error.config?.url || "",
+          error_message: error.response?.data?.message || error.message,
+          api_code: error.response?.data?.code || error.code,
+          api_status: status
+        });
+      }
+    }
+
     return Promise.reject({
       status,
       message: userMessage,
@@ -138,6 +173,73 @@ apiClient.interceptors.response.use(
     });
   }
 );
+
+export const reportClientError = async ({
+  route = "",
+  error_message = "",
+  api_code = "",
+  api_status = null,
+  role = null
+} = {}) => {
+  const isEnabled = (typeof import.meta !== "undefined" && import.meta.env && (import.meta.env.VITE_ENABLE_CLIENT_ERROR_REPORTING === "true" || import.meta.env.VITE_ENABLE_CLIENT_ERROR_REPORTING === true)) ||
+    (typeof window !== "undefined" && window.__ENABLE_CLIENT_ERROR_REPORTING__ === true);
+  if (!isEnabled) return;
+
+  const resolvedRole = role || (() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("sedinco_miniapp_user") || "{}");
+      return user?.role || null;
+    } catch (e) {
+      return null;
+    }
+  })();
+
+  const currentRoute = route || (typeof window !== "undefined" ? window.location.pathname + window.location.hash : "");
+  if (typeof error_message === "string" && error_message.includes("/client-errors")) return;
+
+  try {
+    await fetch(`${API_BASE}/client-errors`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_time: new Date().toISOString(),
+        role: resolvedRole,
+        route: String(currentRoute).substring(0, 200),
+        error_message: String(error_message || "Unknown error").substring(0, 500),
+        api_code: api_code ? String(api_code).substring(0, 50) : undefined,
+        api_status: api_status ? Number(api_status) : undefined
+      })
+    });
+  } catch (e) {}
+};
+
+export function initGlobalClientErrorListeners() {
+  if (typeof window === "undefined" || window.__CLIENT_ERROR_LISTENERS_INITIALIZED__) return;
+  window.__CLIENT_ERROR_LISTENERS_INITIALIZED__ = true;
+
+  window.addEventListener("error", (event) => {
+    reportClientError({
+      route: window.location.pathname + window.location.hash,
+      error_message: event.message || (event.error && event.error.message) || "Script Error",
+      api_status: null
+    });
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
+    const msg = reason?.message || (typeof reason === "string" ? reason : "Unhandled Promise Rejection");
+    reportClientError({
+      route: window.location.pathname + window.location.hash,
+      error_message: msg,
+      api_status: reason?.status || null,
+      api_code: reason?.code || null
+    });
+  });
+}
+
+if (typeof window !== "undefined") {
+  initGlobalClientErrorListeners();
+}
 
 /**
  * Gọi API GET an toàn có tự động hủy request cũ và gắn timeout

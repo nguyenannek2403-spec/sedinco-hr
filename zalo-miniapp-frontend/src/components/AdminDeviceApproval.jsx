@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, Button } from 'zmp-ui';
 import { Smartphone, Check, X, ShieldCheck, RefreshCw } from 'lucide-react';
+import { API_BASE } from '../utils/api';
 
 /**
  * AdminDeviceApproval (G3 Security Hardening - Proposal 1)
@@ -16,7 +17,7 @@ export default function AdminDeviceApproval({ token }) {
         setLoading(true);
         setMessage('');
         try {
-            const res = await fetch('/api/employees?has_pending_device=1', {
+            const res = await fetch(`${API_BASE}/employees?has_pending_device=1`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -40,7 +41,7 @@ export default function AdminDeviceApproval({ token }) {
         setActionLoading(ma_nv);
         setMessage('');
         try {
-            const res = await fetch(`/api/employees/${ma_nv}/approve-device`, {
+            const res = await fetch(`${API_BASE}/employees/${ma_nv}/approve-device`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

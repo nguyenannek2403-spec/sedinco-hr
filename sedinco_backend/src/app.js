@@ -78,6 +78,61 @@ function sanitizeLogString(str, maxLen = 100) {
     return cleaned.length > maxLen ? cleaned.substring(0, maxLen) + '...' : cleaned;
 }
 
+const crypto = require('crypto');
+const { recordStagingEvent } = require('./utils/stagingLogStore');
+
+function parseAllowedOrigins(str) {
+    if (!str || str === '*') return ['*'];
+    return str.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function isOriginAllowed(origin, allowedList) {
+    if (!origin) return true;
+    if (allowedList.includes('*')) return true;
+    return allowedList.includes(origin);
+}
+
+function setCorsHeadersIfAllowed(req, res) {
+    const reqOrigin = req.headers?.origin;
+    const allowedList = parseAllowedOrigins(process.env.CORS_ORIGIN || env.CORS_ORIGIN);
+    if (reqOrigin && isOriginAllowed(reqOrigin, allowedList)) {
+        res.setHeader('Access-Control-Allow-Origin', reqOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-Id, X-Requested-With, x-kiosk-key, Idempotency-Key, Accept');
+    }
+}
+
+// Middleware gán X-Request-Id và theo dõi sự kiện phản hồi lỗi (Mục C.1)
+app.use((req, res, next) => {
+    const clientReqId = req.headers['x-request-id'];
+    const validReqId = typeof clientReqId === 'string' && /^[\w-]{8,64}$/.test(clientReqId)
+        ? clientReqId
+        : crypto.randomUUID();
+    req.id = validReqId;
+    res.setHeader('X-Request-Id', validReqId);
+    req._startTime = Date.now();
+
+    res.on('finish', () => {
+        if (res.statusCode >= 400) {
+            recordStagingEvent({
+                level: res.statusCode >= 500 ? 'ERROR' : 'WARN',
+                type: 'HTTP_ERROR_RESPONSE',
+                request_id: req.id,
+                status: res.statusCode,
+                method: req.method,
+                route: (req.baseUrl || '') + (req.path || req.url || ''),
+                role: req.user?.role || 'anonymous',
+                actor_id: req.user?.ma_nv || req.user?.username || null,
+                duration_ms: Date.now() - req._startTime,
+                rejection_code: res.locals?.rejection_code || undefined
+            });
+        }
+    });
+
+    next();
+});
+
 // Middleware chuẩn hóa trích xuất IP: Tuyệt đối không đọc trực tiếp header x-forwarded-for thô
 app.use((req, res, next) => {
     const isTrustDisabled = !app.get('trust proxy');
@@ -102,6 +157,25 @@ app.use((req, res, next) => {
     next();
 });
 
+// Cấu hình CORS chặt chẽ: Hỗ trợ danh sách phân tách bằng dấu phẩy và tiền tố (Mục B.2, B.4)
+const corsOptions = {
+    origin: (origin, callback) => {
+        const allowedList = parseAllowedOrigins(process.env.CORS_ORIGIN || env.CORS_ORIGIN);
+        if (isOriginAllowed(origin, allowedList)) {
+            return callback(null, true);
+        }
+        const err = new Error(`CORS blocked for origin: ${origin}`);
+        err.status = 403;
+        err.code = 'CORS_FORBIDDEN';
+        return callback(err);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Requested-With', 'x-kiosk-key', 'Idempotency-Key', 'Accept']
+};
+
+app.use(cors(corsOptions));
+
 // Middlewares toàn cục: Phân bổ kích thước body parser tối ưu
 // Mặc định giới hạn nhỏ (100kb) để phòng chống DoS/Payload Too Large vào các route nhạy cảm (/api/login, /api/auth...)
 // Riêng route chấm công (/api/attendance) cho phép tới 3mb để nạp ảnh snapshot Base64
@@ -109,8 +183,6 @@ const defaultJsonParser = express.json({ limit: '100kb' });
 const attendanceJsonParser = express.json({ limit: '3mb' });
 const defaultUrlParser = express.urlencoded({ limit: '100kb', extended: true });
 const attendanceUrlParser = express.urlencoded({ limit: '3mb', extended: true });
-
-app.use(cors({ origin: env.CORS_ORIGIN }));
 
 app.use((req, res, next) => {
     if (req.path.startsWith('/api/attendance')) {
@@ -169,6 +241,9 @@ app.use(errorHandler);
 app.parseAndValidateTrustProxy = parseAndValidateTrustProxy;
 app.sanitizeLogString = sanitizeLogString;
 app.lastXffWarnBySocketIp = lastXffWarnBySocketIp;
+app.parseAllowedOrigins = parseAllowedOrigins;
+app.isOriginAllowed = isOriginAllowed;
+app.setCorsHeadersIfAllowed = setCorsHeadersIfAllowed;
 
 module.exports = app;
 

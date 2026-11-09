@@ -5,6 +5,7 @@ import {
     Smartphone, Key, MapPin, Camera, QrCode, RefreshCw 
 } from 'lucide-react';
 import { getAccessToken, getLocation, getDeviceIdAsync, scanQRCode, chooseImage } from 'zmp-sdk/apis';
+import { API_BASE } from '../utils/api';
 
 /**
  * DiagnosticsView (G6 / G6.1)
@@ -22,10 +23,11 @@ export default function DiagnosticsView() {
         setStatusLoading(true);
         try {
             const tokenAuth = localStorage.getItem('token') || sessionStorage.getItem('token') || localStorage.getItem('sedinco_token');
-            const res = await fetch('/api/diagnostics/system-status', {
+            const res = await fetch(`${API_BASE}/diagnostics/system-status`, {
                 headers: { 'Authorization': tokenAuth ? `Bearer ${tokenAuth}` : '' }
             });
             if (res.ok) {
+                const data = await res.json();
                 setSystemStatus(data);
             } else if (res.status === 404) {
                 setSystemStatus({
@@ -116,7 +118,7 @@ export default function DiagnosticsView() {
             }
 
             const tokenAuth = localStorage.getItem('token') || sessionStorage.getItem('token');
-            const res = await fetch('/api/diagnostics/verify-zalo-user', {
+            const res = await fetch(`${API_BASE}/diagnostics/verify-zalo-user`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
