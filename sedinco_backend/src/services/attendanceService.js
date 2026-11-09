@@ -714,6 +714,44 @@ class AttendanceService {
         const rows = await query('SELECT check_in_image FROM attendance_logs WHERE id = ? LIMIT 1', [logId]);
         return rows && rows.length > 0 ? rows[0].check_in_image : null;
     }
+
+    async getAttendanceStats(dateStr = null) {
+        const targetDate = dateStr || new Date().toISOString().slice(0, 10);
+        const [totalEmpRow] = await query('SELECT COUNT(*) as total FROM employees WHERE status != "inactive"');
+        const totalEmployees = totalEmpRow ? Number(totalEmpRow.total) : 0;
+
+        const logs = await query(
+            'SELECT status, check_in_time FROM attendance_logs WHERE record_date = ?',
+            [targetDate]
+        );
+
+        let present = 0;
+        let late = 0;
+        let leave = 0;
+
+        (logs || []).forEach(l => {
+            if (l.status === 'P') {
+                leave++;
+            } else if (l.status !== '0') {
+                present++;
+                if (l.check_in_time && l.check_in_time > '08:15:00') {
+                    late++;
+                }
+            }
+        });
+
+        const attendanceRate = totalEmployees > 0 ? Number(((present / totalEmployees) * 100).toFixed(1)) : 0;
+
+        return {
+            date: targetDate,
+            totalEmployees,
+            present,
+            late,
+            leave,
+            absent: Math.max(0, totalEmployees - present - leave),
+            attendanceRate
+        };
+    }
 }
 
 module.exports = new AttendanceService();

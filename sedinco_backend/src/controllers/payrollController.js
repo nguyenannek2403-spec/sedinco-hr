@@ -27,9 +27,65 @@ class PayrollController {
 
     async calculatePayroll(req, res, next) {
         try {
-            const { month, year } = req.body;
+            const month = req.body?.month || req.query?.month;
+            const year = req.body?.year || req.query?.year;
             const data = await payrollService.calculateMonthlyPayroll(month, year);
             return res.json({ success: true, message: 'Tính toán bảng lương thành công!', data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async exportPayroll(req, res, next) {
+        try {
+            const month = req.query?.month || req.body?.month || (new Date().getMonth() + 1);
+            const year = req.query?.year || req.body?.year || new Date().getFullYear();
+            const data = await payrollService.calculateMonthlyPayroll(month, year);
+
+            // Khử CSV Formula Injection cho các ký tự =, +, -, @, \t, \r
+            const sanitizeCell = (val) => {
+                let str = String(val ?? '');
+                if (/^[=+@\-\t\r]/.test(str)) {
+                    str = "'" + str;
+                }
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            };
+
+            const headers = [
+                'Mã NV', 'Họ và Tên', 'Chức Danh', 'Lương Cơ Bản', 'Ngày Công',
+                'Lương Theo Công', 'Phụ Cấp Ăn Trưa', 'Phụ Cấp Xăng Xe', 'Phụ Cấp Nhà Ở',
+                'Thưởng HTCV', 'Phụ Cấp Trách Nhiệm', 'Tổng Phụ Cấp', 'Tiền Tăng Ca (OT)',
+                'Khấu Trừ BHXH (10.5%)', 'Thực Lĩnh (Net)'
+            ];
+
+            const rows = (data || []).map(emp => {
+                const b = emp.allowances_breakdown || {};
+                return [
+                    sanitizeCell(emp.ma_nv || emp.id_nhan_vien),
+                    sanitizeCell(emp.ho_ten),
+                    sanitizeCell(emp.chuc_danh || 'Nhân viên'),
+                    emp.baseSalary || 0,
+                    emp.totalWorkDays || 0,
+                    emp.salaryByWork || 0,
+                    b.an_trua || 0,
+                    b.xang_xe || 0,
+                    b.nha_o || 0,
+                    b.thuong_htcv || 0,
+                    b.trach_nhiem || 0,
+                    emp.totalAllowance || 0,
+                    emp.otAmount || 0,
+                    emp.totalInsurance || 0,
+                    emp.netSalary || 0
+                ].join(',');
+            });
+
+            const csvContent = '\uFEFF' + [headers.map(sanitizeCell).join(','), ...rows].join('\n');
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="Bang_Luong_${month}_${year}.csv"`);
+            return res.status(200).send(csvContent);
         } catch (err) {
             next(err);
         }

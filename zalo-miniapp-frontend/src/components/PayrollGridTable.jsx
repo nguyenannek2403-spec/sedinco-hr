@@ -65,8 +65,14 @@ export default function PayrollGridTable({
     ];
 
     const rows = filteredList.map(item => {
+      const b = item.allowances_breakdown || {};
       const totalAllowance = Number(item.totalAllowance) || 0;
-      const respAllowance = totalAllowance > 3730000 ? totalAllowance - 3730000 : 0;
+      const anTrua = Number(b.an_trua) || 0;
+      const xangXe = Number(b.xang_xe) || 0;
+      const nhaO = Number(b.nha_o) || 0;
+      const thuong = Number(b.thuong_htcv) || 0;
+      const trachNhiem = Number(b.trach_nhiem) || (totalAllowance > (anTrua + xangXe + nhaO + thuong) ? totalAllowance - (anTrua + xangXe + nhaO + thuong) : 0);
+
       return [
         formatCsvCellRFC4180(item.ma_nv || item.id_nhan_vien || ""),
         formatCsvCellRFC4180(item.ho_ten || ""),
@@ -74,11 +80,11 @@ export default function PayrollGridTable({
         Number(item.baseSalary) || 0,
         Number(item.totalWorkDays) || 0,
         Number(item.salaryByWork) || 0,
-        730000,
-        500000,
-        1000000,
-        1500000,
-        respAllowance,
+        anTrua,
+        xangXe,
+        nhaO,
+        thuong,
+        trachNhiem,
         totalAllowance,
         Number(item.otAmount) || 0,
         Number(item.insuranceDeduction || item.totalInsurance) || 0,

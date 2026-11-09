@@ -57,6 +57,7 @@ class PayrollService {
 
             return {
                 id_nhan_vien: emp.ma_nv,
+                ma_nv: emp.ma_nv,
                 ho_ten: emp.ho_ten,
                 chuc_danh: emp.chuc_danh,
                 role: emp.role,
@@ -64,10 +65,13 @@ class PayrollService {
                 congThuViec: calc.congThuViec,
                 congChinhThuc: calc.congChinhThuc,
                 totalWorkDays: calc.totalWorkDays,
+                actualWorkDays: calc.actualWorkDays,
                 salaryByWork: calc.salaryByWork,
                 totalAllowance: calc.totalAllowance,
+                allowances_breakdown: calc.allowances_breakdown,
                 otAmount: calc.otAmount,
                 totalInsurance: calc.totalInsurance,
+                grossSalary: calc.grossSalary,
                 netSalary: calc.netSalary,
                 warning: calc.warning || null
             };
@@ -128,6 +132,7 @@ class PayrollService {
 
         return {
             id_nhan_vien: emp.ma_nv,
+            ma_nv: emp.ma_nv,
             ho_ten: emp.ho_ten,
             chuc_danh: emp.chuc_danh,
             thang: m,
@@ -136,10 +141,13 @@ class PayrollService {
             congThuViec: calc.congThuViec,
             congChinhThuc: calc.congChinhThuc,
             totalWorkDays: calc.totalWorkDays,
+            actualWorkDays: calc.actualWorkDays,
             salaryByWork: calc.salaryByWork,
             totalAllowance: calc.totalAllowance,
+            allowances_breakdown: calc.allowances_breakdown,
             otAmount: calc.otAmount,
             totalInsurance: calc.totalInsurance,
+            grossSalary: calc.grossSalary,
             netSalary: calc.netSalary,
             warning: calc.warning || null
         };

@@ -13,12 +13,14 @@ export default function SalarySlipModal({ payrollItem, month, year, onClose }) {
   const insurance = Number(payrollItem.insuranceDeduction || payrollItem.totalInsurance) || 0;
   const netSalary = Number(payrollItem.netSalary) || 0;
 
-  // Chi tiết phụ cấp định chuẩn Sedinco
-  const allowanceLunch = 730000;
-  const allowanceFuel = 500000;
-  const allowanceHousing = 1000000;
-  const allowanceBonus = 1500000;
-  const allowanceResponsibility = totalAllowance > 3730000 ? totalAllowance - 3730000 : 0;
+  // Chi tiết phụ cấp đọc từ dữ liệu API tính toán thực tế
+  const breakdown = payrollItem.allowances_breakdown || {};
+  const allowanceLunch = Number(breakdown.an_trua) || 0;
+  const allowanceFuel = Number(breakdown.xang_xe) || 0;
+  const allowanceHousing = Number(breakdown.nha_o) || 0;
+  const allowanceBonus = Number(breakdown.thuong_htcv) || 0;
+  const allowanceResponsibility = Number(breakdown.trach_nhiem) || Number(breakdown.tiep_khach) || 
+    (totalAllowance > (allowanceLunch + allowanceFuel + allowanceHousing + allowanceBonus) ? totalAllowance - (allowanceLunch + allowanceFuel + allowanceHousing + allowanceBonus) : 0);
 
   const handlePrint = () => {
     window.print();
@@ -143,30 +145,38 @@ export default function SalarySlipModal({ payrollItem, month, year, onClose }) {
                   </td>
                   <td className="p-2.5 text-right font-black text-slate-900 text-sm">{totalAllowance.toLocaleString("vi-VN")} đ</td>
                 </tr>
-                <tr className="text-slate-700 text-xs">
-                  <td className="p-2 pl-6 font-medium">• Phụ cấp ăn trưa ca ngày</td>
-                  <td className="p-2 text-center text-slate-500 font-medium">Định mức công ty</td>
-                  <td className="p-2 text-right font-semibold">{allowanceLunch.toLocaleString("vi-VN")} đ</td>
-                </tr>
-                <tr className="text-slate-700 text-xs">
-                  <td className="p-2 pl-6 font-medium">• Phụ cấp xăng xe & đi lại</td>
-                  <td className="p-2 text-center text-slate-500 font-medium">Hỗ trợ công trình</td>
-                  <td className="p-2 text-right font-semibold">{allowanceFuel.toLocaleString("vi-VN")} đ</td>
-                </tr>
-                <tr className="text-slate-700 text-xs">
-                  <td className="p-2 pl-6 font-medium">• Phụ cấp nhà ở & lưu trú</td>
-                  <td className="p-2 text-center text-slate-500 font-medium">Theo chế độ</td>
-                  <td className="p-2 text-right font-semibold">{allowanceHousing.toLocaleString("vi-VN")} đ</td>
-                </tr>
-                <tr className="text-slate-700 text-xs">
-                  <td className="p-2 pl-6 font-medium">• Thưởng hoàn thành công việc (HTCV)</td>
-                  <td className="p-2 text-center text-slate-500 font-medium">Đạt KPI</td>
-                  <td className="p-2 text-right font-semibold">{allowanceBonus.toLocaleString("vi-VN")} đ</td>
-                </tr>
+                {allowanceLunch > 0 && (
+                  <tr className="text-slate-700 text-xs">
+                    <td className="p-2 pl-6 font-medium">• Phụ cấp ăn trưa ca ngày</td>
+                    <td className="p-2 text-center text-slate-500 font-medium">Theo ngày công</td>
+                    <td className="p-2 text-right font-semibold">{allowanceLunch.toLocaleString("vi-VN")} đ</td>
+                  </tr>
+                )}
+                {allowanceFuel > 0 && (
+                  <tr className="text-slate-700 text-xs">
+                    <td className="p-2 pl-6 font-medium">• Phụ cấp xăng xe & đi lại</td>
+                    <td className="p-2 text-center text-slate-500 font-medium">Theo ngày công</td>
+                    <td className="p-2 text-right font-semibold">{allowanceFuel.toLocaleString("vi-VN")} đ</td>
+                  </tr>
+                )}
+                {allowanceHousing > 0 && (
+                  <tr className="text-slate-700 text-xs">
+                    <td className="p-2 pl-6 font-medium">• Phụ cấp nhà ở & lưu trú</td>
+                    <td className="p-2 text-center text-slate-500 font-medium">Theo ngày công</td>
+                    <td className="p-2 text-right font-semibold">{allowanceHousing.toLocaleString("vi-VN")} đ</td>
+                  </tr>
+                )}
+                {allowanceBonus > 0 && (
+                  <tr className="text-slate-700 text-xs">
+                    <td className="p-2 pl-6 font-medium">• Thưởng hoàn thành công việc (HTCV)</td>
+                    <td className="p-2 text-center text-slate-500 font-medium">Theo ngày công</td>
+                    <td className="p-2 text-right font-semibold">{allowanceBonus.toLocaleString("vi-VN")} đ</td>
+                  </tr>
+                )}
                 {allowanceResponsibility > 0 && (
                   <tr className="text-slate-700 text-xs">
                     <td className="p-2 pl-6 font-medium">• Phụ cấp trách nhiệm / tiếp khách</td>
-                    <td className="p-2 text-center text-slate-500 font-medium">Vị trí công tác</td>
+                    <td className="p-2 text-center text-slate-500 font-medium">Theo ngày công</td>
                     <td className="p-2 text-right font-semibold">{allowanceResponsibility.toLocaleString("vi-VN")} đ</td>
                   </tr>
                 )}

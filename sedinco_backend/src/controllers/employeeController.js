@@ -56,8 +56,9 @@ class EmployeeController {
 
     async updateEmployeeStatus(req, res, next) {
         try {
+            const ma_nv = req.params.ma_nv || req.params.id;
             const { status, is_locked } = req.body;
-            await employeeService.updateEmployeeStatus(req.params.ma_nv, { status, is_locked }, req.user);
+            await employeeService.updateEmployeeStatus(ma_nv, { status, is_locked }, req.user);
             return res.json({ success: true, message: 'Cập nhật trạng thái tài khoản thành công!' });
         } catch (err) {
             next(err);
@@ -112,7 +113,7 @@ class EmployeeController {
 
     async approveDeviceChange(req, res, next) {
         try {
-            const { ma_nv } = req.params;
+            const ma_nv = req.params.ma_nv || req.params.id || req.body?.ma_nv || req.body?.employee_id;
             const result = await employeeService.approveDeviceChange(ma_nv, req.user);
             return res.json(result);
         } catch (err) {
@@ -122,7 +123,7 @@ class EmployeeController {
 
     async rejectDeviceChange(req, res, next) {
         try {
-            const { ma_nv } = req.params;
+            const ma_nv = req.params.ma_nv || req.params.id || req.body?.ma_nv || req.body?.employee_id;
             const result = await employeeService.rejectDeviceChange(ma_nv, req.user);
             return res.json(result);
         } catch (err) {

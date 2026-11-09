@@ -83,22 +83,41 @@ function calculateEmployeeSalary({
                              (Number(allowances.trach_nhiem) || 0) +
                              (Number(allowances.tiep_khach) || 0);
 
+    const actualWorkDays = congThuViec + congChinhThuc;
     const effectiveDays = (congThuViec * 0.85) + congChinhThuc;
     const salaryByWork = (luongCb / congChuan) * effectiveDays;
-    const allowanceByWork = (tongPhuCapCoDinh / congChuan) * effectiveDays;
-    let baoHiem = (has_insurance !== false && has_insurance !== 0) ? (luongCb * 0.105) : 0;
+    const allowanceByWork = (tongPhuCapCoDinh / congChuan) * actualWorkDays;
+
+    // Chi tiết từng khoản phụ cấp thực nhận theo tỷ lệ ngày công thực tế
+    const workRatio = congChuan > 0 ? (actualWorkDays / congChuan) : 0;
+    const allowances_breakdown = {
+        an_trua: Math.round((Number(allowances.an_trua) || 0) * workRatio),
+        xang_xe: Math.round((Number(allowances.xang_xe) || 0) * workRatio),
+        nha_o: Math.round((Number(allowances.nha_o) || 0) * workRatio),
+        thuong_htcv: Math.round((Number(allowances.thuong_htcv) || 0) * workRatio),
+        trach_nhiem: Math.round((Number(allowances.trach_nhiem) || 0) * workRatio),
+        tiep_khach: Math.round((Number(allowances.tiep_khach) || 0) * workRatio)
+    };
+
+    const grossSalary = salaryByWork + allowanceByWork + tienOt;
+    // Nếu nhân viên không đi làm ngày nào (0 ngày công), không trích trừ BHXH vào kỳ lương để tránh lương thực lĩnh âm
+    let baoHiem = (has_insurance !== false && has_insurance !== 0 && actualWorkDays > 0) ? (luongCb * 0.105) : 0;
+    const netSalary = Math.max(0, Math.round(grossSalary - baoHiem));
 
     return {
         baseSalary: luongCb,
         congThuViec,
         congChinhThuc,
-        totalWorkDays: congThuViec + congChinhThuc,
+        totalWorkDays: actualWorkDays,
+        actualWorkDays,
         effectiveDays,
         salaryByWork: Math.round(salaryByWork),
         totalAllowance: Math.round(allowanceByWork),
+        allowances_breakdown,
         otAmount: Math.round(tienOt),
         totalInsurance: Math.round(baoHiem),
-        netSalary: Math.round(salaryByWork + allowanceByWork + tienOt - baoHiem),
+        grossSalary: Math.round(grossSalary),
+        netSalary,
         warning
     };
 }

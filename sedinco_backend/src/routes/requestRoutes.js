@@ -9,9 +9,11 @@ const {
 
 // 1. Xem đơn cá nhân của chính mình (Công nhân, Kế toán, Admin)
 router.get('/me', authenticateToken, requireAuth, (req, res, next) => requestController.getMyRequests(req, res, next));
+router.get('/my', authenticateToken, requireAuth, (req, res, next) => requestController.getMyRequests(req, res, next));
 
 // 2. Xem toàn bộ đơn từ công ty (Yêu cầu permission: leave_view_all)
 router.get('/', authenticateToken, requirePermission('leave_view_all'), (req, res, next) => requestController.getRequests(req, res, next));
+router.get('/all', authenticateToken, requirePermission('leave_view_all'), (req, res, next) => requestController.getRequests(req, res, next));
 
 // 3. Tạo đơn từ mới (Yêu cầu đăng nhập, công nhân chỉ tạo đơn cho chính mình)
 router.post('/', authenticateToken, requireAuth, (req, res, next) => requestController.createRequest(req, res, next));
@@ -26,5 +28,6 @@ router.put('/:id', authenticateToken, requirePermission('leave_approve'), (req, 
 
 // 6. Hủy đơn từ (Yêu cầu đăng nhập, chỉ hủy đơn pending của chính mình hoặc Admin)
 router.put('/:id/cancel', authenticateToken, requireAuth, (req, res, next) => requestController.cancelRequest(req, res, next));
+router.delete('/:id', authenticateToken, requireAuth, (req, res, next) => requestController.cancelRequest(req, res, next));
 
 module.exports = router;

@@ -80,12 +80,14 @@ test('TC-PAY-05: Tính tiền OT ngày Lễ với hệ số 3.0x', () => {
     assert.equal(res.otAmount, 600000);
 });
 
-test('TC-PAY-06: Trích trừ bảo hiểm xã hội 10.5% khi has_insurance = true', () => {
+test('TC-PAY-06: Trích trừ bảo hiểm xã hội 10.5% khi has_insurance = true và có ngày công', () => {
     const res = calculateEmployeeSalary({
         luong_cb: 10000000,
         cong_chuan: 26,
         has_insurance: true,
-        logs: []
+        logs: [
+            { record_date: '2026-10-01', status: '1', dow: 5 }
+        ]
     });
     // 10,000,000 * 10.5% = 1,050,000đ
     assert.equal(res.totalInsurance, 1050000);
@@ -96,7 +98,9 @@ test('TC-PAY-07: Không trích bảo hiểm khi has_insurance = false hoặc 0',
         luong_cb: 10000000,
         cong_chuan: 26,
         has_insurance: false,
-        logs: []
+        logs: [
+            { record_date: '2026-10-01', status: '1', dow: 5 }
+        ]
     });
     assert.equal(resFalse.totalInsurance, 0);
 
@@ -104,7 +108,9 @@ test('TC-PAY-07: Không trích bảo hiểm khi has_insurance = false hoặc 0',
         luong_cb: 10000000,
         cong_chuan: 26,
         has_insurance: 0,
-        logs: []
+        logs: [
+            { record_date: '2026-10-01', status: '1', dow: 5 }
+        ]
     });
     assert.equal(resZero.totalInsurance, 0);
 });
@@ -142,6 +148,9 @@ test('TC-PAY-08: Tính tổng thực lĩnh Net Salary đầy đủ (Công + Ph�
     // Net: 13,000,000 + 1,730,000 + 375,000 - 1,365,000 = 13,740,000
     assert.equal(res.salaryByWork, 13000000);
     assert.equal(res.totalAllowance, 1730000);
+    assert.equal(res.allowances_breakdown.an_trua, 730000);
+    assert.equal(res.allowances_breakdown.xang_xe, 500000);
+    assert.equal(res.allowances_breakdown.nha_o, 500000);
     assert.equal(res.otAmount, 375000);
     assert.equal(res.totalInsurance, 1365000);
     assert.equal(res.netSalary, 13740000);
@@ -163,8 +172,7 @@ test('TC-PAY-09: Cảnh báo khi nhân viên thử việc thiếu ngay_chinh_thu
     assert.match(res.warning, /thử việc.*thiếu.*chính thức/i);
 });
 
-test('TC-PAY-10: Nhân viên 0 ngày công nhưng bị trừ BHXH 10.5% lương cơ bản -> Thực lĩnh âm (Hành vi hiện tại, chờ quy tắc kế toán)', () => {
-    // Trường hợp nhân viên như NV_W016: lương_cb = 7,400,000, has_insurance = true, 0 ngày công trong tháng
+test('TC-PAY-10: Nhân viên 0 ngày công trong tháng -> Không trích BHXH, Net Salary = 0 (Không bị âm)', () => {
     const res = calculateEmployeeSalary({
         luong_cb: 7400000,
         cong_chuan: 26,
@@ -174,9 +182,31 @@ test('TC-PAY-10: Nhân viên 0 ngày công nhưng bị trừ BHXH 10.5% lương 
     });
     assert.equal(res.salaryByWork, 0);
     assert.equal(res.totalWorkDays, 0);
-    assert.equal(res.totalInsurance, 777000); // 7,400,000 * 0.105
-    assert.equal(res.netSalary, -777000); // 0 - 777,000 = -777,000 VNĐ
-    assert.ok(res.netSalary < 0, 'Thực lĩnh âm khi nhân viên không có ngày công nhưng vẫn trích nộp BHXH bắt buộc');
+    assert.equal(res.totalInsurance, 0, '0 công thì không trích BHXH kỳ đó');
+    assert.equal(res.netSalary, 0, 'Net salary không bị âm');
+});
+
+test('TC-PAY-11: Phụ cấp tính 100% theo ngày công thực tế, không bị trừ 15% trong thời gian thử việc', () => {
+    const res = calculateEmployeeSalary({
+        luong_cb: 26000000,
+        cong_chuan: 26,
+        ngay_chinh_thuc: '2026-11-01', // Toàn bộ công tháng 10 là thử việc
+        allowances: {
+            an_trua: 2600000 // 100,000 đ/ngày
+        },
+        has_insurance: false,
+        logs: [
+            { record_date: '2026-10-01', status: '1', dow: 5 },
+            { record_date: '2026-10-02', status: '1', dow: 6 }
+        ]
+    });
+    // 2 ngày thử việc:
+    // Lương cơ bản hưởng 85%: (26,000,000 / 26) * (2 * 0.85) = 1,700,000đ
+    assert.equal(res.salaryByWork, 1700000);
+    // Phụ cấp ăn trưa hưởng 100% theo 2 ngày công thực tế: (2,600,000 / 26) * 2 = 200,000đ
+    assert.equal(res.totalAllowance, 200000);
+    assert.equal(res.allowances_breakdown.an_trua, 200000);
+    assert.equal(res.netSalary, 1900000);
 });
 
 

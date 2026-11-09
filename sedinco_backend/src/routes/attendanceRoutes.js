@@ -11,12 +11,15 @@ const {
 
 // 1. Xem lịch sử chấm công cá nhân của chính mình (Công nhân, Kế toán, Admin)
 router.get('/me', authenticateToken, requireAuth, (req, res, next) => attendanceController.getMyAttendance(req, res, next));
+router.get('/my-logs', authenticateToken, requireAuth, (req, res, next) => attendanceController.getMyAttendance(req, res, next));
+router.get('/my-monthly', authenticateToken, requireAuth, (req, res, next) => attendanceController.getMyAttendance(req, res, next));
 
 // 2. Xem ma trận bảng chấm công toàn công ty (Yêu cầu permission: attendance_view_all)
 router.get('/', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getAttendance(req, res, next));
 
 // 3. Trạng thái khóa sổ kỳ công (Cho phép xem trạng thái trước khi nộp đơn/chấm công)
 router.get('/period-status', (req, res, next) => attendanceController.getPeriodStatus(req, res, next));
+router.get('/period-lock-status', (req, res, next) => attendanceController.getPeriodStatus(req, res, next));
 
 // 4. Khóa kỳ công tháng (Yêu cầu permission: attendance_lock)
 router.post('/lock-period', authenticateToken, requirePermission('attendance_lock'), (req, res, next) => attendanceController.lockPeriod(req, res, next));
@@ -26,9 +29,11 @@ router.post('/unlock-period', authenticateToken, requireRole(['admin']), (req, r
 
 // 6. Cập nhật dữ liệu chấm công (Kiểm tra quyền sở hữu hoặc permission attendance_edit trong service)
 router.post('/update', authenticateToken, requireAuth, validateAttendanceMiddleware, (req, res, next) => attendanceController.updateAttendance(req, res, next));
+router.post('/', authenticateToken, requireAuth, validateAttendanceMiddleware, (req, res, next) => attendanceController.updateAttendance(req, res, next));
 
 // 7. Sinh mã QR Động (Yêu cầu permission: attendance_view_all - Admin & Kế toán)
 router.get('/dynamic-qr', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getDynamicQr(req, res, next));
+router.get('/qr', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getDynamicQr(req, res, next));
 
 // 8. Chấm công đa lớp Multi-Factor (Mã QR động + GPS Geofencing + Camera Snapshot + Anti-Proxy)
 router.post('/check-in', authenticateToken, requireAuth, (req, res, next) => attendanceController.checkInMultiFactor(req, res, next));
@@ -38,5 +43,8 @@ router.get('/suspicious-logs', authenticateToken, requirePermission('attendance_
 
 // 10. Tải ảnh snapshot chi tiết của một bản ghi nghi vấn (Yêu cầu permission: attendance_view_all)
 router.get('/logs/:id/image', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getAttendanceImage(req, res, next));
+
+// 11. Thống kê tỷ lệ đi làm theo ngày (Endpoint 18 trong DOCS/PROJECT.MD)
+router.get('/stats', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getAttendanceStats(req, res, next));
 
 module.exports = router;

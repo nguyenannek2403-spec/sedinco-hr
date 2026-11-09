@@ -144,6 +144,16 @@ class AttendanceController {
             next(err);
         }
     }
+
+    async getAttendanceStats(req, res, next) {
+        try {
+            const { date } = req.query;
+            const data = await attendanceService.getAttendanceStats(date);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 module.exports = new AttendanceController();

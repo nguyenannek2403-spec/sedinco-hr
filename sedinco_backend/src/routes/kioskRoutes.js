@@ -19,7 +19,9 @@ router.get('/qr-status', (req, res, next) => kioskController.getQrStatus(req, re
 router.post('/register', authenticateToken, requireRole(['admin']), (req, res, next) => kioskController.register(req, res, next));
 router.get('/list', authenticateToken, requireRole(['admin']), (req, res, next) => kioskController.list(req, res, next));
 router.put('/:id/revoke', authenticateToken, requireRole(['admin']), (req, res, next) => kioskController.revoke(req, res, next));
+router.post('/revoke/:id', authenticateToken, requireRole(['admin']), (req, res, next) => kioskController.revoke(req, res, next));
 router.post('/:id/rotate-key', authenticateToken, requireRole(['admin']), (req, res, next) => kioskController.rotateKey(req, res, next));
+router.post('/rotate-key/:id', authenticateToken, requireRole(['admin']), (req, res, next) => kioskController.rotateKey(req, res, next));
 
 module.exports = router;
 

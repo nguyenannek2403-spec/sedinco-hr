@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const employeeController = require('../controllers/employeeController');
+const permissionController = require('../controllers/permissionController');
 const { 
     authenticateToken, 
     requirePermission, 
@@ -12,12 +13,21 @@ router.get('/', authenticateToken, requirePermission('employee_view'), (req, res
 
 // 1.1 Danh sách yêu cầu đổi thiết bị chờ duyệt (Chỉ Admin)
 router.get('/pending-device-changes', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.getPendingDeviceChanges(req, res, next));
+router.get('/pending-device-requests', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.getPendingDeviceChanges(req, res, next));
 
 // 1.2 Liên kết tài khoản Zalo (Xác minh qua access token Zalo trên Server)
 router.post('/bind-zalo', authenticateToken, (req, res, next) => employeeController.bindZalo(req, res, next));
 
 // 1.3 Yêu cầu đổi thiết bị (Dành cho Worker)
 router.post('/request-device-change', authenticateToken, (req, res, next) => employeeController.requestDeviceChange(req, res, next));
+
+// 1.4 Phê duyệt đổi thiết bị (hỗ trợ cả param trong body lẫn URL path)
+router.post('/approve-device-change', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.approveDeviceChange(req, res, next));
+router.post('/reject-device-change', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.rejectDeviceChange(req, res, next));
+
+// 1.5 Phân quyền kế toán (Endpoint 38 & 39 trong DOCS/PROJECT.MD)
+router.get('/:id/permissions', authenticateToken, requireRole(['admin', 'accountant']), (req, res, next) => permissionController.getAccountantPermissions(req, res, next));
+router.put('/:id/permissions', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.updateAccountantPermissions(req, res, next));
 
 // 2. Xem chi tiết một nhân viên (Yêu cầu permission: employee_view)
 router.get('/:id', authenticateToken, requirePermission('employee_view'), (req, res, next) => employeeController.getEmployeeById(req, res, next));
@@ -43,6 +53,7 @@ router.put('/:ma_nv/device-binding-mode', authenticateToken, requireRole(['admin
 
 // 5. Khóa hoặc kích hoạt lại tài khoản nhân viên (Yêu cầu permission: employee_status_manage)
 router.put('/:ma_nv/status', authenticateToken, requirePermission('employee_status_manage'), (req, res, next) => employeeController.updateEmployeeStatus(req, res, next));
+router.post('/:id/toggle-lock', authenticateToken, requirePermission('employee_status_manage'), (req, res, next) => employeeController.updateEmployeeStatus(req, res, next));
 
 // 6. Cập nhật hồ sơ nhân sự (Yêu cầu permission: employee_edit)
 router.put('/:id', authenticateToken, requirePermission('employee_edit'), (req, res, next) => employeeController.updateEmployee(req, res, next));
@@ -52,5 +63,6 @@ router.delete('/:id', authenticateToken, requirePermission('employee_delete'), (
 
 // 8. B2 (G5): Kích hoạt đổi mật khẩu theo đợt (Chỉ Admin)
 router.post('/staged-force-password', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.stagedForcePasswordChange(req, res, next));
+router.post('/batch-require-password-change', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.stagedForcePasswordChange(req, res, next));
 
 module.exports = router;
