@@ -1,3 +1,4 @@
+const fs = require('fs');
 const mysql = require('mysql2');
 const env = require('./env');
 
@@ -16,7 +17,13 @@ const dbConfig = {
 };
 
 if (env.DB_SSL) {
-    dbConfig.ssl = { rejectUnauthorized: false };
+    dbConfig.ssl = {
+        minVersion: 'TLSv1.2',
+        rejectUnauthorized: false
+    };
+    if (env.DB_SSL_CA && fs.existsSync(env.DB_SSL_CA)) {
+        dbConfig.ssl.ca = fs.readFileSync(env.DB_SSL_CA);
+    }
 }
 
 // CHỐT CHẶN BẢO MẬT: Tuyệt đối không cho phép chạy test hoặc tấn công trên Database production / Cloud
@@ -24,7 +31,7 @@ if (process.env.NODE_ENV === 'test' || env.NODE_ENV === 'test') {
     if (!env.DB_NAME || !env.DB_NAME.toLowerCase().includes('test')) {
         throw new Error(`[CHỐT CHẶN AN TOÀN] Từ chối chạy test: DB_NAME "${env.DB_NAME}" không chứa chữ "test"! Hãy sử dụng DB test local (ví dụ: sedinco_hr_test).`);
     }
-    if (env.DB_HOST && (env.DB_HOST.includes('aivencloud.com') || env.DB_HOST.includes('render.com') || env.DB_SSL === true)) {
+    if (env.DB_HOST && (env.DB_HOST.includes('aivencloud.com') || env.DB_HOST.includes('tidbcloud.com') || env.DB_HOST.includes('render.com') || env.DB_SSL === true)) {
         throw new Error(`[CHỐT CHẶN AN TOÀN] Từ chối chạy test: DB_HOST "${env.DB_HOST}" trỏ tới Cloud / Production. Tuyệt đối chỉ dùng localhost/127.0.0.1.`);
     }
 }

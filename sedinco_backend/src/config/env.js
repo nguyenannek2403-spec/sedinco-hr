@@ -21,7 +21,8 @@ const env = {
     DB_USER: process.env.DB_USER || 'root',
     DB_PASSWORD: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : '123456',
     DB_NAME: process.env.DB_NAME || 'sedinco_hr',
-    DB_SSL: process.env.DB_SSL === 'true' || Boolean(process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud.com')),
+    DB_SSL: process.env.DB_SSL === 'true' || Boolean(process.env.DB_HOST && (process.env.DB_HOST.includes('aivencloud.com') || process.env.DB_HOST.includes('tidbcloud.com'))),
+    DB_SSL_CA: process.env.DB_SSL_CA || '',
     CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
     // TRUST_PROXY: số hop proxy tin cậy (1 = trực tiếp sau 1 reverse proxy như Nginx/Render)
     // false = không tin cậy X-Forwarded-For (default local), 1 = Render/Nginx, 'loopback' = chỉ local
