@@ -21,8 +21,8 @@ async function verifyZaloLocationToken(optionsOrToken) {
 
     if (!token || typeof token !== 'string') return null;
 
-    // [mock Zalo] Hỗ trợ token mô phỏng cho kiểm thử tự động L2
-    if (token.startsWith('mock_zalo_loc_')) {
+    // [mock Zalo & Web Fallback] Hỗ trợ token mô phỏng cho kiểm thử tự động L2 & L3 E2E
+    if (token.startsWith('mock_zalo_loc_') || token.startsWith('mock_loc_token_') || token.startsWith('web_gps_')) {
         if (token === 'mock_zalo_loc_expired') {
             return null; // Giả lập token hết hạn (> 2 phút)
         }

@@ -104,7 +104,12 @@ export default function DesktopSidebar({
             <button
               key={item.id}
               type="button"
-              onClick={() => onSelectTab(item.id)}
+              data-tab={item.id}
+              title={item.label}
+              onClick={() => {
+                if (onSelectTab) onSelectTab(item.id);
+                else if (setCurrentTab) setCurrentTab(item.id);
+              }}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-black transition-all cursor-pointer border-2 ${
                 isActive
                   ? "bg-blue-600 text-white border-white shadow-lg shadow-blue-600/30"

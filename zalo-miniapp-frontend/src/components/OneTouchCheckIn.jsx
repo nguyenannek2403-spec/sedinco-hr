@@ -51,6 +51,7 @@ export default function OneTouchCheckIn({
   const [serverTimeResult, setServerTimeResult] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [errorDetails, setErrorDetails] = useState("");
+  const [isDebounceLocked, setIsDebounceLocked] = useState(false);
 
   // Cờ Ref khóa nút bấm ngay lập tức ở mức phần cứng để chống double click
   const isLockedRef = useRef(false);
@@ -72,17 +73,22 @@ export default function OneTouchCheckIn({
   // Bắt đầu luồng Chấm Công 1 Chạm
   const handleStartCheckIn = async (bypassPermExplain = false) => {
     const nowMs = Date.now();
-    // 1. Khóa nút ngay lập tức bằng cờ Ref và Timestamp module-level
-    if (isLockedRef.current || (nowMs - globalCheckInLockTimestamp < 3000)) return;
+    // 1. Khóa nút ngay lập tức bằng cờ Ref, State DOM và Timestamp module-level (3000ms)
+    if (isLockedRef.current || isDebounceLocked || (nowMs - globalCheckInLockTimestamp < 3000)) return;
     globalCheckInLockTimestamp = nowMs;
     isLockedRef.current = true;
+    setIsDebounceLocked(true);
+    setTimeout(() => {
+      isLockedRef.current = false;
+      setIsDebounceLocked(false);
+    }, 3000);
+
     if (isLockedPeriod) {
       setStage(STAGES.ERROR);
       setErrorMessage("Kỳ chấm công tháng này đã được Kế toán chốt. Không thể ghi nhận thêm.");
       return;
     }
 
-    isLockedRef.current = true;
     setErrorMessage("");
     setErrorDetails("");
 
@@ -339,7 +345,7 @@ export default function OneTouchCheckIn({
           id="btn-start-checkin"
           type="button"
           onClick={() => handleStartCheckIn(false)}
-          disabled={isLockedRef.current || stage === STAGES.SUBMITTING || isLockedPeriod}
+          disabled={isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || isLockedPeriod}
           className={`relative w-52 h-52 md:w-60 md:h-60 rounded-full flex flex-col items-center justify-center text-white transition-all duration-200 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed border-[6px] ${
             isLockedPeriod
               ? "bg-slate-600 border-slate-400 opacity-70"

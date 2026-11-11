@@ -1,6 +1,6 @@
 import React from "react";
 import { Printer, X, DollarSign, Award, ShieldCheck, Building } from "lucide-react";
-import sedincoLogo from "../static/sedinco-logo.png";
+const sedincoLogo = "/sedinco-logo.png";
 
 export default function SalarySlipModal({ payrollItem, month, year, onClose }) {
   if (!payrollItem) return null;

@@ -25,7 +25,12 @@ function getArg(flag, defaultValue) {
     return defaultValue;
 }
 
-const apiUrl = (getArg('--api', '')).replace(/\/+$/, '');
+let rawApi = (getArg('--api', '')).trim().replace(/\/+$/, '');
+if (rawApi.endsWith('/api')) {
+    rawApi = rawApi.slice(0, -4);
+}
+const apiUrl = rawApi;
+const apiBase = `${rawApi}/api`;
 const originUrl = (getArg('--origin', '')).replace(/\/+$/, '');
 const adminUser = getArg('--admin-user', 'admin');
 const adminPass = getArg('--admin-pass', '');
@@ -61,7 +66,7 @@ async function runSmokeTest() {
 
     try {
         // BƯỚC 1: Healthcheck & Kết nối TLS CSDL Aiven
-        const healthRes = await fetch(`${apiUrl}/api/health`);
+        const healthRes = await fetch(`${apiBase}/health`);
         if (healthRes.ok) {
             const hData = await healthRes.json();
             recordStep('STEP-01', 'Healthcheck Backend & Metrics', 'PASS', `Uptime: ${hData.uptime}s`);
@@ -70,7 +75,7 @@ async function runSmokeTest() {
         }
 
         // BƯỚC 2: Kiểm tra CORS Preflight từ Origin Cloudflare
-        const corsRes = await fetch(`${apiUrl}/api/health`, {
+        const corsRes = await fetch(`${apiBase}/health`, {
             method: 'OPTIONS',
             headers: {
                 'Origin': originUrl,
@@ -90,22 +95,30 @@ async function runSmokeTest() {
         }
 
         // BƯỚC 3: Đăng nhập Quản trị viên (Admin)
-        const loginRes = await fetch(`${apiUrl}/api/login`, {
+        let loginRes = await fetch(`${apiBase}/admin/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Origin': originUrl },
             body: JSON.stringify({ username: adminUser, password: adminPass })
         });
+        if (!loginRes.ok) {
+            loginRes = await fetch(`${apiBase}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Origin': originUrl },
+                body: JSON.stringify({ ma_nv: adminUser, password: adminPass })
+            });
+        }
         const loginData = await loginRes.json();
-        if (loginRes.ok && loginData.success && loginData.token) {
-            adminToken = loginData.token;
-            recordStep('STEP-03', 'Đăng nhập Quản trị viên (Admin)', 'PASS', `Role: ${loginData.user?.role || 'admin'}`);
+        const extractedAdminToken = loginData.token || loginData.data?.token;
+        if (loginRes.ok && loginData.success && extractedAdminToken) {
+            adminToken = extractedAdminToken;
+            recordStep('STEP-03', 'Đăng nhập Quản trị viên (Admin)', 'PASS', `Role: ${loginData.user?.role || loginData.data?.role || 'admin'}`);
         } else {
             recordStep('STEP-03', 'Đăng nhập Quản trị viên (Admin)', 'FAIL', loginData.message || `HTTP ${loginRes.status}`);
             throw new Error('Dừng smoke test vì không có token admin!');
         }
 
         // BƯỚC 4: Tạo nhân viên kiểm thử mới
-        const createEmpRes = await fetch(`${apiUrl}/api/employees`, {
+        const createEmpRes = await fetch(`${apiBase}/employees`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -129,18 +142,19 @@ async function runSmokeTest() {
         }
 
         // BƯỚC 5: Công nhân đăng nhập và đổi mật khẩu lần đầu
-        const wLoginRes = await fetch(`${apiUrl}/api/login`, {
+        const wLoginRes = await fetch(`${apiBase}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Origin': originUrl },
-            body: JSON.stringify({ username: testWorkerMaNv, password: testWorkerPass })
+            body: JSON.stringify({ ma_nv: testWorkerMaNv, password: testWorkerPass })
         });
         const wLoginData = await wLoginRes.json();
-        if (wLoginRes.ok && wLoginData.success) {
-            workerToken = wLoginData.token;
-            const mustChange = wLoginData.user?.must_change_password;
+        const extractedWorkerToken = wLoginData.token || wLoginData.data?.token;
+        if (wLoginRes.ok && wLoginData.success && extractedWorkerToken) {
+            workerToken = extractedWorkerToken;
+            const mustChange = wLoginData.user?.must_change_password || wLoginData.data?.must_change_password;
             if (mustChange) {
                 // Đổi mật khẩu
-                const chgRes = await fetch(`${apiUrl}/api/change-password`, {
+                const chgRes = await fetch(`${apiBase}/change-password`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${workerToken}` },
                     body: JSON.stringify({ ma_nv: testWorkerMaNv, old_password: testWorkerPass, new_password: newWorkerPass })
@@ -158,10 +172,31 @@ async function runSmokeTest() {
             recordStep('STEP-05', 'Công Nhân Đăng Nhập & Bắt Buộc Đổi Mật Khẩu', 'FAIL', wLoginData.message);
         }
 
-        // BƯỚC 6: Kiosk lấy mã QR độc lập
+        // BƯỚC 6: Quản trị viên đăng ký Kiosk mới và lấy mã QR độc lập
         let kioskToken = '';
-        const kioskRes = await fetch(`${apiUrl}/api/kiosk/qr`, {
-            headers: { 'x-kiosk-key': kioskKey, 'Origin': originUrl }
+        let createdKioskId = null;
+        let activeKioskKey = kioskKey;
+
+        // Nếu adminToken sẵn sàng, tạo một Kiosk chuyên biệt cho smoke test để đảm bảo tự cấp phát an toàn
+        try {
+            const regKioskRes = await fetch(`${apiBase}/kiosk/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`,
+                    'Origin': originUrl
+                },
+                body: JSON.stringify({ kiosk_name: `Kiosk Smoke ${testWorkerMaNv}`, branch_id: 1 })
+            });
+            const regKioskData = await regKioskRes.json();
+            if (regKioskRes.ok && regKioskData.success && regKioskData.data?.api_key) {
+                activeKioskKey = regKioskData.data.api_key;
+                createdKioskId = regKioskData.data.id;
+            }
+        } catch (e) {}
+
+        const kioskRes = await fetch(`${apiBase}/kiosk/qr`, {
+            headers: { 'x-kiosk-key': activeKioskKey, 'Origin': originUrl }
         });
         const kioskData = await kioskRes.json();
         if (kioskRes.ok && kioskData.success && kioskData.data?.token) {
@@ -177,7 +212,7 @@ async function runSmokeTest() {
             let cLat = 16.0544;
             let cLng = 108.2022;
             try {
-                const compRes = await fetch(`${apiUrl}/api/company`, { headers: { 'Authorization': `Bearer ${adminToken}` } });
+                const compRes = await fetch(`${apiBase}/company`, { headers: { 'Authorization': `Bearer ${adminToken}` } });
                 const compData = await compRes.json();
                 if (compData.data?.latitude && compData.data?.longitude) {
                     cLat = Number(compData.data.latitude);
@@ -185,7 +220,7 @@ async function runSmokeTest() {
                 }
             } catch (e) {}
 
-            const attRes = await fetch(`${apiUrl}/api/attendance/check-in`, {
+            const attRes = await fetch(`${apiBase}/attendance/check-in`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -210,7 +245,7 @@ async function runSmokeTest() {
 
         // BƯỚC 8: Nộp đơn xin nghỉ phép
         let createdRequestId = null;
-        const leaveRes = await fetch(`${apiUrl}/api/requests`, {
+        const leaveRes = await fetch(`${apiBase}/requests`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -233,7 +268,7 @@ async function runSmokeTest() {
 
         // BƯỚC 9: Quản trị viên duyệt đơn
         if (createdRequestId) {
-            const approveRes = await fetch(`${apiUrl}/api/requests/${createdRequestId}`, {
+            const approveRes = await fetch(`${apiBase}/requests/${createdRequestId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -254,7 +289,7 @@ async function runSmokeTest() {
         const now = new Date();
         const month = now.getMonth() + 1;
         const year = now.getFullYear();
-        const matrixRes = await fetch(`${apiUrl}/api/attendance/matrix?month=${month}&year=${year}`, {
+        const matrixRes = await fetch(`${apiBase}/attendance?month=${month}&year=${year}`, {
             headers: { 'Authorization': `Bearer ${adminToken}`, 'Origin': originUrl }
         });
         if (matrixRes.ok) {
@@ -264,7 +299,7 @@ async function runSmokeTest() {
         }
 
         // BƯỚC 11: Tính toán Bảng Lương
-        const payrollRes = await fetch(`${apiUrl}/api/payroll?month=${month}&year=${year}`, {
+        const payrollRes = await fetch(`${apiBase}/payroll?month=${month}&year=${year}`, {
             headers: { 'Authorization': `Bearer ${adminToken}`, 'Origin': originUrl }
         });
         if (payrollRes.ok) {
@@ -274,16 +309,16 @@ async function runSmokeTest() {
         }
 
         // BƯỚC 12: Khóa tài khoản nhân viên kiểm thử & Thu hồi quyền tức thì
-        const lockRes = await fetch(`${apiUrl}/api/employees/${testWorkerMaNv}/lock`, {
+        const lockRes = await fetch(`${apiBase}/employees/${testWorkerMaNv}/status`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}`, 'Origin': originUrl },
-            body: JSON.stringify({ is_locked: 1, reason: 'Smoke test hoàn tất' })
+            body: JSON.stringify({ status: 'inactive', reason: 'Smoke test hoàn tất' })
         });
         if (lockRes.ok) {
-            recordStep('STEP-12', 'Khóa Tài Khoản Nhân Viên Kiểm Thử', 'PASS', `Tài khoản ${testWorkerMaNv} đã bị khóa`);
+            recordStep('STEP-12', 'Khóa Tài Khoản Nhân Viên Kiểm Thử', 'PASS', `Tài khoản ${testWorkerMaNv} đã bị khóa (inactive)`);
 
             // Thử gọi lại API bằng token cũ -> Phải bị từ chối 403
-            const tryOldToken = await fetch(`${apiUrl}/api/requests`, {
+            const tryOldToken = await fetch(`${apiBase}/requests`, {
                 headers: { 'Authorization': `Bearer ${workerToken}`, 'Origin': originUrl }
             });
             if (tryOldToken.status === 403) {
@@ -293,6 +328,16 @@ async function runSmokeTest() {
             }
         } else {
             recordStep('STEP-12', 'Khóa Tài Khoản Nhân Viên Kiểm Thử', 'FAIL', `HTTP ${lockRes.status}`);
+        }
+
+        // Dọn dẹp Kiosk device đã tạo nếu có
+        if (createdKioskId) {
+            try {
+                await fetch(`${apiBase}/kiosk/${createdKioskId}/revoke`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${adminToken}`, 'Origin': originUrl }
+                });
+            } catch (e) {}
         }
 
     } catch (err) {

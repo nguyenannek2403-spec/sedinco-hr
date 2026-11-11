@@ -55,9 +55,7 @@ function logRejection({ code = 'UNKNOWN_REJECTION', message = '', actor_id = nul
         timestamp: new Date().toISOString()
     };
 
-    if (process.env.NODE_ENV !== 'test') {
-        console.warn(JSON.stringify(logEntry));
-    }
+    console.warn(JSON.stringify(logEntry));
 
     return logEntry;
 }

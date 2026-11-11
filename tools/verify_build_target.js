@@ -3,136 +3,100 @@
 /**
  * tools/verify_build_target.js
  * 
- * Kiểm tra bản build Mini App / Web xem nhúng endpoint HOST API nào (Mục B.5).
- * Từ chối bản build (Exit code 1) nếu đang kiểm thử Staging nhưng bản build trỏ vào Host Production.
- * TUYỆT ĐỐI KHÔNG IN SECRET / TOKEN / MẬT KHẨU.
+ * Kiểm tra tính toàn vẹn đích đến API trong bản build frontend (www/assets/*.js).
+ * - Trích xuất Host API đích (tuyệt đối không in giá trị secret / token).
+ * - Cờ --staging: Bắt buộc API đích KHÔNG ĐƯỢC trỏ vào production (sedinco-backend.onrender.com).
+ * - Cờ --production: Đảm bảo không chứa localhost / 127.0.0.1.
  */
 
 const fs = require('fs');
 const path = require('path');
 
+const ASSETS_DIR = path.join(__dirname, '../zalo-miniapp-frontend/www/assets');
 const args = process.argv.slice(2);
-function getArg(flag, defaultValue) {
-    const idx = args.indexOf(flag);
-    if (idx !== -1 && idx + 1 < args.length) {
-        return args[idx + 1];
-    }
-    return defaultValue;
-}
+const isStagingCheck = args.includes('--staging');
+const isProductionCheck = args.includes('--production');
 
-const targetMode = getArg('--mode', 'staging').toLowerCase();
-const wwwDir = path.resolve(__dirname, '../zalo-miniapp-frontend/www');
-const assetsDir = path.join(wwwDir, 'assets');
+function runCheck() {
+    console.log('=== KIỂM TRA ĐÍCH ĐẾN BẢN BUILD FRONTEND (VERIFY BUILD TARGET) ===');
 
-console.log(`======================================================================`);
-console.log(`🔍 KIỂM TRA MỤC TIÊU HOST API TRONG BẢN BUILD (${targetMode.toUpperCase()})`);
-console.log(`======================================================================\n`);
-
-if (!fs.existsSync(wwwDir)) {
-    console.error(`❌ Thư mục build không tồn tại: ${wwwDir}`);
-    console.error(`👉 Vui lòng chạy lệnh đóng gói frontend trước: npm --prefix zalo-miniapp-frontend run build`);
-    process.exit(1);
-}
-
-// Thu thập toàn bộ file js trong www/ và www/assets/
-const jsFiles = [];
-function scanDir(dir) {
-    if (!fs.existsSync(dir)) return;
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const e of entries) {
-        const fullPath = path.join(dir, e.name);
-        if (e.isDirectory()) {
-            scanDir(fullPath);
-        } else if (e.isFile() && e.name.endsWith('.js')) {
-            jsFiles.push(fullPath);
-        }
-    }
-}
-scanDir(wwwDir);
-
-if (jsFiles.length === 0) {
-    console.error(`❌ Không tìm thấy file JavaScript nào trong thư mục build: ${wwwDir}`);
-    process.exit(1);
-}
-
-// Regex quét URL API backend
-const urlRegex = /https?:\/\/([a-zA-Z0-9.-]+(?::[0-9]+)?)(?:\/[a-zA-Z0-9_.-]*)*/g;
-const ignoredDomains = [
-    'w3.org', 'schema.org', 'images.unsplash.com', 'api.qrserver.com',
-    'maps.google.com', 'google.com', 'zalo.me', 'cdnjs.cloudflare.com',
-    'unpkg.com', 'cdn.jsdelivr.net'
-];
-
-const foundHosts = new Set();
-
-for (const file of jsFiles) {
-    const content = fs.readFileSync(file, 'utf8');
-    let match;
-    while ((match = urlRegex.exec(content)) !== null) {
-        const fullUrl = match[0];
-        const host = match[1];
-
-        if (ignoredDomains.some(d => host.includes(d))) continue;
-
-        // Chỉ quan tâm các host liên quan tới backend hoặc API
-        if (
-            host.includes('localhost') ||
-            host.includes('127.0.0.1') ||
-            host.includes('render.com') ||
-            host.includes('onrender.com') ||
-            host.includes('sedinco') ||
-            fullUrl.includes('/api')
-        ) {
-            foundHosts.add(host);
-        }
-    }
-}
-
-const detectedHosts = Array.from(foundHosts);
-
-console.log(`📦 Các file bundle đã quét: ${jsFiles.length} files`);
-if (detectedHosts.length === 0) {
-    console.log(`ℹ️  Không phát hiện URL backend tuyệt đối hardcode trong bundle (bundle dùng cấu hình tương đối hoặc resolveApiBase).`);
-    console.log(`✅ [XÁC MINH TARGET THÀNH CÔNG] An toàn: Không phát hiện Host Production nhúng tĩnh.`);
-    process.exit(0);
-}
-
-console.log(`🌐 Các HOST API phát hiện trong bản build:`);
-detectedHosts.forEach(h => console.log(`   - ${h}`));
-console.log('');
-
-// Kiểm tra logic bảo vệ theo mode
-const PROD_HOST = 'sedinco-backend.onrender.com';
-const hasProdHost = detectedHosts.some(h => h.toLowerCase() === PROD_HOST);
-const hasStagingOrLocal = detectedHosts.some(h =>
-    h.includes('staging') ||
-    h.includes('localhost') ||
-    h.includes('127.0.0.1')
-);
-
-if (targetMode === 'staging') {
-    if (hasProdHost && !hasStagingOrLocal) {
-        console.error(`🚨 [BẢO VỆ STAGING THẤT BẠI]`);
-        console.error(`   Bản build đang trỏ trực tiếp vào HOST PRODUCTION: ${PROD_HOST}`);
-        console.error(`   Tuyệt đối không deploy bản build này lên môi trường Staging/Testing!`);
-        console.error(`   👉 Khắc phục: Khai báo VITE_API_URL=<url_staging> trong .env.production.local rồi build lại.`);
+    if (!fs.existsSync(ASSETS_DIR)) {
+        console.error(`❌ [LỖI] Thư mục bản build không tồn tại: ${ASSETS_DIR}`);
+        console.error('   Vui lòng thực thi "npm --prefix zalo-miniapp-frontend run build" trước.');
         process.exit(1);
-    } else if (hasProdHost && hasStagingOrLocal) {
-        console.warn(`⚠️ [CẢNH BÁO] Phát hiện cả host staging/local và chuỗi tham chiếu production trong bundle.`);
-        console.log(`✅ [XÁC MINH TARGET HỢP LỆ] Đã có host staging: ${detectedHosts.filter(h => h !== PROD_HOST).join(', ')}`);
-        process.exit(0);
-    } else {
-        console.log(`✅ [XÁC MINH TARGET THÀNH CÔNG] Toàn bộ HOST API đều thuộc môi trường Staging/Local.`);
-        process.exit(0);
     }
-} else if (targetMode === 'production') {
-    if (!hasProdHost) {
-        console.warn(`⚠️ [CẢNH BÁO] Chế độ Production nhưng không phát hiện HOST Production (${PROD_HOST}).`);
-    } else {
-        console.log(`✅ [XÁC MINH TARGET THÀNH CÔNG] Đã xác nhận HOST Production: ${PROD_HOST}`);
+
+    const files = fs.readdirSync(ASSETS_DIR).filter(f => f.endsWith('.js'));
+    if (files.length === 0) {
+        console.error('❌ [LỖI] Không tìm thấy tệp JavaScript nào trong www/assets!');
+        process.exit(1);
     }
-    process.exit(0);
-} else {
-    console.log(`✅ [XÁC MINH HOÀN TẤT] Mode: ${targetMode}`);
+
+    const detectedHosts = new Set();
+    const urlPattern = /https?:\/\/([a-zA-Z0-9.-]+)(?::([0-9]+))?/g;
+
+    for (const file of files) {
+        const filePath = path.join(ASSETS_DIR, file);
+        const content = fs.readFileSync(filePath, 'utf8');
+
+        let match;
+        while ((match = urlPattern.exec(content)) !== null) {
+            const host = match[1];
+            // Lọc bớt các domain schema hoặc thư viện phổ biến không phải backend API
+            if (!['www.w3.org', 'reactjs.org', 'reactrouter.com'].includes(host)) {
+                detectedHosts.add(host + (match[2] ? `:${match[2]}` : ''));
+            }
+        }
+    }
+
+    console.log(`🔍 Các host được phát hiện trong bundle frontend (${files.length} tệp JS):`);
+    for (const h of detectedHosts) {
+        console.log(`   - ${h}`);
+    }
+
+    let hasViolation = false;
+
+    if (isStagingCheck) {
+        console.log('\n[CỜ --staging] Kiểm tra bảo vệ môi trường Staging:');
+        const productionHosts = ['sedinco-backend.onrender.com'];
+        for (const badHost of productionHosts) {
+            if (detectedHosts.has(badHost)) {
+                console.error(`❌ [LỖI ĐỎ] Phát hiện host PRODUCTION (${badHost}) nằm trong bản build Staging!`);
+                hasViolation = true;
+            }
+        }
+        if (!hasViolation) {
+            console.log('✅ ĐẠT: Không phát hiện host production trong bản build staging.');
+        }
+    }
+
+    if (isProductionCheck) {
+        console.log('\n[CỜ --production] Kiểm tra bảo vệ môi trường Production:');
+        const devApiHosts = ['localhost:5001', '127.0.0.1:5001', 'localhost:5000', '127.0.0.1:5000', 'localhost:3000', '127.0.0.1:3000'];
+        for (const badHost of devApiHosts) {
+            for (const h of detectedHosts) {
+                if (h === badHost || h.startsWith(badHost)) {
+                    console.error(`❌ [LỖI ĐỎ] Phát hiện host nội bộ/dev (${h}) nằm trong bản build Production!`);
+                    hasViolation = true;
+                }
+            }
+        }
+        const officialHost = 'sedinco-backend.onrender.com';
+        if (detectedHosts.has(officialHost)) {
+            console.log(`✅ HỢP LỆ: Đã phát hiện URL Backend chính thức của hệ thống (${officialHost}) trong bản build.`);
+        }
+        if (!hasViolation) {
+            console.log('✅ ĐẠT: Không phát hiện host dev nội bộ trong bản build production.');
+        }
+    }
+
+    if (hasViolation) {
+        console.error('\n🚨 KIỂM TRA ĐÍCH ĐẾN THẤT BẠI: Bản build vi phạm quy tắc phân tách môi trường!');
+        process.exit(1);
+    }
+
+    console.log('\n✅ KIỂM TRA ĐÍCH ĐẾN BẢN BUILD THÀNH CÔNG: Hoàn toàn hợp lệ.');
     process.exit(0);
 }
+
+runCheck();

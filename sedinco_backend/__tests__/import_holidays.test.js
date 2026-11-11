@@ -21,7 +21,7 @@ const DB_USER = process.env.DB_USER || 'root';
 const DB_PASSWORD = process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : '123456';
 const DB_NAME = 'sedinco_hr_test';
 
-const SCRIPT_PATH = path.resolve(__dirname, '../../tools/import_holidays.js');
+const SCRIPT_PATH = path.resolve(__dirname, '../../scripts/import_holidays.js');
 const TMP_DIR = path.resolve(__dirname, '../temp_holidays');
 
 describe('G9.3 - Mục F.1: Kiểm thử Công Cụ Nhập Ngày Lễ (import_holidays.js)', () => {

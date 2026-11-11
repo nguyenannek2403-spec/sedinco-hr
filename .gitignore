@@ -1,14 +1,17 @@
 # Dependencies
 node_modules/
+**/node_modules/
 */node_modules/
 */**/node_modules/
 
 # Production builds
 dist/
+**/dist/
 */dist/
 */**/dist/
 web-build/
 www/
+**/www/
 */www/
 
 # Environment files

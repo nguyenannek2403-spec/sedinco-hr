@@ -52,6 +52,8 @@ export default function DesktopHeader({
     }
   };
 
+  const displayTime = currentTime instanceof Date ? currentTime : new Date();
+
   return (
     <header className="bg-white border-b-2 border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-30 select-none shadow-sm">
       
@@ -60,7 +62,7 @@ export default function DesktopHeader({
         <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold">
           <span>Sedinco HR</span>
           <ChevronRight size={14} />
-          <span className="text-blue-700 font-black">{ROLE_LABELS[activeRole]}</span>
+          <span className="text-blue-700 font-black">{ROLE_LABELS[activeRole] || "Cán Bộ Nhân Viên"}</span>
         </div>
         <h2 className="text-xl font-black text-slate-900 tracking-tight mt-0.5">
           {getTabTitle()}
@@ -74,7 +76,7 @@ export default function DesktopHeader({
         <div className="hidden md:flex items-center gap-2 bg-slate-50 border-2 border-slate-200 px-4 py-2 rounded-2xl text-sm font-mono font-black text-slate-800 shadow-inner">
           <Clock size={16} className="text-blue-600" />
           <span>
-            {currentTime.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })} • {currentTime.toLocaleTimeString("vi-VN")}
+            {displayTime.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })} • {displayTime.toLocaleTimeString("vi-VN")}
           </span>
         </div>
 

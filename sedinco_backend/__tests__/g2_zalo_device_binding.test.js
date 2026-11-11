@@ -19,8 +19,8 @@ if (!DB_NAME.includes('test')) {
     throw new Error(`[CHỐT CHẶN] DB_NAME="${DB_NAME}" không chứa "test"! Hủy bỏ test.`);
 }
 
-require(path.join(__dirname, '../node_modules/dotenv')).config({ path: path.join(__dirname, '../.env') });
 process.env.NODE_ENV = 'test';
+require(path.join(__dirname, '../node_modules/dotenv')).config({ path: path.join(__dirname, '../.env.test') });
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'sedinco_test_jwt_secret_super_secure_32chars_min';
 
 const app = require('../src/app');

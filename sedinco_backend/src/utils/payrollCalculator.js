@@ -100,9 +100,16 @@ function calculateEmployeeSalary({
     };
 
     const grossSalary = salaryByWork + allowanceByWork + tienOt;
-    // Nếu nhân viên không đi làm ngày nào (0 ngày công), không trích trừ BHXH vào kỳ lương để tránh lương thực lĩnh âm
-    let baoHiem = (has_insurance !== false && has_insurance !== 0 && actualWorkDays > 0) ? (luongCb * 0.105) : 0;
-    const netSalary = Math.max(0, Math.round(grossSalary - baoHiem));
+    // Nếu nhân viên không đi làm ngày nào (0 ngày công), không trích trừ BHXH và netSalary = 0 (tránh lương âm)
+    let baoHiem = 0;
+    let netSalary = 0;
+    if (actualWorkDays === 0) {
+        baoHiem = 0;
+        netSalary = 0;
+    } else {
+        baoHiem = (has_insurance !== false && has_insurance !== 0) ? (luongCb * 0.105) : 0;
+        netSalary = Math.max(0, Math.round(grossSalary - baoHiem));
+    }
 
     return {
         baseSalary: luongCb,

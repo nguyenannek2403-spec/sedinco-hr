@@ -305,9 +305,9 @@ class AttendanceService {
             throw error;
         }
 
-        // Giới hạn dung lượng tối đa 2MB
-        if (buffer.length > 2 * 1024 * 1024) {
-            const error = new Error('Ảnh vượt quá dung lượng tối đa cho phép (2MB)!');
+        // Giới hạn dung lượng tối đa 150KB để bảo vệ CSDL Aiven MySQL không bị phình to
+        if (buffer.length > 150 * 1024) {
+            const error = new Error('Ảnh vượt quá dung lượng tối đa cho phép (150KB)! Vui lòng nén ảnh trước khi tải lên.');
             error.statusCode = 400;
             throw error;
         }

@@ -115,6 +115,25 @@ describe('CORS, Topo Hai Địa Chỉ & Giám Sát Staging (Mục B & C)', () =>
         assert.equal(typeof data.request_id, 'string');
     });
 
+    test('B.2.6: Luồng đăng nhập POST /api/auth/login qua CORS mang đủ header CORS', async () => {
+        // 1. Thử đăng nhập sai mật khẩu qua CORS
+        const badRes = await fetch(`${baseUrl}/api/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Origin': allowedOrigin1
+            },
+            body: JSON.stringify({ ma_nv: 'NV_TEST_NOT_FOUND', password: 'wrongpassword' })
+        });
+
+        assert.equal(badRes.status, 200);
+        assert.equal(badRes.headers.get('access-control-allow-origin'), allowedOrigin1);
+        assert.equal(badRes.headers.get('access-control-allow-credentials'), 'true');
+        const badData = await badRes.json();
+        assert.equal(badData.success, false);
+        assert.equal(typeof badData.request_id, 'string');
+    });
+
     // ─────────────────────────────────────────────────────────────────────────
     // 2. Kiểm tra X-Request-Id (Mục C.1)
     // ─────────────────────────────────────────────────────────────────────────

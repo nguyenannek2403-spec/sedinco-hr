@@ -17,7 +17,7 @@ import { zmpAdapter } from '../adapters/zmp/sdkAdapter';
  * @param {number} quality - Chất lượng nén 0.0 -> 1.0 (mặc định 0.8)
  * @returns {Promise<string>} Data URL chuỗi Base64 đã nén
  */
-export async function compressAndResizeImage(imageSrc, maxWidth = 800, maxHeight = 800, quality = 0.8) {
+export async function compressAndResizeImage(imageSrc, maxWidth = 480, maxHeight = 480, quality = 0.6) {
   return new Promise((resolve, reject) => {
     if (!imageSrc) {
       return reject(new Error('Không có dữ liệu ảnh để nén'));
@@ -31,7 +31,7 @@ export async function compressAndResizeImage(imageSrc, maxWidth = 800, maxHeight
         let width = img.width;
         let height = img.height;
 
-        // Tính toán tỉ lệ co giãn giữ nguyên tỷ lệ khung hình
+        // Tính toán tỉ lệ co giãn giữ nguyên tỷ lệ khung hình với maxWidth 480px
         if (width > maxWidth || height > maxHeight) {
           const ratio = Math.min(maxWidth / width, maxHeight / height);
           width = Math.round(width * ratio);
@@ -47,18 +47,15 @@ export async function compressAndResizeImage(imageSrc, maxWidth = 800, maxHeight
           return resolve(imageSrc); // Fallback nếu không lấy được context
         }
 
-        // Vẽ ảnh lên canvas với kích thước mới
+        // Vẽ ảnh lên canvas với kích thước tối ưu
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Thử xuất định dạng WebP trước, nếu trình duyệt không hỗ trợ sẽ ra JPEG
+        // Xuất chuẩn JPEG quality 0.6 đảm bảo chuỗi Base64 < 50KB bảo vệ DB Aiven
         let dataUrl;
         try {
-          dataUrl = canvas.toDataURL('image/webp', quality);
-          if (!dataUrl.startsWith('data:image/webp')) {
-            dataUrl = canvas.toDataURL('image/jpeg', quality);
-          }
-        } catch (e) {
           dataUrl = canvas.toDataURL('image/jpeg', quality);
+        } catch (e) {
+          dataUrl = imageSrc;
         }
 
         resolve(dataUrl);
@@ -91,8 +88,8 @@ export async function captureDirectCameraPhoto() {
 
     if (res && res.filePaths && res.filePaths.length > 0) {
       const originalPath = res.filePaths[0];
-      // Tự động nén và resize
-      const compressedDataUrl = await compressAndResizeImage(originalPath, 800, 800, 0.8);
+      // Tự động nén và resize tối đa 480px, quality 0.6
+      const compressedDataUrl = await compressAndResizeImage(originalPath, 480, 480, 0.6);
       return {
         success: true,
         photoUrl: compressedDataUrl,

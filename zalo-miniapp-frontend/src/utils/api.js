@@ -11,7 +11,7 @@ export function normalizeApiUrl(raw) {
 }
 
 export function resolveApiBase() {
-  const envUrl = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL);
+  const envUrl = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env.VITE_API_URL : null;
   if (envUrl && typeof envUrl === "string" && envUrl.trim()) {
     return normalizeApiUrl(envUrl);
   }
@@ -20,10 +20,6 @@ export function resolveApiBase() {
   }
   if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
     return `${window.location.origin}/api`;
-  }
-  const isStagingMode = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.MODE === "staging");
-  if (isStagingMode) {
-    return "";
   }
   return "https://sedinco-backend.onrender.com/api";
 }

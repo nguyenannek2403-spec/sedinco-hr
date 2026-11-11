@@ -9,7 +9,7 @@ class AuthController {
             const result = await authService.employeeLogin(ma_nv, password, ip);
             if (!result.success) {
                 const status = result.statusCode || 200;
-                return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode });
+                return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode, request_id: req.id });
             }
             return res.json({ success: true, data: result.data });
         } catch (err) {
@@ -24,7 +24,7 @@ class AuthController {
             const result = await authService.adminLogin(username, password, ip);
             if (!result.success) {
                 const status = result.statusCode || 200;
-                return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode });
+                return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode, request_id: req.id });
             }
             return res.json({ success: true, data: result.data });
         } catch (err) {

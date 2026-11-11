@@ -16,6 +16,7 @@
   ],
   "scripts": {
     "build": "vite build",
+    "build:staging": "vite build --mode staging",
     "login": "zmp login",
     "start": "zmp start",
     "deploy": "zmp deploy"

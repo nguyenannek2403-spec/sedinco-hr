@@ -1,5 +1,5 @@
 import React from "react";
-import sedincoLogo from "../static/sedinco-logo.png";
+const sedincoLogo = "/sedinco-logo.png";
 
 /**
  * CompanyLogo - Logo chính thức của CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO
