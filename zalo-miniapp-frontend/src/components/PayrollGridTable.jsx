@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   DollarSign,
   Search,
@@ -12,24 +12,95 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  AlertTriangle
+  AlertTriangle,
+  Calculator,
+  CheckCircle2
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
-import { sanitizeFormula, formatCsvCellRFC4180 } from "../utils/api";
+import { safeGet, safePost, sanitizeFormula, formatCsvCellRFC4180 } from "../utils/api";
 
 export default function PayrollGridTable({
   payrollData,
-  month,
-  year,
+  month = new Date().getMonth() + 1,
+  year = new Date().getFullYear(),
   onMonthChange,
   onRefresh,
-  isLoading
+  isLoading: propIsLoading,
+  showToast,
+  onShowToast
 }) {
+  const notify = showToast || onShowToast;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSlipItem, setSelectedSlipItem] = useState(null);
+  const [internalPayroll, setInternalPayroll] = useState([]);
+  const [loadingPayroll, setLoadingPayroll] = useState(false);
+  const [calculating, setCalculating] = useState(false);
+  const [approving, setApproving] = useState(false);
+
+  const fetchPayrollFromApi = useCallback(async () => {
+    if (Array.isArray(payrollData)) return;
+    setLoadingPayroll(true);
+    try {
+      const res = await safeGet("/payroll", { month, year });
+      if (Array.isArray(res?.data) && res.data.length > 0) {
+        setInternalPayroll(res.data);
+      } else {
+        // Nếu chưa có bản lưu, tự động gọi /payroll/calculate để hiển thị bảng tính lương tạm tính
+        const calcRes = await safeGet("/payroll/calculate", { month, year });
+        if (Array.isArray(calcRes?.data)) {
+          setInternalPayroll(calcRes.data);
+        } else {
+          setInternalPayroll([]);
+        }
+      }
+    } catch (e) {
+      console.warn("Lỗi tải bảng lương:", e);
+    } finally {
+      setLoadingPayroll(false);
+    }
+  }, [payrollData, month, year]);
+
+  useEffect(() => {
+    fetchPayrollFromApi();
+  }, [fetchPayrollFromApi]);
+
+  const handleCalculatePayroll = async () => {
+    setCalculating(true);
+    try {
+      const res = await safePost("/payroll/calculate", { month, year });
+      if (res?.success && Array.isArray(res.data)) {
+        setInternalPayroll(res.data);
+        if (notify) notify(`Đã tính toán xong bảng lương tháng ${month}/${year}!`, "success");
+      } else {
+        await fetchPayrollFromApi();
+      }
+    } catch (err) {
+      if (notify) notify(err.message || "Lỗi tính toán bảng lương.", "error");
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  const handleApprovePayroll = async () => {
+    setApproving(true);
+    try {
+      const res = await safePost("/payroll/approve", { month, year });
+      if (res?.success) {
+        if (notify) notify(`Đã duyệt và phát hành Phiếu Lương tháng ${month}/${year} cho toàn bộ nhân viên!`, "success");
+        await fetchPayrollFromApi();
+      }
+    } catch (err) {
+      if (notify) notify(err.message || "Không thể duyệt bảng lương.", "error");
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const isLoading = propIsLoading || loadingPayroll;
+  const sourceList = Array.isArray(payrollData) ? payrollData : internalPayroll;
 
   // Lọc dữ liệu theo tìm kiếm
-  const filteredList = (payrollData || []).filter(item => {
+  const filteredList = (sourceList || []).filter(item => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     const id = (item.ma_nv || item.id_nhan_vien || "").toLowerCase();
@@ -228,31 +299,46 @@ export default function PayrollGridTable({
               />
             </div>
 
+            {/* Nút Tính Lương Tự Động */}
+            <button
+              type="button"
+              onClick={handleCalculatePayroll}
+              disabled={calculating || isLoading}
+              className="min-h-[44px] flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-black px-3.5 py-2.5 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer disabled:opacity-50"
+            >
+              <Calculator size={16} />
+              <span>{calculating ? "Đang tính..." : "Tính Lương"}</span>
+            </button>
+
+            {/* Nút Duyệt & Phát Hành Phiếu Lương */}
+            <button
+              type="button"
+              onClick={handleApprovePayroll}
+              disabled={approving || isLoading}
+              className="min-h-[44px] flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-black px-3.5 py-2.5 rounded-xl border-2 border-indigo-700 shadow-sm cursor-pointer disabled:opacity-50"
+            >
+              <CheckCircle2 size={16} />
+              <span>{approving ? "Đang lưu..." : "Chốt & Phát Hành"}</span>
+            </button>
+
             {/* Nút Xuất CSV */}
             <button
               type="button"
               onClick={handleExportCSV}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black px-4 py-2.5 rounded-xl border-2 border-emerald-700 shadow-sm cursor-pointer"
+              className="min-h-[44px] flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-black px-3.5 py-2.5 rounded-xl border-2 border-emerald-700 shadow-sm cursor-pointer"
             >
               <Download size={16} />
-              <span>Xuất CSV (Excel)</span>
-            </button>
-
-            {/* Nút In Bảng Lương */}
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-black px-4 py-2.5 rounded-xl border-2 border-slate-800 shadow-sm cursor-pointer"
-            >
-              <Printer size={16} />
-              <span>In Bảng Lương</span>
+              <span>Xuất CSV</span>
             </button>
 
             {/* Nút Làm Mới */}
             <button
               type="button"
-              onClick={onRefresh}
-              className="p-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer"
+              onClick={() => {
+                fetchPayrollFromApi();
+                if (onRefresh) onRefresh();
+              }}
+              className="min-w-[44px] min-h-[44px] p-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer flex items-center justify-center"
               title="Làm mới bảng lương"
             >
               <RefreshCw size={16} className={isLoading ? "animate-spin text-emerald-600" : ""} />
@@ -272,12 +358,12 @@ export default function PayrollGridTable({
           </div>
         )}
 
-        {/* Bảng Dữ Liệu Grid */}
-        <div className="overflow-x-auto">
+        {/* Bảng Dữ Liệu Grid (Vuốt ngang mượt trên điện thoại + Sticky cột Tên NV) */}
+        <div className="overflow-x-auto touch-scroll-x">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-100 text-slate-800 font-black border-b-2 border-slate-300 uppercase text-xs">
-                <th className="p-3.5 pl-5 min-w-[180px]">Cán Bộ Nhân Sự</th>
+                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-slate-100 z-10 min-w-[145px] sm:min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">Cán Bộ Nhân Sự</th>
                 <th className="p-3.5 text-right">Lương CB (HĐ)</th>
                 <th className="p-3.5 text-center">Công TT</th>
                 <th className="p-3.5 text-right">Lương Công</th>
@@ -308,12 +394,10 @@ export default function PayrollGridTable({
                   const empId = item.ma_nv || item.id_nhan_vien;
                   return (
                     <tr key={empId || idx} className="hover:bg-emerald-50/40 transition-colors">
-                      <td className="p-3.5 pl-5">
-                        <div className="font-black text-slate-900 text-sm">{item.ho_ten}</div>
-                        <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                      <td className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-white z-10 min-w-[145px] sm:min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+                        <div className="font-black text-slate-900 text-xs sm:text-sm truncate">{item.ho_ten}</div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
                           <span className="font-mono text-blue-700 font-bold">{empId}</span>
-                          <span>•</span>
-                          <span className="font-medium">{item.chuc_danh || "Nhân viên"}</span>
                         </div>
                       </td>
                       <td className="p-3.5 text-right font-bold text-slate-800 text-sm">

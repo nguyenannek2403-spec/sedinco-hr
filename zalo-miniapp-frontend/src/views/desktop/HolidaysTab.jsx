@@ -42,7 +42,10 @@ export default function HolidaysTab({ currentUser, showToast }) {
 
     setIsSubmitting(true);
     try {
-      const res = await safePost("/holidays", form);
+      const res = await safePost("/holidays", {
+        ...form,
+        holiday_name: form.name
+      });
       if (res?.success) {
         if (showToast) showToast(`Đã thêm ngày lễ "${form.name}"!`, "success");
         setIsAddOpen(false);
@@ -139,7 +142,7 @@ export default function HolidaysTab({ currentUser, showToast }) {
                   <tr key={h.id} className="hover:bg-slate-700/30 transition-colors">
                     <td className="p-3.5 pl-5 font-bold text-white flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-rose-400" />
-                      {h.name}
+                      {h.holiday_name || h.name}
                     </td>
                     <td className="p-3.5 font-mono text-slate-300">{h.start_date}</td>
                     <td className="p-3.5 font-mono text-slate-300">{h.end_date}</td>

@@ -13,6 +13,7 @@ export default function HomePage() {
   const {
     currentUser,
     activeRole,
+    setActiveRole,
     mustChangePassword,
     setMustChangePassword,
     isLoggingIn,
@@ -23,7 +24,7 @@ export default function HomePage() {
   } = useAuth();
 
   // Responsive Device & Viewport State
-  const [screenWidth, setScreenWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1200));
+  const [screenWidth, setScreenWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 390));
 
   useEffect(() => {
     const handleResize = () => setScreenWidth(window.innerWidth);
@@ -31,7 +32,7 @@ export default function HomePage() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const isDesktop = screenWidth >= 1024 || activeRole === ROLES.ADMIN || activeRole === ROLES.ACCOUNTANT;
+  const isManagementView = activeRole === ROLES.ADMIN || activeRole === ROLES.ACCOUNTANT;
 
   // Toast notification
   const [toastNotification, setToastNotification] = useState(null);
@@ -73,11 +74,13 @@ export default function HomePage() {
           loginError={loginError}
           onClearCache={clearCache}
         />
-      ) : isDesktop ? (
-        /* 2. Giao Diện Desktop (Admin & Kế Toán PC) */
+      ) : isManagementView ? (
+        /* 2. Giao Diện Quản Trị & Kế Toán (Tương thích cả Mobile Zalo Mini App & PC) */
         <DesktopDashboard
           currentUser={currentUser}
           activeRole={activeRole}
+          onRoleSwitch={setActiveRole}
+          screenWidth={screenWidth}
           onLogout={handleLogout}
           showToast={showToast}
           onChangePasswordRequest={() => setMustChangePassword(true)}
@@ -86,6 +89,8 @@ export default function HomePage() {
         /* 3. Giao Diện Mobile (Công Nhân Zalo Mini App) */
         <WorkerDashboard
           currentUser={currentUser}
+          activeRole={activeRole}
+          onRoleSwitch={setActiveRole}
           onLogout={handleLogout}
           showToast={showToast}
           onChangePasswordRequest={() => setMustChangePassword(true)}
@@ -104,9 +109,12 @@ export default function HomePage() {
         </Suspense>
       )}
 
-      {/* Global Toast Notification Container */}
+      {/* Global Toast Notification Container - Tránh cụm nút mặc định Zalo ở góc trên bên phải */}
       {toastNotification && (
-        <div className="fixed top-5 right-5 z-[100] max-w-sm animate-fade-in">
+        <div
+          className="fixed left-4 right-4 sm:left-auto sm:right-5 z-[120] max-w-sm animate-fade-in"
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 54px)" }}
+        >
           <div
             className={`p-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border flex items-center gap-3 text-xs font-bold ${
               toastNotification.type === "success"

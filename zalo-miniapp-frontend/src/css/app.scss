@@ -1,15 +1,13 @@
-:root {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-body, html, #app {
-  width: 100%;
-  min-height: 100%;
-  margin: 0;
-  padding: 0;
-  background-color: #f8fafc;
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
 }
 
 .page {
@@ -27,32 +25,41 @@ body, html, #app {
   cursor: pointer;
 }
 
-/* Custom scrollbars for desktop tables */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+/* Zalo Mini App Safe Area & Capsule Clearance (88px x 44px top-right) */
+.zmp-safe-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
 }
 
-/* Print layout for pay slips & reports */
-@media print {
-  aside, nav, header, button, .no-print {
-    display: none !important;
+.zmp-capsule-clearance {
+  padding-right: 96px;
+}
+
+.zmp-safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+}
+
+/* Smooth Mobile Horizontal Table Scroll */
+.touch-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Standard Mobile Touch Target (>= 44x44px) */
+.min-touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Custom Animations */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
   }
-  .print-only {
-    display: block !important;
+  to {
+    transform: rotate(360deg);
   }
-  body, #app {
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
 }

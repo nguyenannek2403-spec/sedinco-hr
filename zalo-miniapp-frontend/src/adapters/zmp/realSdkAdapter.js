@@ -4,7 +4,9 @@ import {
   openBioAuthentication as zmpOpenBioAuthentication,
   checkStateBioAuthentication as zmpCheckStateBioAuthentication,
   chooseImage as zmpChooseImage,
-  getSystemInfo as zmpGetSystemInfo
+  getSystemInfo as zmpGetSystemInfo,
+  scanQRCode as zmpScanQRCode,
+  vibrate as zmpVibrate
 } from "zmp-sdk/apis";
 
 /**
@@ -143,6 +145,40 @@ export const realSdkAdapter = {
       return zmpGetSystemInfo() || {};
     } catch (e) {
       return {};
+    }
+  },
+
+  async scanQRCode() {
+    try {
+      if (typeof zmpScanQRCode !== "function") {
+        throw new Error("Thiết bị hoặc phiên bản Zalo chưa hỗ trợ quét mã QR trực tiếp.");
+      }
+      const res = await zmpScanQRCode({});
+      const content = res?.content || res?.data || (typeof res === "string" ? res : "");
+      return { content: String(content || "").trim(), raw: res };
+    } catch (err) {
+      console.warn("[RealSDK] scanQRCode error:", err);
+      throw {
+        code: "QR_SCAN_FAILED",
+        message: err?.message || "Không thể quét mã QR từ Camera Zalo.",
+        raw: err
+      };
+    }
+  },
+
+  async vibrate(type = "light") {
+    try {
+      if (typeof zmpVibrate === "function") {
+        await zmpVibrate({ type });
+        return true;
+      }
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate(120);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
     }
   }
 };

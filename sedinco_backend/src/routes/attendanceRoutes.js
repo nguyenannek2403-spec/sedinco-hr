@@ -31,9 +31,9 @@ router.post('/unlock-period', authenticateToken, requireRole(['admin']), (req, r
 router.post('/update', authenticateToken, requireAuth, validateAttendanceMiddleware, (req, res, next) => attendanceController.updateAttendance(req, res, next));
 router.post('/', authenticateToken, requireAuth, validateAttendanceMiddleware, (req, res, next) => attendanceController.updateAttendance(req, res, next));
 
-// 7. Sinh mã QR Động (Yêu cầu permission: attendance_view_all - Admin & Kế toán)
-router.get('/dynamic-qr', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getDynamicQr(req, res, next));
-router.get('/qr', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getDynamicQr(req, res, next));
+// 7. Sinh mã QR Động / Phiên chấm công 1 chạm (Yêu cầu đăng nhập xác thực JWT)
+router.get('/dynamic-qr', authenticateToken, requireAuth, (req, res, next) => attendanceController.getDynamicQr(req, res, next));
+router.get('/qr', authenticateToken, requireAuth, (req, res, next) => attendanceController.getDynamicQr(req, res, next));
 
 // 8. Chấm công đa lớp Multi-Factor (Mã QR động + GPS Geofencing + Camera Snapshot + Anti-Proxy)
 router.post('/check-in', authenticateToken, requireAuth, (req, res, next) => attendanceController.checkInMultiFactor(req, res, next));

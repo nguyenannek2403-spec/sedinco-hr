@@ -23,19 +23,25 @@ export default function AuthView({
   const handleQuickFill = (role) => {
     setRoleHint(role);
     if (role === "admin") {
-      setUsername("ADMIN");
+      setUsername("NV001");
       setPassword("");
     } else if (role === "accountant") {
       setUsername("NV002");
       setPassword("");
     } else {
-      setUsername("NV001");
+      setUsername("NV003");
       setPassword("");
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4 relative overflow-hidden">
+    <div
+      className="min-h-screen bg-slate-900 flex flex-col justify-center items-center px-4 relative overflow-x-hidden overflow-y-auto"
+      style={{
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 48px)",
+        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)"
+      }}
+    >
       {/* Background Glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/3 w-80 h-80 bg-red-600/15 rounded-full blur-3xl pointer-events-none" />

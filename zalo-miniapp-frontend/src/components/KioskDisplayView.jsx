@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, Button } from 'zmp-ui';
 import { QrCode, RefreshCw, Monitor, ShieldCheck, Clock, Wifi, ShieldAlert } from 'lucide-react';
-import { API_BASE } from '../utils/api';
+import { API_BASE, safeGet } from '../utils/api';
 
 /**
- * KioskDisplayView (G3 Security Hardening - Proposal 2 Kiosk Isolation)
- * Màn hình Kiosk chuyên dụng gắn tại cổng/nhà xưởng hiển thị Dynamic QR độc lập
- * Xác thực bằng header 'x-kiosk-key', tự động refresh mã mỗi 30 giây
+ * KioskDisplayView (G3 Security Hardening - Proposal 2 Kiosk Isolation + Mobile Admin QR Mode)
+ * Màn hình Kiosk chuyên dụng gắn tại cổng/nhà xưởng hoặc mở trực tiếp bởi Admin trên điện thoại
+ * Xác thực bằng header 'x-kiosk-key' hoặc phiên JWT Admin (/api/attendance/qr), tự động refresh mã mỗi 30 giây
  */
-export default function KioskDisplayView({ kioskKey = '' }) {
+export default function KioskDisplayView({ kioskKey = '', currentUser }) {
     const [apiKey, setApiKey] = useState(kioskKey || localStorage.getItem('sedinco_kiosk_key') || '');
     const [qrData, setQrData] = useState(null);
     const [countdown, setCountdown] = useState(30);
@@ -16,15 +16,35 @@ export default function KioskDisplayView({ kioskKey = '' }) {
     const [error, setError] = useState('');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isReconnecting, setIsReconnecting] = useState(false);
+    const [copiedToken, setCopiedToken] = useState(false);
     const timerRef = useRef(null);
 
     const fetchKioskQr = async (keyToUse) => {
-        const key = keyToUse || apiKey;
-        if (!key) return;
+        const key = (keyToUse !== undefined ? keyToUse : apiKey) || '';
 
         setLoading(true);
         setError('');
         try {
+            // Nếu chưa cấu hình Kiosk Key riêng, sử dụng trực tiếp API phát mã QR của Admin (/api/attendance/qr)
+            if (!key.trim()) {
+                const adminQr = await safeGet('/attendance/qr', { branch_id: 1 });
+                if (adminQr?.success && adminQr?.data) {
+                    const tokenVal = adminQr.data.token || adminQr.data.qr_data;
+                    localStorage.setItem('sedinco_current_qr_token', tokenVal);
+                    setQrData({
+                        ...adminQr.data,
+                        token: tokenVal,
+                        qr_data: tokenVal,
+                        kiosk_name: 'Trạm QR Quản Trị (Mobile/PC)',
+                        kiosk_code: currentUser?.ma_nv || 'ADMIN'
+                    });
+                    setCountdown(30);
+                    setIsReconnecting(false);
+                    setError('');
+                    return;
+                }
+            }
+
             const res = await fetch(`${API_BASE}/kiosk/qr`, {
                 headers: {
                     'x-kiosk-key': key.trim()
@@ -38,6 +58,8 @@ export default function KioskDisplayView({ kioskKey = '' }) {
             }
             const data = await res.json();
             if (data.success && data.data) {
+                const tokenVal = data.data.token || data.data.qr_data;
+                if (tokenVal) localStorage.setItem('sedinco_current_qr_token', tokenVal);
                 setQrData(data.data);
                 setCountdown(30);
                 setIsReconnecting(false);
@@ -54,9 +76,9 @@ export default function KioskDisplayView({ kioskKey = '' }) {
         }
     };
 
-    // Tự động tải mã QR khi đã có apiKey (từ props hoặc localStorage)
+    // Tự động tải mã QR ngay khi mở màn hình (dùng Kiosk Key hoặc quyền Admin)
     useEffect(() => {
-        if (apiKey && !qrData) {
+        if (!qrData) {
             fetchKioskQr(apiKey);
         }
     }, [apiKey]);
@@ -219,6 +241,24 @@ export default function KioskDisplayView({ kioskKey = '' }) {
                     <ShieldCheck size={16} className="text-emerald-600" />
                     <span>Mã tự hủy sau: <strong className="text-blue-600 text-sm">{countdown}s</strong></span>
                 </div>
+
+                {(qrData?.token || qrData?.qr_data) && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const tk = qrData.token || qrData.qr_data;
+                            localStorage.setItem('sedinco_current_qr_token', tk);
+                            if (navigator?.clipboard?.writeText) {
+                                navigator.clipboard.writeText(tk).catch(() => {});
+                            }
+                            setCopiedToken(true);
+                            setTimeout(() => setCopiedToken(false), 2000);
+                        }}
+                        className="mt-3 min-h-[40px] px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+                    >
+                        {copiedToken ? 'Đã lưu & sao chép mã QR!' : 'Sao chép / Lưu mã QR chấm công'}
+                    </button>
+                )}
             </div>
 
             {/* Hướng dẫn công nhân */}

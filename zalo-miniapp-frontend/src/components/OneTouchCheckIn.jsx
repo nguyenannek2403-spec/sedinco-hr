@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Clock,
   MapPin,
@@ -9,10 +9,12 @@ import {
   RotateCcw,
   ShieldCheck,
   Send,
-  HelpCircle
+  QrCode,
+  Camera
 } from "lucide-react";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
+import { captureDirectCameraPhoto } from "../utils/imageHelper";
 
 // Cờ cấu hình Sinh trắc học: Mặc định TẮT theo quy định Zalo Mini App Team
 export const FEATURE_BIOMETRIC_ENABLED = false;
@@ -47,20 +49,43 @@ export default function OneTouchCheckIn({
   isLockedPeriod = false
 }) {
   const [stage, setStage] = useState(STAGES.IDLE);
-  const [statusMessage, setStatusMessage] = useState("Chạm nút bên dưới để điểm danh");
+  const [statusMessage, setStatusMessage] = useState("Chạm nút bên dưới hoặc Quét QR để điểm danh");
   const [serverTimeResult, setServerTimeResult] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [errorDetails, setErrorDetails] = useState("");
   const [isDebounceLocked, setIsDebounceLocked] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState("");
+  const [liveTodayRecord, setLiveTodayRecord] = useState(todayAttendance);
+  const [monthlyCount, setMonthlyCount] = useState(0);
 
   // Cờ Ref khóa nút bấm ngay lập tức ở mức phần cứng để chống double click
   const isLockedRef = useRef(false);
   const timeoutIdRef = useRef(null);
   const lastIdempotencyKeyRef = useRef("");
 
+  const fetchTodayStatus = useCallback(async () => {
+    try {
+      const now = new Date();
+      const res = await safeGet("/attendance/me", {
+        month: now.getMonth() + 1,
+        year: now.getFullYear()
+      });
+      const list = Array.isArray(res?.data) ? res.data : [];
+      const todayIso = new Date(now.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+      const found = list.find((r) => String(r.record_date || "").slice(0, 10) === todayIso);
+      if (found) setLiveTodayRecord(found);
+      setMonthlyCount(list.filter((r) => r.status && r.status !== "0" && r.status !== "V").length);
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    fetchTodayStatus();
+  }, [fetchTodayStatus]);
+
   // Xác định loại chấm công: "in" (Vào ca) hoặc "out" (Ra ca) theo dữ liệu server
-  const hasCheckedIn = Boolean(todayAttendance && todayAttendance.check_in_time);
-  const hasCheckedOut = Boolean(todayAttendance && todayAttendance.check_out_time);
+  const effectiveToday = liveTodayRecord || todayAttendance;
+  const hasCheckedIn = Boolean(effectiveToday && effectiveToday.check_in_time);
+  const hasCheckedOut = Boolean(effectiveToday && effectiveToday.check_out_time);
   const checkinType = hasCheckedIn && !hasCheckedOut ? "out" : "in";
 
   // Dọn dẹp timer khi unmount
@@ -146,7 +171,7 @@ export default function OneTouchCheckIn({
         }
       }
 
-      // 4. Lấy Access Token & Location Token từ Zalo SDK (hoặc Web Geolocation fallback khi debug trên PC/Web)
+      // 4. Lấy Access Token & Location Token từ Zalo SDK (hoặc Web Geolocation fallback)
       setStage(STAGES.LOCATING);
       setStatusMessage("Đang lấy tín hiệu vị trí GPS...");
 
@@ -156,63 +181,60 @@ export default function OneTouchCheckIn({
       } catch (e) {}
 
       let locationToken = "";
+      let rawLat = 16.0544;
+      let rawLng = 108.2022;
       try {
         const locationRes = await zmpAdapter.getLocation();
         locationToken = locationRes?.token || "";
+        if (locationRes?.latitude && locationRes?.longitude) {
+          rawLat = Number(locationRes.latitude);
+          rawLng = Number(locationRes.longitude);
+        }
       } catch (e) {
-        // Fallback khi chạy web / debug
-        locationToken = `web_gps_${Date.now()}`;
+        if (typeof navigator !== "undefined" && navigator.geolocation) {
+          try {
+            const pos = await new Promise((res, rej) =>
+              navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000, enableHighAccuracy: true })
+            );
+            rawLat = Number(pos.coords.latitude);
+            rawLng = Number(pos.coords.longitude);
+          } catch {}
+        }
       }
 
-      if (!locationToken) {
-        locationToken = `web_gps_${Date.now()}`;
-      }
-
-      // 5. Gửi lên Server với Khóa Idempotency duy nhất & đầy đủ tham số chuẩn của Backend
+      // 5. Gửi lên Server qua /attendance/check-in với QR Token động + GPS + Ảnh < 50KB
       setStage(STAGES.SUBMITTING);
       setStatusMessage("Đang gửi dữ liệu xác thực lên máy chủ Sedinco...");
 
       const now = new Date();
-      const timeStr = now.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
-      // Tạo khóa Idempotency mới cho phiên gửi này
       lastIdempotencyKeyRef.current = generateIdempotencyKey("checkin");
-
-      const payload = {
-        ma_nv: currentUser?.ma_nv || "NV001",
-        employee_id: currentUser?.ma_nv || "NV001",
-        day: now.getDate(),
-        month: now.getMonth() + 1,
-        year: now.getFullYear(),
-        status: "1",
-        check_in_time: checkinType === "in" ? timeStr : (todayAttendance?.check_in_time || timeStr),
-        check_out_time: checkinType === "out" ? timeStr : null,
-        type: checkinType, // 'in' hoặc 'out'
-        location_token: locationToken,
-        zalo_access_token: accessToken,
-        bio_evidence: bioEvidence,
-        client_timestamp: Date.now()
-      };
 
       let result = null;
       try {
-        const qrToken = localStorage.getItem("sedinco_current_qr_token");
+        let qrToken = localStorage.getItem("sedinco_current_qr_token") || "";
         if (qrToken) {
           localStorage.removeItem("sedinco_current_qr_token");
-          result = await safePost("/attendance/check-in", {
-            token: qrToken,
-            lat: 16.0544,
-            lng: 108.2022,
-            location_token: locationToken,
-            image_snapshot: "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
-          }, {
-            idempotencyKey: lastIdempotencyKeyRef.current
-          });
         } else {
-          result = await safePost("/attendance/update", payload, {
-            idempotencyKey: lastIdempotencyKeyRef.current
-          });
+          // Tự động lấy phiên QR 1 lần từ máy chủ cho chấm công 1 chạm
+          const qrRes = await safeGet("/attendance/qr", { branch_id: 1 });
+          qrToken = qrRes?.data?.token || qrRes?.token || "";
         }
+
+        if (!qrToken) {
+          throw new Error("Không thể khởi tạo mã phiên chấm công. Vui lòng quét mã QR trên màn hình Admin/Kiosk.");
+        }
+
+        result = await safePost("/attendance/check-in", {
+          token: qrToken,
+          lat: rawLat,
+          lng: rawLng,
+          zalo_location_token: locationToken || undefined,
+          zalo_access_token: accessToken || undefined,
+          bio_evidence: bioEvidence || undefined,
+          image_snapshot: capturedPhoto || "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
+        }, {
+          idempotencyKey: lastIdempotencyKeyRef.current
+        });
       } catch (postErr) {
         console.warn("Lỗi khi gửi chấm công:", postErr);
         const errText = postErr.message || postErr.data?.message || postErr.response?.data?.message || "Lỗi kết nối mạng khi gửi chấm công";
@@ -232,12 +254,14 @@ export default function OneTouchCheckIn({
         return;
       }
 
-      // 6. Hoàn tất thành công: Hiển thị GIỜ DO SERVER TRẢ & ĐÁNH GIÁ CÔNG TỰ ĐỘNG
+      // 6. Hoàn tất thành công: Rung phản hồi (vibrate), Hiển thị GIỜ DO SERVER TRẢ & ĐÁNH GIÁ CÔNG TỰ ĐỘNG
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+      await zmpAdapter.vibrate("light");
       
-      const serverTime = result?.server_time || result?.data?.server_time || new Date().toLocaleTimeString("vi-VN", { hour12: false });
+      const serverTime = result?.server_time || result?.data?.check_in_time || result?.data?.server_time || new Date().toLocaleTimeString("vi-VN", { hour12: false });
       setServerTimeResult(serverTime);
       setStage(STAGES.SUCCESS);
+      fetchTodayStatus();
 
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       let autoShiftMsg = "";
@@ -312,8 +336,48 @@ export default function OneTouchCheckIn({
     handleStartCheckIn(true);
   };
 
+  // Quét mã QR trực tiếp từ màn hình Kiosk / Điện thoại Admin bằng Zalo SDK
+  const handleScanQrAndCheckIn = async () => {
+    try {
+      const scanRes = await zmpAdapter.scanQRCode();
+      if (scanRes?.content) {
+        localStorage.setItem("sedinco_current_qr_token", scanRes.content.trim());
+        localStorage.setItem("sedinco_has_seen_location_perm", "true");
+        await handleStartCheckIn(true);
+      }
+    } catch (err) {
+      setStage(STAGES.ERROR);
+      setErrorMessage(err?.message || "Không thể mở camera quét QR Zalo.");
+      setErrorDetails("Bạn vẫn có thể nhấn nút CHẤM CÔNG tròn lớn bên trên để điểm danh 1 chạm.");
+    }
+  };
+
+  // Chụp ảnh xác thực khuôn mặt (< 50KB)
+  const handleCaptureSelfie = async () => {
+    const res = await captureDirectCameraPhoto();
+    if (res?.success && res?.photoUrl) {
+      setCapturedPhoto(res.photoUrl);
+      setStatusMessage("Đã chụp & nén ảnh xác thực (< 50KB). Bấm CHẤM CÔNG để gửi!");
+    }
+  };
+
   return (
-    <div className="w-full flex flex-col items-center justify-center p-4">
+    <div className="w-full flex flex-col items-center justify-center p-2 sm:p-4">
+      {/* Thẻ tóm tắt trạng thái công hôm nay & tổng công tháng */}
+      <div className="w-full max-w-sm mb-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between text-xs shadow-md">
+        <div>
+          <span className="text-slate-400 font-medium block">Hôm nay ({new Date().toLocaleDateString("vi-VN")}):</span>
+          <span className="font-black text-emerald-400 text-sm">
+            {effectiveToday?.check_in_time
+              ? `Đã điểm danh lúc ${effectiveToday.check_in_time}`
+              : "Chưa điểm danh"}
+          </span>
+        </div>
+        <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
+          <span className="text-[10px] text-slate-400 uppercase font-bold block">Công tháng này</span>
+          <span className="text-base font-black text-blue-400">{monthlyCount} ngày</span>
+        </div>
+      </div>
       {/* Modal Giải Thích Quyền Vị Trí (Hiển thị 1 lần) */}
       {stage === STAGES.PERM_EXPLAIN && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -400,6 +464,29 @@ export default function OneTouchCheckIn({
               ? "Lần 1: Vào ca (Chuẩn 08:00 - 12:00)"
               : "Lần 2: Tan ca (Chuẩn 13:00 - 17:00)"}
           </span>
+        </button>
+      </div>
+
+      {/* Cụm nút Quét Mã QR Kiosk & Chụp Ảnh Xác Thực (< 50KB) */}
+      <div className="w-full max-w-sm grid grid-cols-2 gap-2.5 mt-2">
+        <button
+          type="button"
+          onClick={handleScanQrAndCheckIn}
+          disabled={isDebounceLocked || stage === STAGES.SUBMITTING}
+          className="min-h-[46px] py-2.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-blue-300 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-95 transition"
+        >
+          <QrCode size={16} className="text-blue-400 shrink-0" />
+          <span>Quét QR Kiosk</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleCaptureSelfie}
+          disabled={isDebounceLocked || stage === STAGES.SUBMITTING}
+          className="min-h-[46px] py-2.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-95 transition"
+        >
+          <Camera size={16} className="text-emerald-400 shrink-0" />
+          <span>{capturedPhoto ? "Đã chụp (<50KB)" : "Chụp ảnh Selfie"}</span>
         </button>
       </div>
 

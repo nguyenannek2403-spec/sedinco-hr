@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { FileText, Plus, AlertCircle, CheckCircle2, Clock, XCircle, Trash2, RefreshCw } from "lucide-react";
-import { safeGet, safePut } from "../../utils/api";
+import { safeGet, safePost } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 
 const getStatusBadge = (status) => {
@@ -48,7 +48,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
   const handleCancelRequest = async (id) => {
     if (!window.confirm("Bạn có chắc chắn muốn hủy đơn từ này?")) return;
     try {
-      const res = await safePut(`/requests/${id}/cancel`, {});
+      const res = await safePost(`/requests/${id}/cancel`, {});
       if (res?.success) {
         if (showToast) showToast("Đã hủy đơn thành công!", "success");
         fetchMyRequests();

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Calendar,
   Search,
@@ -17,7 +17,7 @@ import {
   AlertTriangle,
   ShieldCheck
 } from "lucide-react";
-import { safePost, sanitizeFormula, generateIdempotencyKey } from "../utils/api";
+import { safeGet, safePost, sanitizeFormula, generateIdempotencyKey } from "../utils/api";
 import PeriodLockModal from "./PeriodLockModal";
 import { ROLES, hasPermission } from "../constants/roles";
 
@@ -33,15 +33,19 @@ const getBadgeStyle = (status) => {
 
 export default function AttendanceMatrixTable({
   attendanceData,
-  month,
-  year,
+  month = new Date().getMonth() + 1,
+  year = new Date().getFullYear(),
   onMonthChange,
   onRefresh,
   userRole = "admin",
+  activeRole,
   isLocked: propIsLocked,
   onShowToast,
+  showToast,
   onRecordAuditLog
 }) {
+  const effectiveRole = activeRole || userRole || "admin";
+  const notify = onShowToast || showToast;
   const [searchQuery, setSearchQuery] = useState("");
   const [editingCell, setEditingCell] = useState(null); // { emp, dayIndex, currentStatus }
   const [selectedStatus, setSelectedStatus] = useState("1");
@@ -50,6 +54,8 @@ export default function AttendanceMatrixTable({
   const [editError, setEditError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLockModal, setShowLockModal] = useState(false);
+  const [internalData, setInternalData] = useState([]);
+  const [loadingMatrix, setLoadingMatrix] = useState(false);
 
   const [internalLocked, setInternalLocked] = useState(() => {
     try {
@@ -60,17 +66,45 @@ export default function AttendanceMatrixTable({
     }
   });
 
+  const fetchMatrixFromApi = useCallback(async () => {
+    if (Array.isArray(attendanceData)) return;
+    setLoadingMatrix(true);
+    try {
+      const res = await safeGet("/attendance", { month, year });
+      if (Array.isArray(res?.data)) {
+        setInternalData(res.data);
+      } else if (Array.isArray(res)) {
+        setInternalData(res);
+      } else {
+        setInternalData([]);
+      }
+      if (res?.isLocked !== undefined) {
+        setInternalLocked(Boolean(res.isLocked));
+      }
+    } catch (e) {
+      console.warn("Lỗi tải bảng công ma trận:", e);
+    } finally {
+      setLoadingMatrix(false);
+    }
+  }, [attendanceData, month, year]);
+
+  useEffect(() => {
+    fetchMatrixFromApi();
+  }, [fetchMatrixFromApi]);
+
   const isLocked = propIsLocked !== undefined ? propIsLocked : internalLocked;
 
   // Tách quyền: Chỉ HR và Admin được sửa công khi kỳ CHƯA bị chốt
-  const canEdit = !isLocked && (userRole === ROLES.HR || userRole === ROLES.ADMIN);
+  const canEdit = !isLocked && (effectiveRole === ROLES.HR || effectiveRole === ROLES.ADMIN);
 
   // Số ngày trong tháng
   const daysInMonth = new Date(year, month, 0).getDate();
   const dayNumbers = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
+  const sourceList = Array.isArray(attendanceData) ? attendanceData : internalData;
+
   // Lọc nhân sự theo từ khóa tìm kiếm
-  const filteredData = (attendanceData || []).filter(item => {
+  const filteredData = (sourceList || []).filter(item => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -116,13 +150,17 @@ export default function AttendanceMatrixTable({
     setEditError("");
     try {
       const idempotencyKey = generateIdempotencyKey("att_edit");
+      const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(editingCell.dayNum).padStart(2, "0")}`;
       await safePost("/attendance/update", {
         ma_nv: editingCell.emp.ma_nv,
+        dateStr,
         day: editingCell.dayNum,
         month: month,
         year: year,
-        status: selectedStatus,
+        status: selectedStatus || "1",
+        hours: selectedStatus === "OT" || selectedStatus === "1/OT" ? otHours : 0,
         ot_hours: selectedStatus === "OT" || selectedStatus === "1/OT" ? otHours : 0,
+        isDelete: !selectedStatus,
         reason: editReason.trim()
       }, { idempotencyKey });
 
@@ -134,10 +172,11 @@ export default function AttendanceMatrixTable({
         );
       }
 
-      if (onShowToast) {
-        onShowToast(`Đã cập nhật công ngày ${editingCell.dayNum}/${month} cho ${editingCell.emp.ho_ten}!`, "success");
+      if (notify) {
+        notify(`Đã cập nhật công ngày ${editingCell.dayNum}/${month} cho ${editingCell.emp.ho_ten}!`, "success");
       }
       setEditingCell(null);
+      await fetchMatrixFromApi();
       if (onRefresh) onRefresh();
     } catch (err) {
       setEditError(err.message || "Không thể cập nhật ngày công.");
@@ -244,11 +283,14 @@ export default function AttendanceMatrixTable({
           {/* Nút Làm Mới */}
           <button
             type="button"
-            onClick={onRefresh}
-            className="p-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer"
+            onClick={() => {
+              fetchMatrixFromApi();
+              if (onRefresh) onRefresh();
+            }}
+            className="min-w-[44px] min-h-[44px] p-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer flex items-center justify-center"
             title="Làm mới dữ liệu"
           >
-            <RefreshCw size={16} />
+            <RefreshCw size={16} className={loadingMatrix ? "animate-spin text-blue-600" : ""} />
           </button>
 
           {/* Nút Chốt Công Kỳ Lương (Kế toán & Quản trị) */}
@@ -311,12 +353,12 @@ export default function AttendanceMatrixTable({
         {!isLocked && userRole === ROLES.ACCOUNTANT && <span className="ml-auto text-slate-600 font-bold">👁️ Kế toán xem đối soát & chốt số liệu</span>}
       </div>
 
-      {/* Bảng Ma Trận (Horizontal scroll) */}
-      <div className="overflow-x-auto">
+      {/* Bảng Ma Trận (Horizontal scroll mượt trên Mobile & Sticky cột Nhân Sự) */}
+      <div className="overflow-x-auto touch-scroll-x">
         <table className="w-full border-collapse text-xs text-left">
           <thead>
             <tr className="bg-slate-100 text-slate-800 border-b-2 border-slate-300 uppercase font-black sticky top-0 z-10">
-              <th className="p-3.5 pl-4 sticky left-0 bg-slate-100 z-20 min-w-[190px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+              <th className="p-2.5 sm:p-3.5 pl-3 sm:pl-4 sticky left-0 bg-slate-100 z-20 min-w-[140px] sm:min-w-[190px] max-w-[155px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
                 Nhân Sự
               </th>
               {dayNumbers.map(d => {
@@ -368,9 +410,9 @@ export default function AttendanceMatrixTable({
                 return (
                   <tr key={emp.ma_nv || empIdx} className="hover:bg-blue-50/50 transition-colors">
                     {/* Cột cố định: Tên & Mã NV */}
-                    <td className="p-3 pl-4 sticky left-0 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                      <div className="font-black text-slate-900 text-sm leading-tight">{emp.ho_ten}</div>
-                      <div className="text-xs text-blue-700 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
+                    <td className="p-2.5 sm:p-3 pl-3 sm:pl-4 sticky left-0 bg-white z-10 min-w-[140px] sm:min-w-[190px] max-w-[155px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+                      <div className="font-black text-slate-900 text-xs sm:text-sm leading-tight truncate">{emp.ho_ten}</div>
+                      <div className="text-[11px] text-blue-700 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
                     </td>
 
                     {/* 31 Cột ngày */}

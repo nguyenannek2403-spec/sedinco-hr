@@ -31,7 +31,8 @@ export default function SmartLeaveRequestModal({
   existingRequests = [],
   leaveBalance = 12,
   onClose,
-  onRequestCreated
+  onRequestCreated,
+  onRequestSubmitted
 }) {
   const [requestType, setRequestType] = useState("P");
   const [startDate, setStartDate] = useState(formatDateKey(new Date()));
@@ -103,6 +104,9 @@ export default function SmartLeaveRequestModal({
       if (onRequestCreated) {
         onRequestCreated(res?.data || payload);
       }
+      if (onRequestSubmitted) {
+        onRequestSubmitted(res?.data || payload);
+      }
       onClose();
     } catch (err) {
       setErrorMessage(err.message || "Lỗi nộp đơn xin nghỉ lên máy chủ.");
@@ -113,24 +117,30 @@ export default function SmartLeaveRequestModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl text-slate-800 border-2 border-slate-300">
+    <div
+      className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center px-3 sm:p-4"
+      style={{
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 48px)",
+        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
+      }}
+    >
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-full overflow-y-auto shadow-2xl text-slate-800 border-2 border-slate-300">
         
         {/* Header Modal */}
-        <div className="p-5 border-b-2 border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div className="p-4 sm:p-5 border-b-2 border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold border-2 border-blue-200">
-              <FileText size={24} />
+            <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold border-2 border-blue-200 shrink-0">
+              <FileText size={22} />
             </div>
             <div>
-              <h3 className="font-black text-lg text-slate-900">Tạo Đơn Xin Nghỉ Mới</h3>
-              <p className="text-xs text-slate-500 font-bold">Hệ thống hỗ trợ tự động đối soát lịch nghỉ lễ</p>
+              <h3 className="font-black text-base sm:text-lg text-slate-900">Tạo Đơn Xin Nghỉ / OT Mới</h3>
+              <p className="text-xs text-slate-500 font-bold">Hệ thống tự động đối soát lịch nghỉ lễ</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 border-2 border-slate-200 flex items-center justify-center cursor-pointer"
+            className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 border-2 border-slate-200 flex items-center justify-center cursor-pointer shrink-0"
           >
             <X size={20} />
           </button>

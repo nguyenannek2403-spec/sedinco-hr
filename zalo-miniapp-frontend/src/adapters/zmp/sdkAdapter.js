@@ -1,24 +1,19 @@
 import { realSdkAdapter } from "./realSdkAdapter";
 
-let activeAdapter = realSdkAdapter;
-
-if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === "true") {
-  // Chỉ nạp trong môi trường dev khi VITE_USE_MOCK=true
-  import(/* @vite-ignore */ "./mockSdkAdapter.js").then((mod) => {
-    activeAdapter = mod.mockSdkAdapter;
-    console.info("%c[SDK Adapter] Running in MOCK Mode for local testing", "background: #f59e0b; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold;");
-  }).catch((e) => {
-    console.warn("Failed to load mockSdkAdapter:", e);
-  });
-}
-
+/**
+ * Production Zalo Mini App SDK Adapter
+ * Luôn sử dụng realSdkAdapter (Zalo SDK thật), đã cô lập và loại bỏ hoàn toàn mockSdkAdapter.
+ */
 export const zmpAdapter = {
-  getAccessToken: (...args) => activeAdapter.getAccessToken(...args),
-  getLocation: (...args) => activeAdapter.getLocation(...args),
-  openBioAuthentication: (...args) => activeAdapter.openBioAuthentication(...args),
-  checkStateBioAuthentication: (...args) => activeAdapter.checkStateBioAuthentication(...args),
-  chooseImage: (...args) => activeAdapter.chooseImage(...args),
-  getSystemInfo: (...args) => activeAdapter.getSystemInfo(...args)
+  isMock: false,
+  getAccessToken: (...args) => realSdkAdapter.getAccessToken(...args),
+  getLocation: (...args) => realSdkAdapter.getLocation(...args),
+  openBioAuthentication: (...args) => realSdkAdapter.openBioAuthentication(...args),
+  checkStateBioAuthentication: (...args) => realSdkAdapter.checkStateBioAuthentication(...args),
+  chooseImage: (...args) => realSdkAdapter.chooseImage(...args),
+  getSystemInfo: (...args) => realSdkAdapter.getSystemInfo(...args),
+  scanQRCode: (...args) => realSdkAdapter.scanQRCode(...args),
+  vibrate: (...args) => realSdkAdapter.vibrate(...args)
 };
 
 export default zmpAdapter;

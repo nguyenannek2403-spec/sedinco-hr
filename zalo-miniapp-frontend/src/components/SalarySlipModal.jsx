@@ -27,22 +27,28 @@ export default function SalarySlipModal({ payrollItem, month, year, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden border-2 border-slate-300 my-8">
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-start sm:items-center justify-center px-3 sm:p-4 overflow-y-auto"
+      style={{
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 48px)",
+        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)"
+      }}
+    >
+      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden border-2 border-slate-300 my-2 sm:my-8">
         
         {/* Thanh công cụ Modal (Không in khi bấm Print) */}
-        <div className="no-print bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b-2 border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <DollarSign className="text-emerald-400" size={24} />
-            <h3 className="font-black text-base tracking-wide">
-              PHIẾU LƯƠNG ĐIỆN TỬ — THÁNG {month}/{year}
+        <div className="no-print bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex items-center justify-between border-b-2 border-slate-800 sticky top-0 z-10">
+          <div className="flex items-center gap-2 min-w-0">
+            <DollarSign className="text-emerald-400 shrink-0" size={20} />
+            <h3 className="font-black text-xs sm:text-base tracking-wide truncate">
+              PHIẾU LƯƠNG — THÁNG {month}/{year}
             </h3>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={handlePrint}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black border-2 border-emerald-500 shadow-md cursor-pointer"
+              className="hidden sm:flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black border-2 border-emerald-500 shadow-md cursor-pointer"
             >
               <Printer size={16} />
               <span>In Phiếu Lương</span>
@@ -50,15 +56,15 @@ export default function SalarySlipModal({ payrollItem, month, year, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="p-2 hover:bg-white/20 rounded-xl border border-white/20 text-white cursor-pointer"
+              className="min-w-[44px] min-h-[44px] p-2 hover:bg-white/20 rounded-xl border border-white/20 text-white cursor-pointer flex items-center justify-center"
             >
               <X size={20} />
             </button>
           </div>
         </div>
 
-        {/* Nội dung Phiếu Lương chuẩn in ấn Doanh Nghiệp */}
-        <div className="p-8 text-slate-800 space-y-6 print:p-0 print:space-y-4">
+        {/* Nội dung Phiếu Lương chuẩn Mobile & In ấn Doanh Nghiệp */}
+        <div className="p-4 sm:p-8 text-slate-800 space-y-5 sm:space-y-6 print:p-0 print:space-y-4">
           
           {/* Header Doanh nghiệp */}
           <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
@@ -207,8 +213,8 @@ export default function SalarySlipModal({ payrollItem, month, year, onClose }) {
             </table>
           </div>
 
-          {/* Chữ ký 4 bên */}
-          <div className="grid grid-cols-4 gap-2 pt-6 text-center text-xs border-t-2 border-slate-200">
+          {/* Chữ ký 4 bên (Hiển thị 2 cột trên điện thoại, 4 cột trên PC) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 sm:pt-6 text-center text-xs border-t-2 border-slate-200">
             <div>
               <span className="font-black text-slate-900 block">Người Lập Biểu</span>
               <span className="text-xs text-slate-500 italic block mt-0.5">(Ký, họ tên)</span>

@@ -137,18 +137,27 @@ class RequestService {
             const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const type = (reqData.request_type || '').toLowerCase();
 
-            if (type.includes('làm thêm') || type.includes('công tác') || type.includes('ot')) {
+            if (type.includes('làm thêm') || type.includes('tăng ca') || type.includes('công tác') || type.includes('ot') || type.includes('overtime')) {
                 const logRes = await query('SELECT status FROM attendance_logs WHERE employee_id = ? AND record_date = ?', [reqData.employee_id, dateStr]);
                 let newStatus = 'OT';
                 if (logRes && logRes.length > 0 && logRes[0].status === '1') {
                     newStatus = '1/OT';
                 }
-                const upsertQuery = `INSERT INTO attendance_logs (employee_id, record_date, status, ot_hours) VALUES (?, ?, ?, 4) ON DUPLICATE KEY UPDATE status = ?`;
+                const upsertQuery = `INSERT INTO attendance_logs (employee_id, record_date, status, ot_hours) VALUES (?, ?, ?, 4) ON DUPLICATE KEY UPDATE status = ?, ot_hours = GREATEST(IFNULL(ot_hours, 0), 4)`;
                 await query(upsertQuery, [reqData.employee_id, dateStr, newStatus, newStatus]);
-            } else if (type.includes('phép')) {
+                await query(
+                    `INSERT INTO ot_registrations (employee_id, work_date, expected_hours, reason, approved_by, status)
+                     VALUES (?, ?, 4, ?, ?, 'approved')
+                     ON DUPLICATE KEY UPDATE status = 'approved', approved_by = VALUES(approved_by)`,
+                    [reqData.employee_id, dateStr, reqData.reason || 'Duyệt từ đơn tăng ca', actorId || 'admin']
+                );
+            } else if (type.includes('nửa ngày') || type.includes('0.5')) {
+                const upsertQuery = `INSERT INTO attendance_logs (employee_id, record_date, status) VALUES (?, ?, '0.5') ON DUPLICATE KEY UPDATE status = '0.5'`;
+                await query(upsertQuery, [reqData.employee_id, dateStr]);
+            } else if (type === 'p' || type.includes('phép') || type.includes('leave_annual')) {
                 const upsertQuery = `INSERT INTO attendance_logs (employee_id, record_date, status) VALUES (?, ?, 'P') ON DUPLICATE KEY UPDATE status = 'P'`;
                 await query(upsertQuery, [reqData.employee_id, dateStr]);
-            } else if (type.includes('cập nhật công')) {
+            } else if (type === 'ct' || type.includes('cập nhật công') || type.includes('bổ sung') || type.includes('quên chấm công') || type.includes('forgot_checkin') || type.includes('late_early')) {
                 const upsertQuery = `INSERT INTO attendance_logs (employee_id, record_date, status) VALUES (?, ?, '1') ON DUPLICATE KEY UPDATE status = '1'`;
                 await query(upsertQuery, [reqData.employee_id, dateStr]);
             }
@@ -311,6 +320,23 @@ class RequestService {
 
         const approver = current_user ? (current_user.username || current_user.ma_nv) : 'admin';
         await query('UPDATE ot_registrations SET status = ?, approved_by = ? WHERE id = ?', [status, approver, id]);
+
+        if (status === 'approved' && reg.work_date) {
+            const dObj = new Date(reg.work_date);
+            const dateStr = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+            const logRes = await query('SELECT status FROM attendance_logs WHERE employee_id = ? AND record_date = ?', [reg.employee_id, dateStr]);
+            let newStatus = 'OT';
+            if (logRes && logRes.length > 0 && logRes[0].status === '1') {
+                newStatus = '1/OT';
+            }
+            const hours = Number(reg.expected_hours) || 4;
+            await query(
+                `INSERT INTO attendance_logs (employee_id, record_date, status, ot_hours)
+                 VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE status = ?, ot_hours = ?`,
+                [reg.employee_id, dateStr, newStatus, hours, newStatus, hours]
+            );
+        }
 
         await logAuditEvent({
             actor_id: approver,

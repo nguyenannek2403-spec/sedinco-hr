@@ -16,29 +16,48 @@ import CompanyLogo from "../../components/CompanyLogo";
 
 export default function WorkerDashboard({
   currentUser,
+  activeRole,
+  onRoleSwitch,
   onLogout,
   showToast,
   onChangePasswordRequest
 }) {
   const [activeTab, setActiveTab] = useState("checkin"); // 'checkin', 'history', 'requests', 'profile'
+  const canSwitchToManagement =
+    currentUser?.role === "admin" || currentUser?.role === "accountant";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between max-w-md mx-auto shadow-2xl relative pb-20">
-      {/* Top Mobile Header */}
-      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+    <div
+      className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between max-w-md mx-auto shadow-2xl relative overflow-x-hidden"
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)" }}
+    >
+      {/* Top Mobile Header - Có Safe Area Top và chừa 96px bên phải tránh cụm nút ... & X của Zalo */}
+      <header
+        className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 pl-4 pr-[96px] pb-3 flex items-center justify-between gap-2"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+      >
+        <div className="flex items-center gap-2 min-w-0">
           <CompanyLogo size="small" theme="dark" layout="horizontal" showSubtitle={false} />
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="text-right">
-            <span className="text-xs font-bold text-white block leading-tight">{currentUser?.ho_ten}</span>
-            <span className="text-[10px] text-blue-400 font-mono font-semibold">{currentUser?.ma_nv}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {canSwitchToManagement && typeof onRoleSwitch === "function" && (
+            <button
+              type="button"
+              onClick={() => onRoleSwitch(currentUser.role)}
+              className="px-2.5 py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-xl text-[10px] font-black uppercase tracking-wider min-h-[36px]"
+            >
+              Quản trị
+            </button>
+          )}
+          <div className="text-right max-w-[110px]">
+            <span className="text-xs font-bold text-white block leading-tight truncate">{currentUser?.ho_ten}</span>
+            <span className="text-[10px] text-blue-400 font-mono font-semibold block truncate">{currentUser?.ma_nv}</span>
           </div>
           <button
             onClick={onLogout}
             title="Đăng xuất"
-            className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 rounded-xl transition-colors"
+            className="min-w-[40px] min-h-[40px] p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 rounded-xl transition-colors flex items-center justify-center"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -76,14 +95,17 @@ export default function WorkerDashboard({
         )}
       </main>
 
-      {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/90 max-w-md mx-auto px-2 py-1.5 flex items-center justify-around shadow-2xl">
+      {/* Bottom Navigation Bar - Tối ưu Safe Area Bottom cho iPhone Home Indicator & Touch Target >= 44px */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/90 max-w-md mx-auto px-2 pt-1.5 flex items-center justify-around shadow-2xl"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
+      >
         <button
           onClick={() => setActiveTab("checkin")}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[68px] py-1 px-3 rounded-xl transition-all ${
             activeTab === "checkin"
-              ? "text-blue-400 font-bold"
-              : "text-slate-500 hover:text-slate-300 font-medium"
+              ? "text-blue-400 font-bold bg-blue-500/10"
+              : "text-slate-400 hover:text-slate-200 font-medium"
           }`}
         >
           <Clock className={`w-5 h-5 ${activeTab === "checkin" ? "scale-110" : ""}`} />
@@ -92,10 +114,10 @@ export default function WorkerDashboard({
 
         <button
           onClick={() => setActiveTab("history")}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[68px] py-1 px-3 rounded-xl transition-all ${
             activeTab === "history"
-              ? "text-blue-400 font-bold"
-              : "text-slate-500 hover:text-slate-300 font-medium"
+              ? "text-blue-400 font-bold bg-blue-500/10"
+              : "text-slate-400 hover:text-slate-200 font-medium"
           }`}
         >
           <Calendar className={`w-5 h-5 ${activeTab === "history" ? "scale-110" : ""}`} />
@@ -104,10 +126,10 @@ export default function WorkerDashboard({
 
         <button
           onClick={() => setActiveTab("requests")}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[68px] py-1 px-3 rounded-xl transition-all ${
             activeTab === "requests"
-              ? "text-blue-400 font-bold"
-              : "text-slate-500 hover:text-slate-300 font-medium"
+              ? "text-blue-400 font-bold bg-blue-500/10"
+              : "text-slate-400 hover:text-slate-200 font-medium"
           }`}
         >
           <FileText className={`w-5 h-5 ${activeTab === "requests" ? "scale-110" : ""}`} />
@@ -116,10 +138,10 @@ export default function WorkerDashboard({
 
         <button
           onClick={() => setActiveTab("profile")}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[68px] py-1 px-3 rounded-xl transition-all ${
             activeTab === "profile"
-              ? "text-blue-400 font-bold"
-              : "text-slate-500 hover:text-slate-300 font-medium"
+              ? "text-blue-400 font-bold bg-blue-500/10"
+              : "text-slate-400 hover:text-slate-200 font-medium"
           }`}
         >
           <User className={`w-5 h-5 ${activeTab === "profile" ? "scale-110" : ""}`} />

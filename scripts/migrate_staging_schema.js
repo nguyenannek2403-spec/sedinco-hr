@@ -28,7 +28,7 @@ if (process.env.NODE_ENV === 'staging') {
     }
 }
 
-const { assertDestructiveDbAllowed, maskString, formatHost } = require('../tools/lib/dbSafetyGuard');
+const { assertDestructiveDbAllowed, maskString, formatHost } = require('./lib/dbSafetyGuard');
 
 const DB_HOST = process.env.DB_HOST || '127.0.0.1';
 const DB_PORT = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;

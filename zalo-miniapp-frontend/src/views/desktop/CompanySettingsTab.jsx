@@ -30,7 +30,12 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
         safeGet("/company/penalties")
       ]);
       if (compRes?.success && compRes.data) {
-        setCompany(compRes.data);
+        const d = compRes.data;
+        setCompany({
+          ...d,
+          name: d.company_name || d.name || "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO",
+          geofence_radius: d.radius_meters ?? d.geofence_radius ?? 200
+        });
       }
       if (penRes?.success && penRes.data) {
         setPenalties(penRes.data);
@@ -52,10 +57,12 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
     try {
       const res = await safePut("/company", {
         name: company.name,
+        company_name: company.name,
         address: company.address,
         latitude: Number(company.latitude),
         longitude: Number(company.longitude),
-        geofence_radius: Number(company.geofence_radius)
+        geofence_radius: Number(company.geofence_radius),
+        radius_meters: Number(company.geofence_radius)
       });
       if (res?.success) {
         if (showToast) showToast("Đã lưu tọa độ GPS & Bán kính Geofence thành công!", "success");

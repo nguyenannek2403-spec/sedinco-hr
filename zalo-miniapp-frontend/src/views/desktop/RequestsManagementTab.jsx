@@ -173,8 +173,74 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
             Không tìm thấy đơn từ nào khớp với bộ lọc.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <>
+            {/* Mobile Card View (Tối ưu cho màn hình điện thoại 360px - 430px trên Zalo Mini App) */}
+            <div className="md:hidden divide-y divide-slate-700/60">
+              {filtered.map((req) => {
+                const badge = getStatusBadge(req.status);
+                const isPending = String(req.status).toUpperCase() === "PENDING";
+                const isOwner = req.ma_nv === currentUser?.ma_nv;
+                const isOperating = actionLoadingId === req.id;
+
+                return (
+                  <div key={req.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-black text-sm text-white block">
+                          {req.ho_ten || req.ma_nv}{" "}
+                          <span className="text-xs font-mono text-blue-400">({req.ma_nv})</span>
+                        </span>
+                        <span className="text-xs font-bold text-amber-300 block mt-0.5">
+                          Loại đơn: {req.request_type || "Nghỉ phép"} • Ngày: {req.request_date || req.start_date}
+                        </span>
+                      </div>
+                      <span className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border inline-flex items-center gap-1 shrink-0 ${badge.bg}`}>
+                        <badge.icon className="w-3 h-3" />
+                        {badge.text}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60">
+                      <span className="text-slate-400 font-semibold">Lý do: </span>
+                      {req.reason || "--"}
+                    </div>
+
+                    {isPending && (
+                      isOwner ? (
+                        <div className="text-[11px] text-amber-400 italic font-semibold">
+                          (Đơn của bạn - Quy tắc SoD cấm tự duyệt)
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleAction(req.id, "approved", req.ma_nv)}
+                            disabled={isOperating}
+                            className="min-h-[44px] py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Phê Duyệt</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAction(req.id, "rejected", req.ma_nv)}
+                            disabled={isOperating}
+                            className="min-h-[44px] py-2.5 px-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>Từ Chối</span>
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto touch-scroll-x">
+              <table className="w-full text-left text-xs">
               <thead className="bg-slate-900/80 border-b border-slate-700/80 text-slate-400 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="p-3.5 pl-5">Mã NV / Họ Tên</th>
@@ -249,6 +315,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

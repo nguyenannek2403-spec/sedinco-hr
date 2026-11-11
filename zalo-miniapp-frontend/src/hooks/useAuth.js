@@ -187,7 +187,7 @@ export function useAuth() {
         }
 
         let resolvedRole = ROLES.WORKER;
-        if (u === "ADMIN" || rawUser.username === "admin" || rawUser.role === "admin") {
+        if (u === "ADMIN" || u === "NV001" || rawUser.username === "admin" || rawUser.role === "admin") {
           resolvedRole = ROLES.ADMIN;
         } else if (u === "NV002" || (rawUser.chuc_danh && rawUser.chuc_danh.toLowerCase().includes("kế toán")) || rawUser.role === "accountant") {
           resolvedRole = ROLES.ACCOUNTANT;

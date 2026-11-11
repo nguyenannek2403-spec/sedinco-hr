@@ -231,8 +231,71 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
             Không tìm thấy nhân viên nào khớp với bộ lọc.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <>
+            {/* Mobile Card View (Tối ưu cho Admin mở trên điện thoại Zalo Mini App 360px - 430px) */}
+            <div className="md:hidden divide-y divide-slate-700/60">
+              {filtered.map((emp) => {
+                const isLocked = Boolean(emp.is_locked || emp.status === "inactive");
+                return (
+                  <div key={emp.id || emp.ma_nv} className="p-4 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-black text-sm text-white block">{emp.ho_ten}</span>
+                        <span className="text-xs font-mono text-blue-400 font-bold">
+                          {emp.ma_nv} • {emp.chuc_danh || "Nhân viên"}
+                        </span>
+                      </div>
+                      {isLocked ? (
+                        <span className="px-2.5 py-1 text-[11px] font-bold rounded-lg border bg-rose-500/15 text-rose-400 border-rose-500/30 inline-flex items-center gap-1">
+                          <Lock className="w-3 h-3" />
+                          Đã khóa
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 text-[11px] font-bold rounded-lg border bg-emerald-500/15 text-emerald-400 border-emerald-500/30 inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Hoạt động
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1 text-xs">
+                      <span className="text-slate-300 font-mono font-bold">
+                        Lương CB: {Number(emp.luong_cb || 0).toLocaleString("vi-VN")} đ
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={emp.role || "worker"}
+                          onChange={(e) => handleChangeRole(emp, e.target.value)}
+                          disabled={emp.role === "admin"}
+                          className="min-h-[38px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-bold disabled:opacity-50"
+                        >
+                          <option value="worker">Công nhân</option>
+                          <option value="accountant">Kế toán</option>
+                          {emp.role === "admin" && <option value="admin">Quản trị viên</option>}
+                        </select>
+                        {emp.role !== "admin" && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleLock(emp)}
+                            className={`min-w-[40px] min-h-[38px] p-2 rounded-xl border flex items-center justify-center ${
+                              isLocked
+                                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                                : "bg-rose-500/15 border-rose-500/30 text-rose-400"
+                            }`}
+                          >
+                            {isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto touch-scroll-x">
+              <table className="w-full text-left text-xs">
               <thead className="bg-slate-900/80 border-b border-slate-700/80 text-slate-400 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="p-3.5 pl-5">Mã NV / Họ Tên</th>
@@ -308,6 +371,7 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

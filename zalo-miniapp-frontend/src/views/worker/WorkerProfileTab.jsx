@@ -24,6 +24,8 @@ export default function WorkerProfileTab({
   const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
   const [payrollData, setPayrollData] = useState(null);
   const [salaryLoading, setSalaryLoading] = useState(false);
+  const [slipMonth, setSlipMonth] = useState(new Date().getMonth() + 1);
+  const [slipYear, setSlipYear] = useState(new Date().getFullYear());
 
   // Yêu cầu đổi thiết bị
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
@@ -32,20 +34,16 @@ export default function WorkerProfileTab({
 
   const handleOpenSalarySlip = async () => {
     setSalaryLoading(true);
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
-
     try {
-      const res = await safeGet("/payroll/me", { month, year });
+      const res = await safeGet("/payroll/me", { month: slipMonth, year: slipYear });
       if (res?.success && res.data) {
         setPayrollData(res.data);
         setIsSalaryModalOpen(true);
       } else {
-        alert(res?.message || "Chưa có bảng tính lương chính thức cho tháng hiện tại.");
+        if (showToast) showToast(res?.message || "Chưa có bảng tính lương cho tháng này.", "warning");
       }
     } catch (err) {
-      alert(err.message || "Không thể tải phiếu lương.");
+      if (showToast) showToast(err.message || "Không thể tải phiếu lương.", "error");
     } finally {
       setSalaryLoading(false);
     }
@@ -112,23 +110,49 @@ export default function WorkerProfileTab({
 
       {/* Action List */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-2 shadow-lg divide-y divide-slate-700/50">
-        {/* Phiếu Lương */}
-        <button
-          onClick={handleOpenSalarySlip}
-          disabled={salaryLoading}
-          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-700/40 rounded-xl transition-colors group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
-              <DollarSign className="w-5 h-5" />
+        {/* Phiếu Lương + Bộ chọn kỳ lương */}
+        <div className="p-3.5 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white">Phiếu Lương Điện Tử</div>
+                <div className="text-[11px] text-slate-400">Xem chi tiết công, phụ cấp, BHXH & thực lĩnh</div>
+              </div>
             </div>
-            <div>
-              <div className="text-xs font-bold text-white">Phiếu Lương Điện Tử</div>
-              <div className="text-[11px] text-slate-400">Xem chi tiết lương & phụ cấp thực lĩnh</div>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={slipMonth}
+                onChange={(e) => setSlipMonth(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-bold"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>T{m}</option>
+                ))}
+              </select>
+              <select
+                value={slipYear}
+                onChange={(e) => setSlipYear(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-bold"
+              >
+                {[2025, 2026, 2027].map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
             </div>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
-        </button>
+
+          <button
+            onClick={handleOpenSalarySlip}
+            disabled={salaryLoading}
+            className="w-full min-h-[44px] py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition"
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>{salaryLoading ? "Đang tải phiếu lương..." : `Mở Phiếu Lương Tháng ${slipMonth}/${slipYear}`}</span>
+          </button>
+        </div>
 
         {/* Yêu Cầu Đổi Thiết Bị */}
         <button
@@ -178,8 +202,8 @@ export default function WorkerProfileTab({
       {isSalaryModalOpen && payrollData && (
         <SalarySlipModal
           payrollItem={payrollData}
-          month={new Date().getMonth() + 1}
-          year={new Date().getFullYear()}
+          month={slipMonth}
+          year={slipYear}
           onClose={() => setIsSalaryModalOpen(false)}
         />
       )}
