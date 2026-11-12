@@ -27,30 +27,56 @@ function normalizeIp(rawIp) {
     return first.replace(/^::ffff:/i, '');
 }
 
+function toFiniteNumber(val, fallback) {
+    if (val === '' || val === null || val === undefined) return fallback;
+    const num = Number(val);
+    return Number.isFinite(num) ? num : fallback;
+}
+
+function toSafeText(val, fallback = '') {
+    if (val === undefined || val === null) return fallback;
+    return String(val).trim();
+}
+
+function sanitizeLocationsList(items, defaultLat = 16.0544, defaultLng = 108.2022, defaultRadius = 500) {
+    if (!Array.isArray(items) || items.length === 0) return null;
+    const cleaned = items
+        .filter((item) => item && typeof item === 'object')
+        .map((item, idx) => ({
+            id: toSafeText(item.id, `loc_${idx + 1}`) || `loc_${idx + 1}`,
+            name: toSafeText(item.name, `Địa điểm ${idx + 1}`) || `Địa điểm ${idx + 1}`,
+            lat: toFiniteNumber(item.lat, defaultLat),
+            lng: toFiniteNumber(item.lng, defaultLng),
+            radius: Math.max(20, toFiniteNumber(item.radius, defaultRadius))
+        }));
+    return cleaned.length > 0 ? cleaned : null;
+}
+
 function parseAllowedLocations(rawJson, fallbackLat = 16.0544, fallbackLng = 108.2022, fallbackRadius = 500) {
+    const safeLat = toFiniteNumber(fallbackLat, 16.0544);
+    const safeLng = toFiniteNumber(fallbackLng, 108.2022);
+    const safeRadius = Math.max(20, toFiniteNumber(fallbackRadius, 500));
     const defaultList = [
         {
             id: 'loc_hq_1',
             name: 'Trụ sở chính Đà Nẵng',
-            lat: Number(fallbackLat) || 16.0544,
-            lng: Number(fallbackLng) || 108.2022,
-            radius: Number(fallbackRadius) || 500
+            lat: safeLat,
+            lng: safeLng,
+            radius: safeRadius
         }
     ];
     if (!rawJson) return defaultList;
-    if (Array.isArray(rawJson)) return rawJson.length > 0 ? rawJson : defaultList;
-    try {
-        const parsed = JSON.parse(rawJson);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map((item, idx) => ({
-                id: item.id || `loc_${idx + 1}`,
-                name: String(item.name || `Địa điểm ${idx + 1}`).trim(),
-                lat: Number(item.lat) || 16.0544,
-                lng: Number(item.lng) || 108.2022,
-                radius: Number(item.radius) || 300
-            }));
+    if (Array.isArray(rawJson)) {
+        return sanitizeLocationsList(rawJson, safeLat, safeLng, safeRadius) || defaultList;
+    }
+    if (typeof rawJson === 'string') {
+        try {
+            const parsed = JSON.parse(rawJson);
+            return sanitizeLocationsList(parsed, safeLat, safeLng, safeRadius) || defaultList;
+        } catch {
+            return defaultList;
         }
-    } catch {}
+    }
     return defaultList;
 }
 
@@ -96,75 +122,102 @@ class CompanyService {
         };
     }
 
-    async updateCompanyConfig(data, current_user = null, clientIp = '') {
+    async updateCompanyConfig(data = {}, current_user = null, clientIp = '') {
+        const payload = data && typeof data === 'object' ? data : {};
         const current = await this.getCompanyConfig(clientIp);
 
-        let locationsList = current.allowed_locations;
-        if (data.allowed_locations !== undefined) {
+        let locationsList = parseAllowedLocations(
+            current.allowed_locations,
+            current.latitude,
+            current.longitude,
+            current.radius_meters
+        );
+        if (payload.allowed_locations !== undefined) {
             locationsList = parseAllowedLocations(
-                data.allowed_locations,
-                data.latitude ?? current.latitude,
-                data.longitude ?? current.longitude,
-                data.radius_meters ?? current.radius_meters
+                payload.allowed_locations,
+                toFiniteNumber(payload.latitude, toFiniteNumber(current.latitude, 16.0544)),
+                toFiniteNumber(payload.longitude, toFiniteNumber(current.longitude, 108.2022)),
+                toFiniteNumber(payload.radius_meters, toFiniteNumber(current.radius_meters, 500))
             );
         }
 
         const primaryLoc = locationsList[0] || { lat: 16.0544, lng: 108.2022, radius: 500 };
 
-        const {
-            company_name = current.company_name || data.name || 'CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO',
-            phone = current.phone,
-            address = current.address,
-            tax_code = current.tax_code,
-            logo_url = current.logo_url,
-            work_start = current.work_start || '08:00',
-            work_end = current.work_end || '17:30',
-            lunch_start = current.lunch_start || '12:00',
-            lunch_end = current.lunch_end || '13:30',
-            grace_period_minutes = current.grace_period_minutes !== undefined ? current.grace_period_minutes : 15,
-            penalty_per_minute = current.penalty_per_minute !== undefined ? current.penalty_per_minute : 2000,
-            penalty_fixed_block = current.penalty_fixed_block !== undefined ? current.penalty_fixed_block : 50000,
-            penalty_salary_percent = current.penalty_salary_percent !== undefined ? current.penalty_salary_percent : 0,
-            standard_work_days = current.standard_work_days !== undefined ? current.standard_work_days : 26,
-            probation_salary_percent = current.probation_salary_percent !== undefined ? current.probation_salary_percent : 85,
-            ot_rate_weekday = current.ot_rate_weekday !== undefined ? current.ot_rate_weekday : 1.5,
-            ot_rate_weekend = current.ot_rate_weekend !== undefined ? current.ot_rate_weekend : 2.0,
-            ot_rate_holiday = current.ot_rate_holiday !== undefined ? current.ot_rate_holiday : 3.0,
-            custom_ot_hourly_rate = current.custom_ot_hourly_rate !== undefined ? current.custom_ot_hourly_rate : 0,
-            insurance_rate = current.insurance_rate !== undefined ? current.insurance_rate : 10.5,
-            log_retention_days = current.log_retention_days !== undefined ? current.log_retention_days : 30,
-            latitude = data.latitude !== undefined ? data.latitude : primaryLoc.lat,
-            longitude = data.longitude !== undefined ? data.longitude : primaryLoc.lng,
-            radius_meters = data.radius_meters !== undefined ? data.radius_meters : (data.geofence_radius !== undefined ? data.geofence_radius : primaryLoc.radius),
-            office_ip_whitelist = data.office_ip_whitelist !== undefined ? String(data.office_ip_whitelist).trim() : (current.office_ip_whitelist || '')
-        } = data;
+        const company_name = toSafeText(payload.company_name ?? payload.name ?? current.company_name, 'CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO') || 'CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO';
+        const phone = payload.phone !== undefined ? (payload.phone === null ? null : String(payload.phone).trim()) : (current.phone ?? null);
+        const address = payload.address !== undefined ? (payload.address === null ? null : String(payload.address).trim()) : (current.address ?? null);
+        const tax_code = payload.tax_code !== undefined ? (payload.tax_code === null ? null : String(payload.tax_code).trim()) : (current.tax_code ?? null);
+        const logo_url = payload.logo_url !== undefined ? (payload.logo_url === null ? null : String(payload.logo_url).trim()) : (current.logo_url ?? null);
 
-        const targetId = current.id || 1;
+        const work_start = toSafeText(payload.work_start, current.work_start || '08:00') || '08:00';
+        const work_end = toSafeText(payload.work_end, current.work_end || '17:30') || '17:30';
+        const lunch_start = toSafeText(payload.lunch_start, current.lunch_start || '12:00') || '12:00';
+        const lunch_end = toSafeText(payload.lunch_end, current.lunch_end || '13:30') || '13:30';
+
+        const grace_period_minutes = Math.max(0, Math.round(toFiniteNumber(payload.grace_period_minutes, toFiniteNumber(current.grace_period_minutes, 15))));
+        const penalty_per_minute = Math.max(0, toFiniteNumber(payload.penalty_per_minute, toFiniteNumber(current.penalty_per_minute, 2000)));
+        const penalty_fixed_block = Math.max(0, toFiniteNumber(payload.penalty_fixed_block, toFiniteNumber(current.penalty_fixed_block, 50000)));
+        const penalty_salary_percent = Math.max(0, toFiniteNumber(payload.penalty_salary_percent, toFiniteNumber(current.penalty_salary_percent, 0)));
+        const standard_work_days = Math.max(1, toFiniteNumber(payload.standard_work_days, toFiniteNumber(current.standard_work_days, 26)));
+        const probation_salary_percent = Math.min(100, Math.max(0, toFiniteNumber(payload.probation_salary_percent, toFiniteNumber(current.probation_salary_percent, 85))));
+        const ot_rate_weekday = Math.max(0, toFiniteNumber(payload.ot_rate_weekday, toFiniteNumber(current.ot_rate_weekday, 1.5)));
+        const ot_rate_weekend = Math.max(0, toFiniteNumber(payload.ot_rate_weekend, toFiniteNumber(current.ot_rate_weekend, 2.0)));
+        const ot_rate_holiday = Math.max(0, toFiniteNumber(payload.ot_rate_holiday, toFiniteNumber(current.ot_rate_holiday, 3.0)));
+        const custom_ot_hourly_rate = Math.max(0, toFiniteNumber(payload.custom_ot_hourly_rate, toFiniteNumber(current.custom_ot_hourly_rate, 0)));
+        const insurance_rate = Math.max(0, toFiniteNumber(payload.insurance_rate, toFiniteNumber(current.insurance_rate, 10.5)));
+        const log_retention_days = Math.max(1, Math.round(toFiniteNumber(payload.log_retention_days, toFiniteNumber(current.log_retention_days, 30))));
+
+        const latitude = toFiniteNumber(payload.latitude, primaryLoc.lat);
+        const longitude = toFiniteNumber(payload.longitude, primaryLoc.lng);
+        const rawRadiusInput = payload.radius_meters !== undefined ? payload.radius_meters : payload.geofence_radius;
+        const radius_meters = Math.max(20, Math.round(toFiniteNumber(rawRadiusInput, primaryLoc.radius)));
+
+        const office_ip_whitelist = payload.office_ip_whitelist !== undefined
+            ? toSafeText(payload.office_ip_whitelist, '')
+            : toSafeText(current.office_ip_whitelist, '');
+
         const allowedLocationsJson = JSON.stringify(locationsList);
+        const params = [
+            company_name, phone, address, tax_code, logo_url,
+            work_start, work_end, lunch_start, lunch_end,
+            grace_period_minutes, penalty_per_minute, penalty_fixed_block, penalty_salary_percent,
+            standard_work_days, probation_salary_percent,
+            ot_rate_weekday, ot_rate_weekend, ot_rate_holiday, custom_ot_hourly_rate,
+            insurance_rate, log_retention_days,
+            latitude, longitude, radius_meters,
+            allowedLocationsJson, office_ip_whitelist
+        ];
 
-        await query(
-            `UPDATE company_settings SET 
-                company_name=?, phone=?, address=?, tax_code=?, logo_url=?,
-                work_start=?, work_end=?, lunch_start=?, lunch_end=?,
-                grace_period_minutes=?, penalty_per_minute=?, penalty_fixed_block=?, penalty_salary_percent=?,
-                standard_work_days=?, probation_salary_percent=?,
-                ot_rate_weekday=?, ot_rate_weekend=?, ot_rate_holiday=?, custom_ot_hourly_rate=?,
-                insurance_rate=?, log_retention_days=?,
-                latitude=?, longitude=?, radius_meters=?,
-                allowed_locations=?, office_ip_whitelist=?
-            WHERE id=?`,
-            [
-                company_name, phone, address, tax_code, logo_url,
-                work_start, work_end, lunch_start, lunch_end,
-                Number(grace_period_minutes) || 0, Number(penalty_per_minute) || 0, Number(penalty_fixed_block) || 0, Number(penalty_salary_percent) || 0,
-                Number(standard_work_days) || 26, Number(probation_salary_percent) || 85,
-                Number(ot_rate_weekday) || 1.5, Number(ot_rate_weekend) || 2.0, Number(ot_rate_holiday) || 3.0, Number(custom_ot_hourly_rate) || 0,
-                Number(insurance_rate) >= 0 ? Number(insurance_rate) : 10.5, Number(log_retention_days) || 30,
-                Number(latitude), Number(longitude), Number(radius_meters),
-                allowedLocationsJson, office_ip_whitelist,
-                targetId
-            ]
-        );
+        const existingRows = await query('SELECT id FROM company_settings LIMIT 1');
+        if (existingRows && existingRows.length > 0) {
+            await query(
+                `UPDATE company_settings SET 
+                    company_name=?, phone=?, address=?, tax_code=?, logo_url=?,
+                    work_start=?, work_end=?, lunch_start=?, lunch_end=?,
+                    grace_period_minutes=?, penalty_per_minute=?, penalty_fixed_block=?, penalty_salary_percent=?,
+                    standard_work_days=?, probation_salary_percent=?,
+                    ot_rate_weekday=?, ot_rate_weekend=?, ot_rate_holiday=?, custom_ot_hourly_rate=?,
+                    insurance_rate=?, log_retention_days=?,
+                    latitude=?, longitude=?, radius_meters=?,
+                    allowed_locations=?, office_ip_whitelist=?
+                WHERE id=?`,
+                [...params, existingRows[0].id]
+            );
+        } else {
+            await query(
+                `INSERT INTO company_settings (
+                    company_name, phone, address, tax_code, logo_url,
+                    work_start, work_end, lunch_start, lunch_end,
+                    grace_period_minutes, penalty_per_minute, penalty_fixed_block, penalty_salary_percent,
+                    standard_work_days, probation_salary_percent,
+                    ot_rate_weekday, ot_rate_weekend, ot_rate_holiday, custom_ot_hourly_rate,
+                    insurance_rate, log_retention_days,
+                    latitude, longitude, radius_meters,
+                    allowed_locations, office_ip_whitelist
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                params
+            );
+        }
 
         if (current_user) {
             await logAuditEvent({

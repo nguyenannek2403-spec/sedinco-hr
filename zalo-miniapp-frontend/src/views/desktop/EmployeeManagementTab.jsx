@@ -11,7 +11,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Trash2,
-  Edit3
+  Edit3,
+  X
 } from "lucide-react";
 import { safeGet, safePost, safePut, safeDelete } from "../../utils/api";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
@@ -379,10 +380,20 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-black text-white flex items-center gap-2">
-              <Plus className="w-5 h-5 text-blue-400" />
-              Thêm Nhân Viên Mới
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <Plus className="w-5 h-5 text-blue-400" />
+                Thêm Nhân Viên Mới
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
+                aria-label="Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <form onSubmit={handleAddEmployee} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">

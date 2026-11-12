@@ -8,7 +8,8 @@ import {
   Bell,
   ShieldAlert,
   AlertTriangle,
-  X
+  X,
+  ArrowLeft
 } from "lucide-react";
 import { ROLE_LABELS, ROLES } from "../constants/roles";
 
@@ -42,9 +43,9 @@ export default function DesktopHeader({
       case "requests":
         return "Trung Tâm Phê Duyệt Đơn Từ";
       case "management":
-        return "Quản Trị Hồ Sơ Nhân Sự (RBAC)";
+        return "Quản lý hồ sơ nhân viên";
       case "company":
-        return "Trung Tâm Cấu Hình Động Công Ty";
+        return "Cài đặt Công ty & Chấm công";
       case "holidays":
         return "Danh Mục Ngày Nghỉ Lễ (x3)";
       case "devices":
@@ -80,9 +81,20 @@ export default function DesktopHeader({
           </button>
         )}
 
+        {currentTab && currentTab !== "matrix" && typeof setCurrentTab === "function" && (
+          <button
+            type="button"
+            onClick={() => setCurrentTab("matrix")}
+            className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 flex items-center gap-1 text-xs font-extrabold shrink-0"
+          >
+            <ArrowLeft size={16} />
+            <span>Trở về</span>
+          </button>
+        )}
+
         <div className="min-w-0">
           <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold truncate">
-            <span>Sedinco HR V5</span>
+            <span>Sedinco Nhân Sự</span>
             <ChevronRight size={12} className="shrink-0" />
             <span className="text-blue-400 font-black truncate">{ROLE_LABELS[activeRole] || currentUser?.ho_ten}</span>
           </div>

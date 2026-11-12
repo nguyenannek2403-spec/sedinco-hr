@@ -285,7 +285,8 @@ export default function SalarySlipModal({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white rounded-lg transition cursor-pointer"
+              className="min-w-[40px] min-h-[40px] p-2 bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white rounded-xl transition cursor-pointer flex items-center justify-center"
+              aria-label="Đóng"
             >
               <X size={16} />
             </button>
@@ -301,7 +302,7 @@ export default function SalarySlipModal({
                 CÔNG TY CỔ PHẦN SEDINCO
               </h2>
               <p className="text-[11px] text-slate-500">
-                Hệ thống Quản trị Nhân sự & Bảng lương Điện tử V5
+                Hệ thống Quản trị Nhân sự & Phiếu lương Điện tử
               </p>
             </div>
             <div className="sm:text-right flex sm:flex-col items-center sm:items-end gap-2">

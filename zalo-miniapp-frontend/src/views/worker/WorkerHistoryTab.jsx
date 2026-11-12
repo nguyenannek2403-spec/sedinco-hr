@@ -347,7 +347,8 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
               <button
                 type="button"
                 onClick={() => setSelectedDayDetail(null)}
-                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl cursor-pointer"
+                className="min-w-[40px] min-h-[40px] p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl cursor-pointer flex items-center justify-center"
+                aria-label="Đóng"
               >
                 <X size={18} />
               </button>
@@ -402,6 +403,14 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                 <span>📝 Gửi đơn bổ sung công cho ngày này</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setSelectedDayDetail(null)}
+              className="w-full min-h-[44px] py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl font-bold text-xs cursor-pointer"
+            >
+              Đóng cửa sổ
+            </button>
           </div>
         </div>
       )}

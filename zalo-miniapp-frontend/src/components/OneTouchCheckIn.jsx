@@ -557,13 +557,22 @@ export default function OneTouchCheckIn({
             <p className="text-xs text-slate-600 leading-relaxed mb-6">
               Sedinco HR sử dụng vị trí thực tế để xác nhận bạn đang ở chi nhánh/kho hàng hoặc tại công trình để chấm công 1 chạm.
             </p>
-            <button
-              type="button"
-              onClick={handleAcceptPermExplain}
-              className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-500/30 transition-all cursor-pointer"
-            >
-              TÔI HIỂU & CHO PHÉP
-            </button>
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={handleAcceptPermExplain}
+                className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-500/30 transition-all cursor-pointer"
+              >
+                TÔI HIỂU & CHO PHÉP
+              </button>
+              <button
+                type="button"
+                onClick={() => setStage(STAGES.IDLE)}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs cursor-pointer"
+              >
+                Để sau / Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

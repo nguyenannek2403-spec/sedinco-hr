@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Gift, Plus, Trash2, Calendar, RefreshCw, AlertCircle } from "lucide-react";
+import { Gift, Plus, Trash2, Calendar, RefreshCw, AlertCircle, X } from "lucide-react";
 import { safeGet, safePost, safeDelete } from "../../utils/api";
 
 export default function HolidaysTab({ currentUser, showToast }) {
@@ -172,10 +172,20 @@ export default function HolidaysTab({ currentUser, showToast }) {
       {isAddOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-black text-white flex items-center gap-2">
-              <Gift className="w-5 h-5 text-rose-400" />
-              Thêm Dịp Nghỉ Lễ Mới
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <Gift className="w-5 h-5 text-rose-400" />
+                Thêm Dịp Nghỉ Lễ Mới
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddOpen(false)}
+                className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
+                aria-label="Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <form onSubmit={handleAddHoliday} className="space-y-3">
               <div>

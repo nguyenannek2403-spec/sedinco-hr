@@ -10,7 +10,8 @@ import {
   Phone,
   Mail,
   Building,
-  AlertCircle
+  AlertCircle,
+  X
 } from "lucide-react";
 import { safePost, safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
@@ -217,10 +218,20 @@ export default function WorkerProfileTab({
       {isDeviceModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-4">
-            <h3 className="text-sm font-black text-white flex items-center gap-2">
-              <Smartphone className="w-4 h-4 text-indigo-400" />
-              Yêu Cầu Đổi Thiết Bị Chấm Công
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-indigo-400" />
+                Yêu Cầu Đổi Thiết Bị Chấm Công
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsDeviceModalOpen(false)}
+                className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
+                aria-label="Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <p className="text-xs text-slate-400">
               Vui lòng nhập lý do thay đổi máy (ví dụ: mất điện thoại, hỏng máy, đổi máy mới) để Quản trị viên duyệt mở khóa:
             </p>

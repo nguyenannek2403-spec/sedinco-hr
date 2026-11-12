@@ -158,18 +158,147 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
     }
   };
 
-  const formatDetails = (rawDetails) => {
-    if (!rawDetails) return "--";
-    try {
-      const obj = typeof rawDetails === "string" ? JSON.parse(rawDetails) : rawDetails;
-      if (obj.reason) return obj.reason;
-      if (obj.shift_evaluation) return `${obj.check_type || "CHẤM CÔNG"}: ${obj.shift_evaluation} (${obj.time || ""})`;
-      if (obj.dispute_reason) return `Khiếu nại lương T${obj.month}/${obj.year}: ${obj.dispute_reason}`;
-      return JSON.stringify(obj);
-    } catch {
-      return String(rawDetails);
+const ACTION_LABELS = {
+  CRITICAL_FRAUD: "Cảnh báo chấm công bất thường",
+  CHECK_IN_1TOUCH: "Chấm công vào ca",
+  CHECK_OUT_1TOUCH: "Chấm công tan ca",
+  UPDATE_ATTENDANCE: "Chỉnh sửa bảng chấm công",
+  LOCK_ATTENDANCE_PERIOD: "Chốt kỳ chấm công",
+  UNLOCK_ATTENDANCE_PERIOD: "Mở lại kỳ chấm công",
+  LOGIN_SUCCESS: "Đăng nhập hệ thống",
+  ZALO_AUTO_LOGIN_SUCCESS: "Tự động đăng nhập qua Zalo",
+  LOGIN_FAILED: "Đăng nhập sai mật khẩu / tài khoản",
+  LOGIN_RATE_LIMITED: "Tạm khóa đăng nhập do thử sai nhiều lần",
+  ACCOUNT_UNDER_DISTRIBUTED_ATTACK: "Cảnh báo thử đăng nhập bất thường",
+  ADMIN_LOGIN_SUCCESS: "Quản trị viên đăng nhập",
+  ADMIN_LOGIN_FAILED: "Quản trị viên đăng nhập thất bại",
+  ADMIN_REGISTER: "Tạo tài khoản quản trị mới",
+  CHANGE_PASSWORD: "Đổi mật khẩu tài khoản",
+  STAGED_FORCE_PASSWORD_CHANGE: "Yêu cầu đổi mật khẩu định kỳ",
+  CREATE_REQUEST: "Gửi đơn xin nghỉ / tăng ca",
+  APPROVE_REQUEST: "Duyệt đơn từ nhân viên",
+  REJECT_REQUEST: "Từ chối đơn từ nhân viên",
+  CANCEL_REQUEST: "Hủy đơn từ đã gửi",
+  REGISTER_PRE_OT: "Đăng ký làm thêm giờ (OT)",
+  APPROVE_OT_REGISTRATION: "Duyệt đăng ký làm thêm giờ",
+  REJECT_OT_REGISTRATION: "Từ chối đăng ký làm thêm giờ",
+  SALARY_CONFIRMED: "Xác nhận phiếu lương",
+  SALARY_DISPUTED: "Gửi thắc mắc / khiếu nại lương",
+  RESOLVE_SALARY_DISPUTE: "Giải quyết thắc mắc bảng lương",
+  APPROVE_PAYROLL: "Chốt & duyệt bảng lương tháng",
+  UPDATE_PAYMENT_STATUS: "Cập nhật trạng thái chi trả lương",
+  UPDATE_COMPANY_SETTINGS: "Cập nhật cài đặt công ty",
+  UPDATE_ACCOUNTANT_PERMISSIONS: "Phân quyền cho kế toán",
+  TOGGLE_EMPLOYEE_KEEP_LOGS: "Cài đặt giữ lịch sử nhân viên",
+  CREATE_EMPLOYEE: "Thêm nhân viên mới",
+  UPDATE_EMPLOYEE: "Cập nhật hồ sơ nhân viên",
+  UPDATE_EMPLOYEE_STATUS: "Đổi trạng thái làm việc nhân viên",
+  UPDATE_EMPLOYEE_ROLE: "Thay đổi vai trò nhân viên",
+  DELETE_EMPLOYEE: "Xóa hồ sơ nhân viên",
+  BIND_DEVICE_AUTO: "Liên kết điện thoại chấm công",
+  BIND_ZALO: "Liên kết tài khoản Zalo",
+  REQUEST_DEVICE_CHANGE: "Gửi yêu cầu đổi điện thoại chấm công",
+  APPROVE_DEVICE_CHANGE: "Duyệt đổi điện thoại chấm công",
+  REJECT_DEVICE_CHANGE: "Từ chối đổi điện thoại chấm công",
+  SET_DEVICE_BINDING_MODE: "Đổi chế độ khóa thiết bị chấm công",
+};
+
+const getActionLabel = (action) => ACTION_LABELS[action] || "Thao tác hệ thống";
+
+const formatAuditDateTime = (rawDate) => {
+  if (!rawDate) return "--";
+  const d = new Date(rawDate);
+  if (Number.isNaN(d.getTime())) return "--";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())} - Ngày ${pad(d.getDate())}/${pad(
+    d.getMonth() + 1
+  )}/${d.getFullYear()}`;
+};
+
+const KEY_VI_MAP = {
+  ma_nv: "Mã nhân viên",
+  ho_ten: "Họ tên",
+  month: "Tháng",
+  year: "Năm",
+  work_start: "Giờ vào làm",
+  lunch_start: "Bắt đầu nghỉ trưa",
+  lunch_end: "Hết nghỉ trưa",
+  work_end: "Giờ tan ca",
+  standard_work_days: "Số ngày công chuẩn",
+  locations_count: "Số địa điểm chấm công",
+  office_ip_whitelist: "IP Wi-Fi công ty",
+  status: "Trạng thái",
+  role: "Vai trò",
+  date: "Ngày",
+  code: "Mã công",
+  distance: "Khoảng cách (m)",
+  distance_meters: "Khoảng cách (m)",
+  method: "Hình thức",
+  location_name: "Địa điểm",
+};
+
+const ROLE_VI_MAP = {
+  admin: "Quản trị viên",
+  accountant: "Kế toán",
+  worker: "Nhân viên",
+};
+
+const formatDetails = (rawDetails, action = "") => {
+  if (!rawDetails) return "Đã ghi nhận thao tác.";
+  try {
+    const obj = typeof rawDetails === "string" ? JSON.parse(rawDetails) : rawDetails;
+    if (!obj || typeof obj !== "object") return String(rawDetails);
+
+    if (obj.reason) return String(obj.reason);
+    if (obj.message) return String(obj.message);
+
+    if (obj.shift_evaluation) {
+      const checkLabel =
+        obj.check_type === "CHECK_OUT" || action === "CHECK_OUT_1TOUCH"
+          ? "Tan ca"
+          : "Vào ca";
+      const timePart = obj.time ? ` lúc ${obj.time}` : "";
+      const locPart = obj.location_name ? ` tại ${obj.location_name}` : "";
+      return `${checkLabel}${timePart}${locPart}: ${obj.shift_evaluation}`;
     }
-  };
+
+    if (obj.dispute_reason) {
+      return `Thắc mắc bảng lương tháng ${obj.month || "--"}/${obj.year || "--"}: ${obj.dispute_reason}`;
+    }
+
+    if (action === "UPDATE_COMPANY_SETTINGS") {
+      return `Cập nhật giờ làm ${obj.work_start || "08:00"}–${obj.work_end || "17:30"}, công chuẩn ${
+        obj.standard_work_days || 26
+      } ngày, ${obj.locations_count || 1} địa điểm chấm công.`;
+    }
+
+    if (action === "LOGIN_SUCCESS" || action === "ZALO_AUTO_LOGIN_SUCCESS" || action === "ADMIN_LOGIN_SUCCESS") {
+      const roleVi = ROLE_VI_MAP[obj.role] || obj.role || "Người dùng";
+      return `Đăng nhập thành công với vai trò ${roleVi}.`;
+    }
+
+    if (action === "SALARY_CONFIRMED") {
+      return `Nhân viên đã xác nhận đúng bảng lương tháng ${obj.month || "--"}/${obj.year || "--"}.`;
+    }
+
+    const parts = Object.entries(obj)
+      .filter(([, val]) => val !== null && val !== undefined && val !== "" && typeof val !== "object")
+      .slice(0, 4)
+      .map(([k, v]) => {
+        const label = KEY_VI_MAP[k] || k;
+        const formattedVal = k === "role" ? ROLE_VI_MAP[v] || v : v;
+        return `${label}: ${formattedVal}`;
+      });
+
+    return parts.length > 0 ? parts.join(" • ") : getActionLabel(action);
+  } catch {
+    const str = String(rawDetails).trim();
+    if (str.startsWith("{") && str.endsWith("}")) {
+      return getActionLabel(action);
+    }
+    return str;
+  }
+};
 
   const filtered = logs.filter((l) => {
     const q = searchQuery.trim().toLowerCase();
@@ -192,7 +321,7 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
           <div>
             <h2 className="text-base font-black text-white flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-emerald-400" />
-              Giám Sát Hoạt Động Nhân Viên & Chống Gian Lận (V5)
+              Nhật ký hoạt động & Kiểm tra chấm công
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Ghi vết thời gian thực theo từng mã nhân viên • Tự động dọn dẹp bảo vệ dung lượng TiDB Cloud
@@ -252,7 +381,7 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
             className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold"
           >
             <option value="">📂 Tất cả loại hành động</option>
-            <option value="fraud">🚨 Cảnh báo Gian lận (Fake GPS / Thiết bị)</option>
+            <option value="fraud">🚨 Cảnh báo chấm công bất thường (Sai vị trí / Thiết bị lạ)</option>
             <option value="attendance">⏱️ Chấm công Vào ca / Ra ca</option>
             <option value="requests">📝 Đơn từ & Đăng ký Tăng ca</option>
             <option value="payroll">💰 Xác nhận & Khiếu nại Lương</option>
@@ -393,16 +522,16 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
                       }`}
                     >
                       <td className="p-3.5 pl-4 font-mono text-[11px] text-slate-300 whitespace-nowrap">
-                        {log.created_at ? new Date(log.created_at).toLocaleString("vi-VN") : "--"}
+                        {formatAuditDateTime(log.created_at)}
                       </td>
 
                       <td className="p-3.5">
                         <div className="font-black text-white flex items-center gap-1.5">
                           <UserCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                          <span>{log.ho_ten || log.actor_id || "SYSTEM"}</span>
+                          <span>{log.ho_ten || log.actor_id || "Hệ thống"}</span>
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
-                          <span>Mã: {log.actor_id}</span>
+                          <span>Mã: {log.actor_id || "HT"}</span>
                           {isKeepEmp && (
                             <span className="px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 rounded font-sans font-bold">
                               🔒 Giữ LS
@@ -422,12 +551,12 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
                           }`}
                         >
                           {isFraud && <ShieldAlert className="w-3.5 h-3.5" />}
-                          {log.action}
+                          {getActionLabel(log.action)}
                         </span>
                       </td>
 
                       <td className="p-3.5 max-w-md text-slate-200 font-medium leading-relaxed">
-                        {formatDetails(log.details)}
+                        {formatDetails(log.details, log.action)}
                       </td>
 
                       <td className="p-3.5 text-center whitespace-nowrap">

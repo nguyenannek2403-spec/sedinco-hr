@@ -6,7 +6,8 @@ import {
   User,
   ShieldCheck,
   LogOut,
-  Bell
+  Bell,
+  ArrowLeft
 } from "lucide-react";
 import OneTouchCheckIn from "../../components/OneTouchCheckIn";
 import WorkerHistoryTab from "./WorkerHistoryTab";
@@ -39,7 +40,18 @@ export default function WorkerDashboard({
         style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <CompanyLogo size="small" theme="dark" layout="horizontal" showSubtitle={false} />
+          {activeTab !== "checkin" ? (
+            <button
+              type="button"
+              onClick={() => setActiveTab("checkin")}
+              className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 flex items-center gap-1 text-xs font-extrabold shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Trở về</span>
+            </button>
+          ) : (
+            <CompanyLogo size="small" theme="dark" layout="horizontal" showSubtitle={false} />
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">

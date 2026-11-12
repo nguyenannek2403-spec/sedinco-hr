@@ -15,7 +15,11 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  LayoutGrid,
+  List,
+  ArrowLeft,
+  Users
 } from "lucide-react";
 import { safeGet, safePost, sanitizeFormula, generateIdempotencyKey } from "../utils/api";
 import PeriodLockModal from "./PeriodLockModal";
@@ -47,6 +51,10 @@ export default function AttendanceMatrixTable({
   const effectiveRole = activeRole || userRole || "admin";
   const notify = onShowToast || showToast;
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState(() =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? "cards" : "matrix"
+  );
+  const [detailEmpCode, setDetailEmpCode] = useState(null);
   const [editingCell, setEditingCell] = useState(null); // { emp, dayIndex, currentStatus }
   const [selectedStatus, setSelectedStatus] = useState("1");
   const [otHours, setOtHours] = useState(2);
@@ -339,21 +347,129 @@ export default function AttendanceMatrixTable({
         </div>
       )}
 
-      {/* Chú giải ký hiệu */}
-      <div className="px-5 py-3 bg-slate-100 border-b-2 border-slate-200 flex flex-wrap items-center gap-4 text-xs font-bold text-slate-700">
-        <span className="font-black text-slate-900 text-sm">Ký hiệu:</span>
-        <span className="flex items-center gap-1.5"><span className="w-7 h-6 rounded text-center inline-flex items-center justify-center text-xs font-black bg-emerald-100 text-emerald-900 border-2 border-emerald-500">1</span> Đủ công (1.0)</span>
-        <span className="flex items-center gap-1.5"><span className="w-7 h-6 rounded text-center inline-flex items-center justify-center text-xs font-black bg-teal-100 text-teal-900 border-2 border-teal-500">0.5</span> Nửa công</span>
-        <span className="flex items-center gap-1.5"><span className="w-7 h-6 rounded text-center inline-flex items-center justify-center text-xs font-black bg-amber-100 text-amber-900 border-2 border-amber-500">P</span> Có phép</span>
-        <span className="flex items-center gap-1.5"><span className="w-7 h-6 rounded text-center inline-flex items-center justify-center text-xs font-black bg-indigo-100 text-indigo-900 border-2 border-indigo-500">OT</span> Tăng ca</span>
-        <span className="flex items-center gap-1.5"><span className="w-7 h-6 rounded text-center inline-flex items-center justify-center text-xs font-black bg-rose-100 text-rose-900 border-2 border-rose-500">L</span> Ngày lễ (x3)</span>
-        <span className="flex items-center gap-1.5"><span className="w-7 h-6 rounded text-center inline-flex items-center justify-center text-xs font-black bg-slate-200 text-slate-800 border-2 border-slate-400">KP</span> Không phép</span>
-        {canEdit && <span className="ml-auto text-blue-700 font-extrabold">💡 Nhấp trực tiếp vào bất kỳ ô ngày nào để sửa công</span>}
-        {isLocked && <span className="ml-auto text-rose-700 font-black">🔒 Bảng công đã bị khóa sổ</span>}
-        {!isLocked && userRole === ROLES.ACCOUNTANT && <span className="ml-auto text-slate-600 font-bold">👁️ Kế toán xem đối soát & chốt số liệu</span>}
+      {/* Thanh chuyển chế độ xem Mobile-First & Chú giải */}
+      <div className="px-4 sm:px-5 py-3 bg-slate-100 border-b-2 border-slate-200 space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="inline-flex p-1 bg-slate-200/80 rounded-xl border border-slate-300">
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[38px] ${
+                viewMode === "cards"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <List size={15} />
+              <span>Dạng thẻ (Dễ xem)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("matrix")}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[38px] ${
+                viewMode === "matrix"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <LayoutGrid size={15} />
+              <span>Bảng 31 ngày</span>
+            </button>
+          </div>
+          {canEdit && (
+            <span className="text-xs text-blue-700 font-extrabold">
+              {viewMode === "cards"
+                ? "💡 Chạm vào nhân viên để xem & sửa lịch 31 ngày"
+                : "💡 Chạm trực tiếp vào ô ngày để sửa công"}
+            </span>
+          )}
+          {isLocked && <span className="text-xs text-rose-700 font-black">🔒 Bảng công đã bị khóa sổ</span>}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-700">
+          <span className="font-black text-slate-900">Ký hiệu:</span>
+          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-500">1</span> Đủ công</span>
+          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-teal-100 text-teal-900 border border-teal-500">0.5</span> Nửa công</span>
+          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-500">P</span> Có phép</span>
+          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-indigo-100 text-indigo-900 border border-indigo-500">OT</span> Tăng ca</span>
+          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-rose-100 text-rose-900 border border-rose-500">L</span> Lễ</span>
+          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-slate-200 text-slate-800 border border-slate-400">KP</span> Không phép</span>
+        </div>
       </div>
 
-      {/* Bảng Ma Trận (Horizontal scroll mượt trên Mobile & Sticky cột Nhân Sự) */}
+      {/* CHẾ ĐỘ 1: DẠNG THẺ MOBILE-FIRST */}
+      {viewMode === "cards" && (
+        <div className="p-3 sm:p-4 space-y-2.5 bg-slate-50/70">
+          {filteredData.length === 0 ? (
+            <div className="py-12 text-center text-slate-500 text-sm font-bold">
+              {loadingMatrix
+                ? "Đang tải dữ liệu bảng chấm công..."
+                : "Không tìm thấy nhân viên nào khớp từ khóa."}
+            </div>
+          ) : (
+            filteredData.map((emp, empIdx) => {
+              const days = emp.days || [];
+              const count1 = days.filter((d) => d === "1" || d === "1/OT").length;
+              const countHalf = days.filter((d) => d === "0.5").length;
+              const totalWorkDays = count1 + countHalf * 0.5;
+              const countP = days.filter((d) => d === "P").length;
+              const countOT = days.filter((d) => String(d).includes("OT")).length;
+              const countKP = days.filter((d) => d === "KP" || d === "KL").length;
+
+              return (
+                <button
+                  key={emp.ma_nv || empIdx}
+                  type="button"
+                  onClick={() => setDetailEmpCode(emp.ma_nv)}
+                  className="w-full text-left bg-white rounded-2xl border border-slate-200 p-3.5 shadow-sm hover:border-blue-400 active:scale-[0.99] transition flex flex-col gap-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-700 font-black flex items-center justify-center shrink-0 border border-blue-200">
+                        {(emp.ho_ten || "N").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-extrabold text-slate-900 text-sm truncate">
+                          {emp.ho_ten}
+                        </div>
+                        <div className="text-xs text-blue-700 font-bold">
+                          Mã NV: {emp.ma_nv} {emp.bo_phan ? `• ${emp.bo_phan}` : ""}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 shrink-0">
+                      31 ngày
+                      <ChevronRight size={16} />
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-2 py-1.5 text-center">
+                      <div className="text-[10px] font-bold text-emerald-700">Tổng công</div>
+                      <div className="text-sm font-black text-emerald-900">{totalWorkDays}</div>
+                    </div>
+                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-2 py-1.5 text-center">
+                      <div className="text-[10px] font-bold text-amber-700">Nghỉ phép</div>
+                      <div className="text-sm font-black text-amber-900">{countP}</div>
+                    </div>
+                    <div className="rounded-xl bg-indigo-50 border border-indigo-200 px-2 py-1.5 text-center">
+                      <div className="text-[10px] font-bold text-indigo-700">Tăng ca</div>
+                      <div className="text-sm font-black text-indigo-900">{countOT}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-100 border border-slate-200 px-2 py-1.5 text-center">
+                      <div className="text-[10px] font-bold text-slate-600">Không phép</div>
+                      <div className="text-sm font-black text-slate-800">{countKP}</div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* CHẾ ĐỘ 2: BẢNG MA TRẬN 31 NGÀY (Horizontal scroll mượt trên Mobile & Sticky cột Nhân Sự) */}
+      {viewMode === "matrix" && (
       <div className="overflow-x-auto touch-scroll-x">
         <table className="w-full border-collapse text-xs text-left">
           <thead>
@@ -367,7 +483,7 @@ export default function AttendanceMatrixTable({
                 return (
                   <th
                     key={d}
-                    className={`p-2 text-center min-w-[38px] border-l border-slate-200 ${
+                    className={`p-1.5 text-center min-w-[48px] border-l border-slate-200 ${
                       isSunday ? "bg-rose-100/60 text-rose-800" : ""
                     }`}
                   >
@@ -431,7 +547,7 @@ export default function AttendanceMatrixTable({
                           title={`Ngày ${d}/${month}: ${val || "Chưa có công"} (Nhấp để sửa)`}
                         >
                           <div
-                            className={`w-8 h-8 mx-auto rounded-lg flex items-center justify-center text-xs font-black shadow-none ${badgeClass}`}
+                            className={`min-w-[42px] h-[42px] px-1 mx-auto rounded-xl flex items-center justify-center text-xs font-black shadow-none active:scale-95 transition ${badgeClass}`}
                           >
                             {val || "·"}
                           </div>
@@ -459,24 +575,128 @@ export default function AttendanceMatrixTable({
           </tbody>
         </table>
       </div>
+      )}
+
+      {/* Modal Lịch Chi Tiết 31 Ngày Của Nhân Viên (Khi mở từ Dạng Thẻ) */}
+      {(() => {
+        if (!detailEmpCode) return null;
+        const emp = activeData.find((e) => e.ma_nv === detailEmpCode);
+        if (!emp) return null;
+        const days = emp.days || [];
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+              <div
+                className="px-4 pb-3 border-b border-slate-200 bg-white flex items-center justify-between gap-2 shrink-0 pr-[96px] sm:pr-4"
+                style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setDetailEmpCode(null)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold min-h-[40px] shrink-0"
+                >
+                  <ArrowLeft size={16} />
+                  <span>Trở về</span>
+                </button>
+                <div className="min-w-0 text-right sm:text-center flex-1">
+                  <h4 className="font-black text-sm text-slate-900 truncate">{emp.ho_ten}</h4>
+                  <p className="text-xs text-blue-700 font-bold">
+                    {emp.ma_nv} • Tháng {month}/{year}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailEmpCode(null)}
+                  className="hidden sm:flex w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 items-center justify-center text-slate-700"
+                  aria-label="Đóng"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                <p className="text-xs text-slate-600 font-medium text-center">
+                  {canEdit
+                    ? "Chạm vào bất kỳ ngày nào bên dưới để chỉnh sửa công"
+                    : "Chế độ chỉ xem chi tiết công theo ngày"}
+                </p>
+                <div className="grid grid-cols-7 gap-2">
+                  {dayNumbers.map((d, dIdx) => {
+                    const val = days[dIdx] || "";
+                    const badgeClass = getBadgeStyle(val);
+                    const dayOfWeek = new Date(year, month - 1, d).getDay();
+                    const isSunday = dayOfWeek === 0;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => handleCellClick(emp, dIdx)}
+                        className={`min-h-[58px] rounded-xl border p-1.5 flex flex-col items-center justify-between transition active:scale-95 ${
+                          isSunday
+                            ? "bg-rose-50/70 border-rose-200"
+                            : "bg-white border-slate-200 hover:border-blue-400"
+                        }`}
+                      >
+                        <div className="text-[10px] font-bold text-slate-500">
+                          {d} ({isSunday ? "CN" : `T${dayOfWeek + 1}`})
+                        </div>
+                        <div
+                          className={`w-full py-1 rounded-lg text-[11px] font-black text-center ${badgeClass}`}
+                        >
+                          {val || "·"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div
+                className="px-4 py-3 border-t border-slate-200 bg-white shrink-0"
+                style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setDetailEmpCode(null)}
+                  className="w-full h-11 rounded-xl bg-slate-800 text-white font-bold text-sm"
+                >
+                  Đóng cửa sổ
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal Chỉnh Sửa Công Ô Trực Tiếp */}
       {editingCell && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-5 border-2 border-slate-200">
-            <div className="flex justify-between items-center border-b-2 border-slate-100 pb-3">
-              <div>
-                <h4 className="font-black text-base text-slate-900">
-                  Cập Nhật Công Ngày {editingCell.dayNum}/{month}
+        <div className="fixed inset-0 z-[60] bg-slate-900/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 sm:p-6 shadow-2xl space-y-4 border-t-2 sm:border-2 border-slate-200 max-h-[92vh] overflow-y-auto"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
+          >
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingCell(null)}
+                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold min-h-[40px]"
+              >
+                <ArrowLeft size={16} />
+                <span>Trở về</span>
+              </button>
+              <div className="min-w-0 flex-1 text-center">
+                <h4 className="font-black text-sm sm:text-base text-slate-900">
+                  Sửa công ngày {editingCell.dayNum}/{month}
                 </h4>
-                <p className="text-sm text-blue-700 font-extrabold mt-0.5">
+                <p className="text-xs text-blue-700 font-bold truncate">
                   {editingCell.emp.ho_ten} ({editingCell.emp.ma_nv})
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingCell(null)}
-                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg border border-slate-200 hover:border-slate-400"
+                className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-slate-800 rounded-xl border border-slate-200"
+                aria-label="Đóng"
               >
                 <X size={20} />
               </button>
@@ -484,21 +704,37 @@ export default function AttendanceMatrixTable({
 
             <div className="space-y-4 text-sm">
               <div>
-                <label className="block text-slate-800 font-black mb-1.5">Trạng thái công nhật</label>
-                <select
-                  value={selectedStatus}
-                  onChange={e => setSelectedStatus(e.target.value)}
-                  className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none font-bold text-slate-900 focus:border-blue-600"
-                >
-                  <option value="1">1 — Đủ công ngày (1.0)</option>
-                  <option value="0.5">0.5 — Nửa ngày công (0.5)</option>
-                  <option value="P">P — Nghỉ phép hưởng lương</option>
-                  <option value="OT">OT — Làm thêm ngoài giờ</option>
-                  <option value="1/OT">1/OT — Đủ công + Tăng ca</option>
-                  <option value="L">L — Nghỉ lễ hưởng x3</option>
-                  <option value="KP">KP — Nghỉ không phép</option>
-                  <option value="">(Xóa bỏ bản ghi công)</option>
-                </select>
+                <label className="block text-slate-800 font-black mb-2">
+                  Chọn nhanh trạng thái công
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { code: "1", label: "Đủ công (1)", activeClass: "bg-emerald-600 text-white border-emerald-700" },
+                    { code: "0.5", label: "Nửa công (0.5)", activeClass: "bg-teal-600 text-white border-teal-700" },
+                    { code: "P", label: "Nghỉ phép (P)", activeClass: "bg-amber-500 text-white border-amber-600" },
+                    { code: "KP", label: "Nghỉ không lương (KL)", activeClass: "bg-slate-700 text-white border-slate-800" },
+                    { code: "OT", label: "Tăng ca (OT)", activeClass: "bg-indigo-600 text-white border-indigo-700" },
+                    { code: "1/OT", label: "Đủ công + OT", activeClass: "bg-violet-600 text-white border-violet-700" },
+                    { code: "L", label: "Nghỉ lễ (L)", activeClass: "bg-rose-600 text-white border-rose-700" },
+                    { code: "", label: "Xóa công ngày này", activeClass: "bg-red-600 text-white border-red-700" },
+                  ].map((opt) => {
+                    const isSelected = selectedStatus === opt.code;
+                    return (
+                      <button
+                        key={opt.code || "clear"}
+                        type="button"
+                        onClick={() => setSelectedStatus(opt.code)}
+                        className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-extrabold text-left transition ${
+                          isSelected
+                            ? `${opt.activeClass} shadow-sm`
+                            : "bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {(selectedStatus === "OT" || selectedStatus === "1/OT") && (
@@ -513,11 +749,10 @@ export default function AttendanceMatrixTable({
                     onChange={e => setOtHours(Number(e.target.value))}
                     className="w-full px-3.5 py-3 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none font-black text-indigo-800 focus:border-indigo-600"
                   />
-                  <span className="text-xs text-slate-500 mt-1 block font-medium">Hệ số Luật Lao Động: Ngày thường 1.5x, Chủ nhật 2.0x, Lễ 3.0x</span>
+                  <span className="text-xs text-slate-500 mt-1 block font-medium">Hệ số tham chiếu: Ngày thường 1.5x, Chủ nhật 2.0x, Lễ 3.0x</span>
                 </div>
               )}
 
-              {/* Nhập lý do điều chỉnh công bắt buộc theo kiểm toán */}
               <div>
                 <label className="block text-slate-800 font-black mb-1.5">
                   Lý do điều chỉnh <span className="text-rose-600">* (Bắt buộc)</span>
@@ -530,7 +765,7 @@ export default function AttendanceMatrixTable({
                     setEditReason(e.target.value);
                     if (editError) setEditError("");
                   }}
-                  placeholder="Ví dụ: Nhân viên công tác hiện trường, cập nhật bổ sung..."
+                  placeholder="Ví dụ: Nhân viên đi công trình quên bấm chấm công..."
                   className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none font-semibold text-slate-900 resize-none text-sm focus:border-blue-600"
                 />
               </div>
@@ -542,26 +777,26 @@ export default function AttendanceMatrixTable({
                 </div>
               )}
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => setEditingCell(null)}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-xl border-2 border-slate-300 cursor-pointer"
+                  className="flex-1 h-11 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-xl border border-slate-300 cursor-pointer"
                 >
-                  Hủy
+                  Đóng
                 </button>
                 <button
                   type="button"
                   disabled={isSubmitting}
                   onClick={handleSaveCellAttendance}
-                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl border-2 border-blue-700 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <RefreshCw size={16} className="animate-spin" />
                   ) : (
                     <CheckCircle2 size={16} />
                   )}
-                  <span>Lưu Thay Đổi</span>
+                  <span>Lưu thay đổi</span>
                 </button>
               </div>
             </div>

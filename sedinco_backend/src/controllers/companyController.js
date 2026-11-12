@@ -19,10 +19,19 @@ class CompanyController {
 
     async updateCompany(req, res, next) {
         try {
+            const payload = req.body && typeof req.body === 'object' ? req.body : {};
             const clientIp = extractClientIp(req);
-            const result = await companyService.updateCompanyConfig(req.body, req.user, clientIp);
-            return res.json({ success: true, message: 'Cập nhật cấu hình hệ thống công ty thành công!', data: result.data });
+            const result = await companyService.updateCompanyConfig(payload, req.user, clientIp);
+            return res.json({ success: true, message: 'Lưu cấu hình công ty thành công!', data: result.data });
         } catch (err) {
+            console.error('[CompanyController.updateCompany]', err);
+            const status = err.statusCode || 400;
+            if (status >= 400 && status < 500) {
+                return res.status(status).json({
+                    success: false,
+                    message: err.message || 'Dữ liệu cấu hình không hợp lệ, vui lòng kiểm tra lại!'
+                });
+            }
             next(err);
         }
     }

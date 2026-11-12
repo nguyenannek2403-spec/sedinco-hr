@@ -43,7 +43,7 @@ export default function AuthView({
         <div className="px-3.5 py-2 rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center gap-2 text-center">
           <Sparkles className="w-4 h-4 text-blue-400 shrink-0" />
           <span className="text-[11px] font-bold text-blue-200">
-            Cổng Đăng Nhập Hợp Nhất V6 • Zero-Password Zalo 1 Chạm
+            Đăng nhập 1 chạm tự động qua Zalo
           </span>
         </div>
 
@@ -174,7 +174,7 @@ export default function AuthView({
         <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
           <span className="flex items-center gap-1.5 font-semibold text-slate-400">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Sedinco Security V6
+            Bảo mật tài khoản Sedinco
           </span>
           {onClearCache && (
             <button

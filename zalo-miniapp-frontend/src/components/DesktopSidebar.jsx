@@ -62,10 +62,10 @@ export default function DesktopSidebar({
         },
         {
           id: "audit_logs",
-          label: "Giám Sát & Chống Gian Lận",
-          shortLabel: "Giám sát",
+          label: "Nhật Ký & Kiểm Tra Chấm Công",
+          shortLabel: "Nhật ký",
           icon: ShieldCheck,
-          badge: fraudCount > 0 ? `${fraudCount} Báo động` : "V5",
+          badge: fraudCount > 0 ? `${fraudCount} Cảnh báo` : null,
           badgeColor: fraudCount > 0 ? "bg-rose-600 text-white border-rose-400 animate-pulse" : undefined
         },
         { id: "management", label: "Quản Lý Nhân Sự", shortLabel: "Nhân sự", icon: Users },
@@ -77,8 +77,8 @@ export default function DesktopSidebar({
           badge: devicePendingCount > 0 ? `${devicePendingCount}` : null,
           badgeColor: "bg-rose-500 text-white"
         },
-        { id: "company", label: "Trung Tâm Cấu Hình Động", shortLabel: "Cấu hình", icon: Building },
-        { id: "permissions", label: "Phân Quyền Kế Toán", shortLabel: "Phân quyền", icon: ShieldCheck, badge: "RBAC" },
+        { id: "company", label: "Cài Đặt Công Ty", shortLabel: "Cài đặt", icon: Building },
+        { id: "permissions", label: "Phân Quyền Kế Toán", shortLabel: "Phân quyền", icon: ShieldCheck },
         { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", shortLabel: "Nghỉ lễ", icon: Gift },
         { id: "profile", label: "Hồ Sơ Quản Trị", shortLabel: "Hồ sơ", icon: User }
       ];
