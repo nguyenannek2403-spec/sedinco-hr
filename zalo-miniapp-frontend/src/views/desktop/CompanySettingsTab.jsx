@@ -76,6 +76,27 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
     }
   };
 
+  const handleUseCurrentGps = () => {
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCompany((prev) => ({
+            ...prev,
+            latitude: Number(pos.coords.latitude.toFixed(6)),
+            longitude: Number(pos.coords.longitude.toFixed(6))
+          }));
+          if (showToast) {
+            showToast("Đã lấy tọa độ GPS tại vị trí hiện của bạn! Hãy bấm Lưu Cấu Hình GPS.", "info");
+          }
+        },
+        () => {
+          if (showToast) showToast("Không thể lấy tọa độ từ trình duyệt/thiết bị.", "warning");
+        },
+        { enableHighAccuracy: true, timeout: 6000 }
+      );
+    }
+  };
+
   const handleSavePenalties = async (e) => {
     e.preventDefault();
     setSavingPenalties(true);
@@ -172,11 +193,29 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
             </div>
           </div>
 
-          <div className="pt-2 flex justify-end">
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleUseCurrentGps}
+                className="min-h-[40px] px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-blue-300 font-bold text-xs rounded-xl border border-slate-600 flex items-center gap-1.5 transition"
+              >
+                <Compass className="w-4 h-4 text-blue-400" />
+                <span>Lấy GPS Vị Trí Hiện Tại</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompany((prev) => ({ ...prev, geofence_radius: 5000 }))}
+                className="min-h-[40px] px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-bold text-xs rounded-xl border border-emerald-500/30 transition"
+              >
+                Mở rộng 5000m (Pilot Test)
+              </button>
+            </div>
+
             <button
               type="submit"
               disabled={savingGps}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              className="min-h-[44px] px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
               <span>{savingGps ? "Đang lưu..." : "Lưu Cấu Hình GPS"}</span>
