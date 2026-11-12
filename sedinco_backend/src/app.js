@@ -99,7 +99,7 @@ function setCorsHeadersIfAllowed(req, res) {
         res.setHeader('Access-Control-Allow-Origin', reqOrigin);
         res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-Id, X-Requested-With, x-kiosk-key, Idempotency-Key, Accept');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-Id, X-Requested-With, x-kiosk-key, Idempotency-Key, X-Idempotency-Key, Accept');
     }
 }
 
@@ -171,7 +171,7 @@ const corsOptions = {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Requested-With', 'x-kiosk-key', 'Idempotency-Key', 'Accept']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Requested-With', 'x-kiosk-key', 'Idempotency-Key', 'X-Idempotency-Key', 'Accept']
 };
 
 app.use(cors(corsOptions));
@@ -185,15 +185,36 @@ const defaultUrlParser = express.urlencoded({ limit: '100kb', extended: true });
 const attendanceUrlParser = express.urlencoded({ limit: '3mb', extended: true });
 
 app.use((req, res, next) => {
+    const cleanInput = (val) => {
+        if (typeof val === 'string') {
+            return val.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+        }
+        if (Array.isArray(val)) return val.map(cleanInput);
+        if (val && typeof val === 'object') {
+            for (const k of Object.keys(val)) {
+                val[k] = cleanInput(val[k]);
+            }
+        }
+        return val;
+    };
+
+    const done = (err) => {
+        if (err) return next(err);
+        if (req.body && typeof req.body === 'object') {
+            cleanInput(req.body);
+        }
+        next();
+    };
+
     if (req.path.startsWith('/api/attendance') || req.path.startsWith('/api/payroll')) {
         return attendanceJsonParser(req, res, (err) => {
             if (err) return next(err);
-            attendanceUrlParser(req, res, next);
+            attendanceUrlParser(req, res, done);
         });
     }
     return defaultJsonParser(req, res, (err) => {
         if (err) return next(err);
-        defaultUrlParser(req, res, next);
+        defaultUrlParser(req, res, done);
     });
 });
 

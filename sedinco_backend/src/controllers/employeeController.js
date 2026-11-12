@@ -3,7 +3,8 @@ const employeeService = require('../services/employeeService');
 class EmployeeController {
     async getEmployees(req, res, next) {
         try {
-            const data = await employeeService.getAllEmployees();
+            const { page, limit } = req.query;
+            const data = await employeeService.getAllEmployees({ page, limit });
             return res.json({ success: true, data });
         } catch (err) {
             next(err);

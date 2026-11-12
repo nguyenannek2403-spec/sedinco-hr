@@ -5,9 +5,13 @@ const { verifyZaloUserToken } = require('../utils/zaloAdapter');
 const { hashPassword } = require('../utils/passwordHelper');
 
 class EmployeeService {
-    async getAllEmployees() {
-        const sql = `SELECT ${SAFE_EMPLOYEE_FIELDS} FROM employees ORDER BY ma_nv ASC`;
-        const results = await query(sql);
+    async getAllEmployees(pagination = {}) {
+        const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 200));
+        const page = Math.max(1, parseInt(pagination.page, 10) || 1);
+        const offset = (page - 1) * limit;
+
+        const sql = `SELECT ${SAFE_EMPLOYEE_FIELDS} FROM employees ORDER BY ma_nv ASC LIMIT ? OFFSET ?`;
+        const results = await query(sql, [limit, offset]);
         return results || [];
     }
 

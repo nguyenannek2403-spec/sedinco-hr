@@ -1,11 +1,14 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const { calculateEmployeeSalary } = require('../utils/payrollCalculator');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
 
 class PayrollService {
-    async calculateMonthlyPayroll(month, year) {
+    async calculateMonthlyPayroll(month, year, pagination = {}) {
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
         const y = parseInt(year, 10) || new Date().getFullYear();
+        const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 200));
+        const page = Math.max(1, parseInt(pagination.page, 10) || 1);
+        const offset = (page - 1) * limit;
 
         const csRows = await query('SELECT * FROM company_settings LIMIT 1').catch(() => []);
         const companySettings = (csRows && csRows[0]) ? csRows[0] : {};
@@ -18,8 +21,9 @@ class PayrollService {
             FROM employees e 
             LEFT JOIN attendance a ON e.ma_nv = a.ma_nv AND a.thang = ? AND a.nam = ?
             ORDER BY e.ma_nv ASC
+            LIMIT ? OFFSET ?
         `;
-        const emps = await query(sql, [defaultStandardDays, m, y]);
+        const emps = await query(sql, [defaultStandardDays, m, y, limit, offset]);
         if (!emps || emps.length === 0) return [];
 
         const holidays = await query('SELECT start_date, end_date FROM public_holidays');
@@ -210,22 +214,37 @@ class PayrollService {
             }
         }
 
-        await query(`
-            INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, salary_confirm_status, dispute_reason, dispute_evidence_media, confirmed_at)
-            VALUES (?, ?, ?, 26, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-                salary_confirm_status = VALUES(salary_confirm_status),
-                dispute_reason = VALUES(dispute_reason),
-                dispute_evidence_media = COALESCE(VALUES(dispute_evidence_media), dispute_evidence_media),
-                confirmed_at = NOW()
-        `, [
-            ma_nv,
-            m,
-            y,
-            normalizedStatus,
-            normalizedStatus === 'DISPUTED' ? String(dispute_reason).trim() : null,
-            normalizedStatus === 'DISPUTED' ? (dispute_evidence_media || null) : null
-        ]);
+        await withTransaction(async (txQuery) => {
+            const existingRows = await txQuery(
+                'SELECT salary_confirm_status FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? FOR UPDATE',
+                [ma_nv, m, y]
+            );
+            const currentStatus = existingRows && existingRows.length > 0 ? existingRows[0].salary_confirm_status : null;
+
+            if (normalizedStatus === 'DISPUTED' && currentStatus === 'DISPUTED') {
+                const err = new Error(`Bạn đã gửi khiếu nại bảng lương Tháng ${m}/${y} trước đó và đang chờ giải quyết. Vui lòng không gửi trùng!`);
+                err.statusCode = 409;
+                err.code = 'DUPLICATE_SALARY_DISPUTE';
+                throw err;
+            }
+
+            await txQuery(`
+                INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, salary_confirm_status, dispute_reason, dispute_evidence_media, confirmed_at)
+                VALUES (?, ?, ?, 26, ?, ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE
+                    salary_confirm_status = VALUES(salary_confirm_status),
+                    dispute_reason = VALUES(dispute_reason),
+                    dispute_evidence_media = COALESCE(VALUES(dispute_evidence_media), dispute_evidence_media),
+                    confirmed_at = NOW()
+            `, [
+                ma_nv,
+                m,
+                y,
+                normalizedStatus,
+                normalizedStatus === 'DISPUTED' ? String(dispute_reason).trim() : null,
+                normalizedStatus === 'DISPUTED' ? (dispute_evidence_media || null) : null
+            ]);
+        });
 
         await logAuditEvent({
             actor_id: ma_nv,

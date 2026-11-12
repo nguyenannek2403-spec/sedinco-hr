@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Users,
   Plus,
@@ -14,7 +14,8 @@ import {
   Edit3,
   X
 } from "lucide-react";
-import { safeGet, safePost, safePut, safeDelete } from "../../utils/api";
+import { safeGet, safePost, safePut, safeDelete, generateIdempotencyKey } from "../../utils/api";
+import { useDebouncedValue } from "../../hooks/useDebounce";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 
 export default function EmployeeManagementTab({ currentUser, showToast }) {
@@ -22,6 +23,7 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Form thêm nhân sự
@@ -36,12 +38,13 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
     has_insurance: true
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await safeGet("/employees");
+      const res = await safeGet("/employees", {}, { cancelPrevious: true });
       if (res?.success && Array.isArray(res.data)) {
         setEmployees(res.data);
       } else {
@@ -126,9 +129,13 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
   // Thêm nhân viên mới
   const handleAddEmployee = async (e) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsSubmitting(true);
     try {
-      const res = await safePost("/employees", form);
+      const res = await safePost("/employees", form, {
+        idempotencyKey: generateIdempotencyKey("emp_add")
+      });
       if (res?.success) {
         if (showToast) showToast(`Thêm nhân viên ${form.ma_nv} thành công!`, "success");
         setIsAddModalOpen(false);
@@ -149,12 +156,13 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
     } catch (err) {
       alert(err.message || "Lỗi tạo mới nhân sự.");
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   const filtered = employees.filter(e => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     return !q ||
       String(e.ma_nv || "").toLowerCase().includes(q) ||
       String(e.ho_ten || "").toLowerCase().includes(q) ||

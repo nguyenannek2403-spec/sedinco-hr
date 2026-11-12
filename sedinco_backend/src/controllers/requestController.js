@@ -3,7 +3,8 @@ const requestService = require('../services/requestService');
 class RequestController {
     async getRequests(req, res, next) {
         try {
-            const data = await requestService.getAllRequests();
+            const { page, limit } = req.query;
+            const data = await requestService.getAllRequests({ page, limit });
             return res.json({ success: true, data });
         } catch (err) {
             next(err);
@@ -16,7 +17,8 @@ class RequestController {
             if (!employee_id) {
                 return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
             }
-            const data = await requestService.getMyRequests(employee_id);
+            const { page, limit } = req.query;
+            const data = await requestService.getMyRequests(employee_id, { page, limit });
             return res.json({ success: true, data });
         } catch (err) {
             next(err);
@@ -25,11 +27,13 @@ class RequestController {
 
     async createRequest(req, res, next) {
         try {
-            const { employee_id, request_type, request_date, reason } = req.body;
+            const { employee_id, request_type, request_date, from_date, to_date, reason } = req.body;
             const result = await requestService.createRequest({ 
                 employee_id: employee_id || (req.user ? req.user.ma_nv : null), 
                 request_type, 
                 request_date, 
+                from_date,
+                to_date,
                 reason, 
                 current_user: req.user 
             });

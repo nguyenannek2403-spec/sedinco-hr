@@ -4,8 +4,12 @@ const { calculateDistanceMeters } = require('../utils/geoHelper');
 const { parseAllowedLocations, normalizeIp } = require('./companyService');
 
 class AttendanceService {
-    async getAttendanceMatrix(month, year) {
-        const emps = await query('SELECT ma_nv, ho_ten FROM employees ORDER BY ma_nv ASC');
+    async getAttendanceMatrix(month, year, pagination = {}) {
+        const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 200));
+        const page = Math.max(1, parseInt(pagination.page, 10) || 1);
+        const offset = (page - 1) * limit;
+
+        const emps = await query('SELECT ma_nv, ho_ten FROM employees ORDER BY ma_nv ASC LIMIT ? OFFSET ?', [limit, offset]);
         if (!emps || emps.length === 0) return [];
 
         const logs = await query(
@@ -403,6 +407,16 @@ class AttendanceService {
         return defaultMins;
     }
 
+    parseTimeToSeconds(timeStr) {
+        if (!timeStr || typeof timeStr !== 'string') return null;
+        const parts = timeStr.trim().split(':').map(Number);
+        if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            const sec = parts.length >= 3 && !isNaN(parts[2]) ? parts[2] : 0;
+            return parts[0] * 3600 + parts[1] * 60 + sec;
+        }
+        return null;
+    }
+
     async checkInMultiFactor({ lat, lng, zalo_location_token, image_snapshot, device_info, is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
@@ -710,68 +724,8 @@ class AttendanceService {
         const lunchEndMins = this.parseTimeToMinutes(lunchEndStr, 810);     // 13:30 -> 810
         const workEndMins = this.parseTimeToMinutes(workEndStr, 1050);      // 17:30 -> 1050
         const currentMins = this.parseTimeToMinutes(timeStr, 480);
+        const currentSecs = this.parseTimeToSeconds(timeStr);
         const shortTime = timeStr.slice(0, 5);
-
-        const existingRows = await query(
-            'SELECT * FROM attendance_logs WHERE employee_id = ? AND record_date = ? LIMIT 1',
-            [ma_nv, dateStr]
-        );
-        const existingLog = existingRows && existingRows.length > 0 ? existingRows[0] : null;
-        const isCheckOut = Boolean(existingLog && existingLog.check_in_time);
-
-        let checkType = isCheckOut ? 'OUT' : 'IN';
-        let late_minutes = existingLog ? (Number(existingLog.late_minutes) || 0) : 0;
-        let early_leave_minutes = 0;
-        let work_hours = existingLog ? (Number(existingLog.work_hours) || 0) : 0;
-        let ot_hours = existingLog ? (Number(existingLog.ot_hours) || 0) : 0;
-        let newStatus = existingLog && existingLog.status && existingLog.status !== '0' ? existingLog.status : '1';
-        let shiftEvaluation = '';
-        let detailedMessage = '';
-
-        if (!isCheckOut) {
-            // LẦN BẤM 1 TRONG NGÀY -> CHECK-IN (VÀO CA)
-            if (currentMins <= workStartMins) {
-                late_minutes = 0;
-                const earlyBy = workStartMins - currentMins;
-                shiftEvaluation = earlyBy > 0 ? `Đúng giờ • Đến sớm ${earlyBy} phút` : 'Đúng giờ';
-            } else if (currentMins <= workStartMins + graceMinutes) {
-                late_minutes = 0;
-                shiftEvaluation = `Đúng giờ (Trong ${graceMinutes}p ân hạn)`;
-            } else {
-                late_minutes = currentMins - workStartMins;
-                shiftEvaluation = `Đi muộn ${late_minutes} phút (Ca chuẩn ${workStartStr})`;
-            }
-            detailedMessage = `Đã ghi nhận Giờ vào: ${shortTime} (${shiftEvaluation})`;
-        } else {
-            // LẦN BẤM 2 TRỞ ĐI TRONG NGÀY -> CHECK-OUT (RA CA)
-            const inMins = this.parseTimeToMinutes(existingLog.check_in_time, workStartMins);
-            const effectiveIn = Math.min(inMins, currentMins);
-            const lunchOverlap = Math.max(0, Math.min(currentMins, lunchEndMins) - Math.max(effectiveIn, lunchStartMins));
-            const rawWorkedMins = Math.max(0, currentMins - effectiveIn - lunchOverlap);
-            work_hours = Number((rawWorkedMins / 60).toFixed(2));
-
-            if (currentMins < workEndMins) {
-                early_leave_minutes = workEndMins - currentMins;
-                newStatus = work_hours > 0 && work_hours <= 4.5 ? '0.5' : (ot_hours > 0 ? '1/OT' : '1');
-                shiftEvaluation = `Về sớm ${early_leave_minutes} phút • Tổng ${work_hours}h làm việc`;
-            } else {
-                early_leave_minutes = 0;
-                const extraMins = currentMins - workEndMins;
-                if (extraMins >= 30) {
-                    const autoOt = Number((extraMins / 60).toFixed(2));
-                    ot_hours = Math.max(ot_hours, autoOt);
-                    newStatus = '1/OT';
-                    const h = Math.floor(extraMins / 60);
-                    const m = extraMins % 60;
-                    const otLabel = `${h > 0 ? `${h}h` : ''}${m > 0 ? `${m}p` : ''}`;
-                    shiftEvaluation = `Làm thêm ${otLabel} (${ot_hours}h OT) • Tổng ${work_hours}h`;
-                } else {
-                    newStatus = ot_hours > 0 ? '1/OT' : '1';
-                    shiftEvaluation = `Đủ công chuẩn • Tổng ${work_hours}h làm việc`;
-                }
-            }
-            detailedMessage = `Đã ghi nhận Giờ ra: ${shortTime} (${shiftEvaluation})`;
-        }
 
         const checkInMethod = finalLocationType === 'FIELD_WORK'
             ? 'field_checkin'
@@ -779,12 +733,62 @@ class AttendanceService {
             ? 'wifi_office'
             : 'one_touch_gps';
 
-        await withTransaction(async (txQuery) => {
+        const txOutcome = await withTransaction(async (txQuery) => {
             if (faultInjectionHook && process.env.NODE_ENV === 'test') {
                 await faultInjectionHook(txQuery);
             }
 
+            // Khóa dòng nhân viên trong Transaction để serialize mọi cú bấm chấm công đồng thời
+            await txQuery('SELECT ma_nv FROM employees WHERE ma_nv = ? FOR UPDATE', [ma_nv]);
+
+            const existingRows = await txQuery(
+                'SELECT * FROM attendance_logs WHERE employee_id = ? AND record_date = ? FOR UPDATE',
+                [ma_nv, dateStr]
+            );
+            const existingLog = existingRows && existingRows.length > 0 ? existingRows[0] : null;
+            const isCheckOut = Boolean(existingLog && existingLog.check_in_time);
+
+            // Chốt chặn Cooldown 60 giây chống bấm nhầm liên tiếp nhảy sang Check-out hoặc spam Check-out
+            if (existingLog && currentSecs !== null) {
+                const lastTimeStr = existingLog.check_out_time || existingLog.check_in_time;
+                const lastSecs = this.parseTimeToSeconds(lastTimeStr);
+                if (lastSecs !== null) {
+                    const diffSecs = currentSecs - lastSecs;
+                    if (diffSecs >= 0 && diffSecs < 60) {
+                        const err = new Error(
+                            `Bạn vừa chấm công vào lúc ${lastTimeStr}, vui lòng không bấm liên tục (chờ ${60 - diffSecs}s)!`
+                        );
+                        err.statusCode = 429;
+                        err.code = 'CHECKIN_COOLDOWN_60S';
+                        throw err;
+                    }
+                }
+            }
+
+            const checkType = isCheckOut ? 'OUT' : 'IN';
+            let late_minutes = existingLog ? (Number(existingLog.late_minutes) || 0) : 0;
+            let early_leave_minutes = 0;
+            let work_hours = existingLog ? (Number(existingLog.work_hours) || 0) : 0;
+            let ot_hours = existingLog ? (Number(existingLog.ot_hours) || 0) : 0;
+            let newStatus = existingLog && existingLog.status && existingLog.status !== '0' ? existingLog.status : '1';
+            let shiftEvaluation = '';
+            let detailedMessage = '';
+
             if (!isCheckOut) {
+                // LẦN BẤM 1 TRONG NGÀY -> CHECK-IN (VÀO CA)
+                if (currentMins <= workStartMins) {
+                    late_minutes = 0;
+                    const earlyBy = workStartMins - currentMins;
+                    shiftEvaluation = earlyBy > 0 ? `Đúng giờ • Đến sớm ${earlyBy} phút` : 'Đúng giờ';
+                } else if (currentMins <= workStartMins + graceMinutes) {
+                    late_minutes = 0;
+                    shiftEvaluation = `Đúng giờ (Trong ${graceMinutes}p ân hạn)`;
+                } else {
+                    late_minutes = currentMins - workStartMins;
+                    shiftEvaluation = `Đi muộn ${late_minutes} phút (Ca chuẩn ${workStartStr})`;
+                }
+                detailedMessage = `Đã ghi nhận Giờ vào: ${shortTime} (${shiftEvaluation})`;
+
                 const insertSql = `
                     INSERT INTO attendance_logs (
                         employee_id, record_date, status, ot_hours, check_in_time,
@@ -829,6 +833,35 @@ class AttendanceService {
                     finalLocationType
                 ]);
             } else {
+                // LẦN BẤM 2 TRỞ ĐI TRONG NGÀY -> CHECK-OUT (RA CA)
+                const inMins = this.parseTimeToMinutes(existingLog.check_in_time, workStartMins);
+                const effectiveIn = Math.min(inMins, currentMins);
+                const lunchOverlap = Math.max(0, Math.min(currentMins, lunchEndMins) - Math.max(effectiveIn, lunchStartMins));
+                const rawWorkedMins = Math.max(0, currentMins - effectiveIn - lunchOverlap);
+                work_hours = Number((rawWorkedMins / 60).toFixed(2));
+
+                if (currentMins < workEndMins) {
+                    early_leave_minutes = workEndMins - currentMins;
+                    newStatus = work_hours > 0 && work_hours <= 4.5 ? '0.5' : (ot_hours > 0 ? '1/OT' : '1');
+                    shiftEvaluation = `Về sớm ${early_leave_minutes} phút • Tổng ${work_hours}h làm việc`;
+                } else {
+                    early_leave_minutes = 0;
+                    const extraMins = currentMins - workEndMins;
+                    if (extraMins >= 30) {
+                        const autoOt = Number((extraMins / 60).toFixed(2));
+                        ot_hours = Math.max(ot_hours, autoOt);
+                        newStatus = '1/OT';
+                        const h = Math.floor(extraMins / 60);
+                        const m = extraMins % 60;
+                        const otLabel = `${h > 0 ? `${h}h` : ''}${m > 0 ? `${m}p` : ''}`;
+                        shiftEvaluation = `Làm thêm ${otLabel} (${ot_hours}h OT) • Tổng ${work_hours}h`;
+                    } else {
+                        newStatus = ot_hours > 0 ? '1/OT' : '1';
+                        shiftEvaluation = `Đủ công chuẩn • Tổng ${work_hours}h làm việc`;
+                    }
+                }
+                detailedMessage = `Đã ghi nhận Giờ ra: ${shortTime} (${shiftEvaluation})`;
+
                 const updateOutSql = `
                     UPDATE attendance_logs
                     SET check_out_time = ?,
@@ -862,7 +895,33 @@ class AttendanceService {
                     dateStr
                 ]);
             }
+
+            return {
+                isCheckOut,
+                checkType,
+                existingLog,
+                late_minutes,
+                early_leave_minutes,
+                work_hours,
+                ot_hours,
+                newStatus,
+                shiftEvaluation,
+                detailedMessage
+            };
         });
+
+        const {
+            isCheckOut,
+            checkType,
+            existingLog,
+            late_minutes,
+            early_leave_minutes,
+            work_hours,
+            ot_hours,
+            newStatus,
+            shiftEvaluation,
+            detailedMessage
+        } = txOutcome;
 
         await logAuditEvent({
             actor_id: ma_nv,

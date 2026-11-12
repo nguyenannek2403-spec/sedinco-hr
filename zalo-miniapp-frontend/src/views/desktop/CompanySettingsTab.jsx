@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Clock,
   MapPin,
@@ -16,7 +16,7 @@ import {
   Loader2,
   Building2,
 } from "lucide-react";
-import { safeGet, safePut, safePost } from "../../utils/api";
+import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
 
 const toNum = (val, fallback) => {
   if (val === "" || val === null || val === undefined) return fallback;
@@ -69,6 +69,9 @@ export default function CompanySettingsTab({ showToast }) {
   const [saving, setSaving] = useState(false);
   const [savingWifi, setSavingWifi] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const savingRef = useRef(false);
+  const savingWifiRef = useRef(false);
+  const resettingRef = useRef(false);
   const [detectingLocIdx, setDetectingLocIdx] = useState(null);
   const [statusBanner, setStatusBanner] = useState(null);
   const [openSections, setOpenSections] = useState({
@@ -224,9 +227,13 @@ export default function CompanySettingsTab({ showToast }) {
   };
 
   const handleSaveWifiIp = async () => {
+    if (savingWifiRef.current) return;
+    savingWifiRef.current = true;
     setSavingWifi(true);
     try {
-      const res = await safePost("/company/save-wifi-ip", {});
+      const res = await safePost("/company/save-wifi-ip", {}, {
+        idempotencyKey: generateIdempotencyKey("comp_wifi")
+      });
       if (res?.data) {
         setConfig((prev) => ({ ...prev, ...res.data }));
       }
@@ -234,11 +241,14 @@ export default function CompanySettingsTab({ showToast }) {
     } catch (err) {
       notify(err?.message || "Không thể lưu mạng Wi-Fi hiện tại", "error");
     } finally {
+      savingWifiRef.current = false;
       setSavingWifi(false);
     }
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const cleanedLocations = (config.allowed_locations || []).map((loc, idx) => ({
@@ -279,7 +289,9 @@ export default function CompanySettingsTab({ showToast }) {
         radius_meters: primary.radius,
       };
 
-      const res = await safePut("/company", payload);
+      const res = await safePut("/company", payload, {
+        idempotencyKey: generateIdempotencyKey("comp_save")
+      });
       if (res?.data) {
         setConfig((prev) => ({
           ...prev,
@@ -294,14 +306,19 @@ export default function CompanySettingsTab({ showToast }) {
     } catch (err) {
       notify(err?.message || "Lỗi khi lưu cấu hình. Vui lòng thử lại!", "error");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const handleResetDefaults = async () => {
+    if (resettingRef.current) return;
+    resettingRef.current = true;
     setResetting(true);
     try {
-      const res = await safePost("/company/reset-defaults", {});
+      const res = await safePost("/company/reset-defaults", {}, {
+        idempotencyKey: generateIdempotencyKey("comp_reset")
+      });
       if (res?.data) {
         setConfig((prev) => ({
           ...prev,
@@ -316,6 +333,7 @@ export default function CompanySettingsTab({ showToast }) {
     } catch (err) {
       notify(err?.message || "Không thể khôi phục mặc định", "error");
     } finally {
+      resettingRef.current = false;
       setResetting(false);
     }
   };

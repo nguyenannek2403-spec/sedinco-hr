@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const requestController = require('../controllers/requestController');
+const { idempotencyMiddleware } = require('../middlewares/idempotencyMiddleware');
 const { 
     authenticateToken, 
     requireAuth, 
@@ -16,16 +17,16 @@ router.get('/', authenticateToken, requirePermission('leave_view_all'), (req, re
 router.get('/all', authenticateToken, requirePermission('leave_view_all'), (req, res, next) => requestController.getRequests(req, res, next));
 
 // 3. Tạo đơn từ mới (Yêu cầu đăng nhập, công nhân chỉ tạo đơn cho chính mình)
-router.post('/', authenticateToken, requireAuth, (req, res, next) => requestController.createRequest(req, res, next));
+router.post('/', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => requestController.createRequest(req, res, next));
 
 // 4. Đăng ký làm thêm giờ duyệt trước (Pre-Approval OT)
-router.post('/ot-pre-register', authenticateToken, requireAuth, (req, res, next) => requestController.createOtPreRegistration(req, res, next));
+router.post('/ot-pre-register', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => requestController.createOtPreRegistration(req, res, next));
 router.get('/ot-registrations', authenticateToken, requirePermission('leave_view_all'), (req, res, next) => requestController.getOtRegistrations(req, res, next));
-router.put('/ot-registrations/:id', authenticateToken, requirePermission('leave_approve'), (req, res, next) => requestController.updateOtRegistrationStatus(req, res, next));
+router.put('/ot-registrations/:id', authenticateToken, requirePermission('leave_approve'), idempotencyMiddleware(), (req, res, next) => requestController.updateOtRegistrationStatus(req, res, next));
 
 // 5. Phê duyệt hoặc từ chối đơn từ (Yêu cầu permission: leave_approve, cấm tự phê duyệt)
-router.post('/batch-approve', authenticateToken, requirePermission('leave_approve'), (req, res, next) => requestController.batchApproveRequests(req, res, next));
-router.put('/:id', authenticateToken, requirePermission('leave_approve'), (req, res, next) => requestController.updateRequestStatus(req, res, next));
+router.post('/batch-approve', authenticateToken, requirePermission('leave_approve'), idempotencyMiddleware(), (req, res, next) => requestController.batchApproveRequests(req, res, next));
+router.put('/:id', authenticateToken, requirePermission('leave_approve'), idempotencyMiddleware(), (req, res, next) => requestController.updateRequestStatus(req, res, next));
 
 // 6. Hủy đơn từ (Yêu cầu đăng nhập, chỉ hủy đơn pending của chính mình hoặc Admin)
 router.put('/:id/cancel', authenticateToken, requireAuth, (req, res, next) => requestController.cancelRequest(req, res, next));

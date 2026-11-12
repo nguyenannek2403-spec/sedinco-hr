@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   DollarSign,
   Search,
@@ -14,10 +14,12 @@ import {
   Eye,
   AlertTriangle,
   Calculator,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
-import { safeGet, safePost, sanitizeFormula, formatCsvCellRFC4180 } from "../utils/api";
+import { safeGet, safePost, sanitizeFormula, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
+import { useDebouncedValue } from "../hooks/useDebounce";
 
 export default function PayrollGridTable({
   payrollData,
@@ -31,22 +33,25 @@ export default function PayrollGridTable({
 }) {
   const notify = showToast || onShowToast;
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [selectedSlipItem, setSelectedSlipItem] = useState(null);
   const [internalPayroll, setInternalPayroll] = useState([]);
   const [loadingPayroll, setLoadingPayroll] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [approving, setApproving] = useState(false);
+  const calcInFlightRef = useRef(false);
+  const approveInFlightRef = useRef(false);
 
   const fetchPayrollFromApi = useCallback(async () => {
     if (Array.isArray(payrollData)) return;
     setLoadingPayroll(true);
     try {
-      const res = await safeGet("/payroll", { month, year });
+      const res = await safeGet("/payroll", { month, year }, { cancelPrevious: true });
       if (Array.isArray(res?.data) && res.data.length > 0) {
         setInternalPayroll(res.data);
       } else {
         // Nếu chưa có bản lưu, tự động gọi /payroll/calculate để hiển thị bảng tính lương tạm tính
-        const calcRes = await safeGet("/payroll/calculate", { month, year });
+        const calcRes = await safeGet("/payroll/calculate", { month, year }, { cancelPrevious: true });
         if (Array.isArray(calcRes?.data)) {
           setInternalPayroll(calcRes.data);
         } else {
@@ -65,9 +70,13 @@ export default function PayrollGridTable({
   }, [fetchPayrollFromApi]);
 
   const handleCalculatePayroll = async () => {
+    if (calcInFlightRef.current) return;
+    calcInFlightRef.current = true;
     setCalculating(true);
     try {
-      const res = await safePost("/payroll/calculate", { month, year });
+      const res = await safePost("/payroll/calculate", { month, year }, {
+        idempotencyKey: generateIdempotencyKey("pay_calc")
+      });
       if (res?.success && Array.isArray(res.data)) {
         setInternalPayroll(res.data);
         if (notify) notify(`Đã tính toán xong bảng lương tháng ${month}/${year}!`, "success");
@@ -77,14 +86,19 @@ export default function PayrollGridTable({
     } catch (err) {
       if (notify) notify(err.message || "Lỗi tính toán bảng lương.", "error");
     } finally {
+      calcInFlightRef.current = false;
       setCalculating(false);
     }
   };
 
   const handleApprovePayroll = async () => {
+    if (approveInFlightRef.current) return;
+    approveInFlightRef.current = true;
     setApproving(true);
     try {
-      const res = await safePost("/payroll/approve", { month, year });
+      const res = await safePost("/payroll/approve", { month, year }, {
+        idempotencyKey: generateIdempotencyKey("pay_approve")
+      });
       if (res?.success) {
         if (notify) notify(`Đã duyệt và phát hành Phiếu Lương tháng ${month}/${year} cho toàn bộ nhân viên!`, "success");
         await fetchPayrollFromApi();
@@ -92,6 +106,7 @@ export default function PayrollGridTable({
     } catch (err) {
       if (notify) notify(err.message || "Không thể duyệt bảng lương.", "error");
     } finally {
+      approveInFlightRef.current = false;
       setApproving(false);
     }
   };
@@ -101,8 +116,8 @@ export default function PayrollGridTable({
 
   // Lọc dữ liệu theo tìm kiếm
   const filteredList = (sourceList || []).filter(item => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
+    if (!debouncedSearch) return true;
+    const q = debouncedSearch.toLowerCase();
     const id = (item.ma_nv || item.id_nhan_vien || "").toLowerCase();
     const name = (item.ho_ten || "").toLowerCase();
     const role = (item.chuc_danh || "").toLowerCase();
@@ -306,7 +321,7 @@ export default function PayrollGridTable({
               disabled={calculating || isLoading}
               className="min-h-[44px] flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-black px-3.5 py-2.5 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer disabled:opacity-50"
             >
-              <Calculator size={16} />
+              {calculating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
               <span>{calculating ? "Đang tính..." : "Tính Lương"}</span>
             </button>
 
@@ -317,7 +332,7 @@ export default function PayrollGridTable({
               disabled={approving || isLoading}
               className="min-h-[44px] flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-black px-3.5 py-2.5 rounded-xl border-2 border-indigo-700 shadow-sm cursor-pointer disabled:opacity-50"
             >
-              <CheckCircle2 size={16} />
+              {approving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
               <span>{approving ? "Đang lưu..." : "Chốt & Phát Hành"}</span>
             </button>
 

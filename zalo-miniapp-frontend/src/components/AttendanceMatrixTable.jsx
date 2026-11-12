@@ -22,6 +22,7 @@ import {
   Users
 } from "lucide-react";
 import { safeGet, safePost, sanitizeFormula, generateIdempotencyKey } from "../utils/api";
+import { useDebouncedValue } from "../hooks/useDebounce";
 import PeriodLockModal from "./PeriodLockModal";
 import { ROLES, hasPermission } from "../constants/roles";
 
@@ -51,6 +52,7 @@ export default function AttendanceMatrixTable({
   const effectiveRole = activeRole || userRole || "admin";
   const notify = onShowToast || showToast;
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [viewMode, setViewMode] = useState(() =>
     typeof window !== "undefined" && window.innerWidth < 768 ? "cards" : "matrix"
   );
@@ -78,7 +80,7 @@ export default function AttendanceMatrixTable({
     if (Array.isArray(attendanceData)) return;
     setLoadingMatrix(true);
     try {
-      const res = await safeGet("/attendance", { month, year });
+      const res = await safeGet("/attendance", { month, year }, { cancelPrevious: true });
       if (Array.isArray(res?.data)) {
         setInternalData(res.data);
       } else if (Array.isArray(res)) {
@@ -111,10 +113,10 @@ export default function AttendanceMatrixTable({
 
   const sourceList = Array.isArray(attendanceData) ? attendanceData : internalData;
 
-  // Lọc nhân sự theo từ khóa tìm kiếm
+  // Lọc nhân sự theo từ khóa tìm kiếm (debounced 300ms)
   const filteredData = (sourceList || []).filter(item => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
+    if (!debouncedSearch) return true;
+    const q = debouncedSearch.toLowerCase();
     return (
       item.ho_ten?.toLowerCase().includes(q) ||
       item.ma_nv?.toLowerCase().includes(q)

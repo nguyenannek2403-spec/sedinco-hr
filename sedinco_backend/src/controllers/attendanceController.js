@@ -3,8 +3,8 @@ const attendanceService = require('../services/attendanceService');
 class AttendanceController {
     async getAttendance(req, res, next) {
         try {
-            const { month, year } = req.query;
-            const data = await attendanceService.getAttendanceMatrix(month, year);
+            const { month, year, page, limit } = req.query;
+            const data = await attendanceService.getAttendanceMatrix(month, year, { page, limit });
             return res.json({ success: true, data });
         } catch (err) {
             next(err);

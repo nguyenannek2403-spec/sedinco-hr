@@ -13,6 +13,7 @@ import {
   Filter
 } from "lucide-react";
 import { safeGet, safePost, safePut } from "../../utils/api";
+import { useDebouncedValue } from "../../hooks/useDebounce";
 
 export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }) {
   const [logs, setLogs] = useState([]);
@@ -22,6 +23,7 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
 
   // Bộ lọc nâng cao (Nhiệm vụ 4)
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [selectedEmp, setSelectedEmp] = useState("");
   const [category, setCategory] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -56,7 +58,7 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
         endDate: endDate || undefined,
         pinnedOnly: pinnedOnly ? "true" : undefined,
         limit: 250
-      });
+      }, { cancelPrevious: true });
       if (res?.success && Array.isArray(res.data)) {
         setLogs(res.data);
       } else {
@@ -301,7 +303,7 @@ const formatDetails = (rawDetails, action = "") => {
 };
 
   const filtered = logs.filter((l) => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     if (!q) return true;
     return (
       String(l.action || "").toLowerCase().includes(q) ||

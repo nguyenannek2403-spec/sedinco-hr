@@ -9,9 +9,10 @@ import {
   Camera,
   Video,
   Send,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from "lucide-react";
-import { safePost, sanitizeFormula, formatCsvCellRFC4180 } from "../utils/api";
+import { safePost, sanitizeFormula, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { compressAndResizeImage } from "../utils/imageHelper";
 
 /**
@@ -49,6 +50,8 @@ export default function SalarySlipModal({
   const [resolving, setResolving] = useState(false);
 
   const fileInputRef = useRef(null);
+  const submittingRef = useRef(false);
+  const resolvingRef = useRef(false);
 
   const notify = (msg, type = "info") => {
     if (showToast) showToast(msg, type);
@@ -104,12 +107,16 @@ export default function SalarySlipModal({
 
   // Công nhân bấm [✅ Xác nhận đúng lương]
   const handleConfirmSalary = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await safePost("/payroll/confirm", {
         month: thang,
         year: nam,
         status: "CONFIRMED"
+      }, {
+        idempotencyKey: generateIdempotencyKey("pay_confirm")
       });
       if (res?.success) {
         setConfirmStatus("CONFIRMED");
@@ -122,6 +129,7 @@ export default function SalarySlipModal({
     } catch (err) {
       notify(err.message || "Không thể kết nối máy chủ", "error");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -129,10 +137,12 @@ export default function SalarySlipModal({
   // Công nhân gửi [⚠️ Báo cáo sai lương]
   const handleSubmitDispute = async (e) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     if (!disputeReason.trim()) {
       notify("Vui lòng nhập rõ lý do sai lệch lương/công.", "warning");
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await safePost("/payroll/confirm", {
@@ -141,6 +151,8 @@ export default function SalarySlipModal({
         status: "DISPUTED",
         dispute_reason: disputeReason.trim(),
         dispute_evidence_media: evidenceMedia || null
+      }, {
+        idempotencyKey: generateIdempotencyKey("pay_dispute")
       });
       if (res?.success) {
         setConfirmStatus("DISPUTED");
@@ -153,16 +165,19 @@ export default function SalarySlipModal({
     } catch (err) {
       notify(err.message || "Lỗi mạng khi gửi khiếu nại", "error");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   // Admin / Kế toán xử lý khiếu nại lương
   const handleResolveDispute = async (newStatus) => {
+    if (resolvingRef.current) return;
     if (!adminResponse.trim()) {
       notify("Vui lòng nhập nội dung phản hồi giải quyết cho nhân viên.", "warning");
       return;
     }
+    resolvingRef.current = true;
     setResolving(true);
     try {
       const res = await safePost("/payroll/resolve-dispute", {
@@ -171,6 +186,8 @@ export default function SalarySlipModal({
         year: nam,
         admin_response: adminResponse.trim(),
         status: newStatus
+      }, {
+        idempotencyKey: generateIdempotencyKey("pay_resolve")
       });
       if (res?.success) {
         setConfirmStatus(newStatus);
@@ -182,6 +199,7 @@ export default function SalarySlipModal({
     } catch (err) {
       notify(err.message || "Lỗi kết nối máy chủ", "error");
     } finally {
+      resolvingRef.current = false;
       setResolving(false);
     }
   };
@@ -530,18 +548,18 @@ export default function SalarySlipModal({
                       type="button"
                       disabled={resolving}
                       onClick={() => handleResolveDispute("CONFIRMED")}
-                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer"
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
-                      <ShieldCheck size={14} />
-                      <span>Đã điều chỉnh & Chốt lại</span>
+                      {resolving ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                      <span>{resolving ? "Đang xử lý..." : "Đã điều chỉnh & Chốt lại"}</span>
                     </button>
                     <button
                       type="button"
                       disabled={resolving}
                       onClick={() => handleResolveDispute("DISPUTED")}
-                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
-                      <Send size={14} />
+                      {resolving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                       <span>Gửi phản hồi (Giữ trạng thái)</span>
                     </button>
                   </div>
@@ -571,15 +589,17 @@ export default function SalarySlipModal({
                   type="button"
                   disabled={submitting || confirmStatus === "CONFIRMED"}
                   onClick={handleConfirmSalary}
-                  className={`py-3 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition cursor-pointer ${
+                  className={`py-3 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
                     confirmStatus === "CONFIRMED"
                       ? "bg-emerald-100 text-emerald-800 border-2 border-emerald-300"
                       : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-md"
                   }`}
                 >
-                  <CheckCircle2 size={16} />
+                  {submitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                   <span>
-                    {confirmStatus === "CONFIRMED"
+                    {submitting
+                      ? "Đang xác nhận..."
+                      : confirmStatus === "CONFIRMED"
                       ? "✅ Đã Xác Nhận Đúng Lương"
                       : "✅ Xác Nhận Đúng Lương"}
                   </span>
@@ -646,9 +666,9 @@ export default function SalarySlipModal({
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                    className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-50"
                   >
-                    <Send size={14} />
+                    {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                     <span>{submitting ? "Đang gửi báo cáo..." : "Gửi Báo Cáo Tới Kế Toán & Admin"}</span>
                   </button>
                 </form>

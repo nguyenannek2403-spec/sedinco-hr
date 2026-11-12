@@ -3,8 +3,8 @@ const payrollService = require('../services/payrollService');
 class PayrollController {
     async getPayroll(req, res, next) {
         try {
-            const { month, year } = req.query;
-            const data = await payrollService.calculateMonthlyPayroll(month, year);
+            const { month, year, page, limit } = req.query;
+            const data = await payrollService.calculateMonthlyPayroll(month, year, { page, limit });
             return res.json({ success: true, data });
         } catch (err) {
             next(err);
@@ -113,7 +113,7 @@ class PayrollController {
 
     async confirmOrDisputeSalary(req, res, next) {
         try {
-            const ma_nv = req.user ? req.user.ma_nv : req.body.ma_nv;
+            const ma_nv = req.user ? req.user.ma_nv : null;
             if (!ma_nv) {
                 return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
             }

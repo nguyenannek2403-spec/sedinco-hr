@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   FileText,
   CheckCircle2,
@@ -8,9 +8,11 @@ import {
   Search,
   RefreshCw,
   AlertCircle,
-  UserCheck
+  UserCheck,
+  Loader2
 } from "lucide-react";
-import { safeGet, safePut, safePost } from "../../utils/api";
+import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
+import { useDebouncedValue } from "../../hooks/useDebounce";
 
 const getStatusBadge = (status) => {
   const s = String(status).toUpperCase();
@@ -32,14 +34,17 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [batchApproving, setBatchApproving] = useState(false);
+  const actionInFlightRef = useRef(false);
+  const batchInFlightRef = useRef(false);
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await safeGet("/requests");
+      const res = await safeGet("/requests", {}, { cancelPrevious: true });
       if (res?.success && Array.isArray(res.data)) {
         setRequests(res.data);
       } else {
@@ -57,6 +62,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
   }, [fetchRequests]);
 
   const handleAction = async (id, newStatus, ownerMaNv) => {
+    if (actionInFlightRef.current) return;
     // SoD (Separation of Duties): Chặn người tạo tự duyệt đơn của mình
     if (ownerMaNv && ownerMaNv === currentUser?.ma_nv) {
       if (showToast) showToast("Quy tắc SoD: Bạn không thể tự phê duyệt đơn của chính mình!", "warning");
@@ -70,11 +76,14 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
       rejectReason = promptRes.trim() || "Không phù hợp kế hoạch công tác";
     }
 
+    actionInFlightRef.current = true;
     setActionLoadingId(id);
     try {
       const res = await safePut(`/requests/${id}`, {
         status: newStatus,
         reject_reason: rejectReason
+      }, {
+        idempotencyKey: generateIdempotencyKey(`req_${newStatus}`)
       });
 
       if (res?.success) {
@@ -88,6 +97,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
     } catch (err) {
       alert(err.message || "Lỗi xử lý duyệt đơn.");
     } finally {
+      actionInFlightRef.current = false;
       setActionLoadingId(null);
     }
   };
@@ -97,14 +107,17 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
     .map((r) => r.id);
 
   const handleBatchApprove = async () => {
-    if (eligiblePendingIds.length === 0) return;
+    if (batchInFlightRef.current || eligiblePendingIds.length === 0) return;
     if (!window.confirm(`Xác nhận DUYỆT NHANH tất cả ${eligiblePendingIds.length} đơn đang chờ hợp lệ?`)) {
       return;
     }
+    batchInFlightRef.current = true;
     setBatchApproving(true);
     try {
       const res = await safePost("/requests/batch-approve", {
         request_ids: eligiblePendingIds
+      }, {
+        idempotencyKey: generateIdempotencyKey("req_batch")
       });
       if (res?.success) {
         if (showToast) showToast(res.message || `Đã duyệt nhanh ${res.approved_count} đơn!`, "success");
@@ -115,13 +128,14 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
     } catch (err) {
       if (showToast) showToast(err.message || "Lỗi duyệt nhanh hàng loạt.", "error");
     } finally {
+      batchInFlightRef.current = false;
       setBatchApproving(false);
     }
   };
 
   const filtered = requests.filter(r => {
     const matchStatus = filterStatus === "all" || String(r.status).toUpperCase() === filterStatus.toUpperCase();
-    const query = searchQuery.trim().toLowerCase();
+    const query = debouncedSearch.trim().toLowerCase();
     const matchSearch = !query ||
       String(r.ma_nv || "").toLowerCase().includes(query) ||
       String(r.ho_ten || "").toLowerCase().includes(query) ||
@@ -189,7 +203,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
               onClick={handleBatchApprove}
               className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-lg shadow-emerald-600/25 cursor-pointer disabled:opacity-50"
             >
-              <CheckCircle2 className="w-4 h-4" />
+              {batchApproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
               <span>
                 {batchApproving
                   ? "Đang duyệt hàng loạt..."
@@ -259,20 +273,20 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                           <button
                             type="button"
                             onClick={() => handleAction(req.id, "approved", req.ma_nv)}
-                            disabled={isOperating}
+                            disabled={isOperating || actionLoadingId !== null}
                             className="min-h-[44px] py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
                           >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>Phê Duyệt</span>
+                            {isOperating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                            <span>{isOperating ? "Đang xử lý..." : "Phê Duyệt"}</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleAction(req.id, "rejected", req.ma_nv)}
-                            disabled={isOperating}
+                            disabled={isOperating || actionLoadingId !== null}
                             className="min-h-[44px] py-2.5 px-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
                           >
-                            <XCircle className="w-4 h-4" />
-                            <span>Từ Chối</span>
+                            {isOperating ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                            <span>{isOperating ? "Đang xử lý..." : "Từ Chối"}</span>
                           </button>
                         </div>
                       )

@@ -66,6 +66,7 @@ apiClient.interceptors.request.use(
     }
     if (config.idempotencyKey) {
       config.headers["Idempotency-Key"] = config.idempotencyKey;
+      config.headers["X-Idempotency-Key"] = config.idempotencyKey;
     }
     return config;
   },

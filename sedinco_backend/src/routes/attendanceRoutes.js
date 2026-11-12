@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const attendanceController = require('../controllers/attendanceController');
 const { validateAttendanceMiddleware } = require('../middlewares/validationMiddleware');
+const { idempotencyMiddleware } = require('../middlewares/idempotencyMiddleware');
 const { 
     authenticateToken, 
     requireAuth, 
@@ -22,7 +23,7 @@ router.get('/period-status', (req, res, next) => attendanceController.getPeriodS
 router.get('/period-lock-status', (req, res, next) => attendanceController.getPeriodStatus(req, res, next));
 
 // 4. Khóa kỳ công tháng (Yêu cầu permission: attendance_lock)
-router.post('/lock-period', authenticateToken, requirePermission('attendance_lock'), (req, res, next) => attendanceController.lockPeriod(req, res, next));
+router.post('/lock-period', authenticateToken, requirePermission('attendance_lock'), idempotencyMiddleware(), (req, res, next) => attendanceController.lockPeriod(req, res, next));
 
 // 5. Mở khóa kỳ công tháng (Chỉ Quản trị viên - Admin)
 router.post('/unlock-period', authenticateToken, requireRole(['admin']), (req, res, next) => attendanceController.unlockPeriod(req, res, next));
@@ -35,8 +36,8 @@ router.post('/', authenticateToken, requireAuth, validateAttendanceMiddleware, (
 router.get('/dynamic-qr', authenticateToken, requireAuth, (req, res, next) => attendanceController.getDynamicQr(req, res, next));
 router.get('/qr', authenticateToken, requireAuth, (req, res, next) => attendanceController.getDynamicQr(req, res, next));
 
-// 8. Chấm công đa lớp Multi-Factor (Mã QR động + GPS Geofencing + Camera Snapshot + Anti-Proxy)
-router.post('/check-in', authenticateToken, requireAuth, (req, res, next) => attendanceController.checkInMultiFactor(req, res, next));
+// 8. Chấm công đa lớp Multi-Factor (Mã QR động + GPS Geofencing + Camera Snapshot + Anti-Proxy + Idempotency)
+router.post('/check-in', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => attendanceController.checkInMultiFactor(req, res, next));
 
 // 9. Danh sách chấm công nghi vấn / phát hiện chấm công hộ (Yêu cầu permission: attendance_view_all)
 router.get('/suspicious-logs', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getSuspiciousLogs(req, res, next));

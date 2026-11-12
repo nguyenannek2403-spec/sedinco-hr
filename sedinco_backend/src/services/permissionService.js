@@ -101,7 +101,9 @@ class PermissionService {
         this.cleanupExpiredAuditLogs().catch(() => {});
 
         const isLegacyLimit = typeof filters === 'number' || typeof filters === 'string';
-        const limit = isLegacyLimit ? (parseInt(filters, 10) || 150) : (parseInt(filters.limit, 10) || 200);
+        const limit = Math.min(500, Math.max(10, isLegacyLimit ? (parseInt(filters, 10) || 150) : (parseInt(filters.limit, 10) || 200)));
+        const page = Math.max(1, !isLegacyLimit ? (parseInt(filters.page, 10) || 1) : 1);
+        const offset = (page - 1) * limit;
         const ma_nv = !isLegacyLimit && filters.ma_nv ? String(filters.ma_nv).trim() : '';
         const category = !isLegacyLimit && filters.category ? String(filters.category).trim().toLowerCase() : '';
         const startDate = !isLegacyLimit && filters.startDate ? String(filters.startDate).trim() : '';
@@ -140,7 +142,7 @@ class PermissionService {
             whereClauses.push('a.is_pinned = 1');
         }
 
-        params.push(Math.min(500, Math.max(10, limit)));
+        params.push(limit, offset);
 
         const sql = `
             SELECT a.id, a.actor_id, a.actor_role, a.action, a.resource, a.details, a.ip_address,
@@ -151,7 +153,7 @@ class PermissionService {
             LEFT JOIN employees e ON a.actor_id = e.ma_nv
             WHERE ${whereClauses.join(' AND ')}
             ORDER BY a.is_pinned DESC, a.created_at DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
         `;
         const rows = await query(sql, params);
         return rows || [];
