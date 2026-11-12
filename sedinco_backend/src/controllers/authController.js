@@ -4,9 +4,10 @@ const { sendSuccess, sendError } = require('../utils/responseHelper');
 class AuthController {
     async login(req, res, next) {
         try {
-            const { ma_nv, password } = req.body;
+            const identifier = req.body.ma_nv || req.body.username || req.body.identifier;
+            const { password } = req.body;
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
-            const result = await authService.employeeLogin(ma_nv, password, ip);
+            const result = await authService.employeeLogin(identifier, password, ip);
             if (!result.success) {
                 const status = result.statusCode || 200;
                 return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode, request_id: req.id });

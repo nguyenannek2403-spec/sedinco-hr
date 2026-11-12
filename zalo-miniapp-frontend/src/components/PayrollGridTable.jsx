@@ -369,22 +369,23 @@ export default function PayrollGridTable({
                 <th className="p-3.5 text-right">Lương Công</th>
                 <th className="p-3.5 text-right">Tổng Phụ Cấp</th>
                 <th className="p-3.5 text-right">Tăng Ca (OT)</th>
-                <th className="p-3.5 text-right text-rose-700">Trích BHXH (10.5%)</th>
+                <th className="p-3.5 text-right text-rose-700">Trích BHXH</th>
                 <th className="p-3.5 text-right text-emerald-900 font-black">Thực Lĩnh (Net)</th>
+                <th className="p-3.5 text-center">Xác Nhận Lương</th>
                 <th className="p-3.5 text-center pr-5">Phiếu Lương</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="py-16 text-center text-slate-500">
+                  <td colSpan={10} className="py-16 text-center text-slate-500">
                     <RefreshCw size={28} className="mx-auto mb-2 animate-spin text-emerald-600" />
                     <p className="text-sm font-bold">Đang tải và tính toán dữ liệu bảng lương...</p>
                   </td>
                 </tr>
               ) : filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-16 text-center text-slate-500">
+                  <td colSpan={10} className="py-16 text-center text-slate-500">
                     <FileText size={36} className="mx-auto mb-2 text-slate-400" />
                     <p className="text-sm font-bold">Không có dữ liệu tiền lương trong kỳ tháng {month}/{year}.</p>
                   </td>
@@ -392,8 +393,14 @@ export default function PayrollGridTable({
               ) : (
                 filteredList.map((item, idx) => {
                   const empId = item.ma_nv || item.id_nhan_vien;
+                  const confirmStatus = item.salary_confirm_status || "PENDING";
                   return (
-                    <tr key={empId || idx} className="hover:bg-emerald-50/40 transition-colors">
+                    <tr
+                      key={empId || idx}
+                      className={`transition-colors ${
+                        confirmStatus === "DISPUTED" ? "bg-rose-50 hover:bg-rose-100/70" : "hover:bg-emerald-50/40"
+                      }`}
+                    >
                       <td className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-white z-10 min-w-[145px] sm:min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
                         <div className="font-black text-slate-900 text-xs sm:text-sm truncate">{item.ho_ten}</div>
                         <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
@@ -421,18 +428,27 @@ export default function PayrollGridTable({
                         -{Number(item.insuranceDeduction || item.totalInsurance || 0).toLocaleString("vi-VN")} đ
                       </td>
                       <td className="p-3.5 text-right font-black text-base">
-                        {Number(item.netSalary || 0) < 0 ? (
-                          <div className="flex flex-col items-end">
-                            <span className="text-rose-600 font-black">
-                              {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold border border-rose-300 mt-0.5">
-                              ⚠️ Thực lĩnh âm
-                            </span>
-                          </div>
+                        <span className="text-emerald-800">
+                          {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-center">
+                        {confirmStatus === "CONFIRMED" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 font-black text-[11px] border border-emerald-300">
+                            ✅ Đã xác nhận
+                          </span>
+                        ) : confirmStatus === "DISPUTED" ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSlipItem(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600 text-white font-black text-[11px] shadow-sm animate-pulse cursor-pointer"
+                            title={item.dispute_reason || "Nhấn để xem minh chứng khiếu nại lương"}
+                          >
+                            ⚠️ Khiếu nại (Xem)
+                          </button>
                         ) : (
-                          <span className="text-emerald-800">
-                            {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-bold text-[11px] border border-slate-300">
+                            ⏳ Chờ XN
                           </span>
                         )}
                       </td>
@@ -476,6 +492,7 @@ export default function PayrollGridTable({
                   <td className="p-4 text-right text-emerald-800 text-base">
                     {totalNetSalary.toLocaleString("vi-VN")} đ
                   </td>
+                  <td className="p-4 text-center"></td>
                   <td className="p-4 text-center pr-5"></td>
                 </tr>
               </tfoot>
@@ -491,6 +508,9 @@ export default function PayrollGridTable({
           payrollItem={selectedSlipItem}
           month={month}
           year={year}
+          isAdminOrAccountant={true}
+          showToast={notify}
+          onStatusUpdated={() => fetchPayrollFromApi()}
           onClose={() => setSelectedSlipItem(null)}
         />
       )}

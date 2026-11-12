@@ -7,9 +7,8 @@ import {
   AlertCircle,
   AlertTriangle,
   RotateCcw,
-  ShieldCheck,
+  ShieldAlert,
   Send,
-  QrCode,
   Camera
 } from "lucide-react";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
@@ -27,8 +26,28 @@ const STAGES = {
   LOCATING: "locating", // Đang lấy token vị trí GPS từ Zalo
   SUBMITTING: "submitting", // Đang gửi gói tin chấm công lên server
   SUCCESS: "success", // Hoàn tất thành công (Hiển thị giờ Server)
-  ERROR: "error" // Có lỗi (kèm thông điệp chi tiết & nút thử lại)
+  ERROR: "error", // Có lỗi (kèm thông điệp chi tiết & nút thử lại)
+  SECURITY_FRAUD: "security_fraud" // Cảnh báo Đỏ Vi phạm An ninh (Fake GPS / Thiết bị lạ)
 };
+
+// Lấy hoặc khởi tạo mã định danh thiết bị cố định trên máy
+function getOrCreateDeviceId() {
+  try {
+    const key = "sedinco_bound_device_fingerprint";
+    let existing = localStorage.getItem(key);
+    if (existing) return existing;
+    const platform = typeof navigator !== "undefined" ? (navigator.platform || "Mobile") : "ZMP";
+    const uaHash = typeof navigator !== "undefined"
+      ? String(navigator.userAgent || "").replace(/[^a-zA-Z0-9]/g, "").slice(-12)
+      : "ZALO";
+    const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+    existing = `ZMP_${platform}_${uaHash}_${rand}`.slice(0, 80);
+    localStorage.setItem(key, existing);
+    return existing;
+  } catch {
+    return "ZMP_MOBILE_DEFAULT";
+  }
+}
 
 // Khóa module-level chống double click phần cứng trên mọi nền tảng
 let globalCheckInLockTimestamp = 0;
@@ -40,7 +59,7 @@ export function resetGlobalCheckInLockTimestamp() {
 }
 
 /**
- * F2: Thành phần Chấm Công 1 Chạm (Trọng tâm trải nghiệm Nhân viên Sedinco)
+ * F2 (V5): Thành phần Chấm Công 1 Chạm Thông Minh (Vào ca / Ra ca + Anti-Fake GPS & Device)
  */
 export default function OneTouchCheckIn({
   currentUser,
@@ -49,14 +68,21 @@ export default function OneTouchCheckIn({
   isLockedPeriod = false
 }) {
   const [stage, setStage] = useState(STAGES.IDLE);
-  const [statusMessage, setStatusMessage] = useState("Chạm nút bên dưới hoặc Quét QR để điểm danh");
+  const [statusMessage, setStatusMessage] = useState("Chạm nút tròn lớn bên dưới để Chấm Công 1 Chạm (Vào ca / Ra ca)");
   const [serverTimeResult, setServerTimeResult] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [errorDetails, setErrorDetails] = useState("");
+  const [fraudDetails, setFraudDetails] = useState("");
   const [isDebounceLocked, setIsDebounceLocked] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState("");
   const [liveTodayRecord, setLiveTodayRecord] = useState(todayAttendance);
   const [monthlyCount, setMonthlyCount] = useState(0);
+  const [shiftConfig, setShiftConfig] = useState({
+    work_start: "08:00",
+    lunch_start: "12:00",
+    lunch_end: "13:30",
+    work_end: "17:30"
+  });
 
   // Cờ Ref khóa nút bấm ngay lập tức ở mức phần cứng để chống double click
   const isLockedRef = useRef(false);
@@ -66,11 +92,22 @@ export default function OneTouchCheckIn({
   const fetchTodayStatus = useCallback(async () => {
     try {
       const now = new Date();
-      const res = await safeGet("/attendance/me", {
-        month: now.getMonth() + 1,
-        year: now.getFullYear()
-      });
-      const list = Array.isArray(res?.data) ? res.data : [];
+      const [attRes, compRes] = await Promise.all([
+        safeGet("/attendance/me", {
+          month: now.getMonth() + 1,
+          year: now.getFullYear()
+        }),
+        safeGet("/company").catch(() => null)
+      ]);
+      if (compRes?.success && compRes.data) {
+        setShiftConfig({
+          work_start: compRes.data.work_start || "08:00",
+          lunch_start: compRes.data.lunch_start || "12:00",
+          lunch_end: compRes.data.lunch_end || "13:30",
+          work_end: compRes.data.work_end || "17:30"
+        });
+      }
+      const list = Array.isArray(attRes?.data) ? attRes.data : [];
       const todayIso = new Date(now.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
       const found = list.find((r) => String(r.record_date || "").slice(0, 10) === todayIso);
       if (found) setLiveTodayRecord(found);
@@ -85,8 +122,7 @@ export default function OneTouchCheckIn({
   // Xác định loại chấm công: "in" (Vào ca) hoặc "out" (Ra ca) theo dữ liệu server
   const effectiveToday = liveTodayRecord || todayAttendance;
   const hasCheckedIn = Boolean(effectiveToday && effectiveToday.check_in_time);
-  const hasCheckedOut = Boolean(effectiveToday && effectiveToday.check_out_time);
-  const checkinType = hasCheckedIn && !hasCheckedOut ? "out" : "in";
+  const checkinType = hasCheckedIn ? "out" : "in";
 
   // Dọn dẹp timer khi unmount
   useEffect(() => {
@@ -95,10 +131,9 @@ export default function OneTouchCheckIn({
     };
   }, []);
 
-  // Bắt đầu luồng Chấm Công 1 Chạm
+  // Bắt đầu luồng Chấm Công 1 Chạm (Không phụ thuộc Kiosk QR)
   const handleStartCheckIn = async (bypassPermExplain = false) => {
     const nowMs = Date.now();
-    // 1. Khóa nút ngay lập tức bằng cờ Ref, State DOM và Timestamp module-level (3000ms)
     if (isLockedRef.current || isDebounceLocked || (nowMs - globalCheckInLockTimestamp < 3000)) return;
     globalCheckInLockTimestamp = nowMs;
     isLockedRef.current = true;
@@ -116,8 +151,8 @@ export default function OneTouchCheckIn({
 
     setErrorMessage("");
     setErrorDetails("");
+    setFraudDetails("");
 
-    // Đặt bộ đếm thời gian timeout tổng 20 giây
     if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
     timeoutIdRef.current = setTimeout(() => {
       if (isLockedRef.current) {
@@ -128,7 +163,6 @@ export default function OneTouchCheckIn({
     }, 20000);
 
     try {
-      // 2. Kiểm tra giải thích quyền vị trí (chỉ hiển thị 1 lần nếu chưa cấp quyền)
       const hasSeenPerm = localStorage.getItem("sedinco_has_seen_location_perm");
       if (!hasSeenPerm && !bypassPermExplain) {
         setStage(STAGES.PERM_EXPLAIN);
@@ -137,43 +171,18 @@ export default function OneTouchCheckIn({
         return;
       }
 
-      // 3. Xác thực sinh trắc học (nếu cờ bật)
       let bioEvidence = null;
       if (FEATURE_BIOMETRIC_ENABLED) {
         setStage(STAGES.BIO_AUTH);
         setStatusMessage("Đang xác thực sinh trắc học trên thiết bị...");
-        
-        try {
-          const secretData = `sedinco_bio_${Date.now()}_${currentUser?.ma_nv}`;
-          const bioRes = await zmpAdapter.openBioAuthentication({ secretData });
-          bioEvidence = {
-            token: bioRes.token,
-            bioState: bioRes.bioState
-          };
-          if (bioRes.bioState === "CHANGED") {
-            throw {
-              code: "BIO_STATE_CHANGED",
-              message: "Phát hiện thiết bị có thay đổi cấu hình vân tay/Face ID mới. Vui lòng liên hệ phòng Nhân sự để xác thực lại."
-            };
-          }
-        } catch (bioErr) {
-          if (bioErr.code === "BIO_NOT_ENROLLED") {
-            throw bioErr;
-          }
-          if (bioErr.code === "BIO_USER_CANCELLED") {
-            throw bioErr;
-          }
-          throw {
-            code: "BIO_FAILED",
-            message: "Xác thực sinh trắc học không thành công. Bạn có thể thử lại.",
-            raw: bioErr
-          };
-        }
+        const secretData = `sedinco_bio_${Date.now()}_${currentUser?.ma_nv}`;
+        const bioRes = await zmpAdapter.openBioAuthentication({ secretData });
+        bioEvidence = { token: bioRes.token, bioState: bioRes.bioState };
       }
 
-      // 4. Lấy Access Token & Location Token từ Zalo SDK (hoặc Web Geolocation fallback)
+      // 4. Lấy Location từ Zalo SDK hoặc Geolocation & Kiểm tra tính toàn vẹn chống Fake GPS
       setStage(STAGES.LOCATING);
-      setStatusMessage("Đang lấy tín hiệu vị trí GPS...");
+      setStatusMessage("Đang kiểm tra tọa độ GPS & tính toàn vẹn thiết bị...");
 
       let accessToken = "";
       try {
@@ -183,12 +192,18 @@ export default function OneTouchCheckIn({
       let locationToken = "";
       let rawLat = 16.0544;
       let rawLng = 108.2022;
+      let gpsAccuracy = null;
+      let isFakeGpsDetected = false;
+
       try {
         const locationRes = await zmpAdapter.getLocation();
         locationToken = locationRes?.token || "";
         if (locationRes?.latitude && locationRes?.longitude) {
           rawLat = Number(locationRes.latitude);
           rawLng = Number(locationRes.longitude);
+        }
+        if (locationRes?.mocked === true || locationRes?.isMock === true) {
+          isFakeGpsDetected = true;
         }
       } catch (e) {
         if (typeof navigator !== "undefined" && navigator.geolocation) {
@@ -198,158 +213,105 @@ export default function OneTouchCheckIn({
             );
             rawLat = Number(pos.coords.latitude);
             rawLng = Number(pos.coords.longitude);
+            gpsAccuracy = Number(pos.coords.accuracy);
+            if (pos.coords.accuracy !== undefined && pos.coords.accuracy <= 0) {
+              isFakeGpsDetected = true;
+            }
           } catch {}
         }
       }
 
-      // 5. Gửi lên Server qua /attendance/check-in với QR Token động + GPS + Ảnh < 50KB
+      // 5. Gửi trực tiếp gói tin Chấm công 1 Chạm (GPS + Device Fingerprint + Ảnh nén < 50KB) lên Server
       setStage(STAGES.SUBMITTING);
-      setStatusMessage("Đang gửi dữ liệu xác thực lên máy chủ Sedinco...");
+      setStatusMessage(
+        checkinType === "in"
+          ? "Đang ghi nhận Giờ Vào Ca trên máy chủ Sedinco..."
+          : "Đang ghi nhận Giờ Ra Ca & tính giờ làm việc..."
+      );
 
-      const now = new Date();
       lastIdempotencyKeyRef.current = generateIdempotencyKey("checkin");
+      const deviceFingerprint = getOrCreateDeviceId();
 
       let result = null;
       try {
-        let qrToken = localStorage.getItem("sedinco_current_qr_token") || "";
-        if (qrToken) {
-          localStorage.removeItem("sedinco_current_qr_token");
-        } else {
-          // Tự động lấy phiên QR 1 lần từ máy chủ cho chấm công 1 chạm
-          const qrRes = await safeGet("/attendance/qr", { branch_id: 1 });
-          qrToken = qrRes?.data?.token || qrRes?.token || "";
-        }
-
-        if (!qrToken) {
-          throw new Error("Không thể khởi tạo mã phiên chấm công. Vui lòng quét mã QR trên màn hình Admin/Kiosk.");
-        }
-
         result = await safePost("/attendance/check-in", {
-          token: qrToken,
           lat: rawLat,
           lng: rawLng,
           zalo_location_token: locationToken || undefined,
           zalo_access_token: accessToken || undefined,
           bio_evidence: bioEvidence || undefined,
+          device_info: deviceFingerprint,
+          gps_accuracy: gpsAccuracy,
+          is_fake_gps: isFakeGpsDetected,
           image_snapshot: capturedPhoto || "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
         }, {
           idempotencyKey: lastIdempotencyKeyRef.current
         });
       } catch (postErr) {
-        console.warn("Lỗi khi gửi chấm công:", postErr);
+        const errCode = postErr.code || postErr.data?.code || postErr.response?.data?.code || "";
         const errText = postErr.message || postErr.data?.message || postErr.response?.data?.message || "Lỗi kết nối mạng khi gửi chấm công";
-        setStage(STAGES.ERROR);
-        // Sửa thông báo chuẩn tiếng Việt khi QR đã được sử dụng (G8.5 Mục E)
-        if (errText.includes("đã được sử dụng") || errText.includes("vừa có người dùng")) {
-          setErrorMessage("Mã vừa có người dùng, vui lòng quét mã mới");
-          setErrorDetails("Mã vừa có người dùng hoặc đã được sử dụng trước đó. Vui lòng quét mã mới trên màn hình Kiosk.");
-        } else {
-          setErrorMessage(errText);
-          setErrorDetails("Vui lòng kiểm tra lại kết nối mạng 4G/Wifi hoặc thử lại.");
-        }
-        // GIẢI PHÓNG KHÓA NGAY LẬP TỨC KHI THẤT BẠI: Cho phép công nhân thử lại ngay lập tức trong vòng 1s
+
         isLockedRef.current = false;
         globalCheckInLockTimestamp = 0;
         if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+
+        // Phát hiện Vi phạm An ninh (Fake GPS / Thiết bị lạ chưa cấp phép) -> Hiển thị Modal Cảnh Báo Đỏ Toàn Màn Hình
+        if (
+          errCode === "SECURITY_VIOLATION_FRAUD" ||
+          errText.includes("CẢNH BÁO VI PHẠM AN NINH") ||
+          errText.includes("Fake GPS") ||
+          errText.includes("thiết bị chưa được cấp phép")
+        ) {
+          await zmpAdapter.vibrate("heavy").catch(() => {});
+          setStage(STAGES.SECURITY_FRAUD);
+          setErrorMessage(
+            "⚠️ CẢNH BÁO VI PHẠM AN NINH: Hệ thống phát hiện dấu hiệu giả mạo vị trí (Fake GPS) hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!"
+          );
+          setFraudDetails(postErr.data?.fraud_reason || errText);
+          return;
+        }
+
+        setStage(STAGES.ERROR);
+        setErrorMessage(errText);
+        setErrorDetails("Vui lòng kiểm tra vị trí GPS hoặc kết nối mạng 4G/Wifi và thử lại.");
         return;
       }
 
-      // 6. Hoàn tất thành công: Rung phản hồi (vibrate), Hiển thị GIỜ DO SERVER TRẢ & ĐÁNH GIÁ CÔNG TỰ ĐỘNG
+      // 6. Hoàn tất thành công: Rung phản hồi, hiển thị thông báo chi tiết Vào ca / Ra ca / Đi muộn / Làm thêm từ Server
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
       await zmpAdapter.vibrate("light");
-      
-      const serverTime = result?.server_time || result?.data?.check_in_time || result?.data?.server_time || new Date().toLocaleTimeString("vi-VN", { hour12: false });
+
+      const serverTime =
+        result?.server_time ||
+        result?.data?.server_time ||
+        result?.data?.check_out_time ||
+        result?.data?.check_in_time ||
+        new Date().toLocaleTimeString("vi-VN", { hour12: false });
+
       setServerTimeResult(serverTime);
       setStage(STAGES.SUCCESS);
       fetchTodayStatus();
 
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      let autoShiftMsg = "";
+      const serverMsg = result?.message || `Đã ghi nhận chấm công lúc ${serverTime}`;
+      setStatusMessage(serverMsg);
 
-      if (checkinType === "in") {
-        if (currentMinutes <= 480) { // Trước hoặc đúng 08:00
-          autoShiftMsg = `Đã Chấm Công Vào lúc ${serverTime}. Đúng giờ ca sáng (08:00 - 12:00)!`;
-        } else {
-          const late = currentMinutes - 480;
-          autoShiftMsg = `Đã Chấm Công Vào lúc ${serverTime}. Trễ ${late} phút so với giờ chuẩn (08:00).`;
-        }
-      } else {
-        if (currentMinutes >= 1020) { // Sau hoặc đúng 17:00
-          autoShiftMsg = `Đã Chấm Công Ra lúc ${serverTime}. Hoàn thành đủ 1 ngày công (8 tiếng = 480 phút)!`;
-        } else if (currentMinutes <= 720) { // Ra trước hoặc đúng 12:00
-          autoShiftMsg = `Đã Chấm Công Ra lúc ${serverTime}. Ghi nhận hoàn tất nửa ngày công sáng (240 phút = 0.5 công).`;
-        } else {
-          const early = 1020 - currentMinutes;
-          autoShiftMsg = `Đã Chấm Công Ra lúc ${serverTime}. Về sớm ${early} phút so với giờ tan ca (17:00).`;
-        }
-      }
-
-      setStatusMessage(autoShiftMsg);
-
-      if (onCheckInSuccess) onCheckInSuccess({ ...result, autoShiftMsg });
-
+      if (onCheckInSuccess) onCheckInSuccess({ ...result, autoShiftMsg: serverMsg });
     } catch (err) {
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
       setStage(STAGES.ERROR);
-      // Mở khóa ngay lập tức khi gặp ngoại lệ để người dùng có thể bấm lại
       isLockedRef.current = false;
       globalCheckInLockTimestamp = 0;
-
-      // Phân tích mã lỗi theo danh mục yêu cầu
-      if (err.code === "LOCATION_PERMISSION_DENIED") {
-        setErrorMessage("Quyền truy cập vị trí bị từ chối.");
-        setErrorDetails("Vui lòng vào Cài đặt Zalo -> Quyền ứng dụng và cấp quyền 'Vị trí' để thực hiện chấm công.");
-      } else if (err.code === "GPS_DISABLED") {
-        setErrorMessage("Định vị GPS trên thiết bị đang tắt.");
-        setErrorDetails("Vui lòng vuốt thanh trạng thái điện thoại và bật biểu tượng GPS/Vị trí.");
-      } else if (err.code === "BIO_NOT_ENROLLED") {
-        setErrorMessage("Thiết bị chưa cài đặt vân tay/Face ID (Mã -107).");
-        setErrorDetails("Vui lòng thiết lập khóa màn hình sinh trắc học trong Cài đặt của điện thoại.");
-      } else if (err.code === "BIO_USER_CANCELLED") {
-        setErrorMessage("Bạn đã hủy xác thực sinh trắc học.");
-        setErrorDetails("Vui lòng chạm nút để thử lại khi đã sẵn sàng.");
-      } else if (err.code === "BIO_STATE_CHANGED") {
-        setErrorMessage("Dữ liệu sinh trắc học đã thay đổi.");
-        setErrorDetails(err.message);
-      } else if (err.status === 409) {
-        setErrorMessage("Bạn đã thực hiện chấm công ca này rồi.");
-        setErrorDetails("Máy chủ đã ghi nhận lượt chấm công trước đó. Tránh bấm lặp nhiều lần.");
-      } else if (err.status === 429) {
-        setErrorMessage("Thao tác quá nhanh (429 Rate Limit).");
-        setErrorDetails("Hệ thống phát hiện tần suất gửi yêu cầu bất thường. Vui lòng chờ vài giây.");
-      } else if (err.message && err.message.toLowerCase().includes("ngoài vùng")) {
-        setErrorMessage("Vị trí của bạn nằm ngoài bán kính cho phép.");
-        setErrorDetails("Vui lòng có mặt trong phạm vi văn phòng hoặc công trình Sedinco để chấm công.");
-      } else {
-        setErrorMessage(err.message || "Không thể hoàn thành chấm công.");
-        setErrorDetails("Vui lòng kiểm tra lại kết nối mạng 4G/Wifi hoặc thử lại sau.");
-      }
+      setErrorMessage(err.message || "Không thể hoàn thành chấm công.");
+      setErrorDetails("Vui lòng kiểm tra lại kết nối mạng 4G/Wifi hoặc thử lại sau.");
     } finally {
       isLockedRef.current = false;
     }
   };
 
-  // Người dùng xác nhận giải thích quyền vị trí
   const handleAcceptPermExplain = () => {
     localStorage.setItem("sedinco_has_seen_location_perm", "true");
     setStage(STAGES.IDLE);
     handleStartCheckIn(true);
-  };
-
-  // Quét mã QR trực tiếp từ màn hình Kiosk / Điện thoại Admin bằng Zalo SDK
-  const handleScanQrAndCheckIn = async () => {
-    try {
-      const scanRes = await zmpAdapter.scanQRCode();
-      if (scanRes?.content) {
-        localStorage.setItem("sedinco_current_qr_token", scanRes.content.trim());
-        localStorage.setItem("sedinco_has_seen_location_perm", "true");
-        await handleStartCheckIn(true);
-      }
-    } catch (err) {
-      setStage(STAGES.ERROR);
-      setErrorMessage(err?.message || "Không thể mở camera quét QR Zalo.");
-      setErrorDetails("Bạn vẫn có thể nhấn nút CHẤM CÔNG tròn lớn bên trên để điểm danh 1 chạm.");
-    }
   };
 
   // Chụp ảnh xác thực khuôn mặt (< 50KB)
@@ -357,40 +319,91 @@ export default function OneTouchCheckIn({
     const res = await captureDirectCameraPhoto();
     if (res?.success && res?.photoUrl) {
       setCapturedPhoto(res.photoUrl);
-      setStatusMessage("Đã chụp & nén ảnh xác thực (< 50KB). Bấm CHẤM CÔNG để gửi!");
+      setStatusMessage("Đã chụp & nén ảnh xác thực (< 50KB). Chạm nút CHẤM CÔNG lớn để gửi!");
     }
   };
 
   return (
     <div className="w-full flex flex-col items-center justify-center p-2 sm:p-4">
-      {/* Thẻ tóm tắt trạng thái công hôm nay & tổng công tháng */}
-      <div className="w-full max-w-sm mb-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between text-xs shadow-md">
-        <div>
-          <span className="text-slate-400 font-medium block">Hôm nay ({new Date().toLocaleDateString("vi-VN")}):</span>
-          <span className="font-black text-emerald-400 text-sm">
-            {effectiveToday?.check_in_time
-              ? `Đã điểm danh lúc ${effectiveToday.check_in_time}`
-              : "Chưa điểm danh"}
-          </span>
+      {/* Thẻ tóm tắt trạng thái công hôm nay & khung giờ chuẩn */}
+      <div className="w-full max-w-sm mb-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2 text-xs shadow-md">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-slate-400 font-medium block">
+              Hôm nay ({new Date().toLocaleDateString("vi-VN")}):
+            </span>
+            <span className="font-black text-emerald-400 text-sm">
+              {effectiveToday?.check_out_time
+                ? `Vào ${effectiveToday.check_in_time?.slice(0, 5)} • Ra ${effectiveToday.check_out_time?.slice(0, 5)}`
+                : effectiveToday?.check_in_time
+                ? `Đã vào ca lúc ${effectiveToday.check_in_time?.slice(0, 5)}`
+                : "Chưa chấm công vào ca"}
+            </span>
+          </div>
+          <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Công tháng này</span>
+            <span className="text-base font-black text-blue-400">{monthlyCount} ngày</span>
+          </div>
         </div>
-        <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
-          <span className="text-[10px] text-slate-400 uppercase font-bold block">Công tháng này</span>
-          <span className="text-base font-black text-blue-400">{monthlyCount} ngày</span>
+
+        {/* Hiển thị giờ làm việc chuẩn & trạng thái đi muộn / OT */}
+        <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-400">
+          <span>
+            Ca chuẩn: <strong className="text-slate-200">{shiftConfig.work_start} - {shiftConfig.lunch_start}</strong> &{" "}
+            <strong className="text-slate-200">{shiftConfig.lunch_end} - {shiftConfig.work_end}</strong>
+          </span>
+          {Number(effectiveToday?.late_minutes) > 0 && (
+            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold">
+              Muộn {effectiveToday.late_minutes}p
+            </span>
+          )}
+          {Number(effectiveToday?.ot_hours) > 0 && (
+            <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-bold">
+              OT +{effectiveToday.ot_hours}h
+            </span>
+          )}
         </div>
       </div>
+
+      {/* MODAL CẢNH BÁO ĐỎ TOÀN MÀN HÌNH KHI PHÁT HIỆN FAKE GPS / THIẾT BỊ LẠ (NHIỆM VỤ 3) */}
+      {stage === STAGES.SECURITY_FRAUD && (
+        <div className="fixed inset-0 bg-rose-950/95 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-bounce-short">
+            <div className="w-20 h-20 rounded-full bg-rose-600/20 border-2 border-rose-500 text-rose-500 flex items-center justify-center mx-auto shadow-lg shadow-rose-600/30">
+              <ShieldAlert size={44} />
+            </div>
+            <h3 className="font-black text-lg text-rose-400 uppercase tracking-wide">
+              ⚠️ CẢNH BÁO VI PHẠM AN NINH
+            </h3>
+            <p className="text-xs text-white font-bold leading-relaxed bg-rose-950/80 border border-rose-500/40 rounded-2xl p-3.5">
+              Hệ thống phát hiện dấu hiệu giả mạo vị trí (Fake GPS) hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!
+            </p>
+            {fraudDetails && (
+              <p className="text-[11px] text-rose-300 font-mono bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                Chi tiết kỹ thuật: {fraudDetails}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setStage(STAGES.IDLE)}
+              className="w-full min-h-[46px] py-3 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-rose-600/40"
+            >
+              Tôi Đã Hiểu & Đóng Cảnh Báo
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal Giải Thích Quyền Vị Trí (Hiển thị 1 lần) */}
       {stage === STAGES.PERM_EXPLAIN && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-800 text-center animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-800 text-center">
             <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 shadow-sm border border-blue-100">
               <MapPin size={32} />
             </div>
-            <h3 className="font-black text-lg text-slate-900 mb-2">Quyền Truy Cập Vị Trí</h3>
+            <h3 className="font-black text-lg text-slate-900 mb-2">Quyền Truy Cập Vị Trí GPS</h3>
             <p className="text-xs text-slate-600 leading-relaxed mb-6">
-              Sedinco HR cần sử dụng vị trí GPS của bạn để đối chiếu bán kính công trình hoặc văn phòng nhà máy khi chấm công.
-              <span className="block font-semibold text-blue-700 mt-1">
-                Token vị trí chỉ tồn tại trong 2 phút và chỉ được dùng cho mục đích chấm công duy nhất.
-              </span>
+              Sedinco HR sử dụng vị trí thực tế của bạn để chấm công 1 chạm (Vào ca / Ra ca) và chống gian lận vị trí giả mạo.
             </p>
             <button
               type="button"
@@ -403,8 +416,8 @@ export default function OneTouchCheckIn({
         </div>
       )}
 
-      {/* NÚT CHẤM CÔNG 1 CHẠM LỚN (BIG BUTTON - DỄ BẤM CHO NGƯỜI LỚN TUỔI) */}
-      <div className="relative my-4 flex flex-col items-center">
+      {/* NÚT CHẤM CÔNG 1 CHẠM DUY NHẤT (VÀO CA / RA CA TỰ ĐỘNG) */}
+      <div className="relative my-3 flex flex-col items-center">
         <button
           id="btn-start-checkin"
           type="button"
@@ -415,18 +428,17 @@ export default function OneTouchCheckIn({
               ? "bg-slate-600 border-slate-400 opacity-70"
               : stage === STAGES.SUCCESS
               ? "bg-emerald-600 border-white shadow-emerald-600/50"
-              : stage === STAGES.ERROR
+              : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
               ? "bg-rose-600 border-white shadow-rose-600/50"
               : checkinType === "in"
               ? "bg-blue-600 border-white hover:bg-blue-500 shadow-blue-600/50"
               : "bg-amber-600 border-white hover:bg-amber-500 shadow-amber-600/50"
           }`}
         >
-          {/* Biểu tượng trạng thái rõ ràng, không giật lắc */}
           <div className="mb-2">
             {stage === STAGES.SUCCESS ? (
               <CheckCircle2 size={54} className="text-white" />
-            ) : stage === STAGES.ERROR ? (
+            ) : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD ? (
               <AlertCircle size={54} className="text-white" />
             ) : stage === STAGES.BIO_AUTH ? (
               <Fingerprint size={54} className="text-blue-100" />
@@ -439,72 +451,62 @@ export default function OneTouchCheckIn({
             )}
           </div>
 
-          {/* Tiêu đề nút - Đổi thành CHẤM CÔNG chuẩn theo yêu cầu */}
           <span className="font-black text-2xl md:text-3xl tracking-normal uppercase leading-tight text-center px-4">
             {stage === STAGES.SUBMITTING
-              ? "ĐANG XÁC THỰC"
+              ? "ĐANG GỬI..."
               : stage === STAGES.LOCATING
               ? "ĐANG ĐỊNH VỊ"
-              : stage === STAGES.BIO_AUTH
-              ? "SINH TRẮC HỌC"
               : stage === STAGES.SUCCESS
-              ? "THÀNH CÔNG"
+              ? "HOÀN TẤT"
               : stage === STAGES.ERROR
               ? "BẤM THỬ LẠI"
-              : "CHẤM CÔNG"}
+              : checkinType === "in"
+              ? "CHẤM CÔNG VÀO"
+              : "CHẤM CÔNG RA"}
           </span>
 
-          {/* Phụ đề hướng dẫn tự động: Hệ thống tự nhận biết Vào ca hay Ra ca */}
-          <span className="text-xs md:text-sm font-black text-white mt-2 bg-black/30 px-3.5 py-1 rounded-full border border-white/20">
+          <span className="text-xs font-black text-white mt-2 bg-black/30 px-3.5 py-1 rounded-full border border-white/20">
             {isLockedPeriod
               ? "Kỳ công đã chốt"
               : stage === STAGES.SUCCESS
-              ? (serverTimeResult ? `Đã ghi nhận lúc ${serverTimeResult}` : "Đã hoàn thành")
+              ? (serverTimeResult ? `Lúc ${serverTimeResult}` : "Đã ghi nhận")
               : checkinType === "in"
-              ? "Lần 1: Vào ca (Chuẩn 08:00 - 12:00)"
-              : "Lần 2: Tan ca (Chuẩn 13:00 - 17:00)"}
+              ? `Vào ca sáng (${shiftConfig.work_start})`
+              : `Ra ca chiều (${shiftConfig.work_end})`}
           </span>
         </button>
       </div>
 
-      {/* Cụm nút Quét Mã QR Kiosk & Chụp Ảnh Xác Thực (< 50KB) */}
-      <div className="w-full max-w-sm grid grid-cols-2 gap-2.5 mt-2">
-        <button
-          type="button"
-          onClick={handleScanQrAndCheckIn}
-          disabled={isDebounceLocked || stage === STAGES.SUBMITTING}
-          className="min-h-[46px] py-2.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-blue-300 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-95 transition"
-        >
-          <QrCode size={16} className="text-blue-400 shrink-0" />
-          <span>Quét QR Kiosk</span>
-        </button>
-
+      {/* Nút đính kèm Ảnh Xác Thực Khuôn Mặt (< 50KB) */}
+      <div className="w-full max-w-sm mt-2">
         <button
           type="button"
           onClick={handleCaptureSelfie}
           disabled={isDebounceLocked || stage === STAGES.SUBMITTING}
-          className="min-h-[46px] py-2.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-95 transition"
+          className="w-full min-h-[46px] py-2.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-95 transition"
         >
           <Camera size={16} className="text-emerald-400 shrink-0" />
-          <span>{capturedPhoto ? "Đã chụp (<50KB)" : "Chụp ảnh Selfie"}</span>
+          <span>{capturedPhoto ? "✅ Đã đính kèm ảnh xác thực (< 50KB)" : "Chụp ảnh Selfie xác thực hiện trường (< 50KB)"}</span>
         </button>
       </div>
 
-      {/* DÒNG THÔNG BÁO TIẾN ĐỘ RÕ RÀNG */}
+      {/* DÒNG THÔNG BÁO KẾT QUẢ CHI TIẾT (GIỜ VÀO / GIỜ RA / ĐI MUỘN / LÀM THÊM) */}
       <div className="w-full max-w-sm text-center mt-3 space-y-3">
         <div
-          className={`py-3 px-5 rounded-2xl text-sm font-extrabold inline-flex items-center justify-center gap-2.5 transition-all border-2 shadow-sm ${
+          className={`w-full py-3 px-4 rounded-2xl text-xs sm:text-sm font-extrabold inline-flex items-center justify-center gap-2 transition-all border-2 shadow-sm ${
             stage === STAGES.SUCCESS
-              ? "bg-emerald-50 text-emerald-900 border-emerald-400"
-              : stage === STAGES.ERROR
+              ? "bg-emerald-50 text-emerald-950 border-emerald-400"
+              : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
               ? "bg-rose-50 text-rose-900 border-rose-400"
-              : "bg-white text-slate-800 border-slate-300"
+              : "bg-slate-900 text-slate-200 border-slate-700"
           }`}
         >
           {stage === STAGES.SUCCESS && <CheckCircle2 size={18} className="text-emerald-700 shrink-0" />}
-          {stage === STAGES.ERROR && <AlertCircle size={18} className="text-rose-700 shrink-0" />}
-          {stage !== STAGES.SUCCESS && stage !== STAGES.ERROR && (
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
+          {(stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD) && (
+            <AlertCircle size={18} className="text-rose-700 shrink-0" />
+          )}
+          {stage !== STAGES.SUCCESS && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 animate-pulse" />
           )}
           <span>{statusMessage}</span>
         </div>
@@ -528,13 +530,6 @@ export default function OneTouchCheckIn({
               <span>BẤM VÀO ĐÂY ĐỂ THỬ LẠI</span>
             </button>
           </div>
-        )}
-
-        {/* Thông tin xác thực giờ Server khi thành công */}
-        {serverTimeResult && stage === STAGES.SUCCESS && (
-          <p className="text-xs text-slate-700 font-bold bg-white p-2.5 rounded-xl border-2 border-emerald-200">
-            Thời gian xác thực: <span className="text-emerald-700 font-black">{serverTimeResult}</span> (Giờ hệ thống Sedinco)
-          </p>
         )}
       </div>
     </div>

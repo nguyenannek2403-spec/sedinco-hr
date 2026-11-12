@@ -346,7 +346,8 @@ async function logAuditEvent({ actor_id, actor_role, action, resource, details, 
 const SAFE_EMPLOYEE_FIELDS = `ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, role, 
     ngay_bat_dau_lam, ngay_chinh_thuc, avatar_url, luong_cb, 
     phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv, 
-    phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance, status, is_locked`;
+    phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance, status, is_locked,
+    bound_device_id, device_binding_mode, pending_device_id, device_change_reason, keep_logs`;
 
 module.exports = {
     generateToken,

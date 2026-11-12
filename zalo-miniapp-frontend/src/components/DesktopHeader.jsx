@@ -1,11 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Clock,
   Smartphone,
   RefreshCw,
   ChevronRight,
   Menu,
-  QrCode
+  Bell,
+  ShieldAlert,
+  AlertTriangle,
+  X
 } from "lucide-react";
 import { ROLE_LABELS, ROLES } from "../constants/roles";
 
@@ -16,10 +19,18 @@ export default function DesktopHeader({
   activeRole,
   onRoleSwitch,
   currentTime,
+  alertsSummary = {},
   onRefresh,
   isLoading,
   onOpenMobileMenu
 }) {
+  const [showAlertPanel, setShowAlertPanel] = useState(false);
+
+  const fraudCount = Number(alertsSummary?.fraud_count) || 0;
+  const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
+  const deviceCount = Number(alertsSummary?.pending_device_count) || 0;
+  const totalRedAlerts = fraudCount + disputedCount + deviceCount;
+
   const getTabTitle = () => {
     switch (currentTab) {
       case "matrix":
@@ -27,23 +38,21 @@ export default function DesktopHeader({
           ? "Bảng Chấm Công Ma Trận"
           : "Bảng Công Ma Trận (Toàn Công Ty)";
       case "payroll":
-        return "Bảng Lương & Chi Trả Doanh Nghiệp";
+        return "Bảng Lương & Đối Soát Khiếu Nại";
       case "requests":
         return "Trung Tâm Phê Duyệt Đơn Từ";
       case "management":
         return "Quản Trị Hồ Sơ Nhân Sự (RBAC)";
       case "company":
-        return "Cấu Hình Vị Trí & Trụ Sở";
+        return "Trung Tâm Cấu Hình Động Công Ty";
       case "holidays":
         return "Danh Mục Ngày Nghỉ Lễ (x3)";
-      case "kiosk":
-        return "Màn Hình Kiosk QR Điểm Danh";
       case "devices":
         return "Phê Duyệt Đổi Thiết Bị";
       case "permissions":
         return "Phân Quyền Kế Toán";
       case "audit_logs":
-        return "Nhật Ký Kiểm Toán Hệ Thống";
+        return "Giám Sát Nhân Viên & Chống Gian Lận";
       case "profile":
         return "Hồ Sơ Cá Nhân & Phiếu Lương";
       default:
@@ -73,7 +82,7 @@ export default function DesktopHeader({
 
         <div className="min-w-0">
           <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold truncate">
-            <span>Sedinco HR</span>
+            <span>Sedinco HR V5</span>
             <ChevronRight size={12} className="shrink-0" />
             <span className="text-blue-400 font-black truncate">{ROLE_LABELS[activeRole] || currentUser?.ho_ten}</span>
           </div>
@@ -84,7 +93,7 @@ export default function DesktopHeader({
       </div>
 
       {/* Tác vụ bên phải (Đã chừa 96px bên phải trên Mobile tránh nút ... và X của Zalo) */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 relative">
         {/* Đồng hồ số thời gian thực (Desktop) */}
         <div className="hidden xl:flex items-center gap-2 bg-slate-800 border border-slate-700 px-3.5 py-2 rounded-2xl text-xs font-mono font-bold text-slate-200">
           <Clock size={14} className="text-blue-400" />
@@ -93,18 +102,24 @@ export default function DesktopHeader({
           </span>
         </div>
 
-        {/* Nút bật nhanh Màn Hình Kiosk QR cho Admin */}
-        {activeRole === ROLES.ADMIN && setCurrentTab && currentTab !== "kiosk" && (
-          <button
-            type="button"
-            onClick={() => setCurrentTab("kiosk")}
-            className="min-h-[40px] px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black flex items-center gap-1.5 shadow-sm"
-            title="Mở mã QR cho nhân viên quét chấm công"
-          >
-            <QrCode size={15} />
-            <span className="hidden sm:inline">Phát Mã QR</span>
-          </button>
-        )}
+        {/* Nút Chuông Báo Động Đỏ (Fake GPS / Thiết bị lạ / Khiếu nại sai lương) */}
+        <button
+          type="button"
+          onClick={() => setShowAlertPanel(!showAlertPanel)}
+          className={`relative min-w-[40px] min-h-[40px] px-2.5 py-2 rounded-xl border flex items-center gap-1.5 text-xs font-black transition-all ${
+            totalRedAlerts > 0
+              ? "bg-rose-600/20 border-rose-500 text-rose-300 shadow-lg shadow-rose-600/20"
+              : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+          }`}
+          title="Trung tâm Cảnh báo Gian lận & Khiếu nại Lương"
+        >
+          <Bell size={16} className={totalRedAlerts > 0 ? "text-rose-400 animate-bounce" : "text-slate-400"} />
+          {totalRedAlerts > 0 && (
+            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-rose-600 text-white font-black">
+              {totalRedAlerts}
+            </span>
+          )}
+        </button>
 
         {/* Nút chuyển nhanh sang chế độ Công nhân (Chấm công / Xem phiếu lương cá nhân) */}
         {typeof onRoleSwitch === "function" && (
@@ -129,6 +144,96 @@ export default function DesktopHeader({
           >
             <RefreshCw size={16} className={isLoading ? "animate-spin text-blue-400" : ""} />
           </button>
+        )}
+
+        {/* Popover Danh Sách Cảnh Báo Nóng (Fraud Alerts + Salary Disputes) */}
+        {showAlertPanel && (
+          <div className="fixed sm:absolute right-3 sm:right-0 top-[76px] sm:top-12 w-[92vw] max-w-sm bg-slate-900 border-2 border-slate-700 rounded-2xl shadow-2xl p-4 z-50 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-rose-400" />
+                <span className="text-xs font-black text-white uppercase">
+                  Cảnh Báo Nóng ({totalRedAlerts})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAlertPanel(false)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {totalRedAlerts === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">
+                Hệ thống an toàn. Không có cảnh báo Fake GPS hay khiếu nại lương nào đang chờ xử lý.
+              </p>
+            ) : (
+              <div className="space-y-2.5 max-h-72 overflow-y-auto">
+                {fraudCount > 0 && activeRole === ROLES.ADMIN && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (setCurrentTab) setCurrentTab("audit_logs");
+                      setShowAlertPanel(false);
+                    }}
+                    className="w-full text-left p-3 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 border border-rose-500/40 space-y-1 transition"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-rose-300">
+                        🚨 {fraudCount} Vi phạm An ninh (Fake GPS / Thiết bị lạ)
+                      </span>
+                      <span className="text-[10px] font-bold text-rose-200 underline">Xem & Khóa</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Nhấn để mở Nhật ký Giám sát, xem chi tiết tọa độ/thiết bị vi phạm và khóa tài khoản.
+                    </p>
+                  </button>
+                )}
+
+                {disputedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (setCurrentTab) setCurrentTab("payroll");
+                      setShowAlertPanel(false);
+                    }}
+                    className="w-full text-left p-3 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 border border-amber-500/40 space-y-1 transition"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-amber-300 flex items-center gap-1">
+                        <AlertTriangle size={13} />
+                        {disputedCount} Khiếu nại sai lương từ Nhân viên
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-200 underline">Xem minh chứng</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Nhân viên đã gửi báo cáo sai lương kèm hình ảnh/video minh chứng. Nhấn để kiểm tra.
+                    </p>
+                  </button>
+                )}
+
+                {deviceCount > 0 && activeRole === ROLES.ADMIN && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (setCurrentTab) setCurrentTab("devices");
+                      setShowAlertPanel(false);
+                    }}
+                    className="w-full text-left p-3 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 space-y-1 transition"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-indigo-300">
+                        📱 {deviceCount} Yêu cầu đổi thiết bị chờ duyệt
+                      </span>
+                      <span className="text-[10px] font-bold text-indigo-200 underline">Xét duyệt</span>
+                    </div>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </header>

@@ -185,7 +185,7 @@ const defaultUrlParser = express.urlencoded({ limit: '100kb', extended: true });
 const attendanceUrlParser = express.urlencoded({ limit: '3mb', extended: true });
 
 app.use((req, res, next) => {
-    if (req.path.startsWith('/api/attendance')) {
+    if (req.path.startsWith('/api/attendance') || req.path.startsWith('/api/payroll')) {
         return attendanceJsonParser(req, res, (err) => {
             if (err) return next(err);
             attendanceUrlParser(req, res, next);

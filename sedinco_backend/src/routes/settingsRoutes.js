@@ -18,7 +18,13 @@ router.get('/accountant-permissions', authenticateToken, requireRole(['admin', '
 // Cập nhật cấu hình bật/tắt quyền: CHỈ Quản trị viên (admin)
 router.put('/accountant-permissions', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.updateAccountantPermissions(req, res, next));
 
-// 3. Nhật ký Kiểm toán (Audit Logs) - CHỈ Quản trị viên (admin)
+// 3. Nhật ký Kiểm toán & Giám sát hoạt động (Audit Logs) - Quản trị viên (admin)
 router.get('/audit-logs', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.getAuditLogs(req, res, next));
+router.put('/audit-logs/:id/pin', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.togglePinAuditLog(req, res, next));
+router.post('/audit-logs/:id/pin', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.togglePinAuditLog(req, res, next));
+router.put('/audit-logs/keep-employee/:ma_nv', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.toggleEmployeeKeepLogs(req, res, next));
+router.post('/audit-logs/keep-employee/:ma_nv', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.toggleEmployeeKeepLogs(req, res, next));
+router.post('/audit-logs/cleanup', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.cleanupAuditLogs(req, res, next));
+router.get('/alerts-summary', authenticateToken, requireRole(['admin', 'accountant']), (req, res, next) => permissionController.getAlertsSummary(req, res, next));
 
 module.exports = router;

@@ -167,16 +167,11 @@ export function useAuth() {
         }
       }
 
-      // 2. Xác thực với Backend REST API
-      let loginEndpoint = "/login";
-      let payload = { ma_nv: u, password: p };
-
-      if (u === "ADMIN") {
-        loginEndpoint = "/admin/login";
-        payload = { username: "admin", password: p };
+      // 2. Xác thực hợp nhất với Backend REST API (V5 Unified Auto-Routing Login)
+      let res = await safePost("/login", { ma_nv: u, username: u, password: p }).catch(() => null);
+      if ((!res || !res.success) && u === "ADMIN") {
+        res = await safePost("/admin/login", { username: "admin", password: p });
       }
-
-      const res = await safePost(loginEndpoint, payload);
 
       if (res?.success && res.data) {
         const rawUser = res.data;

@@ -104,7 +104,7 @@ class AttendanceController {
 
     async checkInMultiFactor(req, res, next) {
         try {
-            const { token, lat, lng, zalo_location_token, location_token, image_snapshot, device_info } = req.body;
+            const { token, lat, lng, zalo_location_token, location_token, image_snapshot, device_info, is_fake_gps, is_fake_device, gps_accuracy } = req.body;
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || (req.connection && req.connection.remoteAddress) || '';
             const result = await attendanceService.checkInMultiFactor({
                 token,
@@ -113,6 +113,9 @@ class AttendanceController {
                 zalo_location_token: zalo_location_token || location_token,
                 image_snapshot,
                 device_info,
+                is_fake_gps,
+                is_fake_device,
+                gps_accuracy,
                 current_user: req.user,
                 ip_address: ip
             });

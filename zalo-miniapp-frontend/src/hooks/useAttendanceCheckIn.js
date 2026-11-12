@@ -107,19 +107,13 @@ export function useAttendanceCheckIn({ onCheckInSuccess } = {}) {
         }
       }
 
-      // 3. Gửi lên máy chủ
+      // 3. Gửi trực tiếp lên máy chủ (V5 Chấm công 1 chạm không bắt buộc QR Kiosk)
       setStage(CHECKIN_STAGES.SUBMITTING);
       setStatusMessage("Đang đối soát vị trí & ghi nhận công...");
 
-      let activeQrToken = qrToken || localStorage.getItem("sedinco_current_qr_token") || "";
-      if (!activeQrToken) {
-        const qrRes = await safeGet("/attendance/qr", { branch_id: 1 });
-        activeQrToken = qrRes?.data?.token || qrRes?.token || "";
-      }
-
       const idempotencyKey = generateIdempotencyKey();
       const payload = {
-        token: activeQrToken,
+        token: qrToken || undefined,
         lat: latitude ?? 16.0544,
         lng: longitude ?? 108.2022,
         zalo_location_token: zaloLocationToken || undefined,

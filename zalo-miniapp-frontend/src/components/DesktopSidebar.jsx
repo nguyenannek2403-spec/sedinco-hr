@@ -29,25 +29,57 @@ export default function DesktopSidebar({
   onSelectTab,
   onLogout,
   onClearCache,
+  alertsSummary = {},
   pendingRequestsCount = 0,
   isMobileMenuOpen = false,
   onCloseMobileMenu,
   onOpenMobileMenu
 }) {
-  // Danh sách menu theo đúng 3 Role chuẩn: Admin, Accountant, Worker
+  const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
+  const fraudCount = Number(alertsSummary?.fraud_count) || 0;
+  const devicePendingCount = Number(alertsSummary?.pending_device_count) || 0;
+
+  // Danh sách menu theo đúng 3 Role chuẩn: Admin, Accountant, Worker (V5 đã loại bỏ Kiosk QR)
   const getMenuItems = () => {
     if (activeRole === ROLES.ADMIN) {
       return [
         { id: "matrix", label: "Bảng Công Ma Trận", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
-        { id: "payroll", label: "Bảng Lương Doanh Nghiệp", shortLabel: "Bảng lương", icon: DollarSign },
-        { id: "requests", label: "Phê Duyệt Đơn Từ", shortLabel: "Đơn từ", icon: FileText, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null, badgeColor: "bg-rose-500 text-white" },
-        { id: "kiosk", label: "Màn Hình Kiosk QR", shortLabel: "Mã QR", icon: QrCode },
+        {
+          id: "payroll",
+          label: "Bảng Lương & Khiếu Nại",
+          shortLabel: "Bảng lương",
+          icon: DollarSign,
+          badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
+          badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
+        },
+        {
+          id: "requests",
+          label: "Phê Duyệt Đơn Từ",
+          shortLabel: "Đơn từ",
+          icon: FileText,
+          badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
+          badgeColor: "bg-amber-500 text-slate-950 border-amber-300"
+        },
+        {
+          id: "audit_logs",
+          label: "Giám Sát & Chống Gian Lận",
+          shortLabel: "Giám sát",
+          icon: ShieldCheck,
+          badge: fraudCount > 0 ? `${fraudCount} Báo động` : "V5",
+          badgeColor: fraudCount > 0 ? "bg-rose-600 text-white border-rose-400 animate-pulse" : undefined
+        },
         { id: "management", label: "Quản Lý Nhân Sự", shortLabel: "Nhân sự", icon: Users },
-        { id: "devices", label: "Duyệt Đổi Thiết Bị", shortLabel: "Thiết bị", icon: Smartphone },
+        {
+          id: "devices",
+          label: "Duyệt Đổi Thiết Bị",
+          shortLabel: "Thiết bị",
+          icon: Smartphone,
+          badge: devicePendingCount > 0 ? `${devicePendingCount}` : null,
+          badgeColor: "bg-rose-500 text-white"
+        },
+        { id: "company", label: "Trung Tâm Cấu Hình Động", shortLabel: "Cấu hình", icon: Building },
         { id: "permissions", label: "Phân Quyền Kế Toán", shortLabel: "Phân quyền", icon: ShieldCheck, badge: "RBAC" },
-        { id: "company", label: "Cấu Hình Vị Trí & Trụ Sở", shortLabel: "Trụ sở", icon: Building },
         { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", shortLabel: "Nghỉ lễ", icon: Gift },
-        { id: "audit_logs", label: "Nhật Ký Thao Tác", shortLabel: "Nhật ký", icon: ShieldCheck },
         { id: "profile", label: "Hồ Sơ Quản Trị", shortLabel: "Hồ sơ", icon: User }
       ];
     }
@@ -55,15 +87,29 @@ export default function DesktopSidebar({
     if (activeRole === ROLES.ACCOUNTANT) {
       return [
         { id: "matrix", label: "Bảng Công (Chốt Sổ)", shortLabel: "Bảng công", icon: Calendar, badge: "Chấm công" },
-        { id: "payroll", label: "Bảng Lương Doanh Nghiệp", shortLabel: "Bảng lương", icon: DollarSign },
-        { id: "requests", label: "Xử Lý Đơn Từ", shortLabel: "Đơn từ", icon: FileText, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null, badgeColor: "bg-rose-500 text-white" },
+        {
+          id: "payroll",
+          label: "Bảng Lương & Khiếu Nại",
+          shortLabel: "Bảng lương",
+          icon: DollarSign,
+          badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
+          badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
+        },
+        {
+          id: "requests",
+          label: "Xử Lý Đơn Từ",
+          shortLabel: "Đơn từ",
+          icon: FileText,
+          badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
+          badgeColor: "bg-rose-500 text-white"
+        },
         { id: "profile", label: "Hồ Sơ Kế Toán", shortLabel: "Hồ sơ", icon: User }
       ];
     }
 
     // Role Công Nhân / Nhân Viên (Worker / Employee)
     return [
-      { id: "checkin", label: "Điểm Danh 1 Chạm", shortLabel: "Chấm công", icon: Clock, badge: "GPS Token" },
+      { id: "checkin", label: "Điểm Danh 1 Chạm", shortLabel: "Chấm công", icon: Clock, badge: "1 Chạm" },
       { id: "history", label: "Bảng Công Tháng (31 Ngày)", shortLabel: "Lịch sử", icon: Calendar },
       { id: "requests", label: "Đơn Từ Của Tôi", shortLabel: "Đơn từ", icon: FileText },
       { id: "payroll", label: "Phiếu Lương Điện Tử", shortLabel: "Phiếu lương", icon: DollarSign },

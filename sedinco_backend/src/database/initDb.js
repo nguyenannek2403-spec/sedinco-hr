@@ -343,8 +343,28 @@ async function initDatabase() {
 
         await query("ALTER TABLE attendance_logs ADD COLUMN location_source VARCHAR(20) DEFAULT 'raw'").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN is_low_trust TINYINT(1) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN late_minutes INT DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN early_leave_minutes INT DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN work_hours DECIMAL(5,2) DEFAULT 0").catch(() => {});
 
-        console.log('✅ Khởi tạo cấu trúc Database (14 bảng quan hệ + Multi-Factor Anti-Fraud RBAC + Kiosk QR + Shared Rate Limit) thành công!');
+        // V5 Schema Additions: Employees, Audit Logs, Company Settings, Monthly Attendance/Payroll Confirmation
+        await query("ALTER TABLE employees ADD COLUMN keep_logs TINYINT(1) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE audit_logs ADD COLUMN is_pinned TINYINT(1) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN standard_work_days DECIMAL(5,2) DEFAULT 26").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN probation_salary_percent DECIMAL(5,2) DEFAULT 85").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN ot_rate_weekday DECIMAL(4,2) DEFAULT 1.5").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN ot_rate_weekend DECIMAL(4,2) DEFAULT 2.0").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN ot_rate_holiday DECIMAL(4,2) DEFAULT 3.0").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN custom_ot_hourly_rate DECIMAL(15,2) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN insurance_rate DECIMAL(5,2) DEFAULT 10.5").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN log_retention_days INT DEFAULT 30").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN salary_confirm_status VARCHAR(20) DEFAULT 'PENDING'").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN dispute_reason TEXT NULL").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN dispute_evidence_media MEDIUMTEXT NULL").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN admin_response TEXT NULL").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN confirmed_at DATETIME NULL").catch(() => {});
+
+        console.log('✅ Khởi tạo cấu trúc Database (14 bảng quan hệ + V5 Enterprise Schema) thành công!');
     } catch (err) {
         console.error('❌ Lỗi khởi tạo cấu trúc Database:', err.message);
     }

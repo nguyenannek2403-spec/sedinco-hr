@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from "react";
+import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import DesktopSidebar from "../../components/DesktopSidebar";
 import DesktopHeader from "../../components/DesktopHeader";
 import RequestsManagementTab from "./RequestsManagementTab";
@@ -8,6 +8,7 @@ import HolidaysTab from "./HolidaysTab";
 import AuditLogsTab from "./AuditLogsTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
 import { getDefaultTabForRole } from "../../constants/roles";
+import { safeGet } from "../../utils/api";
 import { RefreshCw } from "lucide-react";
 
 // Lazy-load các phân hệ quản trị
@@ -15,7 +16,6 @@ const AttendanceMatrixTable = lazy(() => import("../../components/AttendanceMatr
 const PayrollGridTable = lazy(() => import("../../components/PayrollGridTable"));
 const AccountantPermissionView = lazy(() => import("../../components/AccountantPermissionView"));
 const AdminDeviceApproval = lazy(() => import("../../components/AdminDeviceApproval"));
-const KioskDisplayView = lazy(() => import("../../components/KioskDisplayView"));
 
 export default function DesktopDashboard({
   currentUser,
@@ -33,6 +33,28 @@ export default function DesktopDashboard({
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [alertsSummary, setAlertsSummary] = useState({
+    fraud_count: 0,
+    fraud_alerts: [],
+    disputed_salary_count: 0,
+    salary_disputes: [],
+    pending_device_count: 0,
+    pending_requests_count: 0,
+    total_red_alerts: 0
+  });
+
+  const fetchAlertsSummary = useCallback(async () => {
+    try {
+      const res = await safeGet("/notifications/summary");
+      if (res?.success && res.data) {
+        setAlertsSummary(res.data);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchAlertsSummary();
+  }, [fetchAlertsSummary, refreshTick, currentTab]);
 
   const handleMonthChange = (m, y) => {
     if (m) setSelectedMonth(Number(m));
@@ -53,6 +75,8 @@ export default function DesktopDashboard({
         onRoleSwitch={onRoleSwitch}
         currentUser={currentUser}
         onLogout={onLogout}
+        alertsSummary={alertsSummary}
+        pendingRequestsCount={alertsSummary.pending_requests_count || 0}
         isMobileMenuOpen={isMobileMenuOpen}
         onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
         onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
@@ -73,8 +97,12 @@ export default function DesktopDashboard({
           setSelectedMonth={setSelectedMonth}
           selectedYear={selectedYear}
           setSelectedYear={setSelectedYear}
+          alertsSummary={alertsSummary}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-          onRefresh={() => setRefreshTick((t) => t + 1)}
+          onRefresh={() => {
+            setRefreshTick((t) => t + 1);
+            fetchAlertsSummary();
+          }}
         />
 
         {/* Tab Content with Suspense Loading */}
@@ -154,10 +182,12 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 7. Nhật Ký Kiểm Toán Hệ Thống */}
+            {/* 7. Nhật Ký Kiểm Toán & Giám Sát Nhân Viên (V5) */}
             {currentTab === "audit_logs" && (
               <AuditLogsTab
                 currentUser={currentUser}
+                showToast={showToast}
+                onRefreshAlerts={fetchAlertsSummary}
               />
             )}
 
@@ -177,14 +207,7 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 10. Màn Hình Kiosk QR Động */}
-            {currentTab === "kiosk" && (
-              <KioskDisplayView
-                currentUser={currentUser}
-              />
-            )}
-
-            {/* 11. Hồ Sơ Cá Nhân & Phiếu Lương */}
+            {/* 10. Hồ Sơ Cá Nhân & Phiếu Lương */}
             {currentTab === "profile" && (
               <div className="max-w-lg mx-auto">
                 <WorkerProfileTab

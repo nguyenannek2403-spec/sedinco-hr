@@ -110,6 +110,45 @@ class PayrollController {
             next(err);
         }
     }
+
+    async confirmOrDisputeSalary(req, res, next) {
+        try {
+            const ma_nv = req.user ? req.user.ma_nv : req.body.ma_nv;
+            if (!ma_nv) {
+                return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
+            }
+            const { month, year, status, dispute_reason, dispute_evidence_media } = req.body;
+            const result = await payrollService.confirmOrDisputeSalary({
+                ma_nv,
+                month,
+                year,
+                status,
+                dispute_reason,
+                dispute_evidence_media,
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async resolveSalaryDispute(req, res, next) {
+        try {
+            const { ma_nv, month, year, admin_response, new_status } = req.body;
+            const result = await payrollService.resolveSalaryDispute({
+                ma_nv,
+                month,
+                year,
+                admin_response,
+                new_status,
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 module.exports = new PayrollController();

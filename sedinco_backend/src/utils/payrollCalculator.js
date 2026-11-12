@@ -13,11 +13,22 @@ function calculateEmployeeSalary({
     holidays = [],
     allowances = {},
     has_insurance = true,
-    otRegistrations = null
+    otRegistrations = null,
+    companySettings = {}
 }) {
     const luongCb = Number(luong_cb) || 0;
-    const congChuan = Number(cong_chuan) || 26;
-    const luong1Gio = (luongCb / congChuan) / 8;
+    const congChuan = Number(companySettings.standard_work_days) || Number(cong_chuan) || 26;
+    const probationPercent = Number(companySettings.probation_salary_percent) || 85;
+    const probationRatio = probationPercent / 100;
+    const otWeekday = Number(companySettings.ot_rate_weekday) || 1.5;
+    const otWeekend = Number(companySettings.ot_rate_weekend) || 2.0;
+    const otHoliday = Number(companySettings.ot_rate_holiday) || 3.0;
+    const customOtHourly = Number(companySettings.custom_ot_hourly_rate) || 0;
+    const insuranceRatePercent = companySettings.insurance_rate !== undefined && companySettings.insurance_rate !== null
+        ? Number(companySettings.insurance_rate)
+        : 10.5;
+    const insuranceRatio = insuranceRatePercent / 100;
+    const luong1Gio = customOtHourly > 0 ? customOtHourly : ((luongCb / congChuan) / 8);
 
     let warning = null;
     const isProbationProfile = (status === 'probation' || String(chuc_danh).toLowerCase().includes('thử việc'));
@@ -31,10 +42,15 @@ function calculateEmployeeSalary({
     let congThuViec = 0;
     let congChinhThuc = 0;
     let tienOt = 0;
+    let totalLateMinutes = 0;
 
     logs.forEach(log => {
         const logDate = new Date(log.record_date);
         logDate.setHours(0, 0, 0, 0);
+
+        if (Number(log.late_minutes) > 0) {
+            totalLateMinutes += Number(log.late_minutes);
+        }
 
         const isSunday = (log.dow === 1);
         let isHoliday = false;
@@ -59,17 +75,19 @@ function calculateEmployeeSalary({
             if (log.status === '1/OT') {
                 if (isProbation) congThuViec += 1; else congChinhThuc += 1;
             }
-            let heSo = isHoliday ? 3.0 : (isSunday ? 2.0 : 1.5);
+            let heSo = isHoliday ? otHoliday : (isSunday ? otWeekend : otWeekday);
             let soGioOT = Number(log.ot_hours) > 0 ? Number(log.ot_hours) : ((isHoliday || isSunday) ? 8 : 4);
 
-            // Kiểm soát OT duyệt trước (Anti-OT Fraud): Chỉ tính giờ OT khi có đơn duyệt trước
-            if (Array.isArray(otRegistrations)) {
+            // Kiểm soát OT duyệt trước (Anti-OT Fraud): Nếu có đơn duyệt trước hoặc giờ OT đã ghi nhận trực tiếp từ Check-out
+            if (Array.isArray(otRegistrations) && otRegistrations.length > 0) {
                 const reg = otRegistrations.find(r => {
                     const rDate = new Date(r.work_date);
                     rDate.setHours(0, 0, 0, 0);
                     return rDate.getTime() === logDate.getTime() && r.status === 'approved';
                 });
-                soGioOT = reg ? Math.min(soGioOT, Number(reg.expected_hours)) : 0;
+                if (reg) {
+                    soGioOT = Math.min(soGioOT, Number(reg.expected_hours));
+                }
             }
 
             tienOt += (luong1Gio * soGioOT * heSo);
@@ -84,7 +102,7 @@ function calculateEmployeeSalary({
                              (Number(allowances.tiep_khach) || 0);
 
     const actualWorkDays = congThuViec + congChinhThuc;
-    const effectiveDays = (congThuViec * 0.85) + congChinhThuc;
+    const effectiveDays = (congThuViec * probationRatio) + congChinhThuc;
     const salaryByWork = (luongCb / congChuan) * effectiveDays;
     const allowanceByWork = (tongPhuCapCoDinh / congChuan) * actualWorkDays;
 
@@ -107,17 +125,20 @@ function calculateEmployeeSalary({
         baoHiem = 0;
         netSalary = 0;
     } else {
-        baoHiem = (has_insurance !== false && has_insurance !== 0) ? (luongCb * 0.105) : 0;
+        baoHiem = (has_insurance !== false && has_insurance !== 0) ? (luongCb * insuranceRatio) : 0;
         netSalary = Math.max(0, Math.round(grossSalary - baoHiem));
     }
 
     return {
         baseSalary: luongCb,
+        standardWorkDays: congChuan,
+        insuranceRatePercent,
         congThuViec,
         congChinhThuc,
         totalWorkDays: actualWorkDays,
         actualWorkDays,
         effectiveDays,
+        totalLateMinutes,
         salaryByWork: Math.round(salaryByWork),
         totalAllowance: Math.round(allowanceByWork),
         allowances_breakdown,

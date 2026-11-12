@@ -287,6 +287,12 @@ class AuthService {
 
         const results = await query('SELECT * FROM employees WHERE ma_nv = ?', [ma_nv]);
         if (!results || results.length === 0) {
+            // V5 Unified Auto-Routing Login: Tự động kiểm tra bảng admins nếu không tìm thấy trong bảng employees
+            const adminRows = await query('SELECT username FROM admins WHERE LOWER(username) = LOWER(?) LIMIT 1', [String(ma_nv).trim()]);
+            if (adminRows && adminRows.length > 0) {
+                return await this.adminLogin(adminRows[0].username, password, ip_address);
+            }
+
             // Ghi nhận thất bại vào rate limiter MySQL
             await recordFailedAttemptDb(compositeKey, 'composite', `${ma_nv}:${normalizedIp}`, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
             await recordFailedAttemptDb(acctKey, 'account', ma_nv, ACCOUNT_GLOBAL_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);

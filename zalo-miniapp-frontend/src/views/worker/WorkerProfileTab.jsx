@@ -204,6 +204,11 @@ export default function WorkerProfileTab({
           payrollItem={payrollData}
           month={slipMonth}
           year={slipYear}
+          currentUser={currentUser}
+          showToast={showToast}
+          onStatusUpdated={(newStatus) => {
+            setPayrollData((prev) => (prev ? { ...prev, salary_confirm_status: newStatus } : prev));
+          }}
           onClose={() => setIsSalaryModalOpen(false)}
         />
       )}

@@ -7,9 +7,11 @@ const {
     requirePermission 
 } = require('../middlewares/authMiddleware');
 
-// 1. Xem bảng lương cá nhân (Công nhân, Kế toán, Admin đều xem được của chính mình)
+// 1. Xem bảng lương cá nhân & Xác nhận / Khiếu nại sai lương (V5)
 router.get('/me', authenticateToken, requireAuth, (req, res, next) => payrollController.getMyPayroll(req, res, next));
 router.get('/my-payslip', authenticateToken, requireAuth, (req, res, next) => payrollController.getMyPayroll(req, res, next));
+router.post('/confirm', authenticateToken, requireAuth, (req, res, next) => payrollController.confirmOrDisputeSalary(req, res, next));
+router.post('/resolve-dispute', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => payrollController.resolveSalaryDispute(req, res, next));
 
 // 2. Xem bảng lương toàn công ty (Yêu cầu permission: payroll_view_all)
 router.get('/', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => payrollController.getPayroll(req, res, next));
