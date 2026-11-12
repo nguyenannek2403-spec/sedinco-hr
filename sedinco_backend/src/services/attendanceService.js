@@ -1,7 +1,7 @@
 const { query, withTransaction } = require('../config/db');
 const { logAuditEvent, getAccountantPermissions } = require('../middlewares/authMiddleware');
 const { calculateDistanceMeters } = require('../utils/geoHelper');
-const { generateDynamicQrToken, verifyDynamicQrToken } = require('../utils/dynamicQrHelper');
+const { parseAllowedLocations, normalizeIp } = require('./companyService');
 
 class AttendanceService {
     async getAttendanceMatrix(month, year) {
@@ -37,10 +37,63 @@ class AttendanceService {
         const y = parseInt(year, 10) || new Date().getFullYear();
 
         const logs = await query(
-            'SELECT record_date, status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours, is_suspicious, suspicious_reason FROM attendance_logs WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ? ORDER BY record_date ASC',
+            `SELECT record_date, status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours,
+                    is_suspicious, suspicious_reason, location_name, field_note, work_location_type
+             FROM attendance_logs
+             WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
+             ORDER BY record_date ASC`,
             [ma_nv, m, y]
         );
-        return logs || [];
+
+        // Phát hiện ngày làm việc gần nhất trước hôm nay bị Quên Bấm Giờ Ra (check_in_time IS NOT NULL AND check_out_time IS NULL)
+        const { getVietnamDateString } = require('../utils/timeHelper');
+        const todayStr = getVietnamDateString(new Date());
+        const forgottenCheckoutRows = await query(
+            `SELECT DATE_FORMAT(record_date, '%Y-%m-%d') as iso_date,
+                    DATE_FORMAT(record_date, '%d/%m') as short_date,
+                    check_in_time
+             FROM attendance_logs
+             WHERE employee_id = ?
+               AND record_date < ?
+               AND check_in_time IS NOT NULL
+               AND (check_out_time IS NULL OR check_out_time = '')
+             ORDER BY record_date DESC
+             LIMIT 1`,
+            [ma_nv, todayStr]
+        );
+
+        const forgottenCheckout = forgottenCheckoutRows && forgottenCheckoutRows.length > 0
+            ? forgottenCheckoutRows[0]
+            : null;
+
+        // Tổng hợp summary cho giao diện Heatmap tháng
+        let total_work_days = 0;
+        let total_ot_hours = 0;
+        let total_leave_days = 0;
+        (logs || []).forEach((l) => {
+            const st = String(l.status || '');
+            if (st === '1' || st === '1/OT') total_work_days += 1;
+            else if (st === '0.5') total_work_days += 0.5;
+            else if (st === 'P') {
+                total_work_days += 1;
+                total_leave_days += 1;
+            } else if (st === 'L') {
+                total_work_days += 1;
+            }
+            total_ot_hours += Number(l.ot_hours) || 0;
+        });
+
+        return {
+            logs: logs || [],
+            days: logs || [],
+            forgotten_checkout: forgottenCheckout,
+            summary: {
+                total_work_days: Number(total_work_days.toFixed(1)),
+                total_ot_hours: Number(total_ot_hours.toFixed(1)),
+                total_leave_days,
+                standard_days: 26
+            }
+        };
     }
 
     async isPeriodLocked(month, year) {
@@ -335,50 +388,10 @@ class AttendanceService {
         return true;
     }
 
-    async generateDynamicQr(branchId = 1, current_user = null) {
-        if (process.env.ALLOW_LEGACY_ADMIN_QR === 'false') {
-            const error = new Error('Endpoint tạo QR cũ đã bị vô hiệu hóa! Vui lòng dùng Kiosk.');
-            error.statusCode = 403;
-            throw error;
-        }
-
-        const qrData = generateDynamicQrToken(branchId, 30);
-
-        if (process.env.ALLOW_LEGACY_ADMIN_QR === 'preview') {
-            return {
-                is_preview: true,
-                preview_only: true,
-                warning: 'Chế độ xem trước: Mã QR này chỉ để kiểm tra hiển thị, không thể dùng chấm công.',
-                token: qrData.token,
-                qr_token: qrData.token,
-                branchId: qrData.branchId,
-                expiresAt: qrData.expiresAt.toISOString(),
-                ttlSeconds: qrData.ttlSeconds
-            };
-        }
-
-        const sql = `
-            INSERT INTO dynamic_qr_sessions (session_token, branch_id, expires_at)
-            VALUES (?, ?, ?)
-        `;
-        await query(sql, [qrData.token, qrData.branchId, qrData.expiresAt]);
-
-        if (current_user) {
-            await logAuditEvent({
-                actor_id: current_user.username || current_user.ma_nv || 'system',
-                actor_role: current_user.role || 'admin',
-                action: 'GENERATE_DYNAMIC_QR',
-                resource: 'attendance',
-                details: { branchId: qrData.branchId, expiresAt: qrData.expiresAt }
-            });
-        }
-
-        return {
-            token: qrData.token,
-            branchId: qrData.branchId,
-            expiresAt: qrData.expiresAt.toISOString(),
-            ttlSeconds: qrData.ttlSeconds
-        };
+    async generateDynamicQr() {
+        const error = new Error('Tính năng Kiosk QR đã được loại bỏ ở phiên bản V6. Vui lòng dùng Chấm công 1 chạm!');
+        error.statusCode = 410;
+        throw error;
     }
 
     parseTimeToMinutes(timeStr, defaultMins = 480) {
@@ -390,7 +403,7 @@ class AttendanceService {
         return defaultMins;
     }
 
-    async checkInMultiFactor({ token, lat, lng, zalo_location_token, image_snapshot, device_info, is_fake_gps = false, is_fake_device = false, gps_accuracy = null, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
+    async checkInMultiFactor({ lat, lng, zalo_location_token, image_snapshot, device_info, is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
             error.statusCode = 401;
@@ -604,29 +617,74 @@ class AttendanceService {
             }
         }
 
-        // 4. Nếu có truyền token QR Kiosk thì xác thực tùy chọn, còn Chấm công 1 chạm (V5) KHÔNG bắt buộc QR
-        let usedQrToken = false;
-        if (token && String(token).trim().length > 0) {
-            const verifyRes = verifyDynamicQrToken(token, 60);
-            if (verifyRes.valid) {
-                const sessions = await query('SELECT * FROM dynamic_qr_sessions WHERE session_token = ? LIMIT 1', [token]);
-                if (sessions && sessions.length > 0 && !sessions[0].is_used && new Date() <= new Date(sessions[0].expires_at)) {
-                    usedQrToken = true;
-                }
+        // 4. Đọc Cấu hình Công ty (V6): Đa chi nhánh (allowed_locations) + IP Wi-Fi Nội bộ + Chế độ Đi Công Trình
+        const companySettingsRows = await query('SELECT * FROM company_settings LIMIT 1');
+        const cs = (companySettingsRows && companySettingsRows[0]) ? companySettingsRows[0] : {};
+        const allowedLocations = parseAllowedLocations(
+            cs.allowed_locations,
+            cs.latitude,
+            cs.longitude,
+            cs.radius_meters
+        );
+
+        const cleanClientIp = normalizeIp(ip_address);
+        const ipWhitelist = String(cs.office_ip_whitelist || '')
+            .split(',')
+            .map(s => normalizeIp(s))
+            .filter(Boolean);
+        const matchedWifiIp = Boolean(cleanClientIp && ipWhitelist.includes(cleanClientIp));
+
+        // Tìm địa điểm gần nhất trong allowed_locations
+        let matchedLocation = null;
+        let nearestLocation = allowedLocations[0] || { name: 'Trụ sở chính Đà Nẵng', lat: 16.0544, lng: 108.2022, radius: 500 };
+        let minDistanceMeters = Infinity;
+
+        for (const loc of allowedLocations) {
+            const dist = calculateDistanceMeters(numLat, numLng, Number(loc.lat), Number(loc.lng));
+            if (dist < minDistanceMeters) {
+                minDistanceMeters = dist;
+                nearestLocation = loc;
+            }
+            if (dist <= (Number(loc.radius) || 500) && !matchedLocation) {
+                matchedLocation = loc;
             }
         }
 
-        // 5. Đọc Cấu hình Công ty (V5): Tọa độ Geofence + Khung giờ làm việc động
-        const companySettingsRows = await query('SELECT * FROM company_settings LIMIT 1');
-        const cs = (companySettingsRows && companySettingsRows[0]) ? companySettingsRows[0] : {};
-        const companyLat = cs.latitude !== null && cs.latitude !== undefined ? Number(cs.latitude) : 16.0544;
-        const companyLng = cs.longitude !== null && cs.longitude !== undefined ? Number(cs.longitude) : 108.2022;
-        const allowedRadius = cs.radius_meters !== null && cs.radius_meters !== undefined ? Number(cs.radius_meters) : 5000;
+        const distanceMeters = Math.round(minDistanceMeters);
+        const isFieldWork = String(work_location_type || '').toUpperCase() === 'FIELD_WORK';
+        let finalLocationType = 'OFFICE';
+        let locationName = nearestLocation.name || 'Trụ sở chính';
+        let cleanFieldNote = field_note ? String(field_note).trim().slice(0, 400) : '';
 
-        const distanceMeters = calculateDistanceMeters(numLat, numLng, companyLat, companyLng);
-        if (distanceMeters > allowedRadius) {
-            const error = new Error(`Vị trí chấm công không hợp lệ: Bạn đang cách trụ sở công ty ${distanceMeters}m (Bán kính cho phép tối đa ${allowedRadius}m)!`);
+        if (matchedLocation) {
+            finalLocationType = 'OFFICE';
+            locationName = matchedLocation.name;
+        } else if (matchedWifiIp) {
+            finalLocationType = 'WIFI_OFFICE';
+            locationName = `Wi-Fi Nội bộ (${cleanClientIp})`;
+        } else if (isFieldWork) {
+            // Chế độ Đi Công Trình / Thị Trường: Bắt buộc có ảnh chụp hiện trường thật và ghi chú công trình
+            const dummyTinyWebp = 'data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==';
+            if (!image_snapshot || image_snapshot === dummyTinyWebp || image_snapshot.length < 200) {
+                const error = new Error('Chế độ Đi Công Trình yêu cầu BẮT BUỘC phải chụp ảnh hiện trường thực tế tại công trình/khách hàng!');
+                error.statusCode = 400;
+                throw error;
+            }
+            if (!cleanFieldNote || cleanFieldNote.length < 5) {
+                const error = new Error('Vui lòng nhập ghi chú tên công trình hoặc khách hàng (tối thiểu 5 ký tự)!');
+                error.statusCode = 400;
+                throw error;
+            }
+            finalLocationType = 'FIELD_WORK';
+            locationName = `Công trình: ${cleanFieldNote.slice(0, 80)}`;
+        } else {
+            const error = new Error(
+                `Bạn đang ngoài phạm vi các điểm chấm công (Cách ${nearestLocation.name} ${distanceMeters}m, cho phép ${nearestLocation.radius}m). Nếu bạn đang đi thị trường/công trình, hãy chọn nút "Đi Công Trình / Thị Trường"!`
+            );
             error.statusCode = 400;
+            error.code = 'OUT_OF_GEOFENCE';
+            error.nearest_location = nearestLocation.name;
+            error.distance_meters = distanceMeters;
             throw error;
         }
 
@@ -715,16 +773,13 @@ class AttendanceService {
             detailedMessage = `Đã ghi nhận Giờ ra: ${shortTime} (${shiftEvaluation})`;
         }
 
-        const checkInMethod = usedQrToken ? 'dynamic_qr' : 'one_touch_gps';
+        const checkInMethod = finalLocationType === 'FIELD_WORK'
+            ? 'field_checkin'
+            : finalLocationType === 'WIFI_OFFICE'
+            ? 'wifi_office'
+            : 'one_touch_gps';
 
         await withTransaction(async (txQuery) => {
-            if (usedQrToken) {
-                await txQuery(
-                    'UPDATE dynamic_qr_sessions SET is_used = 1, used_by = ?, used_at = NOW() WHERE session_token = ? AND is_used = 0',
-                    [ma_nv, token]
-                );
-            }
-
             if (faultInjectionHook && process.env.NODE_ENV === 'test') {
                 await faultInjectionHook(txQuery);
             }
@@ -735,8 +790,9 @@ class AttendanceService {
                         employee_id, record_date, status, ot_hours, check_in_time,
                         check_in_lat, check_in_lng, check_in_method, check_in_image,
                         is_suspicious, suspicious_reason, device_fingerprint,
-                        location_source, is_low_trust, late_minutes, early_leave_minutes, work_hours
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+                        location_source, is_low_trust, late_minutes, early_leave_minutes, work_hours,
+                        location_name, field_note, work_location_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE
                         status = VALUES(status),
                         check_in_time = COALESCE(check_in_time, VALUES(check_in_time)),
@@ -747,7 +803,10 @@ class AttendanceService {
                         suspicious_reason = COALESCE(VALUES(suspicious_reason), suspicious_reason),
                         device_fingerprint = COALESCE(VALUES(device_fingerprint), device_fingerprint),
                         location_source = COALESCE(VALUES(location_source), location_source),
-                        late_minutes = VALUES(late_minutes)
+                        late_minutes = VALUES(late_minutes),
+                        location_name = VALUES(location_name),
+                        field_note = COALESCE(VALUES(field_note), field_note),
+                        work_location_type = VALUES(work_location_type)
                 `;
                 await txQuery(insertSql, [
                     ma_nv,
@@ -764,7 +823,10 @@ class AttendanceService {
                     deviceStr,
                     location_source,
                     is_low_trust,
-                    late_minutes
+                    late_minutes,
+                    locationName,
+                    cleanFieldNote || null,
+                    finalLocationType
                 ]);
             } else {
                 const updateOutSql = `
@@ -774,6 +836,9 @@ class AttendanceService {
                         ot_hours = ?,
                         early_leave_minutes = ?,
                         work_hours = ?,
+                        location_name = COALESCE(?, location_name),
+                        field_note = COALESCE(?, field_note),
+                        work_location_type = COALESCE(?, work_location_type),
                         check_in_image = COALESCE(?, check_in_image),
                         is_suspicious = CASE WHEN ? = 1 THEN 1 ELSE is_suspicious END,
                         suspicious_reason = COALESCE(?, suspicious_reason),
@@ -786,6 +851,9 @@ class AttendanceService {
                     ot_hours,
                     early_leave_minutes,
                     work_hours,
+                    locationName,
+                    cleanFieldNote || null,
+                    finalLocationType,
                     image_snapshot || null,
                     is_suspicious ? 1 : 0,
                     suspicious_reason || null,
@@ -803,6 +871,9 @@ class AttendanceService {
             resource: 'attendance',
             details: {
                 check_type: checkType,
+                location_name: locationName,
+                work_location_type: finalLocationType,
+                field_note: cleanFieldNote || null,
                 date: dateStr,
                 time: timeStr,
                 late_minutes,
@@ -827,6 +898,9 @@ class AttendanceService {
                 employee_id: ma_nv,
                 record_date: dateStr,
                 check_type: checkType,
+                location_name: locationName,
+                work_location_type: finalLocationType,
+                field_note: cleanFieldNote || null,
                 check_in_time: isCheckOut ? existingLog.check_in_time : timeStr,
                 check_out_time: isCheckOut ? timeStr : null,
                 server_time: timeStr,
@@ -869,26 +943,31 @@ class AttendanceService {
     }
 
     async getAttendanceStats(dateStr = null) {
-        const targetDate = dateStr || new Date().toISOString().slice(0, 10);
+        const { getVietnamDateString } = require('../utils/timeHelper');
+        const targetDate = dateStr || getVietnamDateString(new Date());
         const [totalEmpRow] = await query('SELECT COUNT(*) as total FROM employees WHERE status != "inactive"');
         const totalEmployees = totalEmpRow ? Number(totalEmpRow.total) : 0;
 
         const logs = await query(
-            'SELECT status, check_in_time FROM attendance_logs WHERE record_date = ?',
+            'SELECT status, check_in_time, late_minutes, work_location_type FROM attendance_logs WHERE record_date = ?',
             [targetDate]
         );
 
         let present = 0;
         let late = 0;
         let leave = 0;
+        let fieldWork = 0;
 
         (logs || []).forEach(l => {
             if (l.status === 'P') {
                 leave++;
             } else if (l.status !== '0') {
                 present++;
-                if (l.check_in_time && l.check_in_time > '08:15:00') {
+                if ((Number(l.late_minutes) || 0) > 0 || (l.check_in_time && l.check_in_time > '08:15:00')) {
                     late++;
+                }
+                if (l.work_location_type === 'FIELD_WORK') {
+                    fieldWork++;
                 }
             }
         });
@@ -900,6 +979,7 @@ class AttendanceService {
             totalEmployees,
             present,
             late,
+            fieldWork,
             leave,
             absent: Math.max(0, totalEmployees - present - leave),
             attendanceRate

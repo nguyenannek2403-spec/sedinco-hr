@@ -18,7 +18,9 @@ export default function HomePage() {
     setMustChangePassword,
     isLoggingIn,
     loginError,
+    linkedZaloMeta,
     login,
+    loginWithZaloOneTouch,
     logout,
     clearCache
   } = useAuth();
@@ -70,6 +72,13 @@ export default function HomePage() {
       {!currentUser ? (
         <AuthView
           onLogin={handleLoginSubmit}
+          onZaloOneTouchLogin={async () => {
+            const user = await loginWithZaloOneTouch(false);
+            if (user) {
+              showToast(`Đăng nhập nhanh 1 chạm thành công: ${user.ho_ten || user.ma_nv}!`, "success");
+            }
+          }}
+          linkedZaloMeta={linkedZaloMeta}
           isLoggingIn={isLoggingIn}
           loginError={loginError}
           onClearCache={clearCache}

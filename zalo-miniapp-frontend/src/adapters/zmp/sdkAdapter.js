@@ -6,6 +6,7 @@ import { realSdkAdapter } from "./realSdkAdapter";
  */
 export const zmpAdapter = {
   isMock: false,
+  getUserInfo: (...args) => realSdkAdapter.getUserInfo(...args),
   getAccessToken: (...args) => realSdkAdapter.getAccessToken(...args),
   getLocation: (...args) => realSdkAdapter.getLocation(...args),
   openBioAuthentication: (...args) => realSdkAdapter.openBioAuthentication(...args),

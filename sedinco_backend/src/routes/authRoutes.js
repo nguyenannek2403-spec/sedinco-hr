@@ -5,6 +5,8 @@ const { authenticateToken, requireAuth } = require('../middlewares/authMiddlewar
 
 // Public & Protected registration
 router.post('/login', (req, res, next) => authController.login(req, res, next));
+router.post('/auth/zalo-auto-login', (req, res, next) => authController.zaloAutoLogin(req, res, next));
+router.post('/zalo-auto-login', (req, res, next) => authController.zaloAutoLogin(req, res, next));
 router.post('/admin/login', (req, res, next) => authController.adminLogin(req, res, next));
 router.post('/admin/register', authenticateToken, (req, res, next) => authController.adminRegister(req, res, next));
 

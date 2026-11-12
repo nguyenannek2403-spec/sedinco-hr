@@ -105,6 +105,27 @@ export default function DesktopDashboard({
           }}
         />
 
+        {/* THANH TÓM TẮT QUÂN SỐ THỜI GIAN THỰC TRONG NGÀY (KPI V6 CHO ADMIN & KẾ TOÁN) */}
+        {alertsSummary?.headcount_today && (
+          <div className="bg-slate-900/95 border-b border-slate-800 px-3 sm:px-6 py-2 flex items-center gap-2 overflow-x-auto touch-scroll-x shrink-0 text-[11px] font-bold">
+            <span className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 shrink-0">
+              👥 Quân số: <strong className="text-white">{alertsSummary.headcount_today.total_employees}</strong>
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 shrink-0">
+              🟢 Có mặt: <strong>{alertsSummary.headcount_today.present}</strong>
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-300 shrink-0">
+              🟡 Đi muộn: <strong>{alertsSummary.headcount_today.late}</strong>
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-orange-950/70 border border-orange-500/40 text-orange-300 shrink-0">
+              🚧 Công trình: <strong>{alertsSummary.headcount_today.field_work}</strong>
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-purple-950/70 border border-purple-500/40 text-purple-300 shrink-0">
+              🟣 Nghỉ phép: <strong>{alertsSummary.headcount_today.leave}</strong>
+            </span>
+          </div>
+        )}
+
         {/* Tab Content with Suspense Loading */}
         <main
           className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 bg-slate-900/60"

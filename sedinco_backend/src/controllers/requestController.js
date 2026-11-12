@@ -50,6 +50,19 @@ class RequestController {
         }
     }
 
+    async batchApproveRequests(req, res, next) {
+        try {
+            const { request_ids } = req.body;
+            const result = await requestService.batchApproveRequests({
+                request_ids,
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async cancelRequest(req, res, next) {
         try {
             const reqId = req.params.id;

@@ -1,5 +1,6 @@
 import {
   getAccessToken as zmpGetAccessToken,
+  getUserInfo as zmpGetUserInfo,
   getLocation as zmpGetLocation,
   openBioAuthentication as zmpOpenBioAuthentication,
   checkStateBioAuthentication as zmpCheckStateBioAuthentication,
@@ -15,6 +16,24 @@ import {
  */
 export const realSdkAdapter = {
   isMock: false,
+
+  async getUserInfo() {
+    try {
+      if (typeof zmpGetUserInfo === "function") {
+        const res = await zmpGetUserInfo({ autoRequestPermission: false });
+        if (res?.userInfo?.id) {
+          return {
+            id: String(res.userInfo.id),
+            name: res.userInfo.name || "",
+            avatar: res.userInfo.avatar || ""
+          };
+        }
+      }
+      return null;
+    } catch (err) {
+      return null;
+    }
+  },
 
   async getAccessToken() {
     try {

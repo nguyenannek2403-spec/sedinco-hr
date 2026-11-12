@@ -16,6 +16,7 @@ import { analyzeLeaveRequest, formatDateKey } from "../utils/holidayUtils";
 
 const LEAVE_TYPES = [
   { id: "P", label: "Nghỉ Phép Năm (Hưởng nguyên lương)" },
+  { id: "Bổ sung công / Quên chấm giờ ra", label: "Bổ sung công / Quên chấm giờ ra" },
   { id: "KP", label: "Nghỉ Không Lương (Việc riêng)" },
   { id: "OM", label: "Nghỉ Ốm Đau (Hưởng chế độ BHXH)" },
   { id: "OT", label: "Làm Thêm Giờ (Tăng ca OT)" },
@@ -30,14 +31,18 @@ export default function SmartLeaveRequestModal({
   holidaysList = [],
   existingRequests = [],
   leaveBalance = 12,
+  initialDate = null,
+  initialType = "P",
+  initialReason = "",
   onClose,
   onRequestCreated,
   onRequestSubmitted
 }) {
-  const [requestType, setRequestType] = useState("P");
-  const [startDate, setStartDate] = useState(formatDateKey(new Date()));
-  const [endDate, setEndDate] = useState(formatDateKey(new Date()));
-  const [reason, setReason] = useState("");
+  const defaultDate = initialDate || formatDateKey(new Date());
+  const [requestType, setRequestType] = useState(initialType || "P");
+  const [startDate, setStartDate] = useState(defaultDate);
+  const [endDate, setEndDate] = useState(defaultDate);
+  const [reason, setReason] = useState(initialReason || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 

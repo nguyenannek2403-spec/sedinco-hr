@@ -10,7 +10,7 @@ import {
   AlertCircle,
   UserCheck
 } from "lucide-react";
-import { safeGet, safePut } from "../../utils/api";
+import { safeGet, safePut, safePost } from "../../utils/api";
 
 const getStatusBadge = (status) => {
   const s = String(status).toUpperCase();
@@ -33,6 +33,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [batchApproving, setBatchApproving] = useState(false);
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -88,6 +89,33 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
       alert(err.message || "Lỗi xử lý duyệt đơn.");
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const eligiblePendingIds = requests
+    .filter((r) => String(r.status).toUpperCase() === "PENDING" && r.ma_nv !== currentUser?.ma_nv)
+    .map((r) => r.id);
+
+  const handleBatchApprove = async () => {
+    if (eligiblePendingIds.length === 0) return;
+    if (!window.confirm(`Xác nhận DUYỆT NHANH tất cả ${eligiblePendingIds.length} đơn đang chờ hợp lệ?`)) {
+      return;
+    }
+    setBatchApproving(true);
+    try {
+      const res = await safePost("/requests/batch-approve", {
+        request_ids: eligiblePendingIds
+      });
+      if (res?.success) {
+        if (showToast) showToast(res.message || `Đã duyệt nhanh ${res.approved_count} đơn!`, "success");
+        fetchRequests();
+      } else {
+        if (showToast) showToast(res?.message || "Lỗi duyệt hàng loạt", "error");
+      }
+    } catch (err) {
+      if (showToast) showToast(err.message || "Lỗi duyệt nhanh hàng loạt.", "error");
+    } finally {
+      setBatchApproving(false);
     }
   };
 
@@ -153,6 +181,22 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-blue-400" : ""}`} />
           </button>
+
+          {eligiblePendingIds.length > 0 && (
+            <button
+              type="button"
+              disabled={batchApproving}
+              onClick={handleBatchApprove}
+              className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-lg shadow-emerald-600/25 cursor-pointer disabled:opacity-50"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>
+                {batchApproving
+                  ? "Đang duyệt hàng loạt..."
+                  : `✅ Duyệt nhanh tất cả đơn đang chờ (${eligiblePendingIds.length} đơn)`}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 

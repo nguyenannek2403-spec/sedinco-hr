@@ -8,7 +8,10 @@ import {
   Save,
   RefreshCw,
   RotateCcw,
-  ShieldCheck
+  ShieldCheck,
+  Wifi,
+  Plus,
+  Trash2
 } from "lucide-react";
 import { safeGet, safePut, safePost } from "../../utils/api";
 
@@ -33,12 +36,17 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
     latitude: 16.0544,
     longitude: 108.2022,
     radius_meters: 5000,
-    log_retention_days: 30
+    log_retention_days: 30,
+    allowed_locations: [
+      { id: "loc_hq_1", name: "Trụ sở chính Đà Nẵng", lat: 16.0544, lng: 108.2022, radius: 500 }
+    ],
+    office_ip_whitelist: ""
   });
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [savingWifi, setSavingWifi] = useState(false);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -46,6 +54,9 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
       const compRes = await safeGet("/company");
       if (compRes?.success && compRes.data) {
         const d = compRes.data;
+        const locs = Array.isArray(d.allowed_locations) && d.allowed_locations.length > 0
+          ? d.allowed_locations
+          : [{ id: "loc_hq_1", name: "Trụ sở chính Đà Nẵng", lat: Number(d.latitude ?? 16.0544), lng: Number(d.longitude ?? 108.2022), radius: Number(d.radius_meters ?? 500) }];
         setConfig((prev) => ({
           ...prev,
           ...d,
@@ -65,7 +76,9 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
           custom_ot_hourly_rate: Number(d.custom_ot_hourly_rate ?? 0),
           insurance_rate: Number(d.insurance_rate ?? 10.5),
           radius_meters: Number(d.radius_meters ?? d.geofence_radius ?? 5000),
-          log_retention_days: Number(d.log_retention_days ?? 30)
+          log_retention_days: Number(d.log_retention_days ?? 30),
+          allowed_locations: locs,
+          office_ip_whitelist: d.office_ip_whitelist || ""
         }));
       }
     } catch (e) {
@@ -83,15 +96,19 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
     if (e) e.preventDefault();
     setSaving(true);
     try {
+      const firstLoc = (config.allowed_locations || [])[0] || {};
       const res = await safePut("/company", {
         ...config,
         name: config.company_name,
-        geofence_radius: Number(config.radius_meters)
+        latitude: Number(firstLoc.lat ?? config.latitude),
+        longitude: Number(firstLoc.lng ?? config.longitude),
+        radius_meters: Number(firstLoc.radius ?? config.radius_meters),
+        geofence_radius: Number(firstLoc.radius ?? config.radius_meters)
       });
       if (res?.success) {
         if (showToast) {
           showToast(
-            "Đã lưu toàn bộ Cấu hình Giờ làm việc, Hệ số OT, BHXH & Tọa độ GPS thành công!",
+            "Đã lưu toàn bộ Cấu hình Giờ làm việc, Đa chi nhánh & Wi-Fi Công ty thành công!",
             "success"
           );
         }
@@ -102,6 +119,83 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
       if (showToast) showToast(err.message || "Lỗi lưu cấu hình công ty.", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveCurrentWifiIp = async () => {
+    setSavingWifi(true);
+    try {
+      const res = await safePost("/company/save-wifi-ip", {});
+      if (res?.success) {
+        await fetchSettings();
+        if (showToast) showToast(res.message || "Đã lưu IP Wi-Fi công ty!", "success");
+      } else {
+        if (showToast) showToast(res?.message || "Không thể lưu IP Wi-Fi.", "error");
+      }
+    } catch (err) {
+      if (showToast) showToast(err.message || "Lỗi lưu IP Wi-Fi.", "error");
+    } finally {
+      setSavingWifi(false);
+    }
+  };
+
+  const handleAddLocation = () => {
+    setConfig((prev) => ({
+      ...prev,
+      allowed_locations: [
+        ...(prev.allowed_locations || []),
+        {
+          id: `loc_${Date.now()}`,
+          name: `Chi nhánh / Kho ${(prev.allowed_locations || []).length + 1}`,
+          lat: Number(prev.latitude) || 16.0544,
+          lng: Number(prev.longitude) || 108.2022,
+          radius: 300
+        }
+      ]
+    }));
+  };
+
+  const handleRemoveLocation = (locId) => {
+    setConfig((prev) => {
+      const list = prev.allowed_locations || [];
+      if (list.length <= 1) return prev;
+      return {
+        ...prev,
+        allowed_locations: list.filter((item) => item.id !== locId)
+      };
+    });
+  };
+
+  const handleUpdateLocationField = (locId, field, value) => {
+    setConfig((prev) => ({
+      ...prev,
+      allowed_locations: (prev.allowed_locations || []).map((item) =>
+        item.id === locId ? { ...item, [field]: value } : item
+      )
+    }));
+  };
+
+  const handleUseCurrentGpsForLocation = (locId) => {
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          setConfig((prev) => ({
+            ...prev,
+            allowed_locations: (prev.allowed_locations || []).map((item) =>
+              item.id === locId ? { ...item, lat, lng } : item
+            )
+          }));
+          if (showToast) {
+            showToast("Đã lấy tọa độ GPS tại vị trí hiện tại của bạn! Hãy bấm Lưu Cấu Hình.", "info");
+          }
+        },
+        () => {
+          if (showToast) showToast("Không thể lấy tọa độ từ thiết bị.", "warning");
+        },
+        { enableHighAccuracy: true, timeout: 6000 }
+      );
     }
   };
 
@@ -390,87 +484,156 @@ export default function CompanySettingsTab({ currentUser, showToast }) {
             />
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Địa Chỉ Trụ Sở / Nhà Máy</label>
-            <input
-              type="text"
-              value={config.address}
-              onChange={(e) => setConfig({ ...config, address: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-          <div>
-            <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Vĩ Độ (Latitude)</label>
-            <input
-              type="number"
-              step="any"
-              value={config.latitude}
-              onChange={(e) => setConfig({ ...config, latitude: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Kinh Độ (Longitude)</label>
-            <input
-              type="number"
-              step="any"
-              value={config.longitude}
-              onChange={(e) => setConfig({ ...config, longitude: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Bán Kính (Mét)</label>
-            <input
-              type="number"
-              min={10}
-              max={10000}
-              value={config.radius_meters}
-              onChange={(e) => setConfig({ ...config, radius_meters: Number(e.target.value) })}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono font-bold"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Lưu Nhật Ký (Ngày)</label>
+            <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Lưu Nhật Ký Hệ Thống (Ngày)</label>
             <input
               type="number"
               min={7}
               max={365}
               value={config.log_retention_days}
               onChange={(e) => setConfig({ ...config, log_retention_days: Number(e.target.value) })}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono font-bold"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-bold"
             />
           </div>
         </div>
 
-        <div className="pt-2 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex flex-wrap items-center gap-2">
+        {/* ĐA ĐIỂM CHẤM CÔNG (TRỤ SỞ / SHOWROOM / KHO BÃI) */}
+        <div className="space-y-3 pt-2 border-t border-slate-700/60">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-xs font-black text-blue-300 uppercase">
+                Danh Sách Địa Điểm Chấm Công Hợp Lệ ({(config.allowed_locations || []).length} điểm)
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                Nhân viên đứng trong bán kính của BẤT KỲ điểm nào bên dưới đều được chấm công hợp lệ.
+              </p>
+            </div>
             <button
               type="button"
-              onClick={handleUseCurrentGps}
-              className="min-h-[40px] px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-blue-300 font-bold text-xs rounded-xl border border-slate-600 flex items-center gap-1.5 transition"
+              onClick={handleAddLocation}
+              className="min-h-[38px] px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
             >
-              <Compass className="w-4 h-4 text-blue-400" />
-              <span>Lấy GPS Vị Trí Hiện Tại</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfig((prev) => ({ ...prev, radius_meters: 5000 }))}
-              className="min-h-[40px] px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-bold text-xs rounded-xl border border-emerald-500/30 transition"
-            >
-              Đặt Bán Kính 5000m (Pilot Test)
+              <Plus className="w-4 h-4" />
+              <span>Thêm Chi Nhánh / Kho</span>
             </button>
           </div>
 
+          <div className="space-y-2.5">
+            {(config.allowed_locations || []).map((loc, idx) => (
+              <div
+                key={loc.id || idx}
+                className="bg-slate-900/75 border border-slate-700/80 rounded-2xl p-3.5 space-y-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <input
+                    type="text"
+                    value={loc.name}
+                    onChange={(e) => handleUpdateLocationField(loc.id, "name", e.target.value)}
+                    placeholder="Tên địa điểm (VD: Showroom 472 Hùng Vương)"
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white"
+                  />
+                  {(config.allowed_locations || []).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLocation(loc.id)}
+                      className="p-2 bg-rose-500/15 hover:bg-rose-500/30 text-rose-400 rounded-xl border border-rose-500/30 cursor-pointer"
+                      title="Xóa địa điểm này"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Vĩ độ (Lat)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={loc.lat}
+                      onChange={(e) => handleUpdateLocationField(loc.id, "lat", Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Kinh độ (Lng)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={loc.lng}
+                      onChange={(e) => handleUpdateLocationField(loc.id, "lng", Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Bán kính (m)</label>
+                    <input
+                      type="number"
+                      min={10}
+                      max={10000}
+                      value={loc.radius}
+                      onChange={(e) => handleUpdateLocationField(loc.id, "radius", Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-mono font-bold"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleUseCurrentGpsForLocation(loc.id)}
+                    className="min-h-[38px] px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-600 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Compass className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>📍 Lấy vị trí hiện tại</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CỨU CÁNH GPS BẰNG IP WI-FI VĂN PHÒNG / NHÀ XƯỞNG */}
+        <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-2xl p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-xs font-black text-emerald-300 flex items-center gap-1.5 uppercase">
+                <Wifi className="w-4 h-4 text-emerald-400" />
+                <span>Xác Thực Bằng IP Wi-Fi Nội Bộ (Cứu Cánh Mái Tôn / Mất Sóng GPS)</span>
+              </h4>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                IP mạng hiện tại của bạn: <strong className="font-mono text-white">{config.current_client_ip || "Đang nhận diện..."}</strong>
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={savingWifi}
+              onClick={handleSaveCurrentWifiIp}
+              className="min-h-[40px] px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+            >
+              <Wifi className="w-4 h-4" />
+              <span>{savingWifi ? "Đang lưu IP..." : "🛜 Lưu IP Wi-Fi hiện tại làm Wi-Fi Công ty"}</span>
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+              Danh sách IP Wi-Fi Công ty (ngăn cách bằng dấu phẩy)
+            </label>
+            <input
+              type="text"
+              value={config.office_ip_whitelist || ""}
+              onChange={(e) => setConfig({ ...config, office_ip_whitelist: e.target.value })}
+              placeholder="VD: 14.232.150.10, 113.160.200.5"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+            />
+          </div>
+        </div>
+
+        <div className="pt-2 flex flex-wrap items-center justify-end gap-2.5">
           <button
             type="submit"
             disabled={saving}
             className="min-h-[44px] px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? "Đang lưu cấu hình..." : "Lưu Toàn Bộ Cấu Hình V5"}</span>
+            <span>{saving ? "Đang lưu cấu hình..." : "Lưu Toàn Bộ Cấu Hình V6"}</span>
           </button>
         </div>
       </div>

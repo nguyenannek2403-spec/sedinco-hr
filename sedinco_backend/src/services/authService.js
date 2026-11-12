@@ -216,7 +216,7 @@ async function resetRateLimitState() {
 }
 
 class AuthService {
-    async employeeLogin(ma_nv, password, ip_address = '') {
+    async employeeLogin(ma_nv, password, ip_address = '', { zalo_user_id = null, device_id = null } = {}) {
         if (!ma_nv || !password) {
             return { success: false, message: GENERIC_LOGIN_ERROR };
         }
@@ -370,6 +370,18 @@ class AuthService {
         await resetCompositeAttemptsDb(compositeKey);
         await recordKnownLegitIp(ma_nv, normalizedIp);
 
+        // V6 Zero-Password Zalo Auto-Login: Liên kết tự động zalo_user_id và device_id vào hồ sơ nhân viên
+        if (zalo_user_id && String(zalo_user_id).trim().length > 0) {
+            const cleanZaloId = String(zalo_user_id).trim().slice(0, 100);
+            await query('UPDATE employees SET zalo_user_id = ? WHERE ma_nv = ?', [cleanZaloId, emp.ma_nv]).catch(() => {});
+            emp.zalo_user_id = cleanZaloId;
+        }
+        if (device_id && String(device_id).trim().length > 0 && !emp.bound_device_id) {
+            const cleanDevId = String(device_id).trim().slice(0, 140);
+            await query('UPDATE employees SET bound_device_id = ? WHERE ma_nv = ?', [cleanDevId, emp.ma_nv]).catch(() => {});
+            emp.bound_device_id = cleanDevId;
+        }
+
         const role = resolveUserRole(emp);
         const safeEmp = sanitizeUserResponse(emp);
         safeEmp.role = role;
@@ -386,7 +398,7 @@ class AuthService {
             actor_role: role,
             action: 'LOGIN_SUCCESS',
             resource: 'auth',
-            details: { method: 'employee_login', bcrypt_upgraded: !isBcryptHash(storedPass) },
+            details: { method: 'employee_login', zalo_linked: Boolean(zalo_user_id), device_id: device_id || null, bcrypt_upgraded: !isBcryptHash(storedPass) },
             ip_address
         });
 
@@ -400,6 +412,86 @@ class AuthService {
                 token,
                 role,
                 must_change_password: mustChange
+            }
+        };
+    }
+
+    async zaloAutoLogin({ zalo_user_id, device_id, ma_nv_hint = null }, ip_address = '') {
+        const cleanZaloId = zalo_user_id ? String(zalo_user_id).trim() : '';
+        const cleanDevId = device_id ? String(device_id).trim() : '';
+        const cleanHint = ma_nv_hint ? String(ma_nv_hint).trim().toUpperCase() : '';
+
+        if (!cleanZaloId && !cleanDevId) {
+            return { success: false, message: 'Chưa có thông tin liên kết Zalo ID hoặc Thiết bị trên máy này!' };
+        }
+
+        let rows = [];
+        if (cleanHint) {
+            rows = await query(
+                `SELECT * FROM employees WHERE ma_nv = ? AND ((? != '' AND zalo_user_id = ?) OR (? != '' AND bound_device_id = ?)) LIMIT 1`,
+                [cleanHint, cleanZaloId, cleanZaloId, cleanDevId, cleanDevId]
+            );
+        }
+        if ((!rows || rows.length === 0) && cleanZaloId) {
+            rows = await query('SELECT * FROM employees WHERE zalo_user_id = ? LIMIT 1', [cleanZaloId]);
+        }
+        if ((!rows || rows.length === 0) && cleanDevId) {
+            rows = await query('SELECT * FROM employees WHERE bound_device_id = ? LIMIT 1', [cleanDevId]);
+        }
+
+        if (!rows || rows.length === 0) {
+            return {
+                success: false,
+                message: 'Thiết bị chưa được liên kết tài khoản Zalo. Vui lòng đăng nhập bằng Mã NV & Mật khẩu lần đầu để liên kết tự động!'
+            };
+        }
+
+        const emp = rows[0];
+        const isBlocked = emp.status === 'inactive' || emp.status === 'locked' || emp.is_locked === 1 || emp.is_locked === true;
+        if (isBlocked) {
+            return {
+                success: false,
+                statusCode: 403,
+                message: 'Tài khoản nhân sự của bạn đã bị TẠM KHÓA bởi Quản trị viên!'
+            };
+        }
+
+        // Nếu đang ở chế độ enforced và có bound_device_id nhưng device_id truyền lên khác
+        if (emp.device_binding_mode === 'enforced' && emp.bound_device_id && cleanDevId && emp.bound_device_id !== cleanDevId) {
+            return {
+                success: false,
+                statusCode: 403,
+                message: 'Thiết bị hiện tại không khớp với thiết bị đã đăng ký bảo mật!'
+            };
+        }
+
+        const role = resolveUserRole(emp);
+        const safeEmp = sanitizeUserResponse(emp);
+        safeEmp.role = role;
+
+        const token = generateToken({
+            id: emp.ma_nv,
+            ma_nv: emp.ma_nv,
+            role: role,
+            ho_ten: emp.ho_ten
+        });
+
+        await logAuditEvent({
+            actor_id: emp.ma_nv,
+            actor_role: role,
+            action: 'ZALO_AUTO_LOGIN_SUCCESS',
+            resource: 'auth',
+            details: { method: 'zalo_1touch_auto_login', zalo_user_id: cleanZaloId || null, device_id: cleanDevId || null },
+            ip_address
+        });
+
+        return {
+            success: true,
+            data: {
+                ...safeEmp,
+                token,
+                role,
+                must_change_password: Boolean(emp.must_change_password)
             }
         };
     }

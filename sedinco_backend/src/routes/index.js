@@ -9,7 +9,6 @@ const employeeRoutes = require('./employeeRoutes');
 const companyRoutes = require('./companyRoutes');
 const holidayRoutes = require('./holidayRoutes');
 const settingsRoutes = require('./settingsRoutes');
-const kioskRoutes = require('./kioskRoutes');
 const diagnosticsRoutes = require('./diagnosticsRoutes');
 const clientErrorRoutes = require('./clientErrorRoutes');
 const permissionController = require('../controllers/permissionController');
@@ -25,7 +24,6 @@ router.use('/company', companyRoutes); // /api/company
 router.use('/holidays', holidayRoutes); // /api/holidays
 router.use('/settings', settingsRoutes); // /api/settings (penalties, etc.)
 router.use('/permissions', settingsRoutes); // /api/permissions (alias cho audit-logs & accountant-permissions)
-router.use('/kiosk', kioskRoutes); // /api/kiosk (QR Hardware Isolation)
 router.use('/diagnostics', diagnosticsRoutes); // /api/diagnostics (Staging Only)
 router.use('/client-errors', clientErrorRoutes); // /api/client-errors (Staging Only)
 

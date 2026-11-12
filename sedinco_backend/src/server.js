@@ -14,9 +14,7 @@ const REQUIRED_TABLES = [
     'period_locks',
     'accountant_permissions',
     'audit_logs',
-    'dynamic_qr_sessions',
     'ot_registrations',
-    'kiosk_devices',
     'login_rate_limits'
 ];
 

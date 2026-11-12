@@ -191,7 +191,10 @@ class PermissionService {
     }
 
     async getAlertsSummary() {
-        const [fraudRows, disputedRows, deviceRows, reqRows, csRows] = await Promise.all([
+        const { getVietnamDateString } = require('../utils/timeHelper');
+        const todayStr = getVietnamDateString(new Date());
+
+        const [fraudRows, disputedRows, deviceRows, reqRows, csRows, totalEmpRows, todayLogsRows] = await Promise.all([
             query(`
                 SELECT a.id, a.actor_id, e.ho_ten, a.details, a.created_at, COALESCE(e.is_locked, 0) as is_locked
                 FROM audit_logs a
@@ -214,8 +217,29 @@ class PermissionService {
             query(`
                 SELECT COUNT(*) as cnt FROM requests WHERE status = 'pending'
             `).catch(() => [{ cnt: 0 }]),
-            query('SELECT log_retention_days FROM company_settings LIMIT 1').catch(() => [{ log_retention_days: 30 }])
+            query('SELECT log_retention_days FROM company_settings LIMIT 1').catch(() => [{ log_retention_days: 30 }]),
+            query("SELECT COUNT(*) as total FROM employees WHERE status != 'inactive'").catch(() => [{ total: 0 }]),
+            query('SELECT status, late_minutes, check_in_time, work_location_type FROM attendance_logs WHERE record_date = ?', [todayStr]).catch(() => [])
         ]);
+
+        let presentToday = 0;
+        let lateToday = 0;
+        let fieldWorkToday = 0;
+        let leaveToday = 0;
+        (todayLogsRows || []).forEach((l) => {
+            if (l.status === 'P') {
+                leaveToday++;
+            } else if (l.status !== '0') {
+                presentToday++;
+                if ((Number(l.late_minutes) || 0) > 0 || (l.check_in_time && l.check_in_time > '08:15:00')) {
+                    lateToday++;
+                }
+                if (l.work_location_type === 'FIELD_WORK') {
+                    fieldWorkToday++;
+                }
+            }
+        });
+        const totalEmployees = totalEmpRows && totalEmpRows[0] ? Number(totalEmpRows[0].total) : 0;
 
         const fraudAlerts = fraudRows || [];
         const salaryDisputes = disputedRows || [];
@@ -231,7 +255,16 @@ class PermissionService {
             pending_device_count: pendingDevicesCount,
             pending_requests_count: pendingRequestsCount,
             total_red_alerts: fraudAlerts.length + salaryDisputes.length + pendingDevicesCount,
-            log_retention_days: retentionDays
+            log_retention_days: retentionDays,
+            headcount_today: {
+                date: todayStr,
+                total_employees: totalEmployees,
+                present: presentToday,
+                late: lateToday,
+                field_work: fieldWorkToday,
+                leave: leaveToday,
+                absent: Math.max(0, totalEmployees - presentToday - leaveToday)
+            }
         };
     }
 }

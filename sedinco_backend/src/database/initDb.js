@@ -288,19 +288,7 @@ async function initDatabase() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
-        // 11. Bảng Phiên Mã QR Động (dynamic_qr_sessions - Anti-Replay / Nonce TOTP)
-        await query(`CREATE TABLE IF NOT EXISTS dynamic_qr_sessions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            session_token VARCHAR(128) UNIQUE NOT NULL,
-            branch_id INT DEFAULT 1,
-            expires_at DATETIME NOT NULL,
-            is_used BOOLEAN DEFAULT FALSE,
-            used_by VARCHAR(20) NULL,
-            used_at DATETIME NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`);
-
-        // 12. Bảng Đăng Ký Làm Thêm Giờ Duyệt Trước (ot_registrations - Anti-OT Fraud)
+        // 11. Bảng Đăng Ký Làm Thêm Giờ Duyệt Trước (ot_registrations - Anti-OT Fraud)
         await query(`CREATE TABLE IF NOT EXISTS ot_registrations (
             id INT AUTO_INCREMENT PRIMARY KEY,
             employee_id VARCHAR(20) NOT NULL,
@@ -314,21 +302,11 @@ async function initDatabase() {
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
         await query('ALTER TABLE ot_registrations CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci').catch(() => {});
 
-        // 13. Bảng Thiết bị Kiosk QR (kiosk_devices - Kiosk Token Isolation)
-        await query(`CREATE TABLE IF NOT EXISTS kiosk_devices (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            kiosk_name VARCHAR(100) NOT NULL,
-            branch_id INT DEFAULT 1,
-            api_key VARCHAR(128) NOT NULL UNIQUE,
-            is_active BOOLEAN DEFAULT TRUE,
-            created_by VARCHAR(50) NULL,
-            last_seen_at DATETIME NULL,
-            last_ip VARCHAR(45) NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-        await query('ALTER TABLE kiosk_devices ADD COLUMN last_ip VARCHAR(45) NULL').catch(() => {});
+        // V6 Cleanup: Xóa bỏ 2 bảng Kiosk dư thừa không còn sử dụng để tiết kiệm dung lượng TiDB Cloud
+        await query('DROP TABLE IF EXISTS dynamic_qr_sessions').catch(() => {});
+        await query('DROP TABLE IF EXISTS kiosk_devices').catch(() => {});
 
-        // 14. Bảng Bộ đếm Rate Limit Dùng Chung (login_rate_limits - Distributed / Multi-process Shared Store)
+        // 12. Bảng Bộ đếm Rate Limit Dùng Chung (login_rate_limits - Distributed / Multi-process Shared Store)
         await query(`CREATE TABLE IF NOT EXISTS login_rate_limits (
             key_name VARCHAR(191) PRIMARY KEY,
             target_type VARCHAR(20) NOT NULL,
@@ -364,7 +342,33 @@ async function initDatabase() {
         await query("ALTER TABLE attendance ADD COLUMN admin_response TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance ADD COLUMN confirmed_at DATETIME NULL").catch(() => {});
 
-        console.log('✅ Khởi tạo cấu trúc Database (14 bảng quan hệ + V5 Enterprise Schema) thành công!');
+        // V6 Schema Additions: Zero-Password Zalo Auto-Login, Multi-Branch Locations, Office IP Whitelist & Field Work
+        await query("ALTER TABLE employees ADD COLUMN zalo_user_id VARCHAR(100) NULL").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN allowed_locations TEXT NULL").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN office_ip_whitelist VARCHAR(500) DEFAULT ''").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN location_name VARCHAR(150) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN field_note TEXT NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN work_location_type VARCHAR(30) DEFAULT 'OFFICE'").catch(() => {});
+
+        // Khởi tạo Điểm 1 mặc định trong allowed_locations từ latitude/longitude hiện tại nếu chưa có
+        const csRows = await query("SELECT id, latitude, longitude, radius_meters, allowed_locations FROM company_settings LIMIT 1").catch(() => []);
+        if (csRows && csRows.length > 0) {
+            const cs = csRows[0];
+            if (!cs.allowed_locations || String(cs.allowed_locations).trim() === '') {
+                const defaultLocations = JSON.stringify([
+                    {
+                        id: 'loc_hq_1',
+                        name: 'Trụ sở chính Đà Nẵng',
+                        lat: Number(cs.latitude) || 16.0544,
+                        lng: Number(cs.longitude) || 108.2022,
+                        radius: Number(cs.radius_meters) || 500
+                    }
+                ]);
+                await query("UPDATE company_settings SET allowed_locations = ? WHERE id = ?", [defaultLocations, cs.id]).catch(() => {});
+            }
+        }
+
+        console.log('✅ Khởi tạo cấu trúc Database (12 bảng tinh gọn + V6 Enterprise Schema) thành công!');
     } catch (err) {
         console.error('❌ Lỗi khởi tạo cấu trúc Database:', err.message);
     }

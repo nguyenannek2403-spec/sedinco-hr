@@ -13,6 +13,7 @@ import WorkerHistoryTab from "./WorkerHistoryTab";
 import WorkerRequestsTab from "./WorkerRequestsTab";
 import WorkerProfileTab from "./WorkerProfileTab";
 import CompanyLogo from "../../components/CompanyLogo";
+import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 
 export default function WorkerDashboard({
   currentUser,
@@ -23,6 +24,7 @@ export default function WorkerDashboard({
   onChangePasswordRequest
 }) {
   const [activeTab, setActiveTab] = useState("checkin"); // 'checkin', 'history', 'requests', 'profile'
+  const [fixCheckoutInfo, setFixCheckoutInfo] = useState(null);
   const canSwitchToManagement =
     currentUser?.role === "admin" || currentUser?.role === "accountant";
 
@@ -70,6 +72,7 @@ export default function WorkerDashboard({
           <div className="p-4 space-y-4">
             <OneTouchCheckIn
               currentUser={currentUser}
+              onOpenFixCheckoutRequest={(info) => setFixCheckoutInfo(info)}
               onCheckInSuccess={() => {
                 if (showToast) showToast("Điểm danh thành công!", "success");
               }}
@@ -78,7 +81,7 @@ export default function WorkerDashboard({
         )}
 
         {activeTab === "history" && (
-          <WorkerHistoryTab currentUser={currentUser} />
+          <WorkerHistoryTab currentUser={currentUser} showToast={showToast} />
         )}
 
         {activeTab === "requests" && (
@@ -148,6 +151,21 @@ export default function WorkerDashboard({
           <span className="text-[10px]">Tài khoản</span>
         </button>
       </nav>
+
+      {/* Modal Bổ Sung Giờ Ra 1 Chạm khi phát hiện quên Check-out */}
+      {fixCheckoutInfo && (
+        <SmartLeaveRequestModal
+          currentUser={currentUser}
+          initialDate={fixCheckoutInfo.iso_date}
+          initialType="Bổ sung công / Quên chấm giờ ra"
+          initialReason={`Ngày ${fixCheckoutInfo.short_date} em đã chấm công Vào lúc ${String(fixCheckoutInfo.check_in_time || "").slice(0, 5)} nhưng quên bấm Giờ Ra. Kính mong Admin duyệt bổ sung giờ ra.`}
+          onClose={() => setFixCheckoutInfo(null)}
+          onRequestSubmitted={() => {
+            setFixCheckoutInfo(null);
+            if (showToast) showToast("Đã gửi đơn bổ sung giờ ra thành công!", "success");
+          }}
+        />
+      )}
     </div>
   );
 }

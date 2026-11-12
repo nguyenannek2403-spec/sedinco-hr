@@ -17,13 +17,63 @@ const DEFAULT_COMPANY_SETTINGS = {
     ot_rate_holiday: 3.0,
     custom_ot_hourly_rate: 0,
     insurance_rate: 10.5,
-    log_retention_days: 30
+    log_retention_days: 30,
+    office_ip_whitelist: ''
 };
 
+function normalizeIp(rawIp) {
+    if (!rawIp) return '';
+    const first = String(rawIp).split(',')[0].trim();
+    return first.replace(/^::ffff:/i, '');
+}
+
+function parseAllowedLocations(rawJson, fallbackLat = 16.0544, fallbackLng = 108.2022, fallbackRadius = 500) {
+    const defaultList = [
+        {
+            id: 'loc_hq_1',
+            name: 'Trụ sở chính Đà Nẵng',
+            lat: Number(fallbackLat) || 16.0544,
+            lng: Number(fallbackLng) || 108.2022,
+            radius: Number(fallbackRadius) || 500
+        }
+    ];
+    if (!rawJson) return defaultList;
+    if (Array.isArray(rawJson)) return rawJson.length > 0 ? rawJson : defaultList;
+    try {
+        const parsed = JSON.parse(rawJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((item, idx) => ({
+                id: item.id || `loc_${idx + 1}`,
+                name: String(item.name || `Địa điểm ${idx + 1}`).trim(),
+                lat: Number(item.lat) || 16.0544,
+                lng: Number(item.lng) || 108.2022,
+                radius: Number(item.radius) || 300
+            }));
+        }
+    } catch {}
+    return defaultList;
+}
+
 class CompanyService {
-    async getCompanyConfig() {
+    async getCompanyConfig(clientIp = '') {
         const results = await query('SELECT * FROM company_settings LIMIT 1');
         const row = results?.[0] || {};
+        const allowed_locations = parseAllowedLocations(
+            row.allowed_locations,
+            row.latitude,
+            row.longitude,
+            row.radius_meters
+        );
+        const office_ip_whitelist = String(row.office_ip_whitelist || '').trim();
+        const normalizedClientIp = normalizeIp(clientIp);
+        const whitelistArr = office_ip_whitelist
+            .split(',')
+            .map(s => normalizeIp(s))
+            .filter(Boolean);
+        const is_matching_office_wifi = Boolean(
+            normalizedClientIp && whitelistArr.includes(normalizedClientIp)
+        );
+
         return {
             ...DEFAULT_COMPANY_SETTINGS,
             ...row,
@@ -38,12 +88,29 @@ class CompanyService {
             ot_rate_holiday: Number(row.ot_rate_holiday) || DEFAULT_COMPANY_SETTINGS.ot_rate_holiday,
             custom_ot_hourly_rate: Number(row.custom_ot_hourly_rate) || 0,
             insurance_rate: row.insurance_rate !== undefined && row.insurance_rate !== null ? Number(row.insurance_rate) : DEFAULT_COMPANY_SETTINGS.insurance_rate,
-            log_retention_days: Number(row.log_retention_days) || DEFAULT_COMPANY_SETTINGS.log_retention_days
+            log_retention_days: Number(row.log_retention_days) || DEFAULT_COMPANY_SETTINGS.log_retention_days,
+            allowed_locations,
+            office_ip_whitelist,
+            current_client_ip: normalizedClientIp,
+            is_matching_office_wifi
         };
     }
 
-    async updateCompanyConfig(data, current_user = null) {
-        const current = await this.getCompanyConfig();
+    async updateCompanyConfig(data, current_user = null, clientIp = '') {
+        const current = await this.getCompanyConfig(clientIp);
+
+        let locationsList = current.allowed_locations;
+        if (data.allowed_locations !== undefined) {
+            locationsList = parseAllowedLocations(
+                data.allowed_locations,
+                data.latitude ?? current.latitude,
+                data.longitude ?? current.longitude,
+                data.radius_meters ?? current.radius_meters
+            );
+        }
+
+        const primaryLoc = locationsList[0] || { lat: 16.0544, lng: 108.2022, radius: 500 };
+
         const {
             company_name = current.company_name || data.name || 'CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO',
             phone = current.phone,
@@ -66,12 +133,15 @@ class CompanyService {
             custom_ot_hourly_rate = current.custom_ot_hourly_rate !== undefined ? current.custom_ot_hourly_rate : 0,
             insurance_rate = current.insurance_rate !== undefined ? current.insurance_rate : 10.5,
             log_retention_days = current.log_retention_days !== undefined ? current.log_retention_days : 30,
-            latitude = current.latitude !== undefined ? current.latitude : 16.054400,
-            longitude = current.longitude !== undefined ? current.longitude : 108.202200,
-            radius_meters = data.radius_meters !== undefined ? data.radius_meters : (data.geofence_radius !== undefined ? data.geofence_radius : (current.radius_meters || 5000))
+            latitude = data.latitude !== undefined ? data.latitude : primaryLoc.lat,
+            longitude = data.longitude !== undefined ? data.longitude : primaryLoc.lng,
+            radius_meters = data.radius_meters !== undefined ? data.radius_meters : (data.geofence_radius !== undefined ? data.geofence_radius : primaryLoc.radius),
+            office_ip_whitelist = data.office_ip_whitelist !== undefined ? String(data.office_ip_whitelist).trim() : (current.office_ip_whitelist || '')
         } = data;
 
         const targetId = current.id || 1;
+        const allowedLocationsJson = JSON.stringify(locationsList);
+
         await query(
             `UPDATE company_settings SET 
                 company_name=?, phone=?, address=?, tax_code=?, logo_url=?,
@@ -80,7 +150,8 @@ class CompanyService {
                 standard_work_days=?, probation_salary_percent=?,
                 ot_rate_weekday=?, ot_rate_weekend=?, ot_rate_holiday=?, custom_ot_hourly_rate=?,
                 insurance_rate=?, log_retention_days=?,
-                latitude=?, longitude=?, radius_meters=?
+                latitude=?, longitude=?, radius_meters=?,
+                allowed_locations=?, office_ip_whitelist=?
             WHERE id=?`,
             [
                 company_name, phone, address, tax_code, logo_url,
@@ -90,6 +161,7 @@ class CompanyService {
                 Number(ot_rate_weekday) || 1.5, Number(ot_rate_weekend) || 2.0, Number(ot_rate_holiday) || 3.0, Number(custom_ot_hourly_rate) || 0,
                 Number(insurance_rate) >= 0 ? Number(insurance_rate) : 10.5, Number(log_retention_days) || 30,
                 Number(latitude), Number(longitude), Number(radius_meters),
+                allowedLocationsJson, office_ip_whitelist,
                 targetId
             ]
         );
@@ -100,16 +172,49 @@ class CompanyService {
                 actor_role: current_user.role || 'admin',
                 action: 'UPDATE_COMPANY_SETTINGS',
                 resource: 'company_settings',
-                details: { work_start, lunch_start, lunch_end, work_end, standard_work_days, ot_rate_weekday, insurance_rate, radius_meters, log_retention_days }
+                details: {
+                    work_start,
+                    lunch_start,
+                    lunch_end,
+                    work_end,
+                    standard_work_days,
+                    locations_count: locationsList.length,
+                    office_ip_whitelist
+                }
             });
         }
 
-        const updated = await this.getCompanyConfig();
+        const updated = await this.getCompanyConfig(clientIp);
         return { success: true, data: updated };
     }
 
-    async resetToDefaults(current_user = null) {
-        return this.updateCompanyConfig(DEFAULT_COMPANY_SETTINGS, current_user);
+    async saveCurrentWifiIp(rawClientIp, current_user = null) {
+        const cleanIp = normalizeIp(rawClientIp);
+        if (!cleanIp) {
+            const error = new Error('Không xác định được địa chỉ IP mạng hiện tại!');
+            error.statusCode = 400;
+            throw error;
+        }
+        const current = await this.getCompanyConfig(cleanIp);
+        const existingIps = String(current.office_ip_whitelist || '')
+            .split(',')
+            .map(s => normalizeIp(s))
+            .filter(Boolean);
+        if (!existingIps.includes(cleanIp)) {
+            existingIps.push(cleanIp);
+        }
+        const updatedWhitelist = existingIps.join(', ');
+        const res = await this.updateCompanyConfig({ office_ip_whitelist: updatedWhitelist }, current_user, cleanIp);
+        return {
+            success: true,
+            saved_ip: cleanIp,
+            office_ip_whitelist: updatedWhitelist,
+            data: res.data
+        };
+    }
+
+    async resetToDefaults(current_user = null, clientIp = '') {
+        return this.updateCompanyConfig(DEFAULT_COMPANY_SETTINGS, current_user, clientIp);
     }
 
     async getPenaltiesConfig() {
@@ -140,3 +245,5 @@ class CompanyService {
 }
 
 module.exports = new CompanyService();
+module.exports.parseAllowedLocations = parseAllowedLocations;
+module.exports.normalizeIp = normalizeIp;

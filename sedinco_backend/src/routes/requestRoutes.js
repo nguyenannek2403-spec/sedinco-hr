@@ -24,6 +24,7 @@ router.get('/ot-registrations', authenticateToken, requirePermission('leave_view
 router.put('/ot-registrations/:id', authenticateToken, requirePermission('leave_approve'), (req, res, next) => requestController.updateOtRegistrationStatus(req, res, next));
 
 // 5. Phê duyệt hoặc từ chối đơn từ (Yêu cầu permission: leave_approve, cấm tự phê duyệt)
+router.post('/batch-approve', authenticateToken, requirePermission('leave_approve'), (req, res, next) => requestController.batchApproveRequests(req, res, next));
 router.put('/:id', authenticateToken, requirePermission('leave_approve'), (req, res, next) => requestController.updateRequestStatus(req, res, next));
 
 // 6. Hủy đơn từ (Yêu cầu đăng nhập, chỉ hủy đơn pending của chính mình hoặc Admin)

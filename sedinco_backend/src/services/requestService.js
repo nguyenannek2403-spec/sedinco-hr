@@ -157,8 +157,8 @@ class RequestService {
             } else if (type === 'p' || type.includes('phép') || type.includes('leave_annual')) {
                 const upsertQuery = `INSERT INTO attendance_logs (employee_id, record_date, status) VALUES (?, ?, 'P') ON DUPLICATE KEY UPDATE status = 'P'`;
                 await query(upsertQuery, [reqData.employee_id, dateStr]);
-            } else if (type === 'ct' || type.includes('cập nhật công') || type.includes('bổ sung') || type.includes('quên chấm công') || type.includes('forgot_checkin') || type.includes('late_early')) {
-                const upsertQuery = `INSERT INTO attendance_logs (employee_id, record_date, status) VALUES (?, ?, '1') ON DUPLICATE KEY UPDATE status = '1'`;
+            } else if (type === 'ct' || type.includes('cập nhật công') || type.includes('bổ sung') || type.includes('quên chấm công') || type.includes('giờ ra') || type.includes('forgot_checkin') || type.includes('late_early')) {
+                const upsertQuery = `INSERT INTO attendance_logs (employee_id, record_date, status, check_out_time) VALUES (?, ?, '1', '17:30:00') ON DUPLICATE KEY UPDATE status = '1', check_out_time = COALESCE(NULLIF(check_out_time, ''), '17:30:00')`;
                 await query(upsertQuery, [reqData.employee_id, dateStr]);
             }
         } else if (status === 'rejected') {
@@ -347,6 +347,38 @@ class RequestService {
         });
 
         return { success: true, message: `Cập nhật trạng thái đăng ký OT thành '${status}' thành công!` };
+    }
+
+    async batchApproveRequests({ request_ids = [], current_user = null }) {
+        if (!Array.isArray(request_ids) || request_ids.length === 0) {
+            const error = new Error('Vui lòng chọn ít nhất 1 đơn cần duyệt!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        let approvedCount = 0;
+        const skipped = [];
+
+        for (const rawId of request_ids) {
+            const id = parseInt(rawId, 10);
+            if (isNaN(id)) continue;
+            try {
+                await this.updateRequestStatus(id, 'approved', current_user);
+                approvedCount++;
+            } catch (err) {
+                skipped.push({ id, reason: err.message });
+            }
+        }
+
+        return {
+            success: true,
+            approved_count: approvedCount,
+            skipped_count: skipped.length,
+            skipped,
+            message: approvedCount > 0
+                ? `Đã duyệt nhanh ${approvedCount} đơn hợp lệ${skipped.length > 0 ? ` (bỏ qua ${skipped.length} đơn vi phạm SoD hoặc đã khóa sổ)` : ''}!`
+                : 'Không có đơn nào đủ điều kiện duyệt tự động!'
+        };
     }
 }
 

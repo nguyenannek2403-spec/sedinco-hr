@@ -9,28 +9,38 @@ import {
   RotateCcw,
   ShieldAlert,
   Send,
-  Camera
+  Camera,
+  HardHat,
+  Wifi
 } from "lucide-react";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
 import { captureDirectCameraPhoto } from "../utils/imageHelper";
 
-// Cờ cấu hình Sinh trắc học: Mặc định TẮT theo quy định Zalo Mini App Team
 export const FEATURE_BIOMETRIC_ENABLED = false;
 
-// Các trạng thái của luồng F2
 const STAGES = {
-  IDLE: "idle", // Sẵn sàng
-  PERM_EXPLAIN: "perm_explain", // Giải thích mục đích xin quyền vị trí
-  BIO_AUTH: "bio_auth", // Đang xác thực sinh trắc học (nếu cờ bật)
-  LOCATING: "locating", // Đang lấy token vị trí GPS từ Zalo
-  SUBMITTING: "submitting", // Đang gửi gói tin chấm công lên server
-  SUCCESS: "success", // Hoàn tất thành công (Hiển thị giờ Server)
-  ERROR: "error", // Có lỗi (kèm thông điệp chi tiết & nút thử lại)
-  SECURITY_FRAUD: "security_fraud" // Cảnh báo Đỏ Vi phạm An ninh (Fake GPS / Thiết bị lạ)
+  IDLE: "idle",
+  PERM_EXPLAIN: "perm_explain",
+  BIO_AUTH: "bio_auth",
+  LOCATING: "locating",
+  SUBMITTING: "submitting",
+  SUCCESS: "success",
+  ERROR: "error",
+  SECURITY_FRAUD: "security_fraud"
 };
 
-// Lấy hoặc khởi tạo mã định danh thiết bị cố định trên máy
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function getOrCreateDeviceId() {
   try {
     const key = "sedinco_bound_device_fingerprint";
@@ -49,7 +59,6 @@ function getOrCreateDeviceId() {
   }
 }
 
-// Khóa module-level chống double click phần cứng trên mọi nền tảng
 let globalCheckInLockTimestamp = 0;
 export function getGlobalCheckInLockTimestamp() {
   return globalCheckInLockTimestamp;
@@ -59,12 +68,17 @@ export function resetGlobalCheckInLockTimestamp() {
 }
 
 /**
- * F2 (V5): Thành phần Chấm Công 1 Chạm Thông Minh (Vào ca / Ra ca + Anti-Fake GPS & Device)
+ * F2 (V6): Chấm Công 1 Chạm Thông Minh
+ * - Hỗ trợ Đa địa điểm (Kho/Showroom) & Cứu cánh Wi-Fi Nội bộ
+ * - Hỗ trợ chế độ "Đi Công Trình / Thị Trường" (Ảnh hiện trường + Ghi chú)
+ * - Ẩn toàn bộ thông số kỹ thuật thô, thay bằng thẻ trạng thái thân thiện
+ * - Phát hiện "Quên bấm Giờ Ra" của ngày hôm trước để bù công 1 chạm
  */
 export default function OneTouchCheckIn({
   currentUser,
   todayAttendance = null,
   onCheckInSuccess,
+  onOpenFixCheckoutRequest,
   isLockedPeriod = false
 }) {
   const [stage, setStage] = useState(STAGES.IDLE);
@@ -76,18 +90,88 @@ export default function OneTouchCheckIn({
   const [isDebounceLocked, setIsDebounceLocked] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState("");
   const [liveTodayRecord, setLiveTodayRecord] = useState(todayAttendance);
+  const [forgottenCheckout, setForgottenCheckout] = useState(null);
   const [monthlyCount, setMonthlyCount] = useState(0);
-  const [shiftConfig, setShiftConfig] = useState({
+
+  // Đa địa điểm & Trạng thái vị trí thân thiện (Không hiện lat/lng thô)
+  const [companyMeta, setCompanyMeta] = useState({
     work_start: "08:00",
     lunch_start: "12:00",
     lunch_end: "13:30",
-    work_end: "17:30"
+    work_end: "17:30",
+    allowed_locations: [],
+    is_matching_office_wifi: false
+  });
+  const [locationFriendlyBadge, setLocationFriendlyBadge] = useState({
+    mode: "checking", // 'in_range' | 'wifi_office' | 'out_of_range' | 'checking'
+    text: "Đang kiểm tra vị trí chi nhánh gần nhất..."
   });
 
-  // Cờ Ref khóa nút bấm ngay lập tức ở mức phần cứng để chống double click
+  // Chế độ Đi Công Trình / Thị Trường
+  const [isFieldWorkMode, setIsFieldWorkMode] = useState(false);
+  const [fieldNote, setFieldNote] = useState("");
+
   const isLockedRef = useRef(false);
   const timeoutIdRef = useRef(null);
   const lastIdempotencyKeyRef = useRef("");
+
+  const evaluateFriendlyLocation = useCallback((compData) => {
+    if (!compData) return;
+    if (compData.is_matching_office_wifi) {
+      setLocationFriendlyBadge({
+        mode: "wifi_office",
+        text: "🛜 Đã xác thực mạng Wi-Fi Nội bộ Công ty — Sẵn sàng chấm công"
+      });
+      return;
+    }
+
+    const locs = Array.isArray(compData.allowed_locations) && compData.allowed_locations.length > 0
+      ? compData.allowed_locations
+      : [{ name: "Trụ sở chính", lat: Number(compData.latitude || 16.0544), lng: Number(compData.longitude || 108.2022), radius: Number(compData.radius_meters || 500) }];
+
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const curLat = Number(pos.coords.latitude);
+          const curLng = Number(pos.coords.longitude);
+          let nearest = locs[0];
+          let minDist = Infinity;
+          let matched = null;
+
+          locs.forEach((loc) => {
+            const d = haversineMeters(curLat, curLng, Number(loc.lat), Number(loc.lng));
+            if (d < minDist) {
+              minDist = d;
+              nearest = loc;
+            }
+            if (d <= (Number(loc.radius) || 500) && !matched) {
+              matched = { loc, dist: Math.round(d) };
+            }
+          });
+
+          if (matched) {
+            setLocationFriendlyBadge({
+              mode: "in_range",
+              text: `🟢 Đang tại: ${matched.loc.name} (Cách ${matched.dist}m) — Sẵn sàng chấm công`
+            });
+          } else {
+            const distLabel = minDist >= 1000 ? `${(minDist / 1000).toFixed(1)}km` : `${Math.round(minDist)}m`;
+            setLocationFriendlyBadge({
+              mode: "out_of_range",
+              text: `🟠 Ngoài phạm vi ${nearest.name} (Cách ${distLabel}) — Có thể chọn chế độ Đi Công Trình`
+            });
+          }
+        },
+        () => {
+          setLocationFriendlyBadge({
+            mode: "checking",
+            text: `📍 Chi nhánh mặc định: ${locs[0]?.name || "Trụ sở chính"} — Bấm nút để định vị`
+          });
+        },
+        { enableHighAccuracy: true, timeout: 4500 }
+      );
+    }
+  }, []);
 
   const fetchTodayStatus = useCallback(async () => {
     try {
@@ -100,39 +184,68 @@ export default function OneTouchCheckIn({
         safeGet("/company").catch(() => null)
       ]);
       if (compRes?.success && compRes.data) {
-        setShiftConfig({
-          work_start: compRes.data.work_start || "08:00",
-          lunch_start: compRes.data.lunch_start || "12:00",
-          lunch_end: compRes.data.lunch_end || "13:30",
-          work_end: compRes.data.work_end || "17:30"
-        });
+        setCompanyMeta(compRes.data);
+        evaluateFriendlyLocation(compRes.data);
       }
-      const list = Array.isArray(attRes?.data) ? attRes.data : [];
+
+      const rawData = attRes?.data;
+      const list = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray(rawData?.logs)
+        ? rawData.logs
+        : Array.isArray(rawData?.days)
+        ? rawData.days
+        : [];
+
+      if (rawData && !Array.isArray(rawData) && rawData.forgotten_checkout) {
+        setForgottenCheckout(rawData.forgotten_checkout);
+      } else {
+        setForgottenCheckout(null);
+      }
+
       const todayIso = new Date(now.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
       const found = list.find((r) => String(r.record_date || "").slice(0, 10) === todayIso);
       if (found) setLiveTodayRecord(found);
       setMonthlyCount(list.filter((r) => r.status && r.status !== "0" && r.status !== "V").length);
     } catch (e) {}
-  }, []);
+  }, [evaluateFriendlyLocation]);
 
   useEffect(() => {
     fetchTodayStatus();
   }, [fetchTodayStatus]);
 
-  // Xác định loại chấm công: "in" (Vào ca) hoặc "out" (Ra ca) theo dữ liệu server
   const effectiveToday = liveTodayRecord || todayAttendance;
   const hasCheckedIn = Boolean(effectiveToday && effectiveToday.check_in_time);
   const checkinType = hasCheckedIn ? "out" : "in";
 
-  // Dọn dẹp timer khi unmount
   useEffect(() => {
     return () => {
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
     };
   }, []);
 
-  // Bắt đầu luồng Chấm Công 1 Chạm (Không phụ thuộc Kiosk QR)
+  const handleCaptureSelfie = async () => {
+    const res = await captureDirectCameraPhoto();
+    if (res?.success && res?.photoUrl) {
+      setCapturedPhoto(res.photoUrl);
+      setStatusMessage("Đã chụp & nén ảnh hiện trường (< 50KB). Chạm nút CHẤM CÔNG để hoàn tất!");
+    }
+  };
+
   const handleStartCheckIn = async (bypassPermExplain = false) => {
+    if (isFieldWorkMode) {
+      if (!capturedPhoto) {
+        setStage(STAGES.ERROR);
+        setErrorMessage("Chế độ Đi Công Trình yêu cầu BẮT BUỘC chụp ảnh hiện trường thực tế (< 50KB) trước khi chấm công!");
+        return;
+      }
+      if (!fieldNote.trim() || fieldNote.trim().length < 5) {
+        setStage(STAGES.ERROR);
+        setErrorMessage("Vui lòng nhập tên công trình / khách hàng (tối thiểu 5 ký tự)!");
+        return;
+      }
+    }
+
     const nowMs = Date.now();
     if (isLockedRef.current || isDebounceLocked || (nowMs - globalCheckInLockTimestamp < 3000)) return;
     globalCheckInLockTimestamp = nowMs;
@@ -171,27 +284,24 @@ export default function OneTouchCheckIn({
         return;
       }
 
-      let bioEvidence = null;
       if (FEATURE_BIOMETRIC_ENABLED) {
         setStage(STAGES.BIO_AUTH);
         setStatusMessage("Đang xác thực sinh trắc học trên thiết bị...");
         const secretData = `sedinco_bio_${Date.now()}_${currentUser?.ma_nv}`;
-        const bioRes = await zmpAdapter.openBioAuthentication({ secretData });
-        bioEvidence = { token: bioRes.token, bioState: bioRes.bioState };
+        await zmpAdapter.openBioAuthentication({ secretData });
       }
 
-      // 4. Lấy Location từ Zalo SDK hoặc Geolocation & Kiểm tra tính toàn vẹn chống Fake GPS
       setStage(STAGES.LOCATING);
-      setStatusMessage("Đang kiểm tra tọa độ GPS & tính toàn vẹn thiết bị...");
+      setStatusMessage("Đang xác định vị trí & kiểm tra bảo mật...");
 
       let accessToken = "";
       try {
         accessToken = await zmpAdapter.getAccessToken().catch(() => "");
-      } catch (e) {}
+      } catch {}
 
       let locationToken = "";
-      let rawLat = 16.0544;
-      let rawLng = 108.2022;
+      let rawLat = Number(companyMeta.latitude) || 16.0544;
+      let rawLng = Number(companyMeta.longitude) || 108.2022;
       let gpsAccuracy = null;
       let isFakeGpsDetected = false;
 
@@ -205,7 +315,7 @@ export default function OneTouchCheckIn({
         if (locationRes?.mocked === true || locationRes?.isMock === true) {
           isFakeGpsDetected = true;
         }
-      } catch (e) {
+      } catch {
         if (typeof navigator !== "undefined" && navigator.geolocation) {
           try {
             const pos = await new Promise((res, rej) =>
@@ -221,10 +331,11 @@ export default function OneTouchCheckIn({
         }
       }
 
-      // 5. Gửi trực tiếp gói tin Chấm công 1 Chạm (GPS + Device Fingerprint + Ảnh nén < 50KB) lên Server
       setStage(STAGES.SUBMITTING);
       setStatusMessage(
-        checkinType === "in"
+        isFieldWorkMode
+          ? "Đang gửi chấm công Đi Công Trình kèm ảnh hiện trường..."
+          : checkinType === "in"
           ? "Đang ghi nhận Giờ Vào Ca trên máy chủ Sedinco..."
           : "Đang ghi nhận Giờ Ra Ca & tính giờ làm việc..."
       );
@@ -239,10 +350,11 @@ export default function OneTouchCheckIn({
           lng: rawLng,
           zalo_location_token: locationToken || undefined,
           zalo_access_token: accessToken || undefined,
-          bio_evidence: bioEvidence || undefined,
           device_info: deviceFingerprint,
           gps_accuracy: gpsAccuracy,
           is_fake_gps: isFakeGpsDetected,
+          work_location_type: isFieldWorkMode ? "FIELD_WORK" : "OFFICE",
+          field_note: isFieldWorkMode ? fieldNote.trim() : "",
           image_snapshot: capturedPhoto || "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
         }, {
           idempotencyKey: lastIdempotencyKeyRef.current
@@ -255,7 +367,6 @@ export default function OneTouchCheckIn({
         globalCheckInLockTimestamp = 0;
         if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
 
-        // Phát hiện Vi phạm An ninh (Fake GPS / Thiết bị lạ chưa cấp phép) -> Hiển thị Modal Cảnh Báo Đỏ Toàn Màn Hình
         if (
           errCode === "SECURITY_VIOLATION_FRAUD" ||
           errText.includes("CẢNH BÁO VI PHẠM AN NINH") ||
@@ -265,19 +376,23 @@ export default function OneTouchCheckIn({
           await zmpAdapter.vibrate("heavy").catch(() => {});
           setStage(STAGES.SECURITY_FRAUD);
           setErrorMessage(
-            "⚠️ CẢNH BÁO VI PHẠM AN NINH: Hệ thống phát hiện dấu hiệu giả mạo vị trí (Fake GPS) hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!"
+            "⚠️ CẢNH BÁO VI PHẠM AN NINH: Hệ thống phát hiện dấu hiệu giả mạo vị trí hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!"
           );
           setFraudDetails(postErr.data?.fraud_reason || errText);
           return;
         }
 
+        // Nếu báo ngoài vùng chấm công -> tự động mở gợi ý chế độ Đi Công Trình
+        if (errCode === "OUT_OF_GEOFENCE" || errText.includes("ngoài phạm vi")) {
+          setIsFieldWorkMode(true);
+        }
+
         setStage(STAGES.ERROR);
         setErrorMessage(errText);
-        setErrorDetails("Vui lòng kiểm tra vị trí GPS hoặc kết nối mạng 4G/Wifi và thử lại.");
+        setErrorDetails("Nếu bạn đang đi công tác/gặp khách hàng, hãy chụp ảnh hiện trường và ghi chú bên dưới.");
         return;
       }
 
-      // 6. Hoàn tất thành công: Rung phản hồi, hiển thị thông báo chi tiết Vào ca / Ra ca / Đi muộn / Làm thêm từ Server
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
       await zmpAdapter.vibrate("light");
 
@@ -290,9 +405,12 @@ export default function OneTouchCheckIn({
 
       setServerTimeResult(serverTime);
       setStage(STAGES.SUCCESS);
+      setIsFieldWorkMode(false);
+      setFieldNote("");
       fetchTodayStatus();
 
-      const serverMsg = result?.message || `Đã ghi nhận chấm công lúc ${serverTime}`;
+      const locTag = result?.data?.location_name ? ` tại ${result.data.location_name}` : "";
+      const serverMsg = `${result?.message || `Đã ghi nhận chấm công lúc ${serverTime}`}${locTag}`;
       setStatusMessage(serverMsg);
 
       if (onCheckInSuccess) onCheckInSuccess({ ...result, autoShiftMsg: serverMsg });
@@ -314,19 +432,49 @@ export default function OneTouchCheckIn({
     handleStartCheckIn(true);
   };
 
-  // Chụp ảnh xác thực khuôn mặt (< 50KB)
-  const handleCaptureSelfie = async () => {
-    const res = await captureDirectCameraPhoto();
-    if (res?.success && res?.photoUrl) {
-      setCapturedPhoto(res.photoUrl);
-      setStatusMessage("Đã chụp & nén ảnh xác thực (< 50KB). Chạm nút CHẤM CÔNG lớn để gửi!");
-    }
-  };
-
   return (
-    <div className="w-full flex flex-col items-center justify-center p-2 sm:p-4">
-      {/* Thẻ tóm tắt trạng thái công hôm nay & khung giờ chuẩn */}
-      <div className="w-full max-w-sm mb-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2 text-xs shadow-md">
+    <div className="w-full flex flex-col items-center justify-center p-1 sm:p-3 space-y-3">
+      {/* 1. BANNER NHẮC NHỞ THÔNG MINH "QUÊN BẤM GIỜ RA" */}
+      {forgottenCheckout && (
+        <button
+          type="button"
+          onClick={() => onOpenFixCheckoutRequest && onOpenFixCheckoutRequest(forgottenCheckout)}
+          className="w-full max-w-sm p-3.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border-2 border-amber-400/70 text-left flex items-start gap-2.5 shadow-lg transition cursor-pointer"
+        >
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+          <div className="text-xs leading-relaxed">
+            <p className="font-black text-amber-200">
+              ⚠️ Phát hiện ngày {forgottenCheckout.short_date} bạn có chấm công Vào ({String(forgottenCheckout.check_in_time).slice(0, 5)}) nhưng quên bấm Giờ Ra!
+            </p>
+            <span className="inline-block mt-1 font-black text-amber-300 underline">
+              👉 Bấm vào đây để gửi đơn bổ sung giờ ra 1 chạm
+            </span>
+          </div>
+        </button>
+      )}
+
+      {/* 2. THẺ TRẠNG THÁI VỊ TRÍ THÂN THIỆN (Không hiện thông số kỹ thuật thô) */}
+      <div
+        className={`w-full max-w-sm px-3.5 py-2.5 rounded-2xl border text-xs font-bold flex items-center gap-2 shadow-sm ${
+          locationFriendlyBadge.mode === "in_range"
+            ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-200"
+            : locationFriendlyBadge.mode === "wifi_office"
+            ? "bg-blue-950/70 border-blue-500/40 text-blue-200"
+            : locationFriendlyBadge.mode === "out_of_range"
+            ? "bg-amber-950/70 border-amber-500/40 text-amber-200"
+            : "bg-slate-900/90 border-slate-700 text-slate-300"
+        }`}
+      >
+        {locationFriendlyBadge.mode === "wifi_office" ? (
+          <Wifi className="w-4 h-4 text-blue-400 shrink-0" />
+        ) : (
+          <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+        )}
+        <span>{locationFriendlyBadge.text}</span>
+      </div>
+
+      {/* 3. THẺ TÓM TẮT CÔNG HÔM NAY & CA CHUẨN */}
+      <div className="w-full max-w-sm bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2 text-xs shadow-md">
         <div className="flex items-center justify-between">
           <div>
             <span className="text-slate-400 font-medium block">
@@ -339,6 +487,11 @@ export default function OneTouchCheckIn({
                 ? `Đã vào ca lúc ${effectiveToday.check_in_time?.slice(0, 5)}`
                 : "Chưa chấm công vào ca"}
             </span>
+            {effectiveToday?.location_name && (
+              <span className="block text-[11px] text-slate-400 mt-0.5">
+                📍 {effectiveToday.location_name}
+              </span>
+            )}
           </div>
           <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Công tháng này</span>
@@ -346,11 +499,10 @@ export default function OneTouchCheckIn({
           </div>
         </div>
 
-        {/* Hiển thị giờ làm việc chuẩn & trạng thái đi muộn / OT */}
         <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-400">
           <span>
-            Ca chuẩn: <strong className="text-slate-200">{shiftConfig.work_start} - {shiftConfig.lunch_start}</strong> &{" "}
-            <strong className="text-slate-200">{shiftConfig.lunch_end} - {shiftConfig.work_end}</strong>
+            Ca chuẩn: <strong className="text-slate-200">{companyMeta.work_start || "08:00"} - {companyMeta.lunch_start || "12:00"}</strong> &{" "}
+            <strong className="text-slate-200">{companyMeta.lunch_end || "13:30"} - {companyMeta.work_end || "17:30"}</strong>
           </span>
           {Number(effectiveToday?.late_minutes) > 0 && (
             <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold">
@@ -365,7 +517,7 @@ export default function OneTouchCheckIn({
         </div>
       </div>
 
-      {/* MODAL CẢNH BÁO ĐỎ TOÀN MÀN HÌNH KHI PHÁT HIỆN FAKE GPS / THIẾT BỊ LẠ (NHIỆM VỤ 3) */}
+      {/* MODAL CẢNH BÁO ĐỎ TOÀN MÀN HÌNH KHI PHÁT HIỆN FAKE GPS / THIẾT BỊ LẠ */}
       {stage === STAGES.SECURITY_FRAUD && (
         <div className="fixed inset-0 bg-rose-950/95 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-bounce-short">
@@ -376,11 +528,11 @@ export default function OneTouchCheckIn({
               ⚠️ CẢNH BÁO VI PHẠM AN NINH
             </h3>
             <p className="text-xs text-white font-bold leading-relaxed bg-rose-950/80 border border-rose-500/40 rounded-2xl p-3.5">
-              Hệ thống phát hiện dấu hiệu giả mạo vị trí (Fake GPS) hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!
+              Hệ thống phát hiện dấu hiệu giả mạo vị trí hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!
             </p>
             {fraudDetails && (
-              <p className="text-[11px] text-rose-300 font-mono bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                Chi tiết kỹ thuật: {fraudDetails}
+              <p className="text-[11px] text-rose-200 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                {fraudDetails}
               </p>
             )}
             <button
@@ -394,7 +546,7 @@ export default function OneTouchCheckIn({
         </div>
       )}
 
-      {/* Modal Giải Thích Quyền Vị Trí (Hiển thị 1 lần) */}
+      {/* Modal Giải Thích Quyền Vị Trí */}
       {stage === STAGES.PERM_EXPLAIN && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-800 text-center">
@@ -403,7 +555,7 @@ export default function OneTouchCheckIn({
             </div>
             <h3 className="font-black text-lg text-slate-900 mb-2">Quyền Truy Cập Vị Trí GPS</h3>
             <p className="text-xs text-slate-600 leading-relaxed mb-6">
-              Sedinco HR sử dụng vị trí thực tế của bạn để chấm công 1 chạm (Vào ca / Ra ca) và chống gian lận vị trí giả mạo.
+              Sedinco HR sử dụng vị trí thực tế để xác nhận bạn đang ở chi nhánh/kho hàng hoặc tại công trình để chấm công 1 chạm.
             </p>
             <button
               type="button"
@@ -416,8 +568,46 @@ export default function OneTouchCheckIn({
         </div>
       )}
 
-      {/* NÚT CHẤM CÔNG 1 CHẠM DUY NHẤT (VÀO CA / RA CA TỰ ĐỘNG) */}
-      <div className="relative my-3 flex flex-col items-center">
+      {/* 4. NÚT CHUYỂN CHẾ ĐỘ ĐI CÔNG TRÌNH / THỊ TRƯỜNG */}
+      <div className="w-full max-w-sm">
+        <button
+          type="button"
+          onClick={() => setIsFieldWorkMode((v) => !v)}
+          className={`w-full min-h-[44px] py-2.5 px-4 rounded-2xl border-2 text-xs font-black flex items-center justify-center gap-2 transition cursor-pointer ${
+            isFieldWorkMode
+              ? "bg-amber-500 text-slate-950 border-amber-300 shadow-lg shadow-amber-500/20"
+              : "bg-slate-800/90 hover:bg-slate-800 text-amber-300 border-amber-500/40"
+          }`}
+        >
+          <HardHat size={16} />
+          <span>
+            {isFieldWorkMode
+              ? "🚧 Đang bật: Chấm Công Đi Công Trình (Bấm để tắt)"
+              : "🚧 Chấm công Đi Công Trình / Thị Trường (Ngoài VP)"}
+          </span>
+        </button>
+
+        {isFieldWorkMode && (
+          <div className="mt-2.5 bg-amber-950/35 border border-amber-500/40 rounded-2xl p-3.5 space-y-2.5 text-xs">
+            <label className="block text-[11px] font-black text-amber-200 uppercase">
+              Ghi chú tên công trình / khách hàng (Bắt buộc):
+            </label>
+            <input
+              type="text"
+              value={fieldNote}
+              onChange={(e) => setFieldNote(e.target.value)}
+              placeholder="VD: Giao gạch công trình Hòa Xuân / Gặp anh Minh..."
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500"
+            />
+            <p className="text-[11px] text-amber-200/90">
+              * Bắt buộc bấm nút chụp ảnh hiện trường bên dưới trước khi chấm công.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* 5. NÚT CHẤM CÔNG 1 CHẠM DUY NHẤT */}
+      <div className="relative my-2 flex flex-col items-center">
         <button
           id="btn-start-checkin"
           type="button"
@@ -430,9 +620,11 @@ export default function OneTouchCheckIn({
               ? "bg-emerald-600 border-white shadow-emerald-600/50"
               : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
               ? "bg-rose-600 border-white shadow-rose-600/50"
+              : isFieldWorkMode
+              ? "bg-amber-600 border-white hover:bg-amber-500 shadow-amber-600/50"
               : checkinType === "in"
               ? "bg-blue-600 border-white hover:bg-blue-500 shadow-blue-600/50"
-              : "bg-amber-600 border-white hover:bg-amber-500 shadow-amber-600/50"
+              : "bg-indigo-600 border-white hover:bg-indigo-500 shadow-indigo-600/50"
           }`}
         >
           <div className="mb-2">
@@ -446,6 +638,8 @@ export default function OneTouchCheckIn({
               <MapPin size={54} className="text-amber-100" />
             ) : stage === STAGES.SUBMITTING ? (
               <Send size={50} className="text-white" />
+            ) : isFieldWorkMode ? (
+              <HardHat size={54} className="text-white" />
             ) : (
               <Clock size={54} className="text-white" />
             )}
@@ -460,6 +654,8 @@ export default function OneTouchCheckIn({
               ? "HOÀN TẤT"
               : stage === STAGES.ERROR
               ? "BẤM THỬ LẠI"
+              : isFieldWorkMode
+              ? "ĐI CÔNG TRÌNH"
               : checkinType === "in"
               ? "CHẤM CÔNG VÀO"
               : "CHẤM CÔNG RA"}
@@ -470,28 +666,36 @@ export default function OneTouchCheckIn({
               ? "Kỳ công đã chốt"
               : stage === STAGES.SUCCESS
               ? (serverTimeResult ? `Lúc ${serverTimeResult}` : "Đã ghi nhận")
+              : isFieldWorkMode
+              ? "Kèm ảnh hiện trường"
               : checkinType === "in"
-              ? `Vào ca sáng (${shiftConfig.work_start})`
-              : `Ra ca chiều (${shiftConfig.work_end})`}
+              ? `Vào ca sáng (${companyMeta.work_start || "08:00"})`
+              : `Ra ca chiều (${companyMeta.work_end || "17:30"})`}
           </span>
         </button>
       </div>
 
-      {/* Nút đính kèm Ảnh Xác Thực Khuôn Mặt (< 50KB) */}
-      <div className="w-full max-w-sm mt-2">
+      {/* Nút chụp ảnh Selfie / Hiện trường (< 50KB) */}
+      <div className="w-full max-w-sm">
         <button
           type="button"
           onClick={handleCaptureSelfie}
           disabled={isDebounceLocked || stage === STAGES.SUBMITTING}
-          className="w-full min-h-[46px] py-2.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-95 transition"
+          className="w-full min-h-[46px] py-2.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-95 transition cursor-pointer"
         >
           <Camera size={16} className="text-emerald-400 shrink-0" />
-          <span>{capturedPhoto ? "✅ Đã đính kèm ảnh xác thực (< 50KB)" : "Chụp ảnh Selfie xác thực hiện trường (< 50KB)"}</span>
+          <span>
+            {capturedPhoto
+              ? "✅ Đã đính kèm ảnh hiện trường (< 50KB)"
+              : isFieldWorkMode
+              ? "📸 Chụp ảnh Công trình / Khách hàng (Bắt buộc)"
+              : "Chụp ảnh Selfie xác thực (< 50KB)"}
+          </span>
         </button>
       </div>
 
-      {/* DÒNG THÔNG BÁO KẾT QUẢ CHI TIẾT (GIỜ VÀO / GIỜ RA / ĐI MUỘN / LÀM THÊM) */}
-      <div className="w-full max-w-sm text-center mt-3 space-y-3">
+      {/* Kết quả & Thông báo chi tiết */}
+      <div className="w-full max-w-sm text-center space-y-3">
         <div
           className={`w-full py-3 px-4 rounded-2xl text-xs sm:text-sm font-extrabold inline-flex items-center justify-center gap-2 transition-all border-2 shadow-sm ${
             stage === STAGES.SUCCESS
@@ -511,7 +715,6 @@ export default function OneTouchCheckIn({
           <span>{statusMessage}</span>
         </div>
 
-        {/* Khối Báo Lỗi Chi Tiết & Nút Thử Lại */}
         {stage === STAGES.ERROR && (
           <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-left space-y-3">
             <div className="flex items-start gap-2.5">

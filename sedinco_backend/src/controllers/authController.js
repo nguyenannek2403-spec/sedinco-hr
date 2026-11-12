@@ -5,12 +5,26 @@ class AuthController {
     async login(req, res, next) {
         try {
             const identifier = req.body.ma_nv || req.body.username || req.body.identifier;
-            const { password } = req.body;
+            const { password, zalo_user_id, device_id } = req.body;
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
-            const result = await authService.employeeLogin(identifier, password, ip);
+            const result = await authService.employeeLogin(identifier, password, ip, { zalo_user_id, device_id });
             if (!result.success) {
                 const status = result.statusCode || 200;
                 return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode, request_id: req.id });
+            }
+            return res.json({ success: true, data: result.data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async zaloAutoLogin(req, res, next) {
+        try {
+            const { zalo_user_id, device_id, ma_nv } = req.body;
+            const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
+            const result = await authService.zaloAutoLogin({ zalo_user_id, device_id, ma_nv_hint: ma_nv }, ip);
+            if (!result.success) {
+                return res.status(result.statusCode || 200).json({ success: false, message: result.message });
             }
             return res.json({ success: true, data: result.data });
         } catch (err) {
