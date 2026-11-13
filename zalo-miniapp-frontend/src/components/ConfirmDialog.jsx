@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { AlertTriangle, CheckCircle2, HelpCircle, Loader2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, HelpCircle, Loader2, X, ArrowLeft } from "lucide-react";
+import { useLockBodyScroll } from "../hooks/useLockBodyScroll";
 
 /**
  * Hộp thoại xác nhận / nhập liệu trong ứng dụng (thay thế window.confirm / window.prompt / alert
@@ -10,7 +11,7 @@ export default function ConfirmDialog({
   title = "Xác nhận thao tác",
   message = "",
   confirmLabel = "Xác nhận",
-  cancelLabel = "Đóng",
+  cancelLabel = "Đóng / Quay lại",
   variant = "primary", // "primary" | "danger" | "warning"
   showInput = false,
   inputLabel = "Ghi chú / Lý do",
@@ -23,6 +24,8 @@ export default function ConfirmDialog({
 }) {
   const [inputVal, setInputVal] = useState(inputDefaultValue || "");
   const [validationError, setValidationError] = useState("");
+
+  useLockBodyScroll(open);
 
   useEffect(() => {
     if (open) {
@@ -74,20 +77,32 @@ export default function ConfirmDialog({
         paddingTop: "env(safe-area-inset-top, 0px)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
       onClick={() => {
         if (!loading && onCancel) onCancel();
       }}
     >
       <div
-        className="w-full sm:max-w-md max-h-[88vh] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-fade-in"
+        className="w-full sm:max-w-md max-h-[88vh] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-sheet-up"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start gap-3 px-5 py-4 border-b border-slate-100 shrink-0">
-          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${palette.iconBg}`}>
-            <IconComp className="w-5 h-5" />
-          </div>
-          <div className="min-w-0 flex-1 pt-0.5">
-            <h3 className="text-base font-bold text-slate-900 leading-snug">{title}</h3>
+        <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-slate-100 shrink-0">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onCancel}
+            className="inline-flex items-center gap-1 min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold shrink-0 disabled:opacity-50"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Trở về</span>
+          </button>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${palette.iconBg}`}>
+              <IconComp className="w-4 h-4" />
+            </div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug break-words">{title}</h3>
           </div>
           <button
             type="button"
@@ -137,7 +152,7 @@ export default function ConfirmDialog({
             type="button"
             disabled={loading}
             onClick={onCancel}
-            className="min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold whitespace-nowrap disabled:opacity-50"
+            className="min-h-[46px] px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold disabled:opacity-50"
           >
             {cancelLabel}
           </button>
@@ -145,7 +160,7 @@ export default function ConfirmDialog({
             type="button"
             disabled={loading}
             onClick={handleConfirmClick}
-            className={`min-h-[44px] px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap disabled:opacity-50 ${palette.btn}`}
+            className={`min-h-[46px] px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50 ${palette.btn}`}
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             <span>{loading ? "Đang xử lý..." : confirmLabel}</span>

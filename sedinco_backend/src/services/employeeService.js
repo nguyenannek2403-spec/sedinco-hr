@@ -42,7 +42,7 @@ class EmployeeService {
 
     async createEmployee(data, current_user = null) {
         const {
-            ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, role,
+            ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, department, role,
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
@@ -80,15 +80,16 @@ class EmployeeService {
 
         const sql = `
             INSERT INTO employees (
-                ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, role,
+                ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, department, role,
                 ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb, 
                 phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, 
                 thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
                 status, is_locked, password, must_change_password, custom_start_time, custom_end_time
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
+        const cleanDepartment = (department && String(department).trim()) ? String(department).trim().slice(0, 100) : 'Khối Công trình';
         const values = [
-            ma_nv, ho_ten, ngay_sinh || null, dien_thoai || '', email || '', chuc_danh || '', normalizedRole,
+            ma_nv, ho_ten, ngay_sinh || null, dien_thoai || '', email || '', chuc_danh || '', cleanDepartment, normalizedRole,
             ngay_bat_dau_lam || null, ngay_chinh_thuc || null, luong_cb || 0,
             phu_cap_an_trua || 0, phu_cap_xang_xe || 0, phu_cap_nha_o || 0,
             thuong_htcv || 0, phu_cap_trach_nhiem || 0, phu_cap_tiep_khach || 0,
@@ -120,7 +121,7 @@ class EmployeeService {
 
     async updateEmployee(id, data, current_user = null) {
         const {
-            ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, role,
+            ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, department, role,
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
@@ -135,6 +136,7 @@ class EmployeeService {
         const updateRole = (current_user && current_user.role === 'admin') && role !== undefined && ['worker', 'accountant', 'admin'].includes(role);
         const updateCustomStart = custom_start_time !== undefined;
         const updateCustomEnd = custom_end_time !== undefined;
+        const updateDepartment = department !== undefined;
 
         let sql = `
             UPDATE employees SET 
@@ -150,6 +152,11 @@ class EmployeeService {
             thuong_htcv || 0, phu_cap_trach_nhiem || 0, phu_cap_tiep_khach || 0,
             has_insurance ? 1 : 0
         ];
+
+        if (updateDepartment) {
+            sql += `, department=?`;
+            values.push(department && String(department).trim() ? String(department).trim().slice(0, 100) : 'Khối Công trình');
+        }
 
         if (updateRole) {
             sql += `, role=?`;

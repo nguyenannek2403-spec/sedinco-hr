@@ -176,7 +176,10 @@ export default function WorkerDashboard({
         <SmartLeaveRequestModal
           currentUser={currentUser}
           initialDate={fixCheckoutInfo.iso_date}
-          initialType="Bổ sung công / Quên chấm giờ ra"
+          initialMode="Bổ sung công / Quên chấm giờ ra"
+          initialCorrectionMode="CHECK_OUT"
+          initialCheckInTime={fixCheckoutInfo.check_in_time ? String(fixCheckoutInfo.check_in_time).slice(0, 5) : "07:30"}
+          initialCheckOutTime="17:30"
           initialReason={`Ngày ${fixCheckoutInfo.short_date} em đã chấm công Vào lúc ${String(fixCheckoutInfo.check_in_time || "").slice(0, 5)} nhưng quên bấm Giờ Ra. Kính mong Admin duyệt bổ sung giờ ra.`}
           onClose={() => setFixCheckoutInfo(null)}
           onRequestSubmitted={() => {

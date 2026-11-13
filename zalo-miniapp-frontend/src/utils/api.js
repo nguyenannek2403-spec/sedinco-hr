@@ -1,4 +1,5 @@
 import axios from "axios";
+import { formatErrorMessage } from "./viLabels";
 
 export function normalizeApiUrl(raw) {
   if (!raw || typeof raw !== "string") return "";
@@ -130,24 +131,26 @@ apiClient.interceptors.response.use(
 
     const isRevoked = status === 401 || (status === 403 && (error.response?.data?.code === 'ACCOUNT_REVOKED' || error.response?.data?.message?.includes('chấm dứt') || error.response?.data?.message?.includes('khóa')));
     if (isRevoked) {
-      userMessage = error.response?.data?.message || "Phiên đăng nhập đã bị chấm dứt hoặc tài khoản bị khóa.";
+      userMessage = formatErrorMessage(error.response?.data?.message || "Phiên đăng nhập đã hết hạn hoặc tài khoản đã bị khóa.");
       currentAuthToken = "";
       if (onUnauthorizedCallback) onUnauthorizedCallback();
     } else if (status === 403) {
-      userMessage = "Bạn không có quyền thực hiện thao tác này (403 Forbidden).";
+      userMessage = formatErrorMessage(error.response?.data?.message || "Bạn chưa được cấp quyền thực hiện thao tác này.");
     } else if (status === 429) {
       const retryAfter = error.response?.headers?.["retry-after"] || 5;
-      userMessage = `Thao tác quá nhanh! Vui lòng chờ ${retryAfter} giây trước khi thử lại (429 Rate Limit).`;
+      userMessage = `Bạn thao tác quá nhanh! Vui lòng đợi ${retryAfter} giây rồi thử lại.`;
     } else if (status === 409) {
-      userMessage = error.response?.data?.message || "Dữ liệu bị xung đột hoặc đã được ghi nhận trước đó (409 Conflict).";
+      userMessage = formatErrorMessage(error.response?.data?.message || "Dữ liệu này đã được xử lý trước đó hoặc đang bị trùng.");
     } else if (status === 400 || status === 422) {
-      userMessage = error.response?.data?.message || "Dữ liệu yêu cầu không hợp lệ. Vui lòng kiểm tra lại.";
+      userMessage = formatErrorMessage(error.response?.data?.message || "Thông tin nhập chưa hợp lệ. Vui lòng kiểm tra lại.");
     } else if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-      userMessage = "Kết nối quá thời gian chờ (Timeout). Vui lòng kiểm tra mạng và thử lại.";
+      userMessage = "Kết nối mạng hơi chậm. Vui lòng kiểm tra đường truyền và thử lại.";
     } else if (!error.response) {
-      userMessage = "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng Internet.";
+      userMessage = "Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng Wi-Fi hoặc 4G.";
     } else if (status >= 500) {
-      userMessage = "Máy chủ gặp sự cố xử lý nội bộ (5xx). Vui lòng thử lại sau giây lát.";
+      userMessage = "Hệ thống đang bận xử lý. Vui lòng thử lại sau ít phút.";
+    } else if (error.response?.data?.message) {
+      userMessage = formatErrorMessage(error.response.data.message);
     }
 
     if (status && status >= 400) {

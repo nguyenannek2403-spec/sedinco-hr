@@ -19,10 +19,13 @@ import {
   LayoutGrid,
   List,
   ArrowLeft,
-  Users
+  Users,
+  UserCheck
 } from "lucide-react";
 import { safeGet, safePost, sanitizeFormula, generateIdempotencyKey } from "../utils/api";
 import { useDebouncedValue } from "../hooks/useDebounce";
+import { useLockBodyScroll } from "../hooks/useLockBodyScroll";
+import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
 import PeriodLockModal from "./PeriodLockModal";
 import { ROLES, hasPermission } from "../constants/roles";
 
@@ -37,6 +40,7 @@ const getBadgeStyle = (status) => {
 };
 
 export default function AttendanceMatrixTable({
+  currentUser,
   attendanceData,
   month = new Date().getMonth() + 1,
   year = new Date().getFullYear(),
@@ -53,6 +57,7 @@ export default function AttendanceMatrixTable({
   const notify = onShowToast || showToast;
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
+  const [selectedDepartment, setSelectedDepartment] = useState("ALL");
   const [viewMode, setViewMode] = useState(() =>
     typeof window !== "undefined" && window.innerWidth < 768 ? "cards" : "matrix"
   );
@@ -64,9 +69,22 @@ export default function AttendanceMatrixTable({
   const [editError, setEditError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLockModal, setShowLockModal] = useState(false);
+  const [showProxyModal, setShowProxyModal] = useState(false);
+  const [proxyForm, setProxyForm] = useState({
+    ma_nv: "",
+    record_date: new Date().toISOString().slice(0, 10),
+    check_in_time: "08:00",
+    check_out_time: "17:30",
+    work_location_type: "OFFICE",
+    note: "Quản lý chấm công hộ do quên điện thoại"
+  });
+  const [proxySaving, setProxySaving] = useState(false);
   const savingCellRef = useRef(false);
+  const proxyInFlightRef = useRef(false);
   const [internalData, setInternalData] = useState([]);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
+
+  useLockBodyScroll(Boolean(detailEmpCode || editingCell || showProxyModal));
 
   const [internalLocked, setInternalLocked] = useState(() => {
     try {
@@ -114,15 +132,71 @@ export default function AttendanceMatrixTable({
 
   const sourceList = Array.isArray(attendanceData) ? attendanceData : internalData;
 
-  // Lọc nhân sự theo từ khóa tìm kiếm (debounced 300ms)
+  const availableDepartments = Array.from(
+    new Set([
+      ...DEPARTMENT_OPTIONS,
+      ...(sourceList || []).map((item) => item.department).filter(Boolean)
+    ])
+  );
+
+  // Lọc nhân sự theo từ khóa tìm kiếm + khối/bộ phận
   const filteredData = (sourceList || []).filter(item => {
-    if (!debouncedSearch) return true;
-    const q = debouncedSearch.toLowerCase();
-    return (
+    const q = (debouncedSearch || "").toLowerCase();
+    const matchText = !q ||
       item.ho_ten?.toLowerCase().includes(q) ||
-      item.ma_nv?.toLowerCase().includes(q)
-    );
+      item.ma_nv?.toLowerCase().includes(q) ||
+      item.department?.toLowerCase().includes(q);
+    const empDept = item.department || "Khối Công trình";
+    const matchDept = selectedDepartment === "ALL" || empDept === selectedDepartment;
+    return matchText && matchDept;
   });
+
+  const handleOpenProxyModal = () => {
+    const firstValid = (sourceList || []).find((e) => e.ma_nv !== currentUser?.ma_nv) || sourceList[0];
+    setProxyForm({
+      ma_nv: firstValid?.ma_nv || "",
+      record_date: new Date().toISOString().slice(0, 10),
+      check_in_time: "08:00",
+      check_out_time: "17:30",
+      work_location_type: "OFFICE",
+      note: "Quản lý chấm công hộ do quên điện thoại"
+    });
+    setShowProxyModal(true);
+  };
+
+  const handleSubmitProxyCheckIn = async (e) => {
+    e.preventDefault();
+    if (proxyInFlightRef.current || !proxyForm.ma_nv) return;
+    proxyInFlightRef.current = true;
+    setProxySaving(true);
+    try {
+      const res = await safePost(
+        "/attendance/proxy-check-in",
+        {
+          ma_nv: proxyForm.ma_nv,
+          record_date: proxyForm.record_date,
+          check_in_time: proxyForm.check_in_time || null,
+          check_out_time: proxyForm.check_out_time || null,
+          work_location_type: proxyForm.work_location_type,
+          note: proxyForm.note
+        },
+        { idempotencyKey: generateIdempotencyKey("proxy_checkin") }
+      );
+      if (res?.success) {
+        if (notify) notify(res.message || "Đã chấm công hộ nhân viên thành công!", "success");
+        setShowProxyModal(false);
+        fetchMatrixFromApi();
+        if (onRefresh) onRefresh();
+      } else {
+        if (notify) notify(res?.message || "Không thể chấm công hộ.", "error");
+      }
+    } catch (err) {
+      if (notify) notify(err.message || "Lỗi khi gửi yêu cầu chấm công hộ.", "error");
+    } finally {
+      proxyInFlightRef.current = false;
+      setProxySaving(false);
+    }
+  };
 
   const handleCellClick = (emp, dayIndex) => {
     if (isLocked) {
@@ -271,17 +345,43 @@ export default function AttendanceMatrixTable({
             </button>
           </div>
 
+          {/* Lọc bộ phận */}
+          <select
+            value={selectedDepartment}
+            onChange={(e) => setSelectedDepartment(e.target.value)}
+            className="min-h-[42px] px-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 shadow-sm text-slate-800"
+          >
+            <option value="ALL">🏢 Tất cả bộ phận</option>
+            {availableDepartments.map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
+          </select>
+
           {/* Ô tìm kiếm */}
-          <div className="relative min-w-[220px]">
+          <div className="relative min-w-[200px]">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Tìm theo tên hoặc mã NV..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 shadow-sm"
+              className="w-full min-h-[42px] pl-9 pr-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 shadow-sm"
             />
           </div>
+
+          {/* Nút Chấm công hộ / Điểm danh nhanh */}
+          {(effectiveRole === ROLES.ADMIN || effectiveRole === ROLES.ACCOUNTANT) && !isLocked && (
+            <button
+              type="button"
+              onClick={handleOpenProxyModal}
+              className="min-h-[42px] flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-3.5 py-2 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer whitespace-nowrap"
+            >
+              <UserCheck size={16} className="shrink-0" />
+              <span>Chấm công hộ</span>
+            </button>
+          )}
 
           {/* Nút Xuất CSV */}
           <button
@@ -591,8 +691,12 @@ export default function AttendanceMatrixTable({
         if (!emp) return null;
         const days = emp.days || [];
         return (
-          <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-            <div className="bg-white w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4"
+            onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
+            onClick={(e) => { if (e.target === e.currentTarget) setDetailEmpCode(null); }}
+          >
+            <div className="bg-white w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl animate-sheet-up">
               <div
                 className="px-4 pb-3 border-b border-slate-200 bg-white flex items-center justify-between gap-2 shrink-0 pr-[96px] sm:pr-4"
                 style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
@@ -668,9 +772,9 @@ export default function AttendanceMatrixTable({
                 <button
                   type="button"
                   onClick={() => setDetailEmpCode(null)}
-                  className="w-full h-11 rounded-xl bg-slate-800 text-white font-bold text-sm"
+                  className="w-full min-h-[46px] rounded-xl bg-slate-800 text-white font-bold text-base"
                 >
-                  Đóng cửa sổ
+                  Đóng / Quay lại
                 </button>
               </div>
             </div>
@@ -680,8 +784,12 @@ export default function AttendanceMatrixTable({
 
       {/* Modal Chỉnh Sửa Công Ô Trực Tiếp */}
       {editingCell && (
-        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[88vh] shadow-2xl border-t-2 sm:border-2 border-slate-200 flex flex-col overflow-hidden">
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEditingCell(null); }}
+        >
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[88vh] shadow-2xl border-t-2 sm:border-2 border-slate-200 flex flex-col overflow-hidden animate-sheet-up">
             <div className="flex justify-between items-center border-b border-slate-100 px-5 py-3.5 gap-2 shrink-0 bg-white">
               <button
                 type="button"
@@ -792,15 +900,15 @@ export default function AttendanceMatrixTable({
               <button
                 type="button"
                 onClick={() => setEditingCell(null)}
-                className="flex-1 h-11 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-xl border border-slate-300 cursor-pointer"
+                className="flex-1 min-h-[46px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl border border-slate-300 cursor-pointer"
               >
-                Đóng
+                Đóng / Quay lại
               </button>
               <button
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleSaveCellAttendance}
-                className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="flex-1 min-h-[46px] bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <RefreshCw size={16} className="animate-spin" />
@@ -808,6 +916,140 @@ export default function AttendanceMatrixTable({
                   <CheckCircle2 size={16} />
                 )}
                 <span>Lưu thay đổi</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Chấm Công Hộ / Điểm Danh Nhanh (Dành cho Quản lý / Kế toán) */}
+      {showProxyModal && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
+          onClick={(e) => { if (e.target === e.currentTarget && !proxySaving) setShowProxyModal(false); }}
+        >
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-sheet-up text-slate-800">
+            <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-slate-100 shrink-0">
+              <button
+                type="button"
+                disabled={proxySaving}
+                onClick={() => setShowProxyModal(false)}
+                className="inline-flex items-center gap-1 min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold shrink-0"
+              >
+                <ArrowLeft size={16} />
+                <span>Trở về</span>
+              </button>
+              <h4 className="font-black text-base text-slate-900 truncate">Chấm công hộ nhân viên</h4>
+              <button
+                type="button"
+                disabled={proxySaving}
+                onClick={() => setShowProxyModal(false)}
+                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0"
+                aria-label="Đóng"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form
+              id="proxy-checkin-form"
+              onSubmit={handleSubmitProxyCheckIn}
+              className="modal-scroll-area flex-1 min-h-0 p-5 space-y-3.5"
+            >
+              <div>
+                <label className="block text-sm font-bold text-slate-800 mb-1.5">Chọn nhân viên</label>
+                <select
+                  required
+                  value={proxyForm.ma_nv}
+                  onChange={(e) => setProxyForm((p) => ({ ...p, ma_nv: e.target.value }))}
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-900"
+                >
+                  <option value="">-- Chọn nhân viên --</option>
+                  {(sourceList || [])
+                    .filter((emp) => emp.ma_nv !== currentUser?.ma_nv)
+                    .map((emp) => (
+                      <option key={emp.ma_nv} value={emp.ma_nv}>
+                        {emp.ho_ten} ({emp.ma_nv})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="divide-y divide-slate-200 border-2 border-slate-200 rounded-2xl bg-slate-50 overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                  <label className="text-sm font-bold text-slate-700">Ngày chấm công</label>
+                  <input
+                    type="date"
+                    required
+                    value={proxyForm.record_date}
+                    onChange={(e) => setProxyForm((p) => ({ ...p, record_date: e.target.value }))}
+                    className="w-36 shrink-0 bg-white border border-slate-300 rounded-lg px-2 py-2 text-base font-bold text-slate-900 text-center"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                  <label className="text-sm font-bold text-slate-700">Giờ vào ca</label>
+                  <input
+                    type="time"
+                    value={proxyForm.check_in_time}
+                    onChange={(e) => setProxyForm((p) => ({ ...p, check_in_time: e.target.value }))}
+                    className="w-32 shrink-0 bg-white border border-slate-300 rounded-lg px-2 py-2 text-base font-bold text-slate-900 text-center"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                  <label className="text-sm font-bold text-slate-700">Giờ tan ca (nếu có)</label>
+                  <input
+                    type="time"
+                    value={proxyForm.check_out_time}
+                    onChange={(e) => setProxyForm((p) => ({ ...p, check_out_time: e.target.value }))}
+                    className="w-32 shrink-0 bg-white border border-slate-300 rounded-lg px-2 py-2 text-base font-bold text-slate-900 text-center"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-800 mb-1.5">Địa điểm làm việc</label>
+                <select
+                  value={proxyForm.work_location_type}
+                  onChange={(e) => setProxyForm((p) => ({ ...p, work_location_type: e.target.value }))}
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-900"
+                >
+                  <option value="OFFICE">Tại Văn phòng / Kho xưởng</option>
+                  <option value="FIELD_WORK">Ngoài công trình / Dự án</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-800 mb-1.5">Ghi chú điểm danh hộ</label>
+                <textarea
+                  rows={2}
+                  value={proxyForm.note}
+                  onChange={(e) => setProxyForm((p) => ({ ...p, note: e.target.value }))}
+                  placeholder="Ví dụ: Quản lý chấm công hộ do nhân viên quên điện thoại"
+                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-base text-slate-900"
+                />
+              </div>
+            </form>
+
+            <div
+              className="flex gap-2.5 px-5 py-3.5 border-t border-slate-200 bg-white shrink-0"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+            >
+              <button
+                type="button"
+                disabled={proxySaving}
+                onClick={() => setShowProxyModal(false)}
+                className="flex-1 min-h-[46px] py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-base rounded-xl border border-slate-300"
+              >
+                Đóng / Quay lại
+              </button>
+              <button
+                type="submit"
+                form="proxy-checkin-form"
+                disabled={proxySaving || !proxyForm.ma_nv}
+                className="flex-1 min-h-[46px] py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base rounded-xl shadow disabled:opacity-50"
+              >
+                {proxySaving ? "Đang lưu..." : "Xác nhận chấm hộ"}
               </button>
             </div>
           </div>

@@ -262,7 +262,7 @@ function requireRole(allowedRoles) {
             return res.status(403).json({
                 success: false,
                 code: 'FORBIDDEN',
-                message: `Từ chối truy cập: Tài khoản không có quyền hạn này (Yêu cầu: ${roles.join(', ')}).`,
+                message: 'Từ chối truy cập: Tài khoản hiện tại không có quyền thực hiện thao tác này.',
                 request_id: req.id || undefined
             });
         }
@@ -304,7 +304,7 @@ function requirePermission(permissionKey) {
             return res.status(403).json({
                 success: false,
                 code: 'FORBIDDEN',
-                message: `Quyền bị từ chối: Kế toán chưa được cấp quyền '${permissionKey}'. Vui lòng liên hệ Quản trị viên!`,
+                message: 'Tài khoản Kế toán hiện chưa được Quản trị viên cấp quyền thực hiện nghiệp vụ này. Vui lòng liên hệ Quản trị viên.',
                 request_id: req.id || undefined
             });
         }
@@ -343,7 +343,7 @@ async function logAuditEvent({ actor_id, actor_role, action, resource, details, 
 }
 
 // Danh sách các cột an toàn khi SELECT bảng employees (không bao giờ SELECT password)
-const SAFE_EMPLOYEE_FIELDS = `ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, role, 
+const SAFE_EMPLOYEE_FIELDS = `ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department, role, 
     ngay_bat_dau_lam, ngay_chinh_thuc, avatar_url, luong_cb, 
     phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv, 
     phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance, status, is_locked,

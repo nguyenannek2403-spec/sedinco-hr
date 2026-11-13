@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
+  ArrowLeft,
   DollarSign,
   Smartphone,
   Lock,
@@ -9,17 +10,12 @@ import {
   Mail,
   Clock,
   CalendarCheck,
-  X
+  Building2
 } from "lucide-react";
 import { safePost, safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
-
-const SHIFT_LABELS = {
-  FULL_DAY: "Ca hành chính (08:00 – 17:30)",
-  MORNING_SHIFT: "Ca sáng (07:30 – 12:00)",
-  AFTERNOON_SHIFT: "Ca chiều (13:00 – 17:30)",
-  NIGHT_SHIFT: "Ca tối / đêm (18:00 – 22:00)"
-};
+import useLockBodyScroll from "../../hooks/useLockBodyScroll";
+import { getShiftLabel } from "../../utils/viLabels";
 
 export default function WorkerProfileTab({
   currentUser,
@@ -39,6 +35,8 @@ export default function WorkerProfileTab({
   const [deviceReason, setDeviceReason] = useState("");
   const [deviceSubmitting, setDeviceSubmitting] = useState(false);
   const [deviceError, setDeviceError] = useState("");
+
+  useLockBodyScroll(Boolean(isDeviceModalOpen));
 
   const salaryLoadingRef = useRef(false);
   const deviceSubmittingRef = useRef(false);
@@ -112,7 +110,7 @@ export default function WorkerProfileTab({
     }
   };
 
-  const activeShiftLabel = SHIFT_LABELS[currentUser?.shift_type] || SHIFT_LABELS.FULL_DAY;
+  const activeShiftLabel = getShiftLabel(currentUser?.shift_type);
 
   return (
     <div className="p-4 pb-28 space-y-4">
@@ -129,8 +127,8 @@ export default function WorkerProfileTab({
             />
           </div>
           <div className="min-w-0">
-            <h2 className="text-lg font-bold leading-snug text-white truncate">{currentUser?.ho_ten || "Cán bộ công nhân viên"}</h2>
-            <p className="text-sm text-blue-400 font-semibold mt-0.5">{currentUser?.chuc_danh || "Nhân viên Sedinco"}</p>
+            <h2 className="text-lg font-bold leading-snug text-white break-words">{currentUser?.ho_ten || "Cán bộ công nhân viên"}</h2>
+            <p className="text-sm text-blue-400 font-semibold mt-0.5 leading-snug break-words">{currentUser?.chuc_danh || "Nhân viên Sedinco"}</p>
             <span className="inline-block mt-1 px-2.5 py-0.5 bg-slate-900/60 border border-slate-700 text-xs font-mono font-semibold text-slate-300 rounded-md whitespace-nowrap">
               Mã NV: {currentUser?.ma_nv}
             </span>
@@ -142,9 +140,13 @@ export default function WorkerProfileTab({
             <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span>{currentUser?.dien_thoai || "Chưa cập nhật SĐT"}</span>
           </div>
-          <div className="flex items-center gap-1.5 truncate">
+          <div className="flex items-center gap-1.5 min-w-0">
             <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="truncate">{currentUser?.email || "worker@sedinco.vn"}</span>
+            <span className="break-words">{currentUser?.email || "worker@sedinco.vn"}</span>
+          </div>
+          <div className="flex items-center gap-1.5 sm:col-span-2 text-sky-300">
+            <Building2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-medium">Khối / Bộ phận: {currentUser?.department || "Khối Công trình"}</span>
           </div>
           <div className="flex items-center gap-1.5 sm:col-span-2 text-indigo-300">
             <Clock className="w-3.5 h-3.5 shrink-0" />
@@ -289,29 +291,42 @@ export default function WorkerProfileTab({
 
       {/* Modal Yêu Cầu Đổi Thiết Bị */}
       {isDeviceModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-sm max-h-[88vh] shadow-2xl flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-slate-700/80 shrink-0">
-              <h3 className="text-sm font-black text-white flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-indigo-400" />
-                Yêu Cầu Đổi Thiết Bị Chấm Công
-              </h3>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+          style={{
+            paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)"
+          }}
+          onTouchMove={(e) => {
+            if (e.target === e.currentTarget) e.preventDefault();
+          }}
+          onClick={() => setIsDeviceModalOpen(false)}
+        >
+          <div
+            className="bg-slate-800 border border-slate-700 rounded-t-3xl sm:rounded-2xl w-full max-w-sm max-h-[88vh] shadow-2xl flex flex-col overflow-hidden animate-sheet-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-700/80 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsDeviceModalOpen(false)}
-                className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
-                aria-label="Đóng"
+                className="min-h-[40px] px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition active:scale-[0.98]"
               >
-                <X className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4" />
+                <span>Trở về</span>
               </button>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 leading-snug">
+                <Smartphone className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span>Đổi thiết bị chấm công</span>
+              </h3>
             </div>
             <form
               id="device-change-form"
               onSubmit={handleRequestDeviceChange}
-              className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-3"
+              className="modal-scroll-area flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-3"
             >
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Vui lòng nhập lý do thay đổi máy (ví dụ: mất điện thoại, hỏng máy, đổi máy mới) để Quản trị viên duyệt mở khóa:
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Vui lòng nhập lý do thay đổi điện thoại (ví dụ: mất máy, hỏng máy, đổi điện thoại mới) để Quản trị viên duyệt mở khóa:
               </p>
               {deviceError && (
                 <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
@@ -334,15 +349,15 @@ export default function WorkerProfileTab({
               <button
                 type="button"
                 onClick={() => setIsDeviceModalOpen(false)}
-                className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
+                className="flex-1 min-h-[46px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition active:scale-[0.98] cursor-pointer"
               >
-                Hủy
+                Đóng / Quay lại
               </button>
               <button
                 type="submit"
                 form="device-change-form"
                 disabled={deviceSubmitting}
-                className="flex-1 min-h-[44px] py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                className="flex-1 min-h-[46px] py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition active:scale-[0.98] disabled:opacity-50 cursor-pointer whitespace-nowrap"
               >
                 {deviceSubmitting ? "Đang gửi..." : "Gửi yêu cầu"}
               </button>

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
+  ArrowLeft,
   Clock,
   MapPin,
   Fingerprint,
@@ -16,6 +17,7 @@ import {
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
 import { captureDirectCameraPhoto } from "../utils/imageHelper";
+import useLockBodyScroll from "../hooks/useLockBodyScroll";
 
 export const FEATURE_BIOMETRIC_ENABLED = false;
 
@@ -82,6 +84,7 @@ export default function OneTouchCheckIn({
   isLockedPeriod = false
 }) {
   const [stage, setStage] = useState(STAGES.IDLE);
+  useLockBodyScroll(stage === STAGES.SECURITY_FRAUD || stage === STAGES.PERM_EXPLAIN);
   const [statusMessage, setStatusMessage] = useState("Chạm nút tròn lớn bên dưới để Chấm Công 1 Chạm (Vào ca / Ra ca)");
   const [serverTimeResult, setServerTimeResult] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -548,6 +551,11 @@ export default function OneTouchCheckIn({
                 📍 {effectiveToday.location_name}
               </span>
             )}
+            {effectiveToday?.proxy_by && (
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/40 text-blue-300 text-[11px] font-semibold">
+                Quản lý chấm hộ{effectiveToday.proxy_note ? `: ${effectiveToday.proxy_note}` : ""}
+              </span>
+            )}
           </div>
           <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700 shrink-0">
             <span className="text-[11px] text-slate-400 font-medium block">Công tháng này</span>
@@ -620,29 +628,52 @@ export default function OneTouchCheckIn({
 
       {/* MODAL CẢNH BÁO ĐỎ TOÀN MÀN HÌNH KHI PHÁT HIỆN FAKE GPS / THIẾT BỊ LẠ */}
       {stage === STAGES.SECURITY_FRAUD && (
-        <div className="fixed inset-0 bg-rose-950/95 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-slate-900 border-2 border-rose-500 rounded-t-3xl sm:rounded-3xl max-w-sm w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl text-center">
-            <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-6 space-y-4" style={{ WebkitOverflowScrolling: "touch" }}>
+        <div
+          className="fixed inset-0 bg-rose-950/95 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+          style={{
+            paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)"
+          }}
+          onTouchMove={(e) => {
+            if (e.target === e.currentTarget) e.preventDefault();
+          }}
+          onClick={() => setStage(STAGES.IDLE)}
+        >
+          <div
+            className="bg-slate-900 border-2 border-rose-500 rounded-t-3xl sm:rounded-3xl max-w-sm w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl text-center animate-sheet-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-rose-900/60 flex items-center justify-start shrink-0">
+              <button
+                type="button"
+                onClick={() => setStage(STAGES.IDLE)}
+                className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-[0.98]"
+              >
+                <ArrowLeft size={16} />
+                <span>Trở về</span>
+              </button>
+            </div>
+            <div className="modal-scroll-area flex-1 overflow-y-auto overscroll-contain touch-pan-y p-6 space-y-4">
               <div className="w-20 h-20 rounded-full bg-rose-600/20 border-2 border-rose-500 text-rose-500 flex items-center justify-center mx-auto shadow-lg shadow-rose-600/30">
                 <ShieldAlert size={44} />
               </div>
-              <h3 className="font-black text-lg text-rose-400 uppercase tracking-wide">
-                ⚠️ CẢNH BÁO VI PHẠM AN NINH
+              <h3 className="font-black text-lg text-rose-400 tracking-wide">
+                Cảnh báo an ninh chấm công
               </h3>
-              <p className="text-xs text-white font-bold leading-relaxed bg-rose-950/80 border border-rose-500/40 rounded-2xl p-3.5">
-                Hệ thống phát hiện dấu hiệu giả mạo vị trí hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!
+              <p className="text-xs text-white font-semibold leading-relaxed bg-rose-950/80 border border-rose-500/40 rounded-2xl p-3.5">
+                Hệ thống phát hiện dấu hiệu giả mạo vị trí hoặc thiết bị chưa được cấp phép. Thông báo đã được gửi trực tiếp tới Quản lý!
               </p>
               {fraudDetails && (
-                <p className="text-[11px] text-rose-200 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <p className="text-xs text-rose-200 bg-slate-950 p-3 rounded-xl border border-slate-800 leading-relaxed">
                   {fraudDetails}
                 </p>
               )}
               <button
                 type="button"
                 onClick={() => setStage(STAGES.IDLE)}
-                className="w-full min-h-[46px] py-3 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-rose-600/40"
+                className="w-full min-h-[46px] py-3 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm shadow-lg shadow-rose-600/40 transition active:scale-[0.98]"
               >
-                Tôi Đã Hiểu & Đóng Cảnh Báo
+                Đóng / Quay lại
               </button>
             </div>
           </div>
@@ -651,30 +682,56 @@ export default function OneTouchCheckIn({
 
       {/* Modal Giải Thích Quyền Vị Trí */}
       {stage === STAGES.PERM_EXPLAIN && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl text-slate-800 text-center">
-            <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-6" style={{ WebkitOverflowScrolling: "touch", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}>
+        <div
+          className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+          style={{
+            paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)"
+          }}
+          onTouchMove={(e) => {
+            if (e.target === e.currentTarget) e.preventDefault();
+          }}
+          onClick={() => setStage(STAGES.IDLE)}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl text-slate-800 text-center animate-sheet-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-start shrink-0">
+              <button
+                type="button"
+                onClick={() => setStage(STAGES.IDLE)}
+                className="min-h-[40px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition active:scale-[0.98]"
+              >
+                <ArrowLeft size={16} />
+                <span>Trở về</span>
+              </button>
+            </div>
+            <div
+              className="modal-scroll-area flex-1 overflow-y-auto overscroll-contain touch-pan-y p-6"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
+            >
               <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 shadow-sm border border-blue-100">
                 <MapPin size={32} />
               </div>
-              <h3 className="font-black text-lg text-slate-900 mb-2">Quyền Truy Cập Vị Trí GPS</h3>
-              <p className="text-xs text-slate-600 leading-relaxed mb-6">
-                Sedinco HR sử dụng vị trí thực tế để xác nhận bạn đang ở chi nhánh/kho hàng hoặc tại công trình để chấm công 1 chạm.
+              <h3 className="font-bold text-lg text-slate-900 mb-2">Quyền Truy Cập Vị Trí GPS</h3>
+              <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                Sedinco HR sử dụng vị trí thực tế để xác nhận bạn đang ở chi nhánh/kho hàng hoặc tại công trình để chấm công nhanh gọn.
               </p>
               <div className="space-y-2.5">
                 <button
                   type="button"
                   onClick={handleAcceptPermExplain}
-                  className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-500/30 transition-all cursor-pointer"
+                  className="w-full min-h-[46px] py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-lg shadow-blue-500/30 transition active:scale-[0.98] cursor-pointer"
                 >
-                  TÔI HIỂU & CHO PHÉP
+                  Tôi hiểu &amp; Cho phép
                 </button>
                 <button
                   type="button"
                   onClick={() => setStage(STAGES.IDLE)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs cursor-pointer"
+                  className="w-full min-h-[46px] py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition active:scale-[0.98] cursor-pointer"
                 >
-                  Để sau / Đóng
+                  Đóng / Quay lại
                 </button>
               </div>
             </div>

@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { Modal, Box, Text, Input, Button } from 'zmp-ui';
-import { ShieldAlert, X } from 'lucide-react';
+import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { safePost } from '../utils/api';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 
 /**
  * ForcePasswordChangeModal (G3 Security Hardening)
@@ -22,6 +23,8 @@ export default function ForcePasswordChangeModal({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const submitInFlightRef = useRef(false);
+
+    useLockBodyScroll(Boolean(visible));
 
     const handleSafeClose = () => {
         if (!canClose || submitInFlightRef.current) return;
@@ -89,14 +92,16 @@ export default function ForcePasswordChangeModal({
         >
             <Box className="p-4 text-center relative">
                 {canClose && (
-                    <button
-                        type="button"
-                        onClick={handleSafeClose}
-                        aria-label="Đóng"
-                        className="absolute top-1 right-1 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors"
-                    >
-                        <X size={18} />
-                    </button>
+                    <div className="flex items-center justify-start mb-2">
+                        <button
+                            type="button"
+                            onClick={handleSafeClose}
+                            className="min-h-[40px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition active:scale-[0.98]"
+                        >
+                            <ArrowLeft size={16} />
+                            <span>Trở về</span>
+                        </button>
+                    </div>
                 )}
 
                 <Box className="flex justify-center mb-3">
@@ -164,15 +169,14 @@ export default function ForcePasswordChangeModal({
                         {canClose ? 'Lưu Mật Khẩu Mới' : 'Lưu Mật Khẩu & Bắt Đầu Sử Dụng'}
                     </Button>
                     {canClose && (
-                        <Button
-                            fullWidth
-                            variant="secondary"
-                            type="neutral"
+                        <button
+                            type="button"
                             disabled={loading}
                             onClick={handleSafeClose}
+                            className="w-full min-h-[46px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50"
                         >
-                            Hủy / Đóng
-                        </Button>
+                            Đóng / Quay lại
+                        </button>
                     )}
                 </Box>
             </Box>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
+  ArrowLeft,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -7,11 +8,13 @@ import {
   AlertCircle,
   RefreshCw,
   FilePlus2,
-  X,
-  MapPin
+  MapPin,
+  UserCheck
 } from "lucide-react";
 import { safeGet } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
+import useLockBodyScroll from "../../hooks/useLockBodyScroll";
+import { getAttendanceStatusInfo } from "../../utils/viLabels";
 
 const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 
@@ -102,6 +105,8 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
 
   const [selectedDayDetail, setSelectedDayDetail] = useState(null);
   const [correctionModalDate, setCorrectionModalDate] = useState(null);
+
+  useLockBodyScroll(Boolean(selectedDayDetail));
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
@@ -325,79 +330,136 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
         )}
       </div>
 
-      {/* Danh sách chi tiết dạng thẻ bên dưới để cuộn xem nhanh */}
+      {/* BẢNG ĐỐI CHIẾU CÔNG & LƯƠNG TỪNG NGÀY (CHUẨN MISA AMIS) */}
       {logs.length > 0 && (
-        <div className="bg-slate-800/70 border border-slate-700/70 rounded-2xl p-3.5 space-y-2">
-          <h4 className="text-xs font-black text-slate-300 uppercase">Nhật ký chi tiết trong tháng ({logs.length} ngày)</h4>
-          {logs.map((day, idx) => {
-            const iso = String(day.record_date || "").slice(0, 10);
-            const style = getHeatmapCellStyle(day, idx, false);
-            return (
-              <div
-                key={iso || idx}
-                onClick={() => setSelectedDayDetail({ isoDate: iso, dayNum: iso.slice(-2), log: day, style })}
-                className="p-3 bg-slate-900/70 border border-slate-700/60 rounded-xl flex items-center justify-between cursor-pointer hover:border-blue-500/50 transition"
-              >
-                <div>
-                  <div className="text-xs font-black text-white">{iso}</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
-                    <span>Vào: <strong className="text-slate-200">{day.check_in_time ? String(day.check_in_time).slice(0, 5) : "--:--"}</strong></span>
-                    <span>Ra: <strong className="text-slate-200">{day.check_out_time ? String(day.check_out_time).slice(0, 5) : "--:--"}</strong></span>
-                  </div>
-                  {day.location_name && (
-                    <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-                      <MapPin className="w-3 h-3 text-blue-400" />
-                      <span>{day.location_name}</span>
+        <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-3.5 space-y-2.5 shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="text-sm font-bold text-white">
+              Bảng đối chiếu công từng ngày ({logs.length} ngày)
+            </h4>
+            <span className="text-xs text-blue-300 font-semibold">
+              Chạm vào ngày để giải trình công
+            </span>
+          </div>
+          <div className="divide-y divide-slate-700/60 bg-slate-900/70 border border-slate-700/70 rounded-2xl overflow-hidden">
+            {logs.map((day, idx) => {
+              const iso = String(day.record_date || "").slice(0, 10);
+              const style = getHeatmapCellStyle(day, idx, false);
+              const statusInfo = getAttendanceStatusInfo(day.status);
+              const otHours = Number(day.ot_hours) || 0;
+              const lateMinutes = Number(day.late_minutes) || 0;
+              return (
+                <button
+                  key={iso || idx}
+                  type="button"
+                  onClick={() => setSelectedDayDetail({ isoDate: iso, dayNum: iso.slice(-2), log: day, style })}
+                  className="w-full text-left p-3.5 flex items-start justify-between gap-3 hover:bg-slate-800/80 transition cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold text-white font-mono">{iso}</span>
+                      <span className="text-xs font-semibold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                        {statusInfo.creditText}
+                      </span>
+                      {otHours > 0 && (
+                        <span className="text-xs font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 rounded-md">
+                          +{otHours}h tăng ca
+                        </span>
+                      )}
+                      {lateMinutes > 0 && (
+                        <span className="text-xs font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                          Muộn {lateMinutes}p
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-                <span className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border ${style.cellClass}`}>
-                  {style.badgeText}
-                </span>
-              </div>
-            );
-          })}
+                    <div className="text-xs text-slate-300 flex flex-wrap items-center gap-3">
+                      <span>
+                        Vào:{" "}
+                        <strong className="text-white font-mono">
+                          {day.check_in_time ? String(day.check_in_time).slice(0, 5) : "--:--"}
+                        </strong>
+                      </span>
+                      <span>
+                        Ra:{" "}
+                        <strong className="text-white font-mono">
+                          {day.check_out_time ? String(day.check_out_time).slice(0, 5) : "--:--"}
+                        </strong>
+                      </span>
+                    </div>
+                    {day.location_name && (
+                      <div className="text-xs text-slate-400 flex items-center gap-1 leading-snug">
+                        <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <span className="break-words">{day.location_name}</span>
+                      </div>
+                    )}
+                    {day.proxy_by && (
+                      <div className="text-xs text-blue-300 flex items-center gap-1 leading-snug">
+                        <UserCheck className="w-3.5 h-3.5 shrink-0" />
+                        <span>Chấm công hộ{day.proxy_note ? `: ${day.proxy_note}` : ""}</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-lg border shrink-0 whitespace-nowrap ${style.cellClass}`}>
+                    {statusInfo.shortLabel}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* MODAL CHI TIẾT 1 NGÀY + NÚT BỔ SUNG CÔNG 1 CHẠM */}
       {selectedDayDetail && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-slate-900 border-2 border-slate-700 rounded-t-3xl sm:rounded-3xl w-full max-w-sm max-h-[88vh] flex flex-col overflow-hidden shadow-2xl">
-            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-800 shrink-0">
-              <div>
-                <span className="text-[10px] font-bold text-blue-400 uppercase">Chi tiết công ngày</span>
-                <h3 className="text-base font-black text-white">{selectedDayDetail.isoDate}</h3>
-              </div>
+        <div
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+          style={{
+            paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)"
+          }}
+          onTouchMove={(e) => {
+            if (e.target === e.currentTarget) e.preventDefault();
+          }}
+          onClick={() => setSelectedDayDetail(null)}
+        >
+          <div
+            className="bg-slate-900 border-2 border-slate-700 rounded-t-3xl sm:rounded-3xl w-full max-w-sm max-h-[88vh] flex flex-col overflow-hidden shadow-2xl animate-sheet-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3.5 flex items-center gap-3 border-b border-slate-800 shrink-0">
               <button
                 type="button"
                 onClick={() => setSelectedDayDetail(null)}
-                className="min-w-[40px] min-h-[40px] p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl cursor-pointer flex items-center justify-center"
-                aria-label="Đóng"
+                className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition active:scale-[0.98]"
               >
-                <X size={18} />
+                <ArrowLeft size={16} />
+                <span>Trở về</span>
               </button>
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-semibold text-blue-400 block">Chi tiết công ngày</span>
+                <h3 className="text-base font-bold text-white leading-snug">{selectedDayDetail.isoDate}</h3>
+              </div>
             </div>
 
             <div
-              className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-4"
-              style={{ WebkitOverflowScrolling: "touch", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
+              className="modal-scroll-area flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-4"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
             >
               <div className="space-y-2.5 text-xs">
-                <div className={`p-3 rounded-2xl border font-bold text-center ${selectedDayDetail.style.cellClass}`}>
+                <div className={`p-3 rounded-2xl border font-bold text-center text-sm ${selectedDayDetail.style.cellClass}`}>
                   {selectedDayDetail.style.badgeText}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase block">Giờ vào ca</span>
-                    <span className="text-sm font-black text-white font-mono">
+                    <span className="text-xs text-slate-400 block mb-0.5">Giờ vào ca</span>
+                    <span className="text-base font-bold text-white font-mono">
                       {selectedDayDetail.log?.check_in_time ? String(selectedDayDetail.log.check_in_time).slice(0, 5) : "--:--"}
                     </span>
                   </div>
                   <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase block">Giờ ra ca</span>
-                    <span className="text-sm font-black text-white font-mono">
+                    <span className="text-xs text-slate-400 block mb-0.5">Giờ ra ca</span>
+                    <span className="text-base font-bold text-white font-mono">
                       {selectedDayDetail.log?.check_out_time ? String(selectedDayDetail.log.check_out_time).slice(0, 5) : "--:--"}
                     </span>
                   </div>
@@ -406,13 +468,22 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                 {selectedDayDetail.log?.location_name && (
                   <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-2 text-slate-300">
                     <MapPin size={15} className="text-blue-400 shrink-0" />
-                    <span>{selectedDayDetail.log.location_name}</span>
+                    <span className="break-words">{selectedDayDetail.log.location_name}</span>
+                  </div>
+                )}
+
+                {selectedDayDetail.log?.proxy_by && (
+                  <div className="bg-blue-950/40 p-3 rounded-2xl border border-blue-500/30 text-blue-200 space-y-0.5">
+                    <strong className="block text-xs">Chấm công hộ bởi {selectedDayDetail.log.proxy_by}</strong>
+                    {selectedDayDetail.log.proxy_note && (
+                      <span className="text-xs block">{selectedDayDetail.log.proxy_note}</span>
+                    )}
                   </div>
                 )}
 
                 {selectedDayDetail.log?.field_note && (
                   <div className="bg-amber-950/40 p-3 rounded-2xl border border-amber-500/30 text-amber-200">
-                    <strong className="block text-[10px] uppercase mb-0.5">Ghi chú công trình:</strong>
+                    <strong className="block text-xs mb-0.5">Ghi chú công trình:</strong>
                     <span>{selectedDayDetail.log.field_note}</span>
                   </div>
                 )}
@@ -423,22 +494,23 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                   type="button"
                   onClick={() => {
                     const iso = selectedDayDetail.isoDate;
+                    const existingLog = selectedDayDetail.log;
                     setSelectedDayDetail(null);
-                    setCorrectionModalDate(iso);
+                    setCorrectionModalDate({ iso, log: existingLog });
                   }}
-                  className="w-full min-h-[46px] py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                  className="w-full min-h-[46px] py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer transition active:scale-[0.98]"
                 >
                   <FilePlus2 size={16} />
-                  <span>📝 Gửi đơn bổ sung công cho ngày này</span>
+                  <span>Gửi đơn bổ sung công cho ngày này</span>
                 </button>
               )}
 
               <button
                 type="button"
                 onClick={() => setSelectedDayDetail(null)}
-                className="w-full min-h-[44px] py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl font-bold text-xs cursor-pointer"
+                className="w-full min-h-[46px] py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-2xl font-semibold text-sm cursor-pointer transition active:scale-[0.98]"
               >
-                Đóng cửa sổ
+                Đóng / Quay lại
               </button>
             </div>
           </div>
@@ -449,9 +521,26 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
       {correctionModalDate && (
         <SmartLeaveRequestModal
           currentUser={currentUser}
-          initialDate={correctionModalDate}
-          initialType="Bổ sung công / Quên chấm giờ ra"
-          initialReason={`Đề nghị bổ sung công / xác nhận giờ ra ngày ${correctionModalDate}`}
+          initialDate={typeof correctionModalDate === "string" ? correctionModalDate : correctionModalDate.iso}
+          initialMode="Bổ sung công / Quên chấm giờ ra"
+          initialCorrectionMode={
+            correctionModalDate?.log?.check_in_time && !correctionModalDate?.log?.check_out_time
+              ? "CHECK_OUT"
+              : !correctionModalDate?.log?.check_in_time && correctionModalDate?.log?.check_out_time
+                ? "CHECK_IN"
+                : "BOTH"
+          }
+          initialCheckInTime={
+            correctionModalDate?.log?.check_in_time
+              ? String(correctionModalDate.log.check_in_time).slice(0, 5)
+              : "07:30"
+          }
+          initialCheckOutTime={
+            correctionModalDate?.log?.check_out_time
+              ? String(correctionModalDate.log.check_out_time).slice(0, 5)
+              : "17:30"
+          }
+          initialReason={`Đề nghị bổ sung công ngày ${typeof correctionModalDate === "string" ? correctionModalDate : correctionModalDate.iso}`}
           onClose={() => setCorrectionModalDate(null)}
           onRequestSubmitted={() => {
             setCorrectionModalDate(null);

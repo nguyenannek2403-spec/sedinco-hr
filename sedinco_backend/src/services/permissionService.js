@@ -220,7 +220,7 @@ class PermissionService {
                 SELECT COUNT(*) as cnt FROM requests WHERE status = 'pending'
             `).catch(() => [{ cnt: 0 }]),
             query('SELECT log_retention_days FROM company_settings LIMIT 1').catch(() => [{ log_retention_days: 30 }]),
-            query("SELECT ma_nv, ho_ten, chuc_danh, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM employees WHERE status != 'inactive' ORDER BY ma_nv ASC").catch(() => []),
+            query("SELECT ma_nv, ho_ten, chuc_danh, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM employees WHERE status != 'inactive' ORDER BY ma_nv ASC").catch(() => []),
             query("SELECT a.employee_id, a.status, a.late_minutes, a.check_in_time, a.check_out_time, a.work_location_type, a.location_name, a.field_note, COALESCE(a.shift_type, 'FULL_DAY') as shift_type, CASE WHEN a.check_in_image IS NOT NULL AND LENGTH(a.check_in_image) > 100 THEN 1 ELSE 0 END as has_photo FROM attendance_logs a WHERE a.record_date = ?", [todayStr]).catch(() => [])
         ]);
 
@@ -248,6 +248,7 @@ class PermissionService {
                 ma_nv: l.employee_id,
                 ho_ten: empInfo.ho_ten || l.employee_id,
                 chuc_danh: empInfo.chuc_danh || '',
+                department: empInfo.department || 'Khối Công trình',
                 shift_type: l.shift_type || empInfo.shift_type || 'FULL_DAY',
                 status: l.status,
                 check_in_time: l.check_in_time || null,
@@ -283,6 +284,7 @@ class PermissionService {
                 ma_nv: e.ma_nv,
                 ho_ten: e.ho_ten || e.ma_nv,
                 chuc_danh: e.chuc_danh || '',
+                department: e.department || 'Khối Công trình',
                 shift_type: e.shift_type || 'FULL_DAY',
                 status: 'NOT_CHECKED_IN'
             }));

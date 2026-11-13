@@ -47,6 +47,24 @@ class AttendanceController {
         }
     }
 
+    async proxyCheckIn(req, res, next) {
+        try {
+            const { ma_nv, record_date, check_in_time, check_out_time, work_location_type, note } = req.body;
+            const result = await attendanceService.proxyCheckIn({
+                ma_nv,
+                record_date,
+                check_in_time,
+                check_out_time,
+                work_location_type,
+                note,
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async lockPeriod(req, res, next) {
         try {
             const { month, year, reason, locked_by, confirm_low_trust } = req.body;

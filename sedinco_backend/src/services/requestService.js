@@ -93,6 +93,17 @@ function expandDateRange(fromIso, toIso) {
     return list;
 }
 
+function normalizeOptionalReqTime(val) {
+    if (!val || typeof val !== 'string') return null;
+    const match = val.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!match) return null;
+    const hh = Number(match[1]);
+    const mm = Number(match[2]);
+    const ss = match[3] ? Number(match[3]) : 0;
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) return null;
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+}
+
 class RequestService {
     async getAllRequests(pagination = {}) {
         const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 100));
@@ -102,6 +113,7 @@ class RequestService {
         const sql = `
             SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, r.request_type,
                    COALESCE(r.advance_amount, 0) as advance_amount,
+                   r.correction_mode, r.check_in_time, r.check_out_time, r.evidence_image,
                    DATE_FORMAT(r.request_date, '%d/%m/%Y') as date, r.reason, r.status, r.created_at
             FROM requests r 
             LEFT JOIN employees e ON r.employee_id = e.ma_nv 
@@ -121,6 +133,7 @@ class RequestService {
         const sql = `
             SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, r.request_type,
                    COALESCE(r.advance_amount, 0) as advance_amount,
+                   r.correction_mode, r.check_in_time, r.check_out_time, r.evidence_image,
                    DATE_FORMAT(r.request_date, '%d/%m/%Y') as date, r.reason, r.status, r.created_at
             FROM requests r 
             LEFT JOIN employees e ON r.employee_id = e.ma_nv 
@@ -191,7 +204,20 @@ class RequestService {
         };
     }
 
-    async createRequest({ employee_id, request_type, request_date, from_date, to_date, reason, advance_amount = 0, current_user = null }) {
+    async createRequest({
+        employee_id,
+        request_type,
+        request_date,
+        from_date,
+        to_date,
+        reason,
+        advance_amount = 0,
+        correction_mode = null,
+        check_in_time = null,
+        check_out_time = null,
+        evidence_image = null,
+        current_user = null
+    }) {
         // Chỉ Admin mới được tạo đơn hộ nhân viên khác
         const targetId = (current_user && current_user.role !== 'admin')
             ? current_user.ma_nv
@@ -233,6 +259,26 @@ class RequestService {
         const cleanReason = String(reason || '').trim().slice(0, 1000);
         const reqCategory = classifyRequestCategory(cleanType);
         const parsedAdvanceAmount = reqCategory === 'SALARY_ADVANCE' ? Math.round(Number(advance_amount) || 0) : 0;
+
+        const allowedModes = ['CHECK_IN', 'CHECK_OUT', 'BOTH', 'SHIFT_CHANGE'];
+        const rawMode = correction_mode ? String(correction_mode).trim().toUpperCase() : null;
+        const cleanCorrectionMode = (reqCategory === 'ATTENDANCE_COMPENSATION' && rawMode && allowedModes.includes(rawMode))
+            ? rawMode
+            : null;
+        const cleanCheckIn = reqCategory === 'ATTENDANCE_COMPENSATION' ? normalizeOptionalReqTime(check_in_time) : null;
+        const cleanCheckOut = reqCategory === 'ATTENDANCE_COMPENSATION' ? normalizeOptionalReqTime(check_out_time) : null;
+
+        let cleanEvidenceImage = null;
+        if (evidence_image && typeof evidence_image === 'string') {
+            if (evidence_image.length > 260000) {
+                const error = new Error('Ảnh minh chứng đính kèm vượt quá dung lượng 150KB cho phép! Vui lòng chọn ảnh khác nhẹ hơn.');
+                error.statusCode = 400;
+                throw error;
+            }
+            if (evidence_image.startsWith('data:image/')) {
+                cleanEvidenceImage = evidence_image;
+            }
+        }
         if (reqCategory === 'SALARY_ADVANCE') {
             if (!Number.isFinite(parsedAdvanceAmount) || parsedAdvanceAmount < 10000 || parsedAdvanceAmount > 500000000) {
                 const error = new Error('Vui lòng nhập số tiền xin ứng lương hợp lệ (tối thiểu 10.000 đ)!');
@@ -348,15 +394,34 @@ class RequestService {
             const insertedIds = [];
             for (const iso of datesList) {
                 const insertRes = await txQuery(
-                    'INSERT INTO requests (employee_id, request_type, request_date, reason, status, advance_amount) VALUES (?, ?, ?, ?, ?, ?)',
-                    [targetId, cleanType, iso, cleanReason, 'pending', parsedAdvanceAmount]
+                    'INSERT INTO requests (employee_id, request_type, request_date, reason, status, advance_amount, correction_mode, check_in_time, check_out_time, evidence_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        targetId,
+                        cleanType,
+                        iso,
+                        cleanReason,
+                        'pending',
+                        parsedAdvanceAmount,
+                        cleanCorrectionMode,
+                        cleanCheckIn,
+                        cleanCheckOut,
+                        cleanEvidenceImage
+                    ]
                 );
                 if (insertRes && insertRes.insertId) {
                     insertedIds.push(insertRes.insertId);
                 }
             }
 
-            return { id: insertedIds[0] || null, ids: insertedIds, dates: datesList, advance_amount: parsedAdvanceAmount };
+            return {
+                id: insertedIds[0] || null,
+                ids: insertedIds,
+                dates: datesList,
+                advance_amount: parsedAdvanceAmount,
+                correction_mode: cleanCorrectionMode,
+                check_in_time: cleanCheckIn,
+                check_out_time: cleanCheckOut
+            };
         });
 
         if (current_user) {
@@ -375,7 +440,7 @@ class RequestService {
     async updateRequestStatus(reqId, status, current_user = null) {
         const normalizedStatus = String(status || '').trim().toLowerCase();
         if (!['approved', 'rejected'].includes(normalizedStatus)) {
-            const error = new Error('Trạng thái xử lý đơn chỉ chấp nhận approved hoặc rejected!');
+            const error = new Error('Trạng thái xử lý đơn không hợp lệ!');
             error.statusCode = 400;
             throw error;
         }
@@ -392,16 +457,16 @@ class RequestService {
 
             const row = results[0];
 
-            // 1. Ngăn chặn tự phê duyệt đơn của chính mình (Separation of Duties - 403 Forbidden)
+            // 1. Ngăn chặn tự phê duyệt đơn của chính mình
             if (actorId && actorId === row.employee_id && normalizedStatus === 'approved') {
-                const error = new Error('Bảo mật: Bạn không thể tự phê duyệt đơn từ của chính mình!');
+                const error = new Error('Theo quy định kiểm soát nội bộ, bạn không thể tự phê duyệt đơn từ của chính mình!');
                 error.statusCode = 403;
                 throw error;
             }
 
             // 2. Chống duyệt 2 lần (Double-Approval Guard)
             if (String(row.status || '').toLowerCase() !== 'pending') {
-                const error = new Error(`Đơn từ này đã được xử lý (trạng thái: '${row.status}'). Không thể duyệt lại!`);
+                const error = new Error('Đơn từ này đã được xử lý trước đó. Không thể thao tác lại!');
                 error.statusCode = 409;
                 error.code = 'ALREADY_PROCESSED';
                 throw error;
@@ -501,12 +566,51 @@ class RequestService {
                         [row.employee_id, dateStr]
                     );
                 } else if (type === 'ct' || type.includes('cập nhật công') || type.includes('bổ sung') || type.includes('quên chấm công') || type.includes('giờ ra') || type.includes('forgot_checkin') || type.includes('late_early')) {
-                    await txQuery(
-                        `INSERT INTO attendance_logs (employee_id, record_date, status, check_out_time)
-                         VALUES (?, ?, '1', '17:30:00')
-                         ON DUPLICATE KEY UPDATE status = '1', check_out_time = COALESCE(NULLIF(check_out_time, ''), '17:30:00')`,
-                        [row.employee_id, dateStr]
-                    );
+                    const mode = String(row.correction_mode || '').toUpperCase();
+                    const reqIn = row.check_in_time || null;
+                    const reqOut = row.check_out_time || null;
+
+                    if (mode === 'BOTH' || mode === 'SHIFT_CHANGE') {
+                        const finalIn = reqIn || '08:00:00';
+                        const finalOut = reqOut || '17:30:00';
+                        await txQuery(
+                            `INSERT INTO attendance_logs (employee_id, record_date, status, check_in_time, check_out_time, late_minutes, is_suspicious, is_low_trust)
+                             VALUES (?, ?, '1', ?, ?, 0, 0, 0)
+                             ON DUPLICATE KEY UPDATE
+                                status = '1',
+                                check_in_time = ?,
+                                check_out_time = ?,
+                                late_minutes = 0,
+                                is_suspicious = 0,
+                                is_low_trust = 0`,
+                            [row.employee_id, dateStr, finalIn, finalOut, finalIn, finalOut]
+                        );
+                    } else if (mode === 'CHECK_IN' || (!mode && type.includes('giờ vào'))) {
+                        const finalIn = reqIn || '08:00:00';
+                        await txQuery(
+                            `INSERT INTO attendance_logs (employee_id, record_date, status, check_in_time, late_minutes, is_suspicious, is_low_trust)
+                             VALUES (?, ?, '1', ?, 0, 0, 0)
+                             ON DUPLICATE KEY UPDATE
+                                status = '1',
+                                check_in_time = ?,
+                                late_minutes = 0,
+                                is_suspicious = 0,
+                                is_low_trust = 0`,
+                            [row.employee_id, dateStr, finalIn, finalIn]
+                        );
+                    } else {
+                        const finalOut = reqOut || '17:30:00';
+                        await txQuery(
+                            `INSERT INTO attendance_logs (employee_id, record_date, status, check_out_time, is_suspicious, is_low_trust)
+                             VALUES (?, ?, '1', ?, 0, 0)
+                             ON DUPLICATE KEY UPDATE
+                                status = '1',
+                                check_out_time = COALESCE(NULLIF(?, ''), NULLIF(check_out_time, ''), '17:30:00'),
+                                is_suspicious = 0,
+                                is_low_trust = 0`,
+                            [row.employee_id, dateStr, finalOut, finalOut]
+                        );
+                    }
                 }
             } else if (normalizedStatus === 'rejected') {
                 if (!isSalaryAdvance) {

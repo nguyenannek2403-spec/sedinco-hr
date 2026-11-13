@@ -13,6 +13,7 @@ import {
   Lock
 } from "lucide-react";
 import { safeGet, safePut } from "../utils/api";
+import { getRoleLabel, getAuditActionLabel } from "../utils/viLabels";
 
 const CATEGORY_META = {
   attendance: { label: "1. Nghiệp Vụ Chấm Công", icon: Calendar, color: "text-blue-600 bg-blue-50" },
@@ -161,7 +162,7 @@ export default function AccountantPermissionView({ showToast }) {
           </div>
           <h2 className="text-lg sm:text-xl font-bold leading-snug">Phân quyền nghiệp vụ Kế toán</h2>
           <p className="text-slate-300 text-sm leading-relaxed mt-1 max-w-xl">
-            Quản trị viên có toàn quyền bật/tắt từng nghiệp vụ của Kế toán. Thay đổi được áp dụng ngay lập tức tại Backend theo nguyên tắc bảo mật Least Privilege.
+            Quản trị viên có toàn quyền bật hoặc tắt từng nghiệp vụ của Kế toán. Mọi thay đổi được áp dụng ngay lập tức theo nguyên tắc cấp quyền vừa đủ nhu cầu công việc.
           </p>
         </div>
 
@@ -242,13 +243,10 @@ export default function AccountantPermissionView({ showToast }) {
                       >
                         <div className="pr-3 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium text-slate-900 text-sm leading-snug">{p.permission_name}</span>
-                            <code className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">
-                              {p.permission_key}
-                            </code>
+                            <span className="font-semibold text-slate-900 text-sm sm:text-base leading-snug break-words">{p.permission_name}</span>
                           </div>
                           {p.description && (
-                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">{p.description}</p>
+                            <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed break-words">{p.description}</p>
                           )}
                         </div>
 
@@ -281,8 +279,23 @@ export default function AccountantPermissionView({ showToast }) {
                 {auditLogs.map(log => (
                   <div key={log.id} className="text-xs bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                     <div className="min-w-0 break-words leading-relaxed">
-                      <span className="font-semibold text-slate-800">{log.actor_id}</span> ({log.actor_role}) — <span className="font-mono text-blue-600">{log.action}</span>
-                      <span className="text-slate-500 ml-2">{typeof log.details === 'object' ? JSON.stringify(log.details) : log.details}</span>
+                      <span className="font-semibold text-slate-800">{log.actor_id}</span>{" "}
+                      <span className="text-slate-500">({getRoleLabel(log.actor_role)})</span> —{" "}
+                      <span className="font-semibold text-blue-700">{getAuditActionLabel(log.action)}</span>
+                      <span className="text-slate-600 block mt-0.5">
+                        {(() => {
+                          if (!log.details) return "Đã cập nhật thay đổi";
+                          if (typeof log.details === "object") {
+                            const d = log.details;
+                            if (d.message) return d.message;
+                            if (d.updated_count !== undefined) return `Đã cập nhật ${d.updated_count} mục phân quyền`;
+                            return "Đã ghi nhận cấu hình phân quyền";
+                          }
+                          const str = String(log.details).trim();
+                          if (str.startsWith("{") && str.endsWith("}")) return "Đã ghi nhận cấu hình phân quyền";
+                          return str;
+                        })()}
+                      </span>
                     </div>
                     <span className="text-slate-400 shrink-0 sm:ml-4 whitespace-nowrap">{new Date(log.created_at).toLocaleString("vi-VN")}</span>
                   </div>

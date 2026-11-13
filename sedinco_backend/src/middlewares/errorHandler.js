@@ -45,7 +45,7 @@ function notFoundHandler(req, res) {
     res.status(404).json({
         success: false,
         code: 'NOT_FOUND',
-        message: `Endpoint ${req.method} ${req.originalUrl} không tồn tại!`,
+        message: 'Đường dẫn yêu cầu không tồn tại trên hệ thống!',
         request_id: req.id || undefined
     });
 }

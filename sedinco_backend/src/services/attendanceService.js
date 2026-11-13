@@ -53,7 +53,10 @@ class AttendanceService {
         const page = Math.max(1, parseInt(pagination.page, 10) || 1);
         const offset = (page - 1) * limit;
 
-        const emps = await query('SELECT ma_nv, ho_ten FROM employees ORDER BY ma_nv ASC LIMIT ? OFFSET ?', [limit, offset]);
+        const emps = await query(
+            "SELECT ma_nv, ho_ten, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department FROM employees ORDER BY ma_nv ASC LIMIT ? OFFSET ?",
+            [limit, offset]
+        );
         if (!emps || emps.length === 0) return [];
 
         const logs = await query(
@@ -75,6 +78,7 @@ class AttendanceService {
             return {
                 ma_nv: emp.ma_nv,
                 ho_ten: emp.ho_ten,
+                department: emp.department || 'Khối Công trình',
                 days: days
             };
         });
@@ -87,7 +91,7 @@ class AttendanceService {
         const logs = await query(
             `SELECT record_date, status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours,
                     is_suspicious, suspicious_reason, location_name, field_note, work_location_type,
-                    COALESCE(shift_type, 'FULL_DAY') as shift_type
+                    COALESCE(shift_type, 'FULL_DAY') as shift_type, proxy_by, proxy_note
              FROM attendance_logs
              WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
              ORDER BY record_date ASC`,
@@ -267,7 +271,7 @@ class AttendanceService {
         const low_trust_count = lowTrustRows && lowTrustRows[0] ? Number(lowTrustRows[0].count) : 0;
 
         if (low_trust_count > 0 && confirm_low_trust !== true) {
-            const error = new Error(`Kỳ công Tháng ${m}/${y} có ${low_trust_count} bản ghi có độ tin cậy thấp (is_low_trust)! Vui lòng đối soát và xác nhận trước khi chốt.`);
+            const error = new Error(`Kỳ công Tháng ${m}/${y} hiện có ${low_trust_count} lượt chấm công cần rà soát lại. Vui lòng kiểm tra và xác nhận trước khi chốt sổ.`);
             error.statusCode = 400;
             error.requires_confirmation = true;
             error.low_trust_count = low_trust_count;
@@ -350,13 +354,13 @@ class AttendanceService {
             }
 
             if (isSelf) {
-                const error = new Error('Phân tách nhiệm vụ (SoD): Không thể tự chỉnh sửa công của chính mình!');
+                const error = new Error('Theo quy định kiểm soát nội bộ, bạn không thể tự chỉnh sửa ngày công của chính mình.');
                 error.statusCode = 403;
                 throw error;
             }
 
             if (userRole === 'worker') {
-                const error = new Error('Bảo mật: Công nhân không thể chỉnh sửa chấm công của người khác!');
+                const error = new Error('Bạn không có quyền chỉnh sửa dữ liệu chấm công của nhân viên khác.');
                 error.statusCode = 403;
                 throw error;
             }
@@ -364,7 +368,7 @@ class AttendanceService {
             if (userRole === 'accountant') {
                 const permissions = await getAccountantPermissions();
                 if (!permissions['attendance_edit']) {
-                    const error = new Error('Bảo mật: Kế toán chưa được cấp quyền chỉnh sửa chấm công nhân viên (attendance_edit)!');
+                    const error = new Error('Tài khoản Kế toán hiện chưa được Quản trị viên cấp quyền chỉnh sửa chấm công.');
                     error.statusCode = 403;
                     throw error;
                 }
@@ -426,6 +430,167 @@ class AttendanceService {
         }
 
         return { success: true };
+    }
+
+    async proxyCheckIn({ ma_nv, record_date, check_in_time, check_out_time, work_location_type = 'OFFICE', note = '', current_user = null }) {
+        if (!current_user || !['admin', 'accountant'].includes(current_user.role)) {
+            const error = new Error('Bạn không có quyền chấm công hộ nhân viên.');
+            error.statusCode = 403;
+            throw error;
+        }
+
+        if (current_user.role === 'accountant') {
+            const permissions = await getAccountantPermissions();
+            if (!permissions['attendance_edit']) {
+                const error = new Error('Tài khoản Kế toán hiện chưa được Quản trị viên cấp quyền chấm công hộ hoặc chỉnh sửa công.');
+                error.statusCode = 403;
+                throw error;
+            }
+        }
+
+        const cleanMaNv = String(ma_nv || '').trim();
+        if (!cleanMaNv) {
+            const error = new Error('Vui lòng chọn nhân viên cần chấm công hộ.');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        if (current_user.ma_nv && current_user.ma_nv === cleanMaNv) {
+            const error = new Error('Theo quy định kiểm soát nội bộ, bạn không thể tự chấm công hộ cho chính mình.');
+            error.statusCode = 403;
+            throw error;
+        }
+
+        const empRows = await query(
+            'SELECT ma_nv, ho_ten, status, is_locked, shift_type FROM employees WHERE ma_nv = ? LIMIT 1',
+            [cleanMaNv]
+        );
+        if (!empRows || empRows.length === 0) {
+            const error = new Error(`Không tìm thấy nhân viên có mã ${cleanMaNv}.`);
+            error.statusCode = 404;
+            throw error;
+        }
+        const emp = empRows[0];
+        if (emp.status === 'inactive' || emp.is_locked === 1 || emp.is_locked === true) {
+            const error = new Error(`Tài khoản nhân viên ${emp.ho_ten || cleanMaNv} đang bị tạm khóa.`);
+            error.statusCode = 403;
+            throw error;
+        }
+
+        const { getVietnamDateString } = require('../utils/timeHelper');
+        let targetDate = getVietnamDateString(new Date());
+        if (record_date && /^\d{4}-\d{2}-\d{2}$/.test(String(record_date).trim())) {
+            targetDate = String(record_date).trim();
+        }
+
+        const [yStr, mStr] = targetDate.split('-');
+        const m = parseInt(mStr, 10);
+        const y = parseInt(yStr, 10);
+        const isLocked = await this.isPeriodLocked(m, y);
+        if (isLocked) {
+            const error = new Error(`Kỳ công Tháng ${m}/${y} đã bị khóa sổ để tính lương. Không thể chấm công hộ!`);
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const normalizeHHMMSS = (val) => {
+            if (!val || typeof val !== 'string') return null;
+            const match = val.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+            if (!match) return null;
+            const hh = Number(match[1]);
+            const mm = Number(match[2]);
+            const ss = match[3] ? Number(match[3]) : 0;
+            if (hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) return null;
+            return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        };
+
+        let cleanIn = normalizeHHMMSS(check_in_time);
+        const cleanOut = normalizeHHMMSS(check_out_time);
+        if (!cleanIn && !cleanOut) {
+            cleanIn = '08:00:00';
+        }
+
+        let computedWorkHours = null;
+        if (cleanIn && cleanOut) {
+            const [ih, im] = cleanIn.split(':').map(Number);
+            const [oh, om] = cleanOut.split(':').map(Number);
+            const diffMins = (oh * 60 + om) - (ih * 60 + im);
+            if (diffMins > 0) {
+                computedWorkHours = Number((diffMins / 60).toFixed(2));
+            }
+        }
+
+        const cleanLocType = ['OFFICE', 'FIELD_WORK'].includes(work_location_type) ? work_location_type : 'OFFICE';
+        const actorId = current_user.ma_nv || current_user.username || 'admin';
+        const cleanNote = (note && String(note).trim())
+            ? String(note).trim().slice(0, 240)
+            : 'Quản lý chấm công hộ do quên điện thoại';
+        const locationLabel = cleanLocType === 'FIELD_WORK' ? 'Công trình / Điểm danh hộ' : 'Quản lý điểm danh hộ';
+
+        await query(
+            `INSERT INTO attendance_logs (
+                employee_id, record_date, status, check_in_time, check_out_time,
+                work_hours, late_minutes, work_location_type, location_name,
+                field_note, check_in_method, is_suspicious, is_low_trust, proxy_by, proxy_note, shift_type
+             )
+             VALUES (?, ?, '1', ?, ?, ?, 0, ?, ?, ?, 'manual', 0, 0, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                status = '1',
+                check_in_time = COALESCE(VALUES(check_in_time), check_in_time),
+                check_out_time = COALESCE(VALUES(check_out_time), check_out_time),
+                work_hours = COALESCE(VALUES(work_hours), work_hours),
+                late_minutes = 0,
+                work_location_type = VALUES(work_location_type),
+                location_name = VALUES(location_name),
+                field_note = VALUES(field_note),
+                check_in_method = 'manual',
+                is_suspicious = 0,
+                is_low_trust = 0,
+                proxy_by = VALUES(proxy_by),
+                proxy_note = VALUES(proxy_note)`,
+            [
+                cleanMaNv,
+                targetDate,
+                cleanIn,
+                cleanOut,
+                computedWorkHours,
+                cleanLocType,
+                locationLabel,
+                cleanNote,
+                actorId,
+                cleanNote,
+                emp.shift_type || 'FULL_DAY'
+            ]
+        );
+
+        await logAuditEvent({
+            actor_id: actorId,
+            actor_role: current_user.role,
+            action: 'PROXY_CHECK_IN',
+            resource: 'attendance',
+            details: {
+                target_ma_nv: cleanMaNv,
+                ho_ten: emp.ho_ten,
+                record_date: targetDate,
+                check_in_time: cleanIn,
+                check_out_time: cleanOut,
+                note: cleanNote
+            }
+        });
+
+        return {
+            success: true,
+            message: `Đã chấm công hộ cho ${emp.ho_ten || cleanMaNv} ngày ${targetDate} thành công!`,
+            data: {
+                ma_nv: cleanMaNv,
+                ho_ten: emp.ho_ten,
+                record_date: targetDate,
+                check_in_time: cleanIn,
+                check_out_time: cleanOut,
+                proxy_by: actorId,
+                proxy_note: cleanNote
+            }
+        };
     }
 
     validateImageSnapshot(image_snapshot) {

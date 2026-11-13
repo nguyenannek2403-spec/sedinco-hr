@@ -6,7 +6,7 @@ import ConfirmDialog from "./ConfirmDialog";
 /**
  * Màn hình Admin quản lý, phê duyệt hoặc từ chối yêu cầu đổi thiết bị chấm công
  */
-export default function AdminDeviceApproval({ currentUser, showToast }) {
+export default function AdminDeviceApproval({ currentUser, showToast, onChanged }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
@@ -58,6 +58,7 @@ export default function AdminDeviceApproval({ currentUser, showToast }) {
       if (data?.success) {
         notify(`Đã phê duyệt cập nhật thiết bị mới cho nhân viên ${ma_nv}!`, "success");
         fetchPendingRequests();
+        if (onChanged) onChanged();
       } else {
         notify(data?.message || "Không thể phê duyệt yêu cầu đổi thiết bị.", "error");
       }
@@ -84,6 +85,7 @@ export default function AdminDeviceApproval({ currentUser, showToast }) {
         notify(`Đã từ chối yêu cầu đổi thiết bị của nhân viên ${ma_nv}.`, "info");
         setPendingReject(null);
         fetchPendingRequests();
+        if (onChanged) onChanged();
       } else {
         notify(data?.message || "Không thể từ chối yêu cầu đổi thiết bị.", "error");
       }

@@ -51,7 +51,7 @@ export default function DesktopHeader({
       case "holidays":
         return "Danh Mục Ngày Nghỉ Lễ (x3)";
       case "devices":
-        return "Phê Duyệt Đổi Thiết Bị";
+        return "Quản lý nhân sự & Thiết bị";
       case "permissions":
         return "Phân Quyền Kế Toán";
       case "audit_logs":

@@ -28,9 +28,12 @@ router.post('/lock-period', authenticateToken, requirePermission('attendance_loc
 // 5. Mở khóa kỳ công tháng (Chỉ Quản trị viên - Admin)
 router.post('/unlock-period', authenticateToken, requireRole(['admin']), (req, res, next) => attendanceController.unlockPeriod(req, res, next));
 
-// 6. Cập nhật dữ liệu chấm công (Kiểm tra quyền sở hữu hoặc permission attendance_edit trong service)
+// 6. Cập nhật dữ liệu chấm công (Kiểm tra quyền sở hữu hoặc quyền chấm công trong service)
 router.post('/update', authenticateToken, requireAuth, validateAttendanceMiddleware, (req, res, next) => attendanceController.updateAttendance(req, res, next));
 router.post('/', authenticateToken, requireAuth, validateAttendanceMiddleware, (req, res, next) => attendanceController.updateAttendance(req, res, next));
+
+// 6b. Quản lý / Kế toán chấm công hộ (Điểm danh nhanh cho nhân viên quên điện thoại / ngoài công trình)
+router.post('/proxy-check-in', authenticateToken, requireRole(['admin', 'accountant']), idempotencyMiddleware(), (req, res, next) => attendanceController.proxyCheckIn(req, res, next));
 
 // 7. Sinh mã QR Động / Phiên chấm công 1 chạm (Yêu cầu đăng nhập xác thực JWT)
 router.get('/dynamic-qr', authenticateToken, requireAuth, (req, res, next) => attendanceController.getDynamicQr(req, res, next));

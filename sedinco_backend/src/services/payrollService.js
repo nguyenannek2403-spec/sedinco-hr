@@ -86,6 +86,7 @@ class PayrollService {
                 ma_nv: emp.ma_nv,
                 ho_ten: emp.ho_ten,
                 chuc_danh: emp.chuc_danh,
+                department: emp.department || 'Khối Công trình',
                 role: emp.role,
                 thang: m,
                 nam: y,
@@ -151,7 +152,7 @@ class PayrollService {
         const safeHolidays = holidays || [];
 
         const logs = await query(
-            'SELECT employee_id, record_date, status, ot_hours, late_minutes, early_leave_minutes, work_hours, DAYOFWEEK(record_date) as dow FROM attendance_logs WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?',
+            'SELECT employee_id, DATE_FORMAT(record_date, "%Y-%m-%d") as record_date_iso, record_date, status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours, location_name, work_location_type, DAYOFWEEK(record_date) as dow FROM attendance_logs WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ? ORDER BY record_date ASC',
             [ma_nv, m, y]
         );
         const safeLogs = logs || [];
@@ -201,6 +202,7 @@ class PayrollService {
             ma_nv: emp.ma_nv,
             ho_ten: emp.ho_ten,
             chuc_danh: emp.chuc_danh,
+            department: emp.department || 'Khối Công trình',
             thang: m,
             nam: y,
             baseSalary: calc.baseSalary,
@@ -231,7 +233,8 @@ class PayrollService {
             dispute_evidence_media: emp.dispute_evidence_media || null,
             admin_response: emp.admin_response || null,
             confirmed_at: emp.confirmed_at || null,
-            warning: calc.warning || null
+            warning: calc.warning || null,
+            daily_logs: safeLogs
         };
     }
 
@@ -240,7 +243,7 @@ class PayrollService {
         const y = parseInt(year, 10) || new Date().getFullYear();
         const normalizedStatus = String(status || 'CONFIRMED').toUpperCase();
         if (!['CONFIRMED', 'DISPUTED'].includes(normalizedStatus)) {
-            const err = new Error('Trạng thái xác nhận lương chỉ chấp nhận CONFIRMED hoặc DISPUTED!');
+            const err = new Error('Trạng thái xác nhận lương không hợp lệ!');
             err.statusCode = 400;
             throw err;
         }

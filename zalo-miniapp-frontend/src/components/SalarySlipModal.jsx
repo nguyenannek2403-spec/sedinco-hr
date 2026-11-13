@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import {
-  X,
+  ArrowLeft,
   Printer,
   Download,
   Share2,
@@ -10,16 +10,19 @@ import {
   Video,
   Send,
   ShieldCheck,
-  Loader2
+  Loader2,
+  Calendar
 } from "lucide-react";
 import { safePost, sanitizeFormula, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { compressAndResizeImage } from "../utils/imageHelper";
+import useLockBodyScroll from "../hooks/useLockBodyScroll";
+import { getAttendanceStatusInfo } from "../utils/viLabels";
 
 /**
- * SalarySlipModal V5
+ * SalarySlipModal V5/V12
  * - Xuất Phiếu lương cá nhân ra CSV/Excel chuẩn UTF-8 BOM & Chia sẻ nhanh qua Zalo/Mobile Share
- * - Công nhân: [✅ Xác nhận đúng lương] hoặc [⚠️ Báo cáo sai lương] kèm Lý do + Ảnh nén (<50KB) / Video ngắn (<800KB)
- * - Admin / Kế toán: Xem trực tiếp ảnh/video bằng chứng khiếu nại và phản hồi xử lý
+ * - Nhân viên: Xác nhận đúng lương hoặc Báo cáo sai lương kèm Lý do + Ảnh/Video
+ * - Bảng đối chiếu công & tăng ca từng ngày
  */
 export default function SalarySlipModal({
   payrollItem,
@@ -32,6 +35,7 @@ export default function SalarySlipModal({
   onClose
 }) {
   const item = payrollItem || employee;
+  useLockBodyScroll(Boolean(item));
   if (!item) return null;
 
   const thang = month || item.thang || new Date().getMonth() + 1;
@@ -260,63 +264,71 @@ export default function SalarySlipModal({
 
   return (
     <div
-      className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto print:p-0 print:bg-white"
+      className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 print:p-0 print:bg-white animate-fade-in"
       style={{
-        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)"
       }}
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
+      onClick={onClose}
     >
-      <div className="bg-white w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col print:shadow-none print:border-none print:max-w-full print:max-h-none">
-        {/* Top Action Bar */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between gap-2 shrink-0 print:hidden">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0"></span>
-            <h3 className="font-bold text-xs sm:text-sm tracking-wide uppercase truncate">
-              Phiếu Lương T{thang}/{nam} — {maNv}
-            </h3>
+      <div
+        className="bg-white w-full sm:max-w-2xl rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col animate-sheet-up print:shadow-none print:border-none print:max-w-full print:max-h-none"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top Action Bar: Trở về ở góc trái để tránh cụm nút Zalo top-right */}
+        <div className="bg-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-2 shrink-0 print:hidden">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition active:scale-[0.98]"
+            >
+              <ArrowLeft size={15} />
+              <span>Trở về</span>
+            </button>
+            <div className="min-w-0">
+              <h3 className="font-bold text-xs sm:text-sm tracking-wide leading-snug break-words">
+                Phiếu lương T{thang}/{nam} — {maNv}
+              </h3>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={handleExportSingleSlipExcel}
-              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
+              className="min-h-[38px] px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
               title="Tải phiếu lương Excel/CSV"
             >
-              <Download size={13} />
+              <Download size={14} />
               <span>Excel</span>
             </button>
             <button
               type="button"
               onClick={handleShareZalo}
-              className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
+              className="min-h-[38px] px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
               title="Chia sẻ qua Zalo"
             >
-              <Share2 size={13} />
+              <Share2 size={14} />
               <span>Zalo</span>
             </button>
             <button
               type="button"
               onClick={() => window.print()}
-              className="hidden sm:flex px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-[11px] font-bold items-center gap-1 transition cursor-pointer"
+              className="hidden sm:flex min-h-[38px] px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold items-center gap-1 transition cursor-pointer"
             >
-              <Printer size={13} />
+              <Printer size={14} />
               <span>In</span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="min-w-[40px] min-h-[40px] p-2 bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white rounded-xl transition cursor-pointer flex items-center justify-center"
-              aria-label="Đóng"
-            >
-              <X size={16} />
             </button>
           </div>
         </div>
 
         {/* Nội dung Phiếu Lương */}
         <div
-          className="p-4 sm:p-6 space-y-4 text-slate-800 overflow-y-auto overscroll-contain touch-pan-y flex-1"
-          style={{ WebkitOverflowScrolling: "touch", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
+          className="modal-scroll-area p-4 sm:p-6 space-y-4 text-slate-800 overflow-y-auto overscroll-contain touch-pan-y flex-1"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
         >
           {/* Quốc hiệu & Tiêu đề công ty */}
           <div className="border-b-2 border-slate-800 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -364,11 +376,11 @@ export default function SalarySlipModal({
               </span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase font-semibold">
-                Chức Danh
+              <span className="text-slate-400 block text-[11px] font-semibold">
+                Chức danh &amp; Bộ phận
               </span>
-              <span className="font-semibold text-slate-700 truncate block">
-                {item.chuc_danh || "Nhân viên"}
+              <span className="font-semibold text-slate-700 break-words block">
+                {item.chuc_danh || "Nhân viên"} • {item.department || "Khối Công trình"}
               </span>
             </div>
             <div>
@@ -522,6 +534,60 @@ export default function SalarySlipModal({
               </div>
             </div>
           </div>
+
+          {/* BẢNG ĐỐI CHIẾU CÔNG TỪNG NGÀY TRONG KỲ LƯƠNG */}
+          {Array.isArray(item.daily_logs) && item.daily_logs.length > 0 && (
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  <Calendar size={14} className="text-blue-600 shrink-0" />
+                  <span>Bảng đối chiếu công từng ngày</span>
+                </span>
+                <span className="text-slate-500 font-semibold">{item.daily_logs.length} ngày</span>
+              </div>
+              <div className="divide-y divide-slate-100 text-xs">
+                {item.daily_logs.map((log, idx) => {
+                  const dateStr = log.record_date_iso || String(log.record_date || "").slice(0, 10);
+                  const statusInfo = getAttendanceStatusInfo(log.status);
+                  const otH = Number(log.ot_hours) || 0;
+                  const lateM = Number(log.late_minutes) || 0;
+                  return (
+                    <div key={`${dateStr}-${idx}`} className="px-3.5 py-2.5 flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="font-mono font-bold text-slate-800">{dateStr}</div>
+                        <div className="text-slate-500 flex flex-wrap items-center gap-2">
+                          <span>
+                            Vào {log.check_in_time ? String(log.check_in_time).slice(0, 5) : "--:--"}
+                            {" • "}
+                            Ra {log.check_out_time ? String(log.check_out_time).slice(0, 5) : "--:--"}
+                          </span>
+                          {otH > 0 && (
+                            <span className="text-indigo-700 font-semibold">+{otH}h tăng ca</span>
+                          )}
+                          {lateM > 0 && (
+                            <span className="text-amber-700 font-semibold">Muộn {lateM}p</span>
+                          )}
+                        </div>
+                        {log.location_name && (
+                          <div className="text-[11px] text-slate-500 break-words">
+                            {log.location_name}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={`inline-block px-2 py-0.5 rounded-md border text-[11px] font-semibold ${statusInfo.badgeClass}`}>
+                          {statusInfo.shortLabel}
+                        </span>
+                        <div className="text-[11px] font-bold text-slate-700 mt-0.5">
+                          {statusInfo.creditText}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* HIỂN THỊ KHIẾU NẠI & BẰNG CHỨNG (NẾU CÓ) */}
           {(confirmStatus === "DISPUTED" || item.dispute_reason || item.admin_response) && (
@@ -737,14 +803,17 @@ export default function SalarySlipModal({
           </div>
         </div>
 
-        {/* Nút đóng nhanh ở đáy Modal trên Mobile */}
-        <div className="p-3.5 border-t border-slate-100 bg-slate-50 sm:hidden shrink-0">
+        {/* Nút đóng lớn ở đáy Modal */}
+        <div
+          className="px-4 py-3 border-t border-slate-200 bg-slate-50 shrink-0 print:hidden"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+        >
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-3 min-h-[46px] bg-slate-800 text-white rounded-xl text-xs font-bold"
+            className="w-full py-3 min-h-[46px] bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-semibold transition active:scale-[0.98] cursor-pointer"
           >
-            Đóng Phiếu Lương
+            Đóng / Quay lại
           </button>
         </div>
       </div>

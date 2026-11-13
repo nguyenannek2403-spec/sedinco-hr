@@ -370,6 +370,15 @@ async function initDatabase() {
         await query("ALTER TABLE company_settings ADD COLUMN late_penalty_amount DECIMAL(15,2) NULL").catch(() => {});
         await query("ALTER TABLE company_settings ADD COLUMN max_late_minutes_for_half_day INT DEFAULT 60").catch(() => {});
 
+        // V12 MISA Parity & Comprehensive Requests: Department, Explanation Times/Evidence, Proxy Check-in
+        await query("ALTER TABLE employees ADD COLUMN department VARCHAR(100) NULL DEFAULT 'Khối Công trình'").catch(() => {});
+        await query("ALTER TABLE requests ADD COLUMN correction_mode VARCHAR(30) NULL").catch(() => {});
+        await query("ALTER TABLE requests ADD COLUMN check_in_time VARCHAR(10) NULL").catch(() => {});
+        await query("ALTER TABLE requests ADD COLUMN check_out_time VARCHAR(10) NULL").catch(() => {});
+        await query("ALTER TABLE requests ADD COLUMN evidence_image MEDIUMTEXT NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN proxy_by VARCHAR(50) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN proxy_note VARCHAR(255) NULL").catch(() => {});
+
         // Khởi tạo Điểm 1 mặc định trong allowed_locations từ latitude/longitude hiện tại nếu chưa có
         const csRows = await query("SELECT id, latitude, longitude, radius_meters, allowed_locations FROM company_settings LIMIT 1").catch(() => []);
         if (csRows && csRows.length > 0) {

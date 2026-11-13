@@ -182,6 +182,7 @@ const ACTION_LABELS = {
   CRITICAL_FRAUD: "Cảnh báo chấm công bất thường",
   CHECK_IN_1TOUCH: "Chấm công vào ca",
   CHECK_OUT_1TOUCH: "Chấm công tan ca",
+  PROXY_CHECK_IN: "Chấm công hộ / Điểm danh nhanh",
   UPDATE_ATTENDANCE: "Chỉnh sửa bảng chấm công",
   LOCK_ATTENDANCE_PERIOD: "Chốt kỳ chấm công",
   UNLOCK_ATTENDANCE_PERIOD: "Mở lại kỳ chấm công",
@@ -255,6 +256,14 @@ const KEY_VI_MAP = {
   distance_meters: "Khoảng cách (m)",
   method: "Hình thức",
   location_name: "Địa điểm",
+  target_ma_nv: "Mã NV liên quan",
+  target_employee: "Nhân viên",
+  correction_mode: "Loại giải trình",
+  check_in_time: "Giờ vào",
+  check_out_time: "Giờ ra",
+  department: "Khối / Bộ phận",
+  note: "Ghi chú",
+  days_count: "Số ngày",
 };
 
 const ROLE_VI_MAP = {
@@ -293,7 +302,7 @@ const formatDetails = (rawDetails, action = "") => {
     }
 
     if (action === "LOGIN_SUCCESS" || action === "ZALO_AUTO_LOGIN_SUCCESS" || action === "ADMIN_LOGIN_SUCCESS") {
-      const roleVi = ROLE_VI_MAP[obj.role] || obj.role || "Người dùng";
+      const roleVi = ROLE_VI_MAP[obj.role] || "Nhân viên";
       return `Đăng nhập thành công với vai trò ${roleVi}.`;
     }
 
@@ -302,11 +311,11 @@ const formatDetails = (rawDetails, action = "") => {
     }
 
     const parts = Object.entries(obj)
-      .filter(([, val]) => val !== null && val !== undefined && val !== "" && typeof val !== "object")
+      .filter(([k, val]) => Boolean(KEY_VI_MAP[k]) && val !== null && val !== undefined && val !== "" && typeof val !== "object")
       .slice(0, 4)
       .map(([k, v]) => {
-        const label = KEY_VI_MAP[k] || k;
-        const formattedVal = k === "role" ? ROLE_VI_MAP[v] || v : v;
+        const label = KEY_VI_MAP[k];
+        const formattedVal = k === "role" ? ROLE_VI_MAP[v] || "Nhân viên" : v;
         return `${label}: ${formattedVal}`;
       });
 
@@ -408,22 +417,26 @@ const formatDetails = (rawDetails, action = "") => {
             <option value="auth_device">🔐 Đăng nhập & Đổi thiết bị</option>
           </select>
 
-          {/* Từ ngày - Đến ngày */}
-          <div className="flex items-center gap-1.5">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white"
-              title="Từ ngày"
-            />
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white"
-              title="Đến ngày"
-            />
+          {/* Từ ngày - Đến ngày (Bố cục ngang gọn trên Mobile) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5">
+              <span className="text-xs font-semibold text-slate-300 shrink-0">Từ ngày</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-36 sm:w-40 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-white text-center"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5">
+              <span className="text-xs font-semibold text-slate-300 shrink-0">Đến ngày</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-36 sm:w-40 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-white text-center"
+              />
+            </div>
           </div>
 
           {/* Ô tìm kiếm từ khóa */}

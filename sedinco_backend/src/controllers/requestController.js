@@ -43,7 +43,19 @@ class RequestController {
 
     async createRequest(req, res, next) {
         try {
-            const { employee_id, request_type, request_date, from_date, to_date, reason, advance_amount } = req.body;
+            const {
+                employee_id,
+                request_type,
+                request_date,
+                from_date,
+                to_date,
+                reason,
+                advance_amount,
+                correction_mode,
+                check_in_time,
+                check_out_time,
+                evidence_image
+            } = req.body;
             const result = await requestService.createRequest({ 
                 employee_id: employee_id || (req.user ? req.user.ma_nv : null), 
                 request_type, 
@@ -52,6 +64,10 @@ class RequestController {
                 to_date,
                 reason,
                 advance_amount,
+                correction_mode,
+                check_in_time,
+                check_out_time,
+                evidence_image,
                 current_user: req.user 
             });
             return res.status(201).json({ success: true, message: 'Tạo đơn thành công!', data: result.data });

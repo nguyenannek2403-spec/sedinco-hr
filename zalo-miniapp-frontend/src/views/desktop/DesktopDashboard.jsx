@@ -16,7 +16,6 @@ import { RefreshCw } from "lucide-react";
 const AttendanceMatrixTable = lazy(() => import("../../components/AttendanceMatrixTable"));
 const PayrollGridTable = lazy(() => import("../../components/PayrollGridTable"));
 const AccountantPermissionView = lazy(() => import("../../components/AccountantPermissionView"));
-const AdminDeviceApproval = lazy(() => import("../../components/AdminDeviceApproval"));
 
 export default function DesktopDashboard({
   currentUser,
@@ -218,12 +217,15 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 4. Quản Lý Hồ Sơ Nhân Sự */}
-            {currentTab === "management" && (
+            {/* 4 & 9. Quản Lý Hồ Sơ Nhân Sự & Phê Duyệt Đổi Thiết Bị */}
+            {(currentTab === "management" || currentTab === "devices") && (
               <EmployeeManagementTab
-                key={`management-${refreshTick}`}
+                key={`management-${refreshTick}-${currentTab}`}
                 currentUser={currentUser}
                 showToast={showToast}
+                initialSubTab={currentTab === "devices" ? "devices" : "list"}
+                pendingDeviceCount={alertsSummary?.pending_device_count || 0}
+                onRefreshAlerts={fetchAlertsSummary}
               />
             )}
 
@@ -260,14 +262,6 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 9. Phê Duyệt Đổi Thiết Bị (Admin) */}
-            {currentTab === "devices" && (
-              <AdminDeviceApproval
-                currentUser={currentUser}
-                showToast={showToast}
-              />
-            )}
-
             {/* 10. Hồ Sơ Cá Nhân & Phiếu Lương */}
             {currentTab === "profile" && (
               <div className="max-w-lg mx-auto">
@@ -289,7 +283,12 @@ export default function DesktopDashboard({
         initialTab={liveBoardModal.initialTab}
         headcount={alertsSummary?.headcount_today}
         loading={alertsLoading}
-        onRefresh={fetchAlertsSummary}
+        currentUser={currentUser}
+        showToast={showToast}
+        onRefresh={() => {
+          setRefreshTick((t) => t + 1);
+          fetchAlertsSummary();
+        }}
         onClose={() => setLiveBoardModal({ open: false, initialTab: "present" })}
       />
     </div>

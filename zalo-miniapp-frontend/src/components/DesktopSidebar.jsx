@@ -17,6 +17,7 @@ import {
   X
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../constants/roles";
+import useLockBodyScroll from "../hooks/useLockBodyScroll";
 
 import CompanyLogo from "./CompanyLogo";
 
@@ -39,6 +40,8 @@ export default function DesktopSidebar({
   const fraudCount = Number(alertsSummary?.fraud_count) || 0;
   const devicePendingCount = Number(alertsSummary?.pending_device_count) || 0;
 
+  useLockBodyScroll(Boolean(isMobileMenuOpen));
+
   // Danh sách menu theo đúng 3 Role chuẩn: Admin, Accountant, Worker (V5 đã loại bỏ Kiosk QR)
   const getMenuItems = () => {
     if (activeRole === ROLES.ADMIN) {
@@ -60,7 +63,14 @@ export default function DesktopSidebar({
           badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
           badgeColor: "bg-amber-500 text-slate-950 border-amber-300"
         },
-        { id: "management", label: "Nhân Sự & Ca Làm Việc", shortLabel: "Nhân sự", icon: Users },
+        {
+          id: "management",
+          label: "Nhân Sự, Ca & Thiết Bị",
+          shortLabel: "Nhân sự",
+          icon: Users,
+          badge: devicePendingCount > 0 ? `${devicePendingCount}` : null,
+          badgeColor: "bg-rose-500 text-white"
+        },
         {
           id: "audit_logs",
           label: "Nhật Ký & Chống Gian Lận",
@@ -68,14 +78,6 @@ export default function DesktopSidebar({
           icon: ShieldCheck,
           badge: fraudCount > 0 ? `${fraudCount} Cảnh báo` : null,
           badgeColor: fraudCount > 0 ? "bg-rose-600 text-white border-rose-400 animate-pulse" : undefined
-        },
-        {
-          id: "devices",
-          label: "Duyệt Đổi Thiết Bị",
-          shortLabel: "Thiết bị",
-          icon: Smartphone,
-          badge: devicePendingCount > 0 ? `${devicePendingCount}` : null,
-          badgeColor: "bg-rose-500 text-white"
         },
         { id: "company", label: "Cài Đặt Công Ty", shortLabel: "Cài đặt", icon: Building },
         { id: "permissions", label: "Phân Quyền Kế Toán", shortLabel: "Phân quyền", icon: ShieldCheck },
@@ -276,10 +278,16 @@ export default function DesktopSidebar({
 
       {/* Mobile Slide-Over Drawer (khi mở trên Zalo Mini App / màn hình < 1024px) */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <div
+          className="lg:hidden fixed inset-0 z-50 flex animate-fade-in"
+          onTouchMove={(e) => {
+            if (e.target === e.currentTarget) e.preventDefault();
+          }}
+        >
           <div
             className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
             onClick={onCloseMobileMenu}
+            onTouchMove={(e) => e.preventDefault()}
           />
           <aside className="relative z-10 w-[84vw] max-w-[320px] bg-slate-900 text-slate-200 flex flex-col justify-between h-full border-r border-slate-700 shadow-2xl">
             {renderSidebarBody(true)}

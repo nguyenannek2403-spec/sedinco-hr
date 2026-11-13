@@ -14,6 +14,7 @@ import {
 import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { getRequestTypeLabel, getCorrectionModeLabel } from "../../utils/viLabels";
 
 const getStatusBadge = (status) => {
   const s = String(status).toUpperCase();
@@ -97,7 +98,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
   const handleAction = (id, newStatus, ownerMaNv) => {
     if (actionInFlightRef.current) return;
     if (ownerMaNv && ownerMaNv === currentUser?.ma_nv) {
-      notify("Quy tắc SoD: Bạn không thể tự phê duyệt đơn của chính mình!", "warning");
+      notify("Theo quy định kiểm soát nội bộ, bạn không thể tự phê duyệt đơn của chính mình!", "warning");
       return;
     }
 
@@ -128,7 +129,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
     setDialogState({
       mode: "batch",
       title: "Duyệt nhanh hàng loạt",
-      message: `Xác nhận phê duyệt toàn bộ ${eligiblePendingIds.length} đơn đang chờ hợp lệ? (Các đơn vi phạm quy tắc SoD sẽ được tự động bỏ qua.)`,
+      message: `Xác nhận phê duyệt toàn bộ ${eligiblePendingIds.length} đơn đang chờ hợp lệ? (Đơn của chính người đang duyệt sẽ tự động bỏ qua để đảm bảo minh bạch.)`,
       showInput: false,
       confirmLabel: `Duyệt ${eligiblePendingIds.length} đơn`,
       variant: "primary"
@@ -179,8 +180,8 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
             <FileText className="w-5 h-5 text-blue-400 shrink-0" />
             Xét duyệt đơn từ & Nghỉ phép
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-            Duyệt đơn nghỉ phép, ứng lương, tăng ca (bảo vệ quy tắc SoD)
+          <p className="text-xs sm:text-sm text-slate-400 mt-0.5 leading-relaxed">
+            Duyệt đơn nghỉ phép, bổ sung công, ứng lương và tăng ca của nhân viên
           </p>
         </div>
 
@@ -274,18 +275,30 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                   <div key={req.id} className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <span className="font-semibold text-sm text-white block truncate">
+                        <span className="font-semibold text-base text-white block break-words leading-snug">
                           {req.ho_ten || req.ma_nv}{" "}
                           <span className="text-xs font-mono text-blue-400">({req.ma_nv})</span>
                         </span>
-                        <span className="text-xs font-medium text-amber-300 block mt-0.5">
-                          {req.request_type || req.type || "Nghỉ phép"} • {req.request_date || req.date || req.start_date}
+                        <span className="text-sm font-medium text-amber-300 block mt-1 break-words leading-snug">
+                          {getRequestTypeLabel(req.request_type || req.type)} • {req.request_date || req.date || req.start_date}
                           {Number(req.advance_amount) > 0 && (
-                            <span className="ml-1.5 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-semibold whitespace-nowrap">
+                            <span className="inline-block ml-1.5 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-semibold whitespace-nowrap">
                               Ứng {Number(req.advance_amount).toLocaleString("vi-VN")}đ
                             </span>
                           )}
                         </span>
+                        {(req.correction_mode || req.check_in_time || req.check_out_time) && (
+                          <div className="text-xs text-cyan-300 mt-1 break-words leading-snug">
+                            {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
+                            {(req.check_in_time || req.check_out_time) && (
+                              <span className="ml-1 font-semibold">
+                                ({req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}
+                                {req.check_in_time && req.check_out_time ? " – " : ""}
+                                {req.check_out_time ? `Ra ${String(req.check_out_time).slice(0, 5)}` : ""})
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-lg border inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${badge.bg}`}>
                         <badge.icon className="w-3 h-3" />
@@ -293,15 +306,24 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                       </span>
                     </div>
 
-                    <div className="text-xs text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60">
+                    <div className="text-sm text-slate-200 bg-slate-900/60 p-3 rounded-xl border border-slate-700/60 break-words leading-relaxed">
                       <span className="text-slate-400 font-semibold">Lý do: </span>
                       {req.reason || "--"}
+                      {req.evidence_image && (
+                        <div className="mt-2">
+                          <img
+                            src={req.evidence_image}
+                            alt="Ảnh minh chứng"
+                            className="max-h-36 rounded-lg border border-slate-700 object-cover"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {isPending && (
                       isOwner ? (
-                        <div className="text-[11px] text-amber-400 italic font-semibold">
-                          (Đơn của bạn - Quy tắc SoD cấm tự duyệt)
+                        <div className="text-xs text-amber-400 italic font-semibold leading-snug">
+                          (Đơn của bạn — Cần quản lý khác xét duyệt)
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 gap-2.5 pt-1">
@@ -358,7 +380,16 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                         <div className="text-[10px] text-slate-400 font-mono">{req.ma_nv}</div>
                       </td>
                       <td className="p-3.5 font-semibold text-slate-200">
-                        <div>{req.request_type || req.type || "Nghỉ phép"}</div>
+                        <div>{getRequestTypeLabel(req.request_type || req.type)}</div>
+                        {(req.correction_mode || req.check_in_time || req.check_out_time) && (
+                          <div className="text-xs text-cyan-300 font-normal mt-0.5">
+                            {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
+                            {(req.check_in_time || req.check_out_time) &&
+                              ` (${req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}${
+                                req.check_in_time && req.check_out_time ? " – " : ""
+                              }${req.check_out_time ? `Ra ${String(req.check_out_time).slice(0, 5)}` : ""})`}
+                          </div>
+                        )}
                         {Number(req.advance_amount) > 0 && (
                           <div className="text-xs text-emerald-400 font-semibold mt-0.5">
                             Ứng: {Number(req.advance_amount).toLocaleString("vi-VN")} đ
@@ -368,11 +399,18 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                       <td className="p-3.5 text-slate-300 font-medium whitespace-nowrap">
                         {req.request_date || req.date || req.start_date}
                       </td>
-                      <td className="p-3.5 max-w-xs truncate text-slate-400" title={req.reason}>
-                        {req.reason || "--"}
+                      <td className="p-3.5 max-w-xs break-words text-slate-300" title={req.reason}>
+                        <div>{req.reason || "--"}</div>
+                        {req.evidence_image && (
+                          <img
+                            src={req.evidence_image}
+                            alt="Minh chứng"
+                            className="mt-1.5 max-h-20 rounded border border-slate-700 object-cover"
+                          />
+                        )}
                       </td>
                       <td className="p-3.5">
-                        <span className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border inline-flex items-center gap-1 ${badge.bg}`}>
+                        <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border inline-flex items-center gap-1 ${badge.bg}`}>
                           <badge.icon className="w-3 h-3" />
                           {badge.text}
                         </span>
@@ -380,8 +418,8 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                       <td className="p-3.5 text-right pr-5">
                         {isPending ? (
                           isOwner ? (
-                            <span className="text-[11px] text-amber-400 italic font-semibold">
-                              (Đơn của bạn - SoD cấm tự duyệt)
+                            <span className="text-xs text-amber-400 italic font-semibold">
+                              (Đơn của bạn — Cần quản lý khác duyệt)
                             </span>
                           ) : (
                             <div className="flex items-center justify-end gap-2">

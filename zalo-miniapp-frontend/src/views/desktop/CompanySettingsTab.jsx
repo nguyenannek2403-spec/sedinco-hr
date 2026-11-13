@@ -432,49 +432,49 @@ export default function CompanySettingsTab({ showToast }) {
         isOpen={openSections.schedule}
         onToggle={toggleSection}
       >
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Giờ bắt đầu làm
+        <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl bg-slate-50/70 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-3.5 py-3">
+            <label className="text-sm font-semibold text-slate-700 leading-snug">
+              Giờ bắt đầu làm việc
             </label>
             <input
               type="time"
               value={config.work_start || "08:00"}
               onChange={(e) => updateField("work_start", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:border-blue-500 focus:outline-none"
+              className="w-32 sm:w-36 shrink-0 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+          <div className="flex items-center justify-between gap-3 px-3.5 py-3">
+            <label className="text-sm font-semibold text-slate-700 leading-snug">
               Giờ tan ca
             </label>
             <input
               type="time"
               value={config.work_end || "17:30"}
               onChange={(e) => updateField("work_end", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:border-blue-500 focus:outline-none"
+              className="w-32 sm:w-36 shrink-0 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+          <div className="flex items-center justify-between gap-3 px-3.5 py-3">
+            <label className="text-sm font-semibold text-slate-700 leading-snug">
               Bắt đầu nghỉ trưa
             </label>
             <input
               type="time"
               value={config.lunch_start || "12:00"}
               onChange={(e) => updateField("lunch_start", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:border-blue-500 focus:outline-none"
+              className="w-32 sm:w-36 shrink-0 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+          <div className="flex items-center justify-between gap-3 px-3.5 py-3">
+            <label className="text-sm font-semibold text-slate-700 leading-snug">
               Kết thúc nghỉ trưa
             </label>
             <input
               type="time"
               value={config.lunch_end || "13:30"}
               onChange={(e) => updateField("lunch_end", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:border-blue-500 focus:outline-none"
+              className="w-32 sm:w-36 shrink-0 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
           </div>
         </div>

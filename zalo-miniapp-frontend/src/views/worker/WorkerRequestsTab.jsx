@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   FileText,
-  Plus,
   AlertCircle,
   CheckCircle2,
   Clock,
@@ -9,37 +8,72 @@ import {
   Trash2,
   RefreshCw,
   Wallet,
-  CalendarCheck
+  CalendarCheck,
+  Calendar,
+  TrendingUp
 } from "lucide-react";
 import { safeGet, safePut } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import {
+  getRequestTypeLabel,
+  getCorrectionModeLabel,
+  getRequestStatusInfo
+} from "../../utils/viLabels";
 
 const getStatusBadge = (status) => {
   const s = String(status).toUpperCase();
+  const info = getRequestStatusInfo(status);
   if (s === "APPROVED") {
-    return { bg: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: CheckCircle2, text: "Đã duyệt" };
+    return { bg: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", icon: CheckCircle2, text: info.label };
   }
   if (s === "REJECTED") {
-    return { bg: "bg-rose-500/15 text-rose-400 border-rose-500/30", icon: XCircle, text: "Từ chối" };
+    return { bg: "bg-rose-500/15 text-rose-300 border-rose-500/30", icon: XCircle, text: info.label };
   }
   if (s === "CANCELLED") {
-    return { bg: "bg-slate-700/50 text-slate-400 border-slate-600/50", icon: XCircle, text: "Đã hủy" };
+    return { bg: "bg-slate-700/50 text-slate-300 border-slate-600/50", icon: XCircle, text: info.label };
   }
-  return { bg: "bg-amber-500/15 text-amber-400 border-amber-500/30", icon: Clock, text: "Chờ duyệt" };
+  return { bg: "bg-amber-500/15 text-amber-300 border-amber-500/30", icon: Clock, text: info.label };
 };
 
-const getRequestTypeLabel = (rawType) => {
-  const t = String(rawType || "").trim();
-  const lower = t.toLowerCase();
-  if (lower === "salary_advance" || lower.includes("ứng lương")) return "Đơn xin ứng lương";
-  if (lower === "p") return "Nghỉ phép năm (P)";
-  if (lower === "kp") return "Nghỉ không lương (KP)";
-  if (lower === "om") return "Nghỉ ốm đau (OM)";
-  if (lower === "ot") return "Làm thêm giờ (OT)";
-  if (lower === "ct") return "Đi công tác / công trình (CT)";
-  return t || "Đơn xin phép";
-};
+const REQUEST_HUB_CARDS = [
+  {
+    key: "leave",
+    mode: "P",
+    title: "Nghỉ phép / Việc riêng",
+    desc: "Phép năm, không lương, ốm",
+    icon: Calendar,
+    cardClass: "bg-blue-600/20 hover:bg-blue-600/30 border-blue-500/40 text-blue-100",
+    iconClass: "bg-blue-500/30 text-blue-300"
+  },
+  {
+    key: "comp",
+    mode: "Bổ sung công / Quên chấm giờ ra",
+    title: "Giải trình Bổ sung công",
+    desc: "Quên giờ vào/ra, đổi ca",
+    icon: Clock,
+    cardClass: "bg-amber-600/20 hover:bg-amber-600/30 border-amber-500/40 text-amber-100",
+    iconClass: "bg-amber-500/30 text-amber-300"
+  },
+  {
+    key: "ot",
+    mode: "OT",
+    title: "Đăng ký Tăng ca",
+    desc: "Làm thêm giờ, ngoài ca",
+    icon: TrendingUp,
+    cardClass: "bg-violet-600/20 hover:bg-violet-600/30 border-violet-500/40 text-violet-100",
+    iconClass: "bg-violet-500/30 text-violet-300"
+  },
+  {
+    key: "advance",
+    mode: "SALARY_ADVANCE",
+    title: "Xin Ứng lương",
+    desc: "Tạm ứng trước kỳ lương",
+    icon: Wallet,
+    cardClass: "bg-emerald-600/20 hover:bg-emerald-600/30 border-emerald-500/40 text-emerald-100",
+    iconClass: "bg-emerald-500/30 text-emerald-300"
+  }
+];
 
 export default function WorkerRequestsTab({ currentUser, showToast }) {
   const [requests, setRequests] = useState([]);
@@ -115,34 +149,36 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
       {/* Top Header */}
       <div className="space-y-3">
         <div>
-          <h2 className="text-lg font-bold leading-snug text-white">Đơn từ &amp; ứng lương</h2>
-          <p className="text-sm text-slate-400 leading-relaxed">Quản lý phép năm, đơn tăng ca và tạm ứng lương</p>
+          <h2 className="text-lg font-bold leading-snug text-white">Trung tâm Đơn từ &amp; Giải trình</h2>
+          <p className="text-sm text-slate-400 leading-relaxed">
+            Chọn loại đơn bạn muốn gửi cho quản lý xét duyệt
+          </p>
         </div>
 
-        {/* Action buttons: Mobile-first 2-column grid */}
+        {/* Request Hub 4 Thẻ Độc Lập */}
         <div className="grid grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              setModalInitialType("P");
-              setIsModalOpen(true);
-            }}
-            className="min-h-[44px] px-3 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-xs shadow-lg shadow-blue-600/25 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap cursor-pointer"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span>Tạo đơn phép / OT</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setModalInitialType("SALARY_ADVANCE");
-              setIsModalOpen(true);
-            }}
-            className="min-h-[44px] px-3 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold text-xs shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap cursor-pointer"
-          >
-            <Wallet className="w-4 h-4 shrink-0" />
-            <span>Xin ứng lương</span>
-          </button>
+          {REQUEST_HUB_CARDS.map((card) => {
+            const CardIcon = card.icon;
+            return (
+              <button
+                key={card.key}
+                type="button"
+                onClick={() => {
+                  setModalInitialType(card.mode);
+                  setIsModalOpen(true);
+                }}
+                className={`min-h-[72px] p-3 rounded-2xl border text-left flex items-start gap-2.5 transition active:scale-[0.98] cursor-pointer ${card.cardClass}`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${card.iconClass}`}>
+                  <CardIcon className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold leading-snug break-words">{card.title}</div>
+                  <div className="text-[11px] opacity-80 mt-0.5 leading-snug break-words">{card.desc}</div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -221,15 +257,28 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="text-sm font-semibold text-white block leading-snug">
+                    <span className="text-sm font-semibold text-white block leading-snug break-words">
                       {getRequestTypeLabel(req.request_type)}
                     </span>
-                    <span className="text-xs text-slate-400 font-medium block mt-0.5">
+                    {req.correction_mode && getCorrectionModeLabel(req.correction_mode) && (
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
+                        {getCorrectionModeLabel(req.correction_mode)}
+                      </span>
+                    )}
+                    <span className="text-xs text-slate-400 font-medium block mt-1">
                       Ngày áp dụng:{" "}
                       <strong className="text-slate-200">
                         {String(req.request_date || req.start_date || "").slice(0, 10)}
                       </strong>
                     </span>
+                    {(req.check_in_time || req.check_out_time) && (
+                      <div className="text-xs text-amber-300 font-medium mt-1">
+                        Giờ đề xuất:{" "}
+                        {req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}
+                        {req.check_in_time && req.check_out_time ? " • " : ""}
+                        {req.check_out_time ? `Ra ${String(req.check_out_time).slice(0, 5)}` : ""}
+                      </div>
+                    )}
                     {Number(req.advance_amount) > 0 && (
                       <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold whitespace-nowrap">
                         <Wallet className="w-3.5 h-3.5 shrink-0" />
@@ -245,9 +294,19 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                 </div>
 
                 {req.reason && (
-                  <p className="text-sm text-slate-300 bg-slate-900/50 p-3 rounded-xl border border-slate-800 leading-relaxed">
+                  <p className="text-sm text-slate-300 bg-slate-900/50 p-3 rounded-xl border border-slate-800 leading-relaxed break-words">
                     {req.reason}
                   </p>
+                )}
+
+                {req.evidence_image && (
+                  <div>
+                    <img
+                      src={req.evidence_image}
+                      alt="Ảnh chứng minh đơn từ"
+                      className="max-h-36 rounded-xl border border-slate-700 object-cover"
+                    />
+                  </div>
                 )}
 
                 <div className="flex items-center justify-between pt-1 text-xs text-slate-400">
@@ -256,7 +315,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                     <button
                       type="button"
                       onClick={() => handleCancelRequest(req.id)}
-                      className="min-h-[36px] px-2.5 py-1 text-rose-400 hover:bg-rose-500/10 rounded-lg font-semibold flex items-center gap-1 whitespace-nowrap cursor-pointer"
+                      className="min-h-[44px] px-3 py-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg font-semibold flex items-center gap-1 whitespace-nowrap cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5 shrink-0" />
                       <span>Hủy đơn</span>

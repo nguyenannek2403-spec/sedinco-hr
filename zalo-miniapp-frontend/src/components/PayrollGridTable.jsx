@@ -17,11 +17,14 @@ import {
   CheckCircle2,
   Loader2,
   SlidersHorizontal,
-  X
+  X,
+  ArrowLeft
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
 import { safeGet, safePost, sanitizeFormula, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { useDebouncedValue } from "../hooks/useDebounce";
+import { useLockBodyScroll } from "../hooks/useLockBodyScroll";
+import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
 
 export default function PayrollGridTable({
   payrollData,
@@ -41,6 +44,7 @@ export default function PayrollGridTable({
   const notify = showToast || onShowToast;
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
+  const [selectedDepartment, setSelectedDepartment] = useState("ALL");
   const [selectedSlipItem, setSelectedSlipItem] = useState(null);
   const [internalPayroll, setInternalPayroll] = useState([]);
   const [loadingPayroll, setLoadingPayroll] = useState(false);
@@ -60,6 +64,8 @@ export default function PayrollGridTable({
   });
   const [adjSaving, setAdjSaving] = useState(false);
   const [adjError, setAdjError] = useState("");
+
+  useLockBodyScroll(Boolean(adjustItem));
 
   const fetchPayrollFromApi = useCallback(async () => {
     if (Array.isArray(payrollData)) return;
@@ -181,14 +187,23 @@ export default function PayrollGridTable({
   const isLoading = propIsLoading || loadingPayroll;
   const sourceList = Array.isArray(payrollData) ? payrollData : internalPayroll;
 
-  // Lọc dữ liệu theo tìm kiếm
+  const availableDepartments = Array.from(
+    new Set([
+      ...DEPARTMENT_OPTIONS,
+      ...(sourceList || []).map((item) => item.department).filter(Boolean)
+    ])
+  );
+
+  // Lọc dữ liệu theo tìm kiếm và khối/bộ phận
   const filteredList = (sourceList || []).filter(item => {
-    if (!debouncedSearch) return true;
-    const q = debouncedSearch.toLowerCase();
+    const q = (debouncedSearch || "").toLowerCase();
     const id = (item.ma_nv || item.id_nhan_vien || "").toLowerCase();
     const name = (item.ho_ten || "").toLowerCase();
     const role = (item.chuc_danh || "").toLowerCase();
-    return id.includes(q) || name.includes(q) || role.includes(q);
+    const dept = (item.department || "Khối Công trình");
+    const matchText = !q || id.includes(q) || name.includes(q) || role.includes(q) || dept.toLowerCase().includes(q);
+    const matchDept = selectedDepartment === "ALL" || dept === selectedDepartment;
+    return matchText && matchDept;
   });
 
   // Tính 4 chỉ số KPI tổng hợp
@@ -376,6 +391,20 @@ export default function PayrollGridTable({
                 <ChevronRight size={18} />
               </button>
             </div>
+
+            {/* Lọc theo bộ phận */}
+            <select
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="min-h-[42px] px-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 shadow-sm text-slate-800"
+            >
+              <option value="ALL">🏢 Tất cả bộ phận</option>
+              {availableDepartments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
 
             {/* Tìm kiếm */}
             <div className="relative flex-1 min-w-[200px]">
@@ -725,12 +754,25 @@ export default function PayrollGridTable({
 
       {/* Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2) */}
       {adjustItem && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-          <div className="flex flex-col w-full max-w-md max-h-[88vh] bg-white border-2 border-slate-200 rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl text-slate-800">
-            <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-3 border-b border-slate-100 shrink-0">
-              <div>
-                <h4 className="text-base font-bold text-slate-900">Điều chỉnh thưởng / phạt / tạm ứng</h4>
-                <p className="text-xs text-slate-500">
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
+          onClick={(e) => { if (e.target === e.currentTarget && !adjSaving) setAdjustItem(null); }}
+        >
+          <div className="flex flex-col w-full max-w-md max-h-[90vh] bg-white border-2 border-slate-200 rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl text-slate-800 animate-sheet-up">
+            <div className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-3 border-b border-slate-100 shrink-0">
+              <button
+                type="button"
+                disabled={adjSaving}
+                onClick={() => setAdjustItem(null)}
+                className="inline-flex items-center gap-1 min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold shrink-0"
+              >
+                <ArrowLeft size={16} />
+                <span>Trở về</span>
+              </button>
+              <div className="min-w-0 flex-1 text-center">
+                <h4 className="text-sm sm:text-base font-bold text-slate-900 truncate">Điều chỉnh thưởng / phạt</h4>
+                <p className="text-xs text-slate-500 truncate">
                   {adjustItem.ho_ten} ({adjustItem.ma_nv || adjustItem.id_nhan_vien}) • Tháng {month}/{year}
                 </p>
               </div>
@@ -738,7 +780,7 @@ export default function PayrollGridTable({
                 type="button"
                 onClick={() => !adjSaving && setAdjustItem(null)}
                 aria-label="Đóng"
-                className="min-w-[40px] min-h-[40px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+                className="min-w-[40px] min-h-[40px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer shrink-0"
               >
                 <X size={18} />
               </button>
@@ -813,15 +855,15 @@ export default function PayrollGridTable({
                 type="button"
                 onClick={() => setAdjustItem(null)}
                 disabled={adjSaving}
-                className="flex-1 min-h-[44px] py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-xl border border-slate-300 cursor-pointer"
+                className="flex-1 min-h-[46px] py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl border border-slate-300 cursor-pointer"
               >
-                Hủy
+                Đóng / Quay lại
               </button>
               <button
                 type="submit"
                 form="payroll-adjust-form"
                 disabled={adjSaving}
-                className="flex-1 min-h-[44px] py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                className="flex-1 min-h-[46px] py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow cursor-pointer disabled:opacity-50"
               >
                 {adjSaving ? "Đang lưu..." : "Lưu điều chỉnh"}
               </button>
