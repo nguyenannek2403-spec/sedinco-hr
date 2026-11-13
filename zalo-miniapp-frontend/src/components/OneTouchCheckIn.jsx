@@ -165,11 +165,16 @@ export default function OneTouchCheckIn({
               mode: "in_range",
               text: `🟢 Đang tại: ${matched.loc.name} (Cách ${matched.dist}m) — Sẵn sàng chấm công`
             });
-          } else {
+          } else if (Number.isFinite(minDist)) {
             const distLabel = minDist >= 1000 ? `${(minDist / 1000).toFixed(1)}km` : `${Math.round(minDist)}m`;
             setLocationFriendlyBadge({
               mode: "out_of_range",
               text: `🟠 Ngoài phạm vi ${nearest.name} (Cách ${distLabel}) — Có thể chọn chế độ Đi Công Trình`
+            });
+          } else {
+            setLocationFriendlyBadge({
+              mode: "checking",
+              text: `📍 Chi nhánh mặc định: ${nearest?.name || "Trụ sở chính"} — Bấm nút để định vị`
             });
           }
         },

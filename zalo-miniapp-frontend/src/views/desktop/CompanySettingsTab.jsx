@@ -215,8 +215,15 @@ export default function CompanySettingsTab({ showToast }) {
     setDetectingLocIdx(idx);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const lat = Number(pos.coords.latitude.toFixed(6));
-        const lng = Number(pos.coords.longitude.toFixed(6));
+        const rawLat = Number(pos?.coords?.latitude);
+        const rawLng = Number(pos?.coords?.longitude);
+        if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) {
+          setDetectingLocIdx(null);
+          notify("Tọa độ GPS trả về không hợp lệ.", "error");
+          return;
+        }
+        const lat = Number(rawLat.toFixed(6));
+        const lng = Number(rawLng.toFixed(6));
         setConfig((prev) => {
           const next = [...(prev.allowed_locations || [])];
           next[idx] = { ...next[idx], lat, lng };

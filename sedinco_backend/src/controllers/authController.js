@@ -9,8 +9,8 @@ class AuthController {
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
             const result = await authService.employeeLogin(identifier, password, ip, { zalo_user_id, device_id });
             if (!result.success) {
-                const status = result.statusCode || 200;
-                return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode, request_id: req.id });
+                const status = result.statusCode || 401;
+                return res.status(status).json({ success: false, message: result.message, statusCode: status, request_id: req.id });
             }
             return res.json({ success: true, data: result.data });
         } catch (err) {
@@ -24,7 +24,7 @@ class AuthController {
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
             const result = await authService.zaloAutoLogin({ zalo_user_id, device_id, ma_nv_hint: ma_nv }, ip);
             if (!result.success) {
-                return res.status(result.statusCode || 200).json({ success: false, message: result.message });
+                return res.status(result.statusCode || 404).json({ success: false, message: result.message });
             }
             return res.json({ success: true, data: result.data });
         } catch (err) {
@@ -38,8 +38,8 @@ class AuthController {
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
             const result = await authService.adminLogin(username, password, ip);
             if (!result.success) {
-                const status = result.statusCode || 200;
-                return res.status(status).json({ success: false, message: result.message, statusCode: result.statusCode, request_id: req.id });
+                const status = result.statusCode || 401;
+                return res.status(status).json({ success: false, message: result.message, statusCode: status, request_id: req.id });
             }
             return res.json({ success: true, data: result.data });
         } catch (err) {
@@ -63,10 +63,12 @@ class AuthController {
 
     async changePassword(req, res, next) {
         try {
-            const { ma_nv, old_password, new_password } = req.body;
-            const result = await authService.changePassword(ma_nv, old_password, new_password, req.user);
+            const targetMaNv = req.body.ma_nv || req.user?.ma_nv || req.user?.username;
+            const oldPass = req.body.old_password ?? req.body.oldPassword;
+            const newPass = req.body.new_password ?? req.body.newPassword;
+            const result = await authService.changePassword(targetMaNv, oldPass, newPass, req.user);
             if (!result.success) {
-                return res.json({ success: false, message: result.message });
+                return res.status(result.statusCode || 400).json({ success: false, message: result.message });
             }
             return res.json({ success: true, message: result.message });
         } catch (err) {

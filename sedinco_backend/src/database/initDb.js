@@ -319,6 +319,17 @@ async function initDatabase() {
             INDEX idx_rate_expires (locked_until)
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
 
+        // 13. Bảng Idempotency Keys (Chống bấm đúp & replay trên đa tiến trình)
+        await query(`CREATE TABLE IF NOT EXISTS idempotency_keys (
+            key_hash VARCHAR(64) PRIMARY KEY,
+            actor_id VARCHAR(50) NOT NULL,
+            endpoint VARCHAR(150) NOT NULL,
+            response_status INT NOT NULL DEFAULT 0,
+            response_body MEDIUMTEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_idem_created (created_at)
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+
         await query("ALTER TABLE attendance_logs ADD COLUMN location_source VARCHAR(20) DEFAULT 'raw'").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN is_low_trust TINYINT(1) DEFAULT 0").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN late_minutes INT DEFAULT 0").catch(() => {});

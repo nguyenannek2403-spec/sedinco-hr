@@ -282,7 +282,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                     {Number(req.advance_amount) > 0 && (
                       <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold whitespace-nowrap">
                         <Wallet className="w-3.5 h-3.5 shrink-0" />
-                        <span>Số tiền ứng: {Math.round(Number(req.advance_amount)).toLocaleString("vi-VN")} đ</span>
+                        <span>Số tiền ứng: {Math.round(Number(req.advance_amount) || 0).toLocaleString("vi-VN")} đ</span>
                       </div>
                     )}
                   </div>

@@ -195,8 +195,9 @@ export const loginWithCredentials = async (maNv, password) => {
     password: cleanPass
   });
 
-  if (res?.user) {
-    const user = res.user;
+  const payload = res?.data || res;
+  const user = payload?.user || (payload?.ma_nv ? payload : null);
+  if (user) {
     // Chuẩn hóa role từ chức danh hoặc role trả về
     let role = ROLES.EMPLOYEE;
     const cd = (user.chuc_danh || "").toLowerCase();
@@ -208,8 +209,8 @@ export const loginWithCredentials = async (maNv, password) => {
       role = ROLES.HR;
     }
 
-    const sessionData = { ...user, role, token: res.token || "" };
-    setAuthToken(res.token || "");
+    const sessionData = { ...user, role, token: payload.token || "" };
+    setAuthToken(payload.token || "");
     localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData));
     return { success: true, user: sessionData, role };
   }

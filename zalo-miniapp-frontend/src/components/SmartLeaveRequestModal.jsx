@@ -217,11 +217,14 @@ export default function SmartLeaveRequestModal({
     try {
       const idempotencyKey = generateIdempotencyKey("req");
 
+      const effectiveEndDate = isSalaryAdvance || isCompensation ? startDate : endDate;
       const payload = {
         employee_id: currentUser?.ma_nv,
         request_type: requestType,
+        from_date: startDate,
+        to_date: effectiveEndDate,
         start_date: startDate,
-        end_date: isSalaryAdvance || isCompensation ? startDate : endDate,
+        end_date: effectiveEndDate,
         request_date: startDate,
         reason: trimmedReason,
         advance_amount: isSalaryAdvance ? parsedAdvanceNum : 0,

@@ -283,7 +283,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                           {getRequestTypeLabel(req.request_type || req.type)} • {req.request_date || req.date || req.start_date}
                           {Number(req.advance_amount) > 0 && (
                             <span className="inline-block ml-1.5 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-semibold whitespace-nowrap">
-                              Ứng {Number(req.advance_amount).toLocaleString("vi-VN")}đ
+                              Ứng {(Number(req.advance_amount) || 0).toLocaleString("vi-VN")}đ
                             </span>
                           )}
                         </span>
@@ -392,7 +392,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                         )}
                         {Number(req.advance_amount) > 0 && (
                           <div className="text-xs text-emerald-400 font-semibold mt-0.5">
-                            Ứng: {Number(req.advance_amount).toLocaleString("vi-VN")} đ
+                            Ứng: {(Number(req.advance_amount) || 0).toLocaleString("vi-VN")} đ
                           </div>
                         )}
                       </td>

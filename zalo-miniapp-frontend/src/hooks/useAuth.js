@@ -129,6 +129,13 @@ export function useAuth() {
           ma_nv: rawUser.ma_nv || u,
           ho_ten: rawUser.ho_ten || `Nhân viên ${u}`,
           chuc_danh: rawUser.chuc_danh || "Cán bộ nhân viên",
+          department: rawUser.department || "Khối Công trình",
+          shift_type: rawUser.shift_type || "FULL_DAY",
+          custom_start_time: rawUser.custom_start_time || null,
+          custom_end_time: rawUser.custom_end_time || null,
+          annual_leave_quota: rawUser.annual_leave_quota ?? 12,
+          bound_device_id: rawUser.bound_device_id || null,
+          device_binding_mode: rawUser.device_binding_mode || "recording",
           avatar_url: rawUser.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
           dien_thoai: rawUser.dien_thoai || "0905123456",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
@@ -313,7 +320,7 @@ export function useAuth() {
         password: p,
         zalo_user_id,
         device_id
-      }).catch(() => null);
+      }).catch((err) => err?.data || (err?.message ? { success: false, message: err.message } : null));
 
       if ((!res || !res.success) && u === "ADMIN") {
         res = await safePost("/admin/login", { username: "admin", password: p });
@@ -346,6 +353,13 @@ export function useAuth() {
           ma_nv: rawUser.ma_nv || rawUser.username || u,
           ho_ten: rawUser.ho_ten || (u === "ADMIN" ? "Ban Giám Đốc" : `Nhân viên ${u}`),
           chuc_danh: rawUser.chuc_danh || (u === "ADMIN" ? "Tổng Giám Đốc" : "Cán bộ nhân viên"),
+          department: rawUser.department || "Khối Công trình",
+          shift_type: rawUser.shift_type || "FULL_DAY",
+          custom_start_time: rawUser.custom_start_time || null,
+          custom_end_time: rawUser.custom_end_time || null,
+          annual_leave_quota: rawUser.annual_leave_quota ?? 12,
+          bound_device_id: rawUser.bound_device_id || null,
+          device_binding_mode: rawUser.device_binding_mode || "recording",
           avatar_url: rawUser.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
           dien_thoai: rawUser.dien_thoai || "0905123456",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,

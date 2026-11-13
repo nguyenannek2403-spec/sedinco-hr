@@ -385,6 +385,7 @@ class AttendanceService {
                 if (isLocked) {
                     const error = new Error(`Kỳ công Tháng ${m}/${y} đã bị KHÓA SỔ để tính lương. Không thể thêm/sửa/xóa dữ liệu chấm công!`);
                     error.statusCode = 400;
+                    error.code = 'PERIOD_LOCKED';
                     throw error;
                 }
             }
@@ -490,6 +491,7 @@ class AttendanceService {
         if (isLocked) {
             const error = new Error(`Kỳ công Tháng ${m}/${y} đã bị khóa sổ để tính lương. Không thể chấm công hộ!`);
             error.statusCode = 400;
+            error.code = 'PERIOD_LOCKED';
             throw error;
         }
 
@@ -972,6 +974,7 @@ class AttendanceService {
         if (isLocked) {
             const error = new Error(`Kỳ công Tháng ${currentMonth}/${currentYear} đã bị KHÓA SỔ. Không thể chấm công!`);
             error.statusCode = 400;
+            error.code = 'PERIOD_LOCKED';
             throw error;
         }
 

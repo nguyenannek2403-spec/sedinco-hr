@@ -218,7 +218,7 @@ async function resetRateLimitState() {
 class AuthService {
     async employeeLogin(ma_nv, password, ip_address = '', { zalo_user_id = null, device_id = null } = {}) {
         if (!ma_nv || !password) {
-            return { success: false, message: GENERIC_LOGIN_ERROR };
+            return { success: false, statusCode: 400, message: GENERIC_LOGIN_ERROR };
         }
 
         const normalizedIp = normalizeClientIp(ip_address);
@@ -319,6 +319,7 @@ class AuthService {
         if (isBlocked) {
             return {
                 success: false,
+                statusCode: 403,
                 message: 'Tài khoản nhân sự của bạn đã bị TẠM KHÓA bởi Quản trị viên. Vui lòng liên hệ bộ phận Nhân sự hoặc Ban giám đốc!'
             };
         }
@@ -422,7 +423,7 @@ class AuthService {
         const cleanHint = ma_nv_hint ? String(ma_nv_hint).trim().toUpperCase() : '';
 
         if (!cleanZaloId && !cleanDevId) {
-            return { success: false, message: 'Chưa có thông tin liên kết Zalo ID hoặc Thiết bị trên máy này!' };
+            return { success: false, statusCode: 400, message: 'Chưa có thông tin liên kết Zalo ID hoặc Thiết bị trên máy này!' };
         }
 
         let rows = [];
@@ -442,6 +443,7 @@ class AuthService {
         if (!rows || rows.length === 0) {
             return {
                 success: false,
+                statusCode: 404,
                 message: 'Thiết bị chưa được liên kết tài khoản Zalo. Vui lòng đăng nhập bằng Mã NV & Mật khẩu lần đầu để liên kết tự động!'
             };
         }
@@ -644,31 +646,37 @@ class AuthService {
     }
 
     async changePassword(ma_nv, old_password, new_password, current_user = null) {
+        if (!ma_nv) {
+            return { success: false, statusCode: 400, message: 'Thiếu mã nhân viên cần đổi mật khẩu!' };
+        }
         // Kiểm tra quyền: Chỉ chính nhân viên hoặc admin mới được đổi mật khẩu
         if (current_user && current_user.role !== 'admin' && current_user.ma_nv !== ma_nv) {
-            return { success: false, message: 'Bạn không có quyền thay đổi mật khẩu của nhân viên khác!' };
+            return { success: false, statusCode: 403, message: 'Bạn không có quyền thay đổi mật khẩu của nhân viên khác!' };
         }
 
         const results = await query('SELECT password FROM employees WHERE ma_nv = ?', [ma_nv]);
         if (!results || results.length === 0) {
-            return { success: false, message: 'Không tìm thấy nhân viên' };
+            return { success: false, statusCode: 404, message: 'Không tìm thấy nhân viên' };
         }
         const currentPass = results[0].password;
         if (!currentPass || !isBcryptHash(currentPass)) {
-            return { success: false, message: 'Mật khẩu hiện tại không hợp lệ hoặc chưa được mã hóa an toàn!' };
+            return { success: false, statusCode: 400, message: 'Mật khẩu hiện tại không hợp lệ hoặc chưa được mã hóa an toàn!' };
         }
         
         // Nếu không phải admin thì bắt buộc phải nhập đúng mật khẩu cũ (dùng bcrypt compare qua Worker Threads)
         if (!current_user || current_user.role !== 'admin') {
+            if (!old_password || typeof old_password !== 'string') {
+                return { success: false, statusCode: 400, message: 'Vui lòng nhập mật khẩu cũ!' };
+            }
             const isOldMatch = await comparePasswordAsync(old_password, currentPass);
             if (!isOldMatch) {
-                return { success: false, message: 'Mật khẩu cũ không chính xác!' };
+                return { success: false, statusCode: 400, message: 'Mật khẩu cũ không chính xác!' };
             }
         }
 
         const policyCheck = validatePasswordPolicy(new_password, ma_nv);
         if (!policyCheck.valid) {
-            return { success: false, message: policyCheck.message };
+            return { success: false, statusCode: 400, message: policyCheck.message };
         }
 
         // Mã hóa mật khẩu mới bằng bcrypt trước khi lưu

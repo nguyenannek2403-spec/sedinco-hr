@@ -20,6 +20,7 @@ import {
 import { safeGet, safePost, safePut, generateIdempotencyKey } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS, getShiftLabel } from "../../utils/viLabels";
+import { ROLE_LABELS } from "../../constants/roles";
 import { useLockBodyScroll } from "../../hooks/useLockBodyScroll";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import AdminDeviceApproval from "../../components/AdminDeviceApproval";
@@ -281,7 +282,7 @@ export default function EmployeeManagementTab({
       danger: true,
       onExecute: async () => {
         try {
-          const res = await safePost("/employees/staged-force-password", { stage: "all" });
+          const res = await safePost("/employees/staged-force-password", { stage: "all", limit: 500 });
           if (res?.success) {
             if (showToast) showToast("Đã kích hoạt đổi mật khẩu cho toàn bộ nhân viên!", "success");
             fetchEmployees();
@@ -300,16 +301,44 @@ export default function EmployeeManagementTab({
     e.preventDefault();
     if (submittingRef.current) return;
     setFormError("");
+    const targetMaNv = String(form.ma_nv || "").trim().toUpperCase();
+    const cleanName = String(form.ho_ten || "").trim();
+    const cleanTitle = String(form.chuc_danh || "").trim();
+    if (!targetMaNv) {
+      const msg = "Vui lòng nhập Mã nhân viên (VD: NV025)!";
+      setFormError(msg);
+      if (showToast) showToast(msg, "error");
+      return;
+    }
+    if (!cleanName) {
+      const msg = "Vui lòng nhập Họ và tên nhân viên!";
+      setFormError(msg);
+      if (showToast) showToast(msg, "error");
+      return;
+    }
+    if (!cleanTitle) {
+      const msg = "Vui lòng nhập Chức danh công việc!";
+      setFormError(msg);
+      if (showToast) showToast(msg, "error");
+      return;
+    }
+    if (Number(form.luong_cb) < 0 || !Number.isFinite(Number(form.luong_cb))) {
+      const msg = "Lương cơ bản phải là số không âm!";
+      setFormError(msg);
+      if (showToast) showToast(msg, "error");
+      return;
+    }
     submittingRef.current = true;
     setIsSubmitting(true);
     try {
-      const targetMaNv = form.ma_nv.trim().toUpperCase();
       const targetShift = form.shift_type || "FULL_DAY";
       const res = await safePost(
         "/employees",
         {
           ...form,
           ma_nv: targetMaNv,
+          ho_ten: cleanName,
+          chuc_danh: cleanTitle,
           custom_start_time: form.custom_start_time || null,
           custom_end_time: form.custom_end_time || null
         },
@@ -386,10 +415,14 @@ export default function EmployeeManagementTab({
   const handleSaveDetailModal = async (e) => {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
     if (!detailEmp || !detailForm || savingDetail) return;
+    if (!String(detailForm.ho_ten || "").trim()) {
+      if (showToast) showToast("Vui lòng nhập họ và tên nhân viên!", "error");
+      return;
+    }
     setSavingDetail(true);
     try {
       const res = await safePut(`/employees/${detailEmp.ma_nv}`, {
-        ho_ten: detailForm.ho_ten,
+        ho_ten: String(detailForm.ho_ten || "").trim(),
         chuc_danh: detailForm.chuc_danh,
         department: detailForm.department,
         dien_thoai: detailForm.dien_thoai,

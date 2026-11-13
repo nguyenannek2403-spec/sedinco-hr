@@ -14,7 +14,7 @@ class HolidayController {
         try {
             const { holiday_name, start_date, end_date } = req.body;
             await holidayService.createHoliday(holiday_name, start_date, end_date);
-            return res.json({ success: true });
+            return res.status(201).json({ success: true });
         } catch (err) {
             next(err);
         }

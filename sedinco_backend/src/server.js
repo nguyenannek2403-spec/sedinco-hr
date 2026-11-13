@@ -15,7 +15,8 @@ const REQUIRED_TABLES = [
     'accountant_permissions',
     'audit_logs',
     'ot_registrations',
-    'login_rate_limits'
+    'login_rate_limits',
+    'idempotency_keys'
 ];
 
 async function verifySchemaReadiness(conn) {

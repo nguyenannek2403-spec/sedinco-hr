@@ -297,7 +297,7 @@ export default function AccountantPermissionView({ showToast }) {
                         })()}
                       </span>
                     </div>
-                    <span className="text-slate-400 shrink-0 sm:ml-4 whitespace-nowrap">{new Date(log.created_at).toLocaleString("vi-VN")}</span>
+                    <span className="text-slate-400 shrink-0 sm:ml-4 whitespace-nowrap">{log.created_at ? new Date(log.created_at).toLocaleString("vi-VN") : ""}</span>
                   </div>
                 ))}
               </div>

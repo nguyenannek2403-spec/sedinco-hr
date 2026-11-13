@@ -114,6 +114,7 @@ export default function LiveAttendanceBoardModal({
         "/attendance/proxy-check-in",
         {
           ma_nv: proxyTarget.ma_nv,
+          record_date: board.date || undefined,
           date: board.date || undefined,
           check_in_time: proxyInTime,
           check_out_time: proxyOutTime || null,

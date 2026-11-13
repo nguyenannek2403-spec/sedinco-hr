@@ -316,7 +316,7 @@ function requirePermission(permissionKey) {
         return res.status(403).json({
             success: false,
             code: 'FORBIDDEN',
-            message: `Quyền bị từ chối: Công nhân không thể thực hiện chức năng nghiệp vụ '${permissionKey}'!`,
+            message: 'Bạn không có quyền thực hiện chức năng nghiệp vụ này. Vui lòng liên hệ Quản trị viên.',
             request_id: req.id || undefined
         });
     };

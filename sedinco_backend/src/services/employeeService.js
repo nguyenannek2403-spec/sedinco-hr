@@ -101,7 +101,17 @@ class EmployeeService {
             cleanCustomStart,
             cleanCustomEnd
         ];
-        await query(sql, values);
+        try {
+            await query(sql, values);
+        } catch (err) {
+            if (err && (err.code === 'ER_DUP_ENTRY' || err.errno === 1062 || String(err.message || '').includes('Duplicate entry'))) {
+                const dupErr = new Error(`Mã nhân viên "${ma_nv}" đã tồn tại trên hệ thống. Vui lòng chọn mã khác!`);
+                dupErr.statusCode = 409;
+                dupErr.code = 'DUPLICATE_EMPLOYEE';
+                throw dupErr;
+            }
+            throw err;
+        }
 
         if (current_user) {
             await logAuditEvent({

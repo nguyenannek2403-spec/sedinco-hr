@@ -166,7 +166,15 @@ export default function AttendanceMatrixTable({
 
   const handleSubmitProxyCheckIn = async (e) => {
     e.preventDefault();
-    if (proxyInFlightRef.current || !proxyForm.ma_nv) return;
+    if (proxyInFlightRef.current) return;
+    if (!proxyForm.ma_nv) {
+      if (notify) notify("Vui lòng chọn nhân viên cần chấm công hộ!", "error");
+      return;
+    }
+    if (!proxyForm.record_date) {
+      if (notify) notify("Vui lòng chọn ngày chấm công!", "error");
+      return;
+    }
     proxyInFlightRef.current = true;
     setProxySaving(true);
     try {

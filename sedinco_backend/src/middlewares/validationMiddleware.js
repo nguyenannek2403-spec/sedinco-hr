@@ -3,14 +3,28 @@
  * Đã xác minh qua bộ test tự động TC-ATT-01 đến TC-ATT-05
  */
 
-function validateAttendanceInput({ ma_nv, day, month, year, status, ot_hours }) {
-    if (!ma_nv || day === undefined || month === undefined || year === undefined) {
+function validateAttendanceInput({ ma_nv, day, month, year, date, dateStr: rawDateStr, status, ot_hours }) {
+    let resolvedDay = day;
+    let resolvedMonth = month;
+    let resolvedYear = year;
+
+    const isoSource = date || rawDateStr;
+    if ((resolvedDay === undefined || resolvedMonth === undefined || resolvedYear === undefined) && typeof isoSource === 'string') {
+        const isoMatch = isoSource.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (isoMatch) {
+            resolvedYear = isoMatch[1];
+            resolvedMonth = isoMatch[2];
+            resolvedDay = isoMatch[3];
+        }
+    }
+
+    if (!ma_nv || resolvedDay === undefined || resolvedMonth === undefined || resolvedYear === undefined) {
         return { valid: false, error: 'Thiếu mã nhân viên hoặc thời gian chấm công!' };
     }
 
-    const d = parseInt(day, 10);
-    const m = parseInt(month, 10);
-    const y = parseInt(year, 10);
+    const d = parseInt(resolvedDay, 10);
+    const m = parseInt(resolvedMonth, 10);
+    const y = parseInt(resolvedYear, 10);
     if (isNaN(d) || d < 1 || d > 31 || isNaN(m) || m < 1 || m > 12 || isNaN(y) || y < 2000 || y > 2100) {
         return { valid: false, error: 'Ngày tháng năm không hợp lệ!' };
     }
