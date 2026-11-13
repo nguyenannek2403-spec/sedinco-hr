@@ -9,7 +9,8 @@ import {
   ShieldAlert,
   AlertTriangle,
   X,
-  ArrowLeft
+  ArrowLeft,
+  LogOut
 } from "lucide-react";
 import { ROLE_LABELS, ROLES } from "../constants/roles";
 
@@ -19,6 +20,7 @@ export default function DesktopHeader({
   setCurrentTab,
   activeRole,
   onRoleSwitch,
+  onLogout,
   currentTime,
   alertsSummary = {},
   onRefresh,
@@ -65,19 +67,19 @@ export default function DesktopHeader({
 
   return (
     <header
-      className="bg-slate-900 border-b border-slate-800 pl-3 sm:pl-6 pr-[96px] lg:pr-8 pb-3 flex items-center justify-between gap-2 sticky top-0 z-30 select-none shadow-sm"
-      style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+      className="bg-slate-900 border-b border-slate-800 pl-3 sm:pl-6 pr-[96px] lg:pr-8 pb-2.5 flex items-center justify-between gap-2 sticky top-0 z-40 select-none shadow-sm"
+      style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
     >
-      {/* Nút Menu Mobile + Tiêu đề & Breadcrumb */}
-      <div className="flex items-center gap-2.5 min-w-0">
+      {/* Trái: Nút Menu Mobile + Nút Trở về trên tab phụ + Tiêu đề tab */}
+      <div className="flex items-center gap-2 min-w-0 shrink-0 sm:shrink">
         {onOpenMobileMenu && (
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            className="lg:hidden min-w-[44px] min-h-[44px] p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center shrink-0"
+            className="lg:hidden min-w-[40px] min-h-[40px] p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center shrink-0"
             title="Mở danh mục quản trị"
           >
-            <Menu size={20} />
+            <Menu size={18} />
           </button>
         )}
 
@@ -85,29 +87,40 @@ export default function DesktopHeader({
           <button
             type="button"
             onClick={() => setCurrentTab("matrix")}
-            className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 flex items-center gap-1 text-xs font-extrabold shrink-0"
+            className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 flex items-center gap-1 text-xs font-extrabold shrink-0"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={15} />
             <span>Trở về</span>
           </button>
         )}
 
-        <div className="min-w-0">
+        <div className="hidden md:block min-w-0">
           <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold truncate">
             <span>Sedinco Nhân Sự</span>
             <ChevronRight size={12} className="shrink-0" />
             <span className="text-blue-400 font-black truncate">{ROLE_LABELS[activeRole] || currentUser?.ho_ten}</span>
           </div>
-          <h2 className="text-sm sm:text-lg font-black text-white tracking-tight truncate">
+          <h2 className="text-sm sm:text-base font-black text-white tracking-tight truncate">
             {getTabTitle()}
           </h2>
         </div>
       </div>
 
-      {/* Tác vụ bên phải (Đã chừa 96px bên phải trên Mobile tránh nút ... và X của Zalo) */}
-      <div className="flex items-center gap-2 shrink-0 relative">
+      {/* Giữa: Tên nhân sự nổi bật + Mã NV / Vai trò (Tránh tràn chữ với truncate) */}
+      <div className="flex-1 min-w-0 text-center px-1">
+        <div className="text-xs sm:text-sm font-extrabold text-white leading-tight truncate">
+          {currentUser?.ho_ten || ROLE_LABELS[activeRole] || "Quản trị viên"}
+        </div>
+        <div className="text-[10px] sm:text-[11px] text-blue-400 font-semibold leading-tight truncate">
+          {currentUser?.ma_nv ? `${currentUser.ma_nv} • ` : ""}
+          {ROLE_LABELS[activeRole] || getTabTitle()}
+        </div>
+      </div>
+
+      {/* Phải: Cảnh báo + Chế độ NV + Đăng xuất rõ ràng (Đã chừa 96px tránh nút ... và X của Zalo) */}
+      <div className="flex items-center gap-1.5 shrink-0 relative">
         {/* Đồng hồ số thời gian thực (Desktop) */}
-        <div className="hidden xl:flex items-center gap-2 bg-slate-800 border border-slate-700 px-3.5 py-2 rounded-2xl text-xs font-mono font-bold text-slate-200">
+        <div className="hidden xl:flex items-center gap-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-slate-200">
           <Clock size={14} className="text-blue-400" />
           <span>
             {displayTime.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
@@ -118,14 +131,14 @@ export default function DesktopHeader({
         <button
           type="button"
           onClick={() => setShowAlertPanel(!showAlertPanel)}
-          className={`relative min-w-[40px] min-h-[40px] px-2.5 py-2 rounded-xl border flex items-center gap-1.5 text-xs font-black transition-all ${
+          className={`relative min-w-[38px] min-h-[38px] px-2 py-1.5 rounded-xl border flex items-center gap-1 text-xs font-black transition-all ${
             totalRedAlerts > 0
               ? "bg-rose-600/20 border-rose-500 text-rose-300 shadow-lg shadow-rose-600/20"
               : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
           }`}
           title="Trung tâm Cảnh báo Gian lận & Khiếu nại Lương"
         >
-          <Bell size={16} className={totalRedAlerts > 0 ? "text-rose-400 animate-bounce" : "text-slate-400"} />
+          <Bell size={15} className={totalRedAlerts > 0 ? "text-rose-400 animate-bounce" : "text-slate-400"} />
           {totalRedAlerts > 0 && (
             <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-rose-600 text-white font-black">
               {totalRedAlerts}
@@ -133,28 +146,41 @@ export default function DesktopHeader({
           )}
         </button>
 
-        {/* Nút chuyển nhanh sang chế độ Công nhân (Chấm công / Xem phiếu lương cá nhân) */}
+        {/* Nút chuyển nhanh sang chế độ Công nhân (Desktop) */}
         {typeof onRoleSwitch === "function" && (
           <button
             type="button"
             onClick={() => onRoleSwitch(ROLES.WORKER)}
-            className="hidden sm:flex min-h-[40px] items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold"
+            className="hidden sm:flex min-h-[38px] items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold"
             title="Chuyển sang giao diện chấm công cá nhân"
           >
-            <Smartphone size={15} className="text-blue-400" />
+            <Smartphone size={14} className="text-blue-400" />
             <span>Chế độ NV</span>
           </button>
         )}
 
-        {/* Nút Làm mới dữ liệu */}
+        {/* Nút Làm mới dữ liệu (Desktop) */}
         {onRefresh && (
           <button
             type="button"
             onClick={onRefresh}
-            className="min-w-[40px] min-h-[40px] p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl transition-all active:scale-95 flex items-center justify-center"
+            className="hidden sm:flex min-w-[38px] min-h-[38px] p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl transition-all active:scale-95 items-center justify-center"
             title="Tải lại dữ liệu mới nhất"
           >
-            <RefreshCw size={16} className={isLoading ? "animate-spin text-blue-400" : ""} />
+            <RefreshCw size={15} className={isLoading ? "animate-spin text-blue-400" : ""} />
+          </button>
+        )}
+
+        {/* Nút Đăng xuất rõ ràng kèm Icon */}
+        {typeof onLogout === "function" && (
+          <button
+            type="button"
+            onClick={onLogout}
+            title="Đăng xuất"
+            className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-200 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 flex items-center gap-1 text-[11px] font-bold shrink-0 transition-colors"
+          >
+            <LogOut size={14} className="shrink-0" />
+            <span>Đăng xuất</span>
           </button>
         )}
 

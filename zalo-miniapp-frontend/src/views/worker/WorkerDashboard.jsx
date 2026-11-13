@@ -34,48 +34,55 @@ export default function WorkerDashboard({
       className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between max-w-md mx-auto shadow-2xl relative overflow-x-hidden"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)" }}
     >
-      {/* Top Mobile Header - Có Safe Area Top và chừa 96px bên phải tránh cụm nút ... & X của Zalo */}
+      {/* Top Mobile Header - Chuẩn hóa 3 vùng: Trái (Trở về/Logo) - Giữa (Tên + Mã/Role) - Phải (Đăng xuất) & chừa cụm nút Zalo */}
       <header
-        className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 pl-4 pr-[96px] pb-3 flex items-center justify-between gap-2"
-        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+        className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 pl-3 pr-[96px] pb-2.5 flex items-center justify-between gap-2 shadow-sm"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        {/* Trái: Nút Trở về (ở tab phụ) hoặc Logo công ty */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {activeTab !== "checkin" ? (
             <button
               type="button"
               onClick={() => setActiveTab("checkin")}
-              className="min-h-[40px] px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 flex items-center gap-1 text-xs font-extrabold shrink-0"
+              className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 flex items-center gap-1 text-xs font-bold shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Trở về</span>
+            </button>
+          ) : canSwitchToManagement && typeof onRoleSwitch === "function" ? (
+            <button
+              type="button"
+              onClick={() => onRoleSwitch(currentUser.role)}
+              className="min-h-[38px] px-2.5 py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-xl text-[11px] font-bold shrink-0"
+            >
+              Quản trị
             </button>
           ) : (
             <CompanyLogo size="small" theme="dark" layout="horizontal" showSubtitle={false} />
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          {canSwitchToManagement && typeof onRoleSwitch === "function" && (
-            <button
-              type="button"
-              onClick={() => onRoleSwitch(currentUser.role)}
-              className="px-2.5 py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-xl text-[10px] font-black uppercase tracking-wider min-h-[36px]"
-            >
-              Quản trị
-            </button>
-          )}
-          <div className="text-right max-w-[110px]">
-            <span className="text-xs font-bold text-white block leading-tight truncate">{currentUser?.ho_ten}</span>
-            <span className="text-[10px] text-blue-400 font-mono font-semibold block truncate">{currentUser?.ma_nv}</span>
+        {/* Giữa: Tên nhân viên nổi bật + Mã NV & Vai trò */}
+        <div className="flex-1 min-w-0 text-center px-1">
+          <div className="text-xs font-extrabold text-white leading-tight truncate">
+            {currentUser?.ho_ten || "Nhân viên"}
           </div>
-          <button
-            onClick={onLogout}
-            title="Đăng xuất"
-            className="min-w-[40px] min-h-[40px] p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 rounded-xl transition-colors flex items-center justify-center"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          <div className="text-[10px] text-blue-400 font-semibold leading-tight truncate">
+            {currentUser?.ma_nv || "NV"} • {currentUser?.role === "admin" ? "Quản trị" : currentUser?.role === "accountant" ? "Kế toán" : "Nhân sự"}
+          </div>
         </div>
+
+        {/* Phải: Nút Đăng xuất rõ ràng kèm Icon */}
+        <button
+          type="button"
+          onClick={onLogout}
+          title="Đăng xuất"
+          className="min-h-[38px] px-2.5 py-1.5 bg-slate-800/90 hover:bg-rose-500/20 border border-slate-700 hover:border-rose-500/40 text-slate-200 hover:text-rose-300 rounded-xl transition-colors flex items-center gap-1 text-[11px] font-bold shrink-0"
+        >
+          <LogOut className="w-3.5 h-3.5 shrink-0" />
+          <span>Đăng xuất</span>
+        </button>
       </header>
 
       {/* Main Content Area */}

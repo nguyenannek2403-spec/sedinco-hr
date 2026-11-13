@@ -92,6 +92,14 @@ export default function OneTouchCheckIn({
   const [liveTodayRecord, setLiveTodayRecord] = useState(todayAttendance);
   const [forgottenCheckout, setForgottenCheckout] = useState(null);
   const [monthlyCount, setMonthlyCount] = useState(0);
+  const [attendanceSummary, setAttendanceSummary] = useState({
+    late_count: 0,
+    total_late_minutes: 0,
+    on_time_count: 0,
+    effective_shift_start: "",
+    effective_shift_end: ""
+  });
+  const [shiftInfo, setShiftInfo] = useState(null);
 
   // Đa địa điểm & Trạng thái vị trí thân thiện (Không hiện lat/lng thô)
   const [companyMeta, setCompanyMeta] = useState({
@@ -197,8 +205,15 @@ export default function OneTouchCheckIn({
         ? rawData.days
         : [];
 
-      if (rawData && !Array.isArray(rawData) && rawData.forgotten_checkout) {
-        setForgottenCheckout(rawData.forgotten_checkout);
+      if (rawData && !Array.isArray(rawData)) {
+        setForgottenCheckout(rawData.forgotten_checkout || null);
+        setShiftInfo(rawData.shift_info || null);
+        if (rawData.summary) {
+          setAttendanceSummary((prev) => ({
+            ...prev,
+            ...rawData.summary
+          }));
+        }
       } else {
         setForgottenCheckout(null);
       }
@@ -314,8 +329,8 @@ export default function OneTouchCheckIn({
       } catch {}
 
       let locationToken = "";
-      let rawLat = Number(companyMeta.latitude) || 16.0544;
-      let rawLng = Number(companyMeta.longitude) || 108.2022;
+      let rawLat = null;
+      let rawLng = null;
       let gpsAccuracy = null;
       let isFakeGpsDetected = false;
 
@@ -326,23 +341,27 @@ export default function OneTouchCheckIn({
           rawLat = Number(locationRes.latitude);
           rawLng = Number(locationRes.longitude);
         }
+        if (locationRes?.accuracy !== undefined && locationRes?.accuracy !== null) {
+          gpsAccuracy = Number(locationRes.accuracy);
+        }
         if (locationRes?.mocked === true || locationRes?.isMock === true) {
           isFakeGpsDetected = true;
         }
-      } catch {
-        if (typeof navigator !== "undefined" && navigator.geolocation) {
-          try {
-            const pos = await new Promise((res, rej) =>
-              navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000, enableHighAccuracy: true })
-            );
-            rawLat = Number(pos.coords.latitude);
-            rawLng = Number(pos.coords.longitude);
-            gpsAccuracy = Number(pos.coords.accuracy);
-            if (pos.coords.accuracy !== undefined && pos.coords.accuracy <= 0) {
-              isFakeGpsDetected = true;
-            }
-          } catch {}
-        }
+      } catch {}
+
+      // Luôn cố gắng lấy tọa độ GPS thiết bị nếu SDK chỉ trả về location_token (tránh gửi null khi fallback)
+      if ((rawLat === null || rawLng === null) && typeof navigator !== "undefined" && navigator.geolocation) {
+        try {
+          const pos = await new Promise((res, rej) =>
+            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000, enableHighAccuracy: true })
+          );
+          rawLat = Number(pos.coords.latitude);
+          rawLng = Number(pos.coords.longitude);
+          gpsAccuracy = Number(pos.coords.accuracy);
+          if (pos.coords.accuracy !== undefined && pos.coords.accuracy <= 0) {
+            isFakeGpsDetected = true;
+          }
+        } catch {}
       }
 
       setStage(STAGES.SUBMITTING);
@@ -536,89 +555,128 @@ export default function OneTouchCheckIn({
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-xs text-slate-400">
-          <span>
-            {(() => {
-              const sType = effectiveToday?.shift_type || currentUser?.shift_type || "FULL_DAY";
-              if (sType === "MORNING_SHIFT") return <>Ca sáng: <strong className="text-slate-200">07:30 - 12:00</strong></>;
-              if (sType === "AFTERNOON_SHIFT") return <>Ca chiều: <strong className="text-slate-200">13:00 - 17:30</strong></>;
-              if (sType === "NIGHT_SHIFT") return <>Ca tối: <strong className="text-slate-200">18:00 - 22:00</strong></>;
-              return (
-                <>
-                  Ca hành chính: <strong className="text-slate-200">{companyMeta.work_start || "08:00"} - {companyMeta.lunch_start || "12:00"}</strong> &{" "}
-                  <strong className="text-slate-200">{companyMeta.lunch_end || "13:30"} - {companyMeta.work_end || "17:30"}</strong>
-                </>
-              );
-            })()}
-          </span>
-          {Number(effectiveToday?.late_minutes) > 0 && (
-            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-semibold whitespace-nowrap">
-              Muộn {effectiveToday.late_minutes}p
+        <div className="pt-2 border-t border-slate-800 space-y-1.5 text-xs text-slate-400">
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
+            <span>
+              {(() => {
+                const effStart =
+                  shiftInfo?.effective_start ||
+                  attendanceSummary?.effective_shift_start ||
+                  currentUser?.custom_start_time ||
+                  (effectiveToday?.shift_type === "MORNING_SHIFT"
+                    ? "07:30"
+                    : effectiveToday?.shift_type === "AFTERNOON_SHIFT"
+                    ? "13:00"
+                    : effectiveToday?.shift_type === "NIGHT_SHIFT"
+                    ? "18:00"
+                    : companyMeta.work_start || "08:00");
+                const effEnd =
+                  shiftInfo?.effective_end ||
+                  attendanceSummary?.effective_shift_end ||
+                  currentUser?.custom_end_time ||
+                  (effectiveToday?.shift_type === "MORNING_SHIFT"
+                    ? "12:00"
+                    : effectiveToday?.shift_type === "AFTERNOON_SHIFT"
+                    ? "17:30"
+                    : effectiveToday?.shift_type === "NIGHT_SHIFT"
+                    ? "22:00"
+                    : companyMeta.work_end || "17:30");
+                return (
+                  <>
+                    Ca làm việc của bạn hôm nay:{" "}
+                    <strong className="text-slate-100">
+                      {effStart} – {effEnd}
+                    </strong>
+                  </>
+                );
+              })()}
             </span>
-          )}
-          {Number(effectiveToday?.ot_hours) > 0 && (
-            <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold whitespace-nowrap">
-              OT +{effectiveToday.ot_hours}h
+            <div className="flex items-center gap-1">
+              {Number(effectiveToday?.late_minutes) > 0 && (
+                <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-semibold whitespace-nowrap">
+                  Muộn {effectiveToday.late_minutes}p
+                </span>
+              )}
+              {Number(effectiveToday?.ot_hours) > 0 && (
+                <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold whitespace-nowrap">
+                  OT +{effectiveToday.ot_hours}h
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="text-[11px] font-semibold text-slate-300 flex flex-wrap items-center gap-1">
+            <span>Tháng này:</span>
+            <span className="text-amber-300 font-bold">
+              Đi trễ {attendanceSummary?.late_count || 0} lần (Tổng {attendanceSummary?.total_late_minutes || 0} phút)
             </span>
-          )}
+            <span className="text-slate-500">•</span>
+            <span className="text-emerald-400 font-bold">
+              Đi sớm/Đúng giờ {attendanceSummary?.on_time_count || 0} ngày
+            </span>
+          </div>
         </div>
       </div>
 
       {/* MODAL CẢNH BÁO ĐỎ TOÀN MÀN HÌNH KHI PHÁT HIỆN FAKE GPS / THIẾT BỊ LẠ */}
       {stage === STAGES.SECURITY_FRAUD && (
-        <div className="fixed inset-0 bg-rose-950/95 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-          <div className="bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-bounce-short">
-            <div className="w-20 h-20 rounded-full bg-rose-600/20 border-2 border-rose-500 text-rose-500 flex items-center justify-center mx-auto shadow-lg shadow-rose-600/30">
-              <ShieldAlert size={44} />
-            </div>
-            <h3 className="font-black text-lg text-rose-400 uppercase tracking-wide">
-              ⚠️ CẢNH BÁO VI PHẠM AN NINH
-            </h3>
-            <p className="text-xs text-white font-bold leading-relaxed bg-rose-950/80 border border-rose-500/40 rounded-2xl p-3.5">
-              Hệ thống phát hiện dấu hiệu giả mạo vị trí hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!
-            </p>
-            {fraudDetails && (
-              <p className="text-[11px] text-rose-200 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                {fraudDetails}
+        <div className="fixed inset-0 bg-rose-950/95 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-slate-900 border-2 border-rose-500 rounded-t-3xl sm:rounded-3xl max-w-sm w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl text-center">
+            <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-6 space-y-4" style={{ WebkitOverflowScrolling: "touch" }}>
+              <div className="w-20 h-20 rounded-full bg-rose-600/20 border-2 border-rose-500 text-rose-500 flex items-center justify-center mx-auto shadow-lg shadow-rose-600/30">
+                <ShieldAlert size={44} />
+              </div>
+              <h3 className="font-black text-lg text-rose-400 uppercase tracking-wide">
+                ⚠️ CẢNH BÁO VI PHẠM AN NINH
+              </h3>
+              <p className="text-xs text-white font-bold leading-relaxed bg-rose-950/80 border border-rose-500/40 rounded-2xl p-3.5">
+                Hệ thống phát hiện dấu hiệu giả mạo vị trí hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!
               </p>
-            )}
-            <button
-              type="button"
-              onClick={() => setStage(STAGES.IDLE)}
-              className="w-full min-h-[46px] py-3 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-rose-600/40"
-            >
-              Tôi Đã Hiểu & Đóng Cảnh Báo
-            </button>
+              {fraudDetails && (
+                <p className="text-[11px] text-rose-200 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                  {fraudDetails}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setStage(STAGES.IDLE)}
+                className="w-full min-h-[46px] py-3 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-rose-600/40"
+              >
+                Tôi Đã Hiểu & Đóng Cảnh Báo
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Modal Giải Thích Quyền Vị Trí */}
       {stage === STAGES.PERM_EXPLAIN && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-800 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 shadow-sm border border-blue-100">
-              <MapPin size={32} />
-            </div>
-            <h3 className="font-black text-lg text-slate-900 mb-2">Quyền Truy Cập Vị Trí GPS</h3>
-            <p className="text-xs text-slate-600 leading-relaxed mb-6">
-              Sedinco HR sử dụng vị trí thực tế để xác nhận bạn đang ở chi nhánh/kho hàng hoặc tại công trình để chấm công 1 chạm.
-            </p>
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={handleAcceptPermExplain}
-                className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-500/30 transition-all cursor-pointer"
-              >
-                TÔI HIỂU & CHO PHÉP
-              </button>
-              <button
-                type="button"
-                onClick={() => setStage(STAGES.IDLE)}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs cursor-pointer"
-              >
-                Để sau / Đóng
-              </button>
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl text-slate-800 text-center">
+            <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-6" style={{ WebkitOverflowScrolling: "touch", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}>
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 shadow-sm border border-blue-100">
+                <MapPin size={32} />
+              </div>
+              <h3 className="font-black text-lg text-slate-900 mb-2">Quyền Truy Cập Vị Trí GPS</h3>
+              <p className="text-xs text-slate-600 leading-relaxed mb-6">
+                Sedinco HR sử dụng vị trí thực tế để xác nhận bạn đang ở chi nhánh/kho hàng hoặc tại công trình để chấm công 1 chạm.
+              </p>
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  onClick={handleAcceptPermExplain}
+                  className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-500/30 transition-all cursor-pointer"
+                >
+                  TÔI HIỂU & CHO PHÉP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStage(STAGES.IDLE)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs cursor-pointer"
+                >
+                  Để sau / Đóng
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -725,8 +783,8 @@ export default function OneTouchCheckIn({
               : isFieldWorkMode
               ? "Kèm ảnh hiện trường"
               : checkinType === "in"
-              ? `Vào ca sáng (${companyMeta.work_start || "08:00"})`
-              : `Ra ca chiều (${companyMeta.work_end || "17:30"})`}
+              ? `Vào ca (${shiftInfo?.effective_start || attendanceSummary?.effective_shift_start || currentUser?.custom_start_time || companyMeta.work_start || "08:00"})`
+              : `Ra ca (${shiftInfo?.effective_end || attendanceSummary?.effective_shift_end || currentUser?.custom_end_time || companyMeta.work_end || "17:30"})`}
           </span>
         </button>
       </div>

@@ -57,10 +57,10 @@ class EmployeeController {
 
     async updateEmployeeShift(req, res, next) {
         try {
-            const { shift_type, annual_leave_quota } = req.body;
+            const { shift_type, annual_leave_quota, custom_start_time, custom_end_time } = req.body;
             const result = await employeeService.updateEmployeeShift(
                 req.params.ma_nv,
-                { shift_type, annual_leave_quota },
+                { shift_type, annual_leave_quota, custom_start_time, custom_end_time },
                 req.user
             );
             return res.json(result);

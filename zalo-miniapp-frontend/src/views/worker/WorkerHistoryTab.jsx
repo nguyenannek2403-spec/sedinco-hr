@@ -213,23 +213,46 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
         </button>
       </div>
 
-      {/* Summary KPI */}
+      {/* Summary KPI & Thống kê Đi trễ / Đúng giờ */}
       {summary && (
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
-            <div className="text-xs font-semibold text-slate-300">Ngày công</div>
-            <div className="text-lg font-bold text-emerald-400 mt-0.5">{summary.total_work_days || 0}</div>
-            <div className="text-[11px] text-slate-400">/ {summary.standard_days || 26} công</div>
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
+              <div className="text-xs font-semibold text-slate-300">Ngày công</div>
+              <div className="text-lg font-bold text-emerald-400 mt-0.5">{summary.total_work_days || 0}</div>
+              <div className="text-[11px] text-slate-400">/ {summary.standard_days || 26} công</div>
+            </div>
+            <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
+              <div className="text-xs font-semibold text-slate-300">Tăng ca OT</div>
+              <div className="text-lg font-bold text-blue-400 mt-0.5">{summary.total_ot_hours || 0}h</div>
+              <div className="text-[11px] text-slate-400">ngoài giờ</div>
+            </div>
+            <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
+              <div className="text-xs font-semibold text-slate-300">Nghỉ phép</div>
+              <div className="text-lg font-bold text-purple-400 mt-0.5">{summary.total_leave_days || 0}</div>
+              <div className="text-[11px] text-slate-400">hưởng lương</div>
+            </div>
           </div>
-          <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
-            <div className="text-xs font-semibold text-slate-300">Tăng ca OT</div>
-            <div className="text-lg font-bold text-blue-400 mt-0.5">{summary.total_ot_hours || 0}h</div>
-            <div className="text-[11px] text-slate-400">ngoài giờ</div>
-          </div>
-          <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
-            <div className="text-xs font-semibold text-slate-300">Nghỉ phép</div>
-            <div className="text-lg font-bold text-purple-400 mt-0.5">{summary.total_leave_days || 0}</div>
-            <div className="text-[11px] text-slate-400">hưởng lương</div>
+
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl px-3.5 py-2.5 text-xs space-y-1">
+            {summary.effective_shift_start && summary.effective_shift_end && (
+              <div className="text-slate-300 font-medium">
+                Ca làm việc của bạn hôm nay:{" "}
+                <strong className="text-white">
+                  {summary.effective_shift_start} – {summary.effective_shift_end}
+                </strong>
+              </div>
+            )}
+            <div className="text-[11px] text-slate-300 font-semibold flex flex-wrap items-center gap-1.5">
+              <span>Tháng này:</span>
+              <span className="text-amber-300 font-bold">
+                Đi trễ {summary.late_count || 0} lần (Tổng {summary.total_late_minutes || 0} phút)
+              </span>
+              <span className="text-slate-500">•</span>
+              <span className="text-emerald-400 font-bold">
+                Đi sớm/Đúng giờ {summary.on_time_count || 0} ngày
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -339,9 +362,9 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
 
       {/* MODAL CHI TIẾT 1 NGÀY + NÚT BỔ SUNG CÔNG 1 CHẠM */}
       {selectedDayDetail && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-slate-900 border-2 border-slate-700 rounded-t-3xl sm:rounded-3xl w-full max-w-sm max-h-[88vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-slate-800 shrink-0">
               <div>
                 <span className="text-[10px] font-bold text-blue-400 uppercase">Chi tiết công ngày</span>
                 <h3 className="text-base font-black text-white">{selectedDayDetail.isoDate}</h3>
@@ -356,63 +379,68 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
               </button>
             </div>
 
-            <div className="space-y-2.5 text-xs">
-              <div className={`p-3 rounded-2xl border font-bold text-center ${selectedDayDetail.style.cellClass}`}>
-                {selectedDayDetail.style.badgeText}
+            <div
+              className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-4"
+              style={{ WebkitOverflowScrolling: "touch", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
+            >
+              <div className="space-y-2.5 text-xs">
+                <div className={`p-3 rounded-2xl border font-bold text-center ${selectedDayDetail.style.cellClass}`}>
+                  {selectedDayDetail.style.badgeText}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase block">Giờ vào ca</span>
+                    <span className="text-sm font-black text-white font-mono">
+                      {selectedDayDetail.log?.check_in_time ? String(selectedDayDetail.log.check_in_time).slice(0, 5) : "--:--"}
+                    </span>
+                  </div>
+                  <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase block">Giờ ra ca</span>
+                    <span className="text-sm font-black text-white font-mono">
+                      {selectedDayDetail.log?.check_out_time ? String(selectedDayDetail.log.check_out_time).slice(0, 5) : "--:--"}
+                    </span>
+                  </div>
+                </div>
+
+                {selectedDayDetail.log?.location_name && (
+                  <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-2 text-slate-300">
+                    <MapPin size={15} className="text-blue-400 shrink-0" />
+                    <span>{selectedDayDetail.log.location_name}</span>
+                  </div>
+                )}
+
+                {selectedDayDetail.log?.field_note && (
+                  <div className="bg-amber-950/40 p-3 rounded-2xl border border-amber-500/30 text-amber-200">
+                    <strong className="block text-[10px] uppercase mb-0.5">Ghi chú công trình:</strong>
+                    <span>{selectedDayDetail.log.field_note}</span>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 uppercase block">Giờ vào ca</span>
-                  <span className="text-sm font-black text-white font-mono">
-                    {selectedDayDetail.log?.check_in_time ? String(selectedDayDetail.log.check_in_time).slice(0, 5) : "--:--"}
-                  </span>
-                </div>
-                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 uppercase block">Giờ ra ca</span>
-                  <span className="text-sm font-black text-white font-mono">
-                    {selectedDayDetail.log?.check_out_time ? String(selectedDayDetail.log.check_out_time).slice(0, 5) : "--:--"}
-                  </span>
-                </div>
-              </div>
-
-              {selectedDayDetail.log?.location_name && (
-                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-2 text-slate-300">
-                  <MapPin size={15} className="text-blue-400 shrink-0" />
-                  <span>{selectedDayDetail.log.location_name}</span>
-                </div>
+              {!selectedDayDetail.isFuture && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const iso = selectedDayDetail.isoDate;
+                    setSelectedDayDetail(null);
+                    setCorrectionModalDate(iso);
+                  }}
+                  className="w-full min-h-[46px] py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                >
+                  <FilePlus2 size={16} />
+                  <span>📝 Gửi đơn bổ sung công cho ngày này</span>
+                </button>
               )}
 
-              {selectedDayDetail.log?.field_note && (
-                <div className="bg-amber-950/40 p-3 rounded-2xl border border-amber-500/30 text-amber-200">
-                  <strong className="block text-[10px] uppercase mb-0.5">Ghi chú công trình:</strong>
-                  <span>{selectedDayDetail.log.field_note}</span>
-                </div>
-              )}
-            </div>
-
-            {!selectedDayDetail.isFuture && (
               <button
                 type="button"
-                onClick={() => {
-                  const iso = selectedDayDetail.isoDate;
-                  setSelectedDayDetail(null);
-                  setCorrectionModalDate(iso);
-                }}
-                className="w-full min-h-[46px] py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                onClick={() => setSelectedDayDetail(null)}
+                className="w-full min-h-[44px] py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl font-bold text-xs cursor-pointer"
               >
-                <FilePlus2 size={16} />
-                <span>📝 Gửi đơn bổ sung công cho ngày này</span>
+                Đóng cửa sổ
               </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setSelectedDayDetail(null)}
-              className="w-full min-h-[44px] py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl font-bold text-xs cursor-pointer"
-            >
-              Đóng cửa sổ
-            </button>
+            </div>
           </div>
         </div>
       )}

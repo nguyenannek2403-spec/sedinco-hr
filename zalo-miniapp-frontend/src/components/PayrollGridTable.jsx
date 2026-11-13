@@ -31,8 +31,13 @@ export default function PayrollGridTable({
   onRefresh,
   isLoading: propIsLoading,
   showToast,
-  onShowToast
+  onShowToast,
+  activeRole,
+  userRole
 }) {
+  const effectiveRole = activeRole || userRole || "admin";
+  const isAccountant = effectiveRole === "accountant";
+  const isAdmin = effectiveRole === "admin";
   const notify = showToast || onShowToast;
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
@@ -384,16 +389,24 @@ export default function PayrollGridTable({
               />
             </div>
 
-            {/* Nút Tính Lương Tự Động */}
-            <button
-              type="button"
-              onClick={handleCalculatePayroll}
-              disabled={calculating || isLoading}
-              className="min-h-[42px] flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
-            >
-              {calculating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
-              <span>{calculating ? "Đang tính..." : "Tính lương"}</span>
-            </button>
+            {/* Nút Tính Lương Tự Động (Nghiệp vụ riêng của Kế toán) */}
+            {isAccountant && (
+              <button
+                type="button"
+                onClick={handleCalculatePayroll}
+                disabled={calculating || isLoading}
+                className="min-h-[42px] flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              >
+                {calculating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
+                <span>{calculating ? "Đang tính..." : "Tính lương"}</span>
+              </button>
+            )}
+
+            {isAdmin && (
+              <span className="inline-flex items-center px-3 py-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold whitespace-nowrap">
+                Chế độ Giám sát (Giám đốc)
+              </span>
+            )}
 
             {/* Nút Duyệt & Phát Hành Phiếu Lương */}
             <button
@@ -502,15 +515,17 @@ export default function PayrollGridTable({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAdjustmentModal(item)}
-                      className="min-h-[40px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
-                    >
-                      <SlidersHorizontal size={14} className="shrink-0" />
-                      <span>Thưởng / Phạt / Ứng</span>
-                    </button>
+                  <div className={`grid ${isAccountant ? "grid-cols-2" : "grid-cols-1"} gap-2 pt-1`}>
+                    {isAccountant && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAdjustmentModal(item)}
+                        className="min-h-[40px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                      >
+                        <SlidersHorizontal size={14} className="shrink-0" />
+                        <span>Thưởng / Phạt / Ứng</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setSelectedSlipItem(item)}
@@ -638,15 +653,17 @@ export default function PayrollGridTable({
                       </td>
                       <td className="p-3.5 text-center pr-5 whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenAdjustmentModal(item)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold border border-amber-300 transition-all cursor-pointer whitespace-nowrap"
-                            title="Thưởng / Phạt / Tạm ứng"
-                          >
-                            <SlidersHorizontal size={14} />
-                            <span>Điều chỉnh</span>
-                          </button>
+                          {isAccountant && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAdjustmentModal(item)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold border border-amber-300 transition-all cursor-pointer whitespace-nowrap"
+                              title="Thưởng / Phạt / Tạm ứng"
+                            >
+                              <SlidersHorizontal size={14} />
+                              <span>Điều chỉnh</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setSelectedSlipItem(item)}
@@ -708,15 +725,9 @@ export default function PayrollGridTable({
 
       {/* Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2) */}
       {adjustItem && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4"
-          style={{
-            paddingTop: "calc(env(safe-area-inset-top, 0px) + 16px)",
-            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
-          }}
-        >
-          <div className="bg-white border-2 border-slate-200 rounded-3xl w-full max-w-md max-h-full overflow-y-auto p-5 shadow-2xl text-slate-800 space-y-4">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
+          <div className="flex flex-col w-full max-w-md max-h-[88vh] bg-white border-2 border-slate-200 rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl text-slate-800">
+            <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-3 border-b border-slate-100 shrink-0">
               <div>
                 <h4 className="text-base font-bold text-slate-900">Điều chỉnh thưởng / phạt / tạm ứng</h4>
                 <p className="text-xs text-slate-500">
@@ -733,13 +744,18 @@ export default function PayrollGridTable({
               </button>
             </div>
 
-            {adjError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
-                {adjError}
-              </div>
-            )}
+            <form
+              id="payroll-adjust-form"
+              onSubmit={handleSaveAdjustment}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-4 space-y-4"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              {adjError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
+                  {adjError}
+                </div>
+              )}
 
-            <form onSubmit={handleSaveAdjustment} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Tiền thưởng thêm (VNĐ)</label>
                 <input
@@ -787,25 +803,29 @@ export default function PayrollGridTable({
                   className="w-full px-3 py-2 border-2 border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-600 leading-relaxed"
                 />
               </div>
-
-              <div className="flex gap-2.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setAdjustItem(null)}
-                  disabled={adjSaving}
-                  className="flex-1 min-h-[44px] py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-xl border border-slate-300 cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={adjSaving}
-                  className="flex-1 min-h-[44px] py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow cursor-pointer disabled:opacity-50 whitespace-nowrap"
-                >
-                  {adjSaving ? "Đang lưu..." : "Lưu điều chỉnh"}
-                </button>
-              </div>
             </form>
+
+            <div
+              className="px-4 py-3 border-t border-slate-200 bg-white flex gap-2.5 shrink-0"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+            >
+              <button
+                type="button"
+                onClick={() => setAdjustItem(null)}
+                disabled={adjSaving}
+                className="flex-1 min-h-[44px] py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-xl border border-slate-300 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                form="payroll-adjust-form"
+                disabled={adjSaving}
+                className="flex-1 min-h-[44px] py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              >
+                {adjSaving ? "Đang lưu..." : "Lưu điều chỉnh"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -96,11 +96,11 @@ export default function PeriodLockModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl text-slate-800 p-6 border-2 border-slate-200">
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl text-slate-800 border-2 border-slate-200">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-slate-100">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b-2 border-slate-100 shrink-0">
           <div className="flex items-center gap-3">
             <div
               className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 ${
@@ -127,8 +127,12 @@ export default function PeriodLockModal({
           </button>
         </div>
 
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-4"
+          style={{ WebkitOverflowScrolling: "touch", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
+        >
         {errorMessage && (
-          <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-bold flex items-start gap-2.5">
+          <div className="p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-bold flex items-start gap-2.5">
             <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
             <span>{errorMessage}</span>
           </div>
@@ -240,6 +244,7 @@ export default function PeriodLockModal({
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   );

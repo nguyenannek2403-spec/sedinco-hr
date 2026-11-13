@@ -46,13 +46,54 @@ function calculateEmployeeSalary({
     let congChinhThuc = 0;
     let tienOt = 0;
     let totalLateMinutes = 0;
+    let lateOccurrences = 0;
+
+    // Chính sách đi trễ chuẩn hóa (MISA AMIS Smart Policy)
+    const validLatePolicies = ['NONE', 'PER_MINUTE', 'PER_OCCURRENCE', 'DEDUCT_WORKDAY'];
+    const rawPolicy = String(companySettings.late_policy_type || 'PER_MINUTE').toUpperCase();
+    const latePolicyType = validLatePolicies.includes(rawPolicy) ? rawPolicy : 'PER_MINUTE';
+    const freeLateOccurrences = companySettings.free_late_occurrences !== undefined && companySettings.free_late_occurrences !== null
+        ? Math.max(0, Math.round(Number(companySettings.free_late_occurrences)))
+        : 3;
+    const perMinRate = Math.max(
+        0,
+        Number(
+            companySettings.late_penalty_per_minute !== undefined && companySettings.late_penalty_per_minute !== null
+                ? companySettings.late_penalty_per_minute
+                : (companySettings.penalty_per_minute ?? 0)
+        ) || 0
+    );
+    const perOccurrenceAmount = Math.max(
+        0,
+        Number(
+            companySettings.late_penalty_amount !== undefined && companySettings.late_penalty_amount !== null
+                ? companySettings.late_penalty_amount
+                : (companySettings.penalty_fixed_block ?? 0)
+        ) || 0
+    );
+    const maxLateHalfDay = Math.max(
+        1,
+        Math.round(Number(companySettings.max_late_minutes_for_half_day ?? 60) || 60)
+    );
+    let billableLateMinutes = 0;
+    let billableLateOccurrences = 0;
 
     logs.forEach(log => {
         const logDate = new Date(log.record_date);
         logDate.setHours(0, 0, 0, 0);
 
-        if (Number(log.late_minutes) > 0) {
-            totalLateMinutes += Number(log.late_minutes);
+        const lateMins = Number(log.late_minutes) || 0;
+        let isExcessiveLateHalfDay = false;
+        if (lateMins > 0) {
+            totalLateMinutes += lateMins;
+            lateOccurrences += 1;
+            if (lateOccurrences > freeLateOccurrences) {
+                billableLateOccurrences += 1;
+                billableLateMinutes += lateMins;
+                if (latePolicyType === 'DEDUCT_WORKDAY' && lateMins > maxLateHalfDay) {
+                    isExcessiveLateHalfDay = true;
+                }
+            }
         }
 
         const isSunday = (log.dow === 1);
@@ -69,14 +110,17 @@ function calculateEmployeeSalary({
         }
 
         const isProbation = ngayChinhThuc && (logDate < ngayChinhThuc);
+        const dayCredit = (unit) => (isExcessiveLateHalfDay && unit > 0.5 ? 0.5 : unit);
 
         if (log.status === '1') {
-            if (isProbation) congThuViec += 1; else congChinhThuc += 1;
+            const credit = dayCredit(1);
+            if (isProbation) congThuViec += credit; else congChinhThuc += credit;
         } else if (log.status === '0.5') {
             if (isProbation) congThuViec += 0.5; else congChinhThuc += 0.5;
         } else if (log.status === 'OT' || log.status === '1/OT') {
             if (log.status === '1/OT') {
-                if (isProbation) congThuViec += 1; else congChinhThuc += 1;
+                const credit = dayCredit(1);
+                if (isProbation) congThuViec += credit; else congChinhThuc += credit;
             }
             let heSo = isHoliday ? otHoliday : (isSunday ? otWeekend : otWeekday);
             let soGioOT = Number(log.ot_hours) > 0 ? Number(log.ot_hours) : ((isHoliday || isSunday) ? 8 : 4);
@@ -125,15 +169,22 @@ function calculateEmployeeSalary({
     const cleanPenalty = Math.max(0, Math.round(Number(penaltyAmount) || 0));
     const cleanAdvance = Math.max(0, Math.round(Number(advanceDeduction) || 0));
 
+    let latePenaltyAmount = 0;
+    if (latePolicyType === 'PER_MINUTE') {
+        latePenaltyAmount = Math.round(billableLateMinutes * perMinRate);
+    } else if (latePolicyType === 'PER_OCCURRENCE') {
+        latePenaltyAmount = Math.round(billableLateOccurrences * perOccurrenceAmount);
+    }
+
     // Nếu nhân viên không đi làm ngày nào (0 ngày công), không trích trừ BHXH và chỉ tính các khoản thưởng/trừ phát sinh (không âm)
     let baoHiem = 0;
     let netSalary = 0;
     if (actualWorkDays === 0) {
         baoHiem = 0;
-        netSalary = Math.max(0, Math.round(grossSalary + cleanBonus - cleanPenalty - cleanAdvance));
+        netSalary = Math.max(0, Math.round(grossSalary + cleanBonus - cleanPenalty - latePenaltyAmount - cleanAdvance));
     } else {
         baoHiem = (has_insurance !== false && has_insurance !== 0) ? (luongCb * insuranceRatio) : 0;
-        netSalary = Math.max(0, Math.round(grossSalary - baoHiem + cleanBonus - cleanPenalty - cleanAdvance));
+        netSalary = Math.max(0, Math.round(grossSalary - baoHiem + cleanBonus - cleanPenalty - latePenaltyAmount - cleanAdvance));
     }
 
     return {
@@ -146,6 +197,10 @@ function calculateEmployeeSalary({
         actualWorkDays,
         effectiveDays,
         totalLateMinutes,
+        lateOccurrences,
+        billableLateOccurrences,
+        latePolicyType,
+        latePenaltyAmount,
         salaryByWork: Math.round(salaryByWork),
         totalAllowance: Math.round(allowanceByWork),
         allowances_breakdown,

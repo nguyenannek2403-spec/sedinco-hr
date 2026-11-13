@@ -79,21 +79,15 @@ export default function ConfirmDialog({
       }}
     >
       <div
-        className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4 animate-fade-in"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
+        className="w-full sm:max-w-md max-h-[88vh] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-fade-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start gap-3">
-          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${palette.iconBg}`}>
+        <div className="flex items-start gap-3 px-5 py-4 border-b border-slate-100 shrink-0">
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${palette.iconBg}`}>
             <IconComp className="w-5 h-5" />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 pt-0.5">
             <h3 className="text-base font-bold text-slate-900 leading-snug">{title}</h3>
-            {message && (
-              <p className="text-sm text-slate-600 leading-relaxed mt-1 whitespace-pre-line">
-                {message}
-              </p>
-            )}
           </div>
           <button
             type="button"
@@ -106,28 +100,39 @@ export default function ConfirmDialog({
           </button>
         </div>
 
-        {showInput && (
-          <div className="space-y-1.5">
-            {inputLabel && (
-              <label className="block text-xs font-semibold text-slate-700">{inputLabel}</label>
-            )}
-            <textarea
-              rows={3}
-              value={inputVal}
-              onChange={(e) => {
-                setInputVal(e.target.value);
-                if (validationError) setValidationError("");
-              }}
-              placeholder={inputPlaceholder}
-              className="w-full p-3 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
-            />
-            {validationError && (
-              <p className="text-xs font-medium text-rose-600">{validationError}</p>
-            )}
-          </div>
-        )}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-5 py-4 space-y-3">
+          {message && (
+            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+              {message}
+            </p>
+          )}
 
-        <div className="grid grid-cols-2 gap-2.5 pt-1">
+          {showInput && (
+            <div className="space-y-1.5">
+              {inputLabel && (
+                <label className="block text-xs font-semibold text-slate-700">{inputLabel}</label>
+              )}
+              <textarea
+                rows={3}
+                value={inputVal}
+                onChange={(e) => {
+                  setInputVal(e.target.value);
+                  if (validationError) setValidationError("");
+                }}
+                placeholder={inputPlaceholder}
+                className="w-full p-3 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              />
+              {validationError && (
+                <p className="text-xs font-medium text-rose-600">{validationError}</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div
+          className="grid grid-cols-2 gap-2.5 px-5 py-3.5 border-t border-slate-100 bg-white shrink-0"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+        >
           <button
             type="button"
             disabled={loading}

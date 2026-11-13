@@ -585,7 +585,9 @@ export default function AttendanceMatrixTable({
       {/* Modal Lịch Chi Tiết 31 Ngày Của Nhân Viên (Khi mở từ Dạng Thẻ) */}
       {(() => {
         if (!detailEmpCode) return null;
-        const emp = activeData.find((e) => e.ma_nv === detailEmpCode);
+        const emp =
+          filteredData.find((e) => e.ma_nv === detailEmpCode) ||
+          (sourceList || []).find((e) => e.ma_nv === detailEmpCode);
         if (!emp) return null;
         const days = emp.days || [];
         return (
@@ -619,7 +621,10 @@ export default function AttendanceMatrixTable({
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+              <div
+                className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-4 space-y-3 bg-slate-50"
+                style={{ WebkitOverflowScrolling: "touch" }}
+              >
                 <p className="text-xs text-slate-600 font-medium text-center">
                   {canEdit
                     ? "Chạm vào bất kỳ ngày nào bên dưới để chỉnh sửa công"
@@ -675,12 +680,9 @@ export default function AttendanceMatrixTable({
 
       {/* Modal Chỉnh Sửa Công Ô Trực Tiếp */}
       {editingCell && (
-        <div className="fixed inset-0 z-[60] bg-slate-900/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 sm:p-6 shadow-2xl space-y-4 border-t-2 sm:border-2 border-slate-200 max-h-[92vh] overflow-y-auto"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
-          >
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3 gap-2">
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[88vh] shadow-2xl border-t-2 sm:border-2 border-slate-200 flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center border-b border-slate-100 px-5 py-3.5 gap-2 shrink-0 bg-white">
               <button
                 type="button"
                 onClick={() => setEditingCell(null)}
@@ -700,14 +702,14 @@ export default function AttendanceMatrixTable({
               <button
                 type="button"
                 onClick={() => setEditingCell(null)}
-                className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-slate-800 rounded-xl border border-slate-200"
+                className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-slate-800 rounded-xl border border-slate-200 shrink-0"
                 aria-label="Đóng"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="space-y-4 text-sm">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-4 text-sm">
               <div>
                 <label className="block text-slate-800 font-black mb-2">
                   Chọn nhanh trạng thái công
@@ -781,29 +783,32 @@ export default function AttendanceMatrixTable({
                   <span>{editError}</span>
                 </div>
               )}
+            </div>
 
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setEditingCell(null)}
-                  className="flex-1 h-11 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-xl border border-slate-300 cursor-pointer"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={handleSaveCellAttendance}
-                  className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <RefreshCw size={16} className="animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={16} />
-                  )}
-                  <span>Lưu thay đổi</span>
-                </button>
-              </div>
+            <div
+              className="flex gap-3 px-5 py-3.5 border-t border-slate-100 bg-white shrink-0"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+            >
+              <button
+                type="button"
+                onClick={() => setEditingCell(null)}
+                className="flex-1 h-11 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-xl border border-slate-300 cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={handleSaveCellAttendance}
+                className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <RefreshCw size={16} className="animate-spin" />
+                ) : (
+                  <CheckCircle2 size={16} />
+                )}
+                <span>Lưu thay đổi</span>
+              </button>
             </div>
           </div>
         </div>

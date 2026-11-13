@@ -93,6 +93,11 @@ export default function CompanySettingsTab({ showToast }) {
     penalty_per_minute: 2000,
     penalty_fixed_block: 50000,
     penalty_salary_percent: 0,
+    late_policy_type: "PER_MINUTE",
+    free_late_occurrences: 3,
+    late_penalty_per_minute: 2000,
+    late_penalty_amount: 50000,
+    max_late_minutes_for_half_day: 60,
     standard_work_days: 26,
     probation_salary_percent: 85,
     ot_rate_weekday: 1.5,
@@ -273,9 +278,14 @@ export default function CompanySettingsTab({ showToast }) {
         lunch_end: config.lunch_end || "13:30",
         work_end: config.work_end || "17:30",
         grace_period_minutes: Math.max(0, Math.round(toNum(config.grace_period_minutes, 15))),
-        penalty_per_minute: Math.max(0, toNum(config.penalty_per_minute, 2000)),
-        penalty_fixed_block: Math.max(0, toNum(config.penalty_fixed_block, 50000)),
+        penalty_per_minute: Math.max(0, toNum(config.late_penalty_per_minute ?? config.penalty_per_minute, 2000)),
+        penalty_fixed_block: Math.max(0, toNum(config.late_penalty_amount ?? config.penalty_fixed_block, 50000)),
         penalty_salary_percent: Math.max(0, toNum(config.penalty_salary_percent, 0)),
+        late_policy_type: config.late_policy_type || "PER_MINUTE",
+        free_late_occurrences: Math.max(0, Math.round(toNum(config.free_late_occurrences, 3))),
+        late_penalty_per_minute: Math.max(0, toNum(config.late_penalty_per_minute ?? config.penalty_per_minute, 2000)),
+        late_penalty_amount: Math.max(0, toNum(config.late_penalty_amount ?? config.penalty_fixed_block, 50000)),
+        max_late_minutes_for_half_day: Math.max(1, Math.round(toNum(config.max_late_minutes_for_half_day, 60))),
         standard_work_days: Math.max(1, toNum(config.standard_work_days, 26)),
         probation_salary_percent: Math.min(100, Math.max(0, toNum(config.probation_salary_percent, 85))),
         ot_rate_weekday: Math.max(0, toNum(config.ot_rate_weekday, 1.5)),
@@ -782,30 +792,104 @@ export default function CompanySettingsTab({ showToast }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Tiền phạt đi muộn mỗi phút (VNĐ)
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={config.penalty_per_minute ?? 2000}
-              onChange={(e) => updateField("penalty_per_minute", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
-            />
+        <div className="pt-3 border-t border-slate-100 space-y-3">
+          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+            Chính sách xử lý đi trễ & Quy đổi công
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Hình thức xử lý đi trễ
+              </label>
+              <select
+                value={config.late_policy_type || "PER_MINUTE"}
+                onChange={(e) => updateField("late_policy_type", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:border-blue-500 focus:outline-none"
+              >
+                <option value="NONE">Không trừ phạt (Chỉ ghi nhận)</option>
+                <option value="PER_MINUTE">Phạt tiền theo số phút đi trễ</option>
+                <option value="PER_OCCURRENCE">Phạt tiền cố định mỗi lần đi trễ</option>
+                <option value="DEDUCT_WORKDAY">Trừ nửa ngày công nếu trễ quá ngưỡng</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Số lần đi trễ miễn phạt / tháng
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={config.free_late_occurrences ?? 3}
+                onChange={(e) => updateField("free_late_occurrences", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Lưu lịch sử hoạt động (ngày)
-            </label>
-            <input
-              type="number"
-              min="7"
-              value={config.log_retention_days ?? 30}
-              onChange={(e) => updateField("log_retention_days", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
-            />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(config.late_policy_type || "PER_MINUTE") === "PER_MINUTE" && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Tiền phạt đi trễ mỗi phút (VNĐ)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={config.late_penalty_per_minute ?? config.penalty_per_minute ?? 2000}
+                  onChange={(e) => {
+                    updateField("late_penalty_per_minute", e.target.value);
+                    updateField("penalty_per_minute", e.target.value);
+                  }}
+                  className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+                />
+              </div>
+            )}
+
+            {config.late_policy_type === "PER_OCCURRENCE" && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Tiền phạt mỗi lần đi trễ (VNĐ)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={config.late_penalty_amount ?? config.penalty_fixed_block ?? 50000}
+                  onChange={(e) => {
+                    updateField("late_penalty_amount", e.target.value);
+                    updateField("penalty_fixed_block", e.target.value);
+                  }}
+                  className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+                />
+              </div>
+            )}
+
+            {config.late_policy_type === "DEDUCT_WORKDAY" && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Ngưỡng trễ tính nửa công (phút)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={config.max_late_minutes_for_half_day ?? 60}
+                  onChange={(e) => updateField("max_late_minutes_for_half_day", e.target.value)}
+                  className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Lưu lịch sử hoạt động (ngày)
+              </label>
+              <input
+                type="number"
+                min="7"
+                value={config.log_retention_days ?? 30}
+                onChange={(e) => updateField("log_retention_days", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+              />
+            </div>
           </div>
         </div>
       </AccordionSection>

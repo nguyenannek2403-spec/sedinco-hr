@@ -10,6 +10,11 @@ const DEFAULT_COMPANY_SETTINGS = {
     penalty_per_minute: 2000,
     penalty_fixed_block: 50000,
     penalty_salary_percent: 0,
+    late_policy_type: 'PER_MINUTE',
+    free_late_occurrences: 3,
+    late_penalty_per_minute: 2000,
+    late_penalty_amount: 50000,
+    max_late_minutes_for_half_day: 60,
     standard_work_days: 26,
     probation_salary_percent: 85,
     ot_rate_weekday: 1.5,
@@ -101,6 +106,20 @@ class CompanyService {
             normalizedClientIp && whitelistArr.includes(normalizedClientIp)
         );
 
+        const validLatePolicyTypes = ['NONE', 'PER_MINUTE', 'PER_OCCURRENCE', 'DEDUCT_WORKDAY'];
+        const normalizedLatePolicy = validLatePolicyTypes.includes(String(row.late_policy_type || '').toUpperCase())
+            ? String(row.late_policy_type).toUpperCase()
+            : DEFAULT_COMPANY_SETTINGS.late_policy_type;
+        const gracePeriod = row.grace_period_minutes !== undefined && row.grace_period_minutes !== null
+            ? Number(row.grace_period_minutes)
+            : DEFAULT_COMPANY_SETTINGS.grace_period_minutes;
+        const penaltyPerMin = row.penalty_per_minute !== undefined && row.penalty_per_minute !== null
+            ? Number(row.penalty_per_minute)
+            : DEFAULT_COMPANY_SETTINGS.penalty_per_minute;
+        const penaltyFixedBlock = row.penalty_fixed_block !== undefined && row.penalty_fixed_block !== null
+            ? Number(row.penalty_fixed_block)
+            : DEFAULT_COMPANY_SETTINGS.penalty_fixed_block;
+
         return {
             ...DEFAULT_COMPANY_SETTINGS,
             ...row,
@@ -108,6 +127,22 @@ class CompanyService {
             lunch_start: row.lunch_start || DEFAULT_COMPANY_SETTINGS.lunch_start,
             lunch_end: row.lunch_end || DEFAULT_COMPANY_SETTINGS.lunch_end,
             work_end: row.work_end || DEFAULT_COMPANY_SETTINGS.work_end,
+            grace_period_minutes: gracePeriod,
+            penalty_per_minute: penaltyPerMin,
+            penalty_fixed_block: penaltyFixedBlock,
+            late_policy_type: normalizedLatePolicy,
+            free_late_occurrences: row.free_late_occurrences !== undefined && row.free_late_occurrences !== null
+                ? Number(row.free_late_occurrences)
+                : DEFAULT_COMPANY_SETTINGS.free_late_occurrences,
+            late_penalty_per_minute: row.late_penalty_per_minute !== undefined && row.late_penalty_per_minute !== null
+                ? Number(row.late_penalty_per_minute)
+                : penaltyPerMin,
+            late_penalty_amount: row.late_penalty_amount !== undefined && row.late_penalty_amount !== null
+                ? Number(row.late_penalty_amount)
+                : penaltyFixedBlock,
+            max_late_minutes_for_half_day: row.max_late_minutes_for_half_day !== undefined && row.max_late_minutes_for_half_day !== null
+                ? Number(row.max_late_minutes_for_half_day)
+                : DEFAULT_COMPANY_SETTINGS.max_late_minutes_for_half_day,
             standard_work_days: Number(row.standard_work_days) || DEFAULT_COMPANY_SETTINGS.standard_work_days,
             probation_salary_percent: Number(row.probation_salary_percent) || DEFAULT_COMPANY_SETTINGS.probation_salary_percent,
             ot_rate_weekday: Number(row.ot_rate_weekday) || DEFAULT_COMPANY_SETTINGS.ot_rate_weekday,
@@ -158,9 +193,20 @@ class CompanyService {
         const lunch_end = toSafeText(payload.lunch_end, current.lunch_end || '13:30') || '13:30';
 
         const grace_period_minutes = Math.max(0, Math.round(toFiniteNumber(payload.grace_period_minutes, toFiniteNumber(current.grace_period_minutes, 15))));
-        const penalty_per_minute = Math.max(0, toFiniteNumber(payload.penalty_per_minute, toFiniteNumber(current.penalty_per_minute, 2000)));
-        const penalty_fixed_block = Math.max(0, toFiniteNumber(payload.penalty_fixed_block, toFiniteNumber(current.penalty_fixed_block, 50000)));
+        const rawPerMinInput = payload.late_penalty_per_minute !== undefined ? payload.late_penalty_per_minute : payload.penalty_per_minute;
+        const penalty_per_minute = Math.max(0, toFiniteNumber(rawPerMinInput, toFiniteNumber(current.penalty_per_minute, 2000)));
+        const rawFixedInput = payload.late_penalty_amount !== undefined ? payload.late_penalty_amount : payload.penalty_fixed_block;
+        const penalty_fixed_block = Math.max(0, toFiniteNumber(rawFixedInput, toFiniteNumber(current.penalty_fixed_block, 50000)));
         const penalty_salary_percent = Math.max(0, toFiniteNumber(payload.penalty_salary_percent, toFiniteNumber(current.penalty_salary_percent, 0)));
+        const validPolicies = ['NONE', 'PER_MINUTE', 'PER_OCCURRENCE', 'DEDUCT_WORKDAY'];
+        const rawPolicyInput = payload.late_policy_type !== undefined
+            ? String(payload.late_policy_type || '').trim().toUpperCase()
+            : String(current.late_policy_type || 'PER_MINUTE').toUpperCase();
+        const late_policy_type = validPolicies.includes(rawPolicyInput) ? rawPolicyInput : 'PER_MINUTE';
+        const free_late_occurrences = Math.max(0, Math.round(toFiniteNumber(payload.free_late_occurrences, toFiniteNumber(current.free_late_occurrences, 3))));
+        const late_penalty_per_minute = penalty_per_minute;
+        const late_penalty_amount = penalty_fixed_block;
+        const max_late_minutes_for_half_day = Math.max(1, Math.round(toFiniteNumber(payload.max_late_minutes_for_half_day, toFiniteNumber(current.max_late_minutes_for_half_day, 60))));
         const standard_work_days = Math.max(1, toFiniteNumber(payload.standard_work_days, toFiniteNumber(current.standard_work_days, 26)));
         const probation_salary_percent = Math.min(100, Math.max(0, toFiniteNumber(payload.probation_salary_percent, toFiniteNumber(current.probation_salary_percent, 85))));
         const ot_rate_weekday = Math.max(0, toFiniteNumber(payload.ot_rate_weekday, toFiniteNumber(current.ot_rate_weekday, 1.5)));
@@ -184,6 +230,7 @@ class CompanyService {
             company_name, phone, address, tax_code, logo_url,
             work_start, work_end, lunch_start, lunch_end,
             grace_period_minutes, penalty_per_minute, penalty_fixed_block, penalty_salary_percent,
+            late_policy_type, free_late_occurrences, late_penalty_per_minute, late_penalty_amount, max_late_minutes_for_half_day,
             standard_work_days, probation_salary_percent,
             ot_rate_weekday, ot_rate_weekend, ot_rate_holiday, custom_ot_hourly_rate,
             insurance_rate, log_retention_days,
@@ -198,6 +245,7 @@ class CompanyService {
                     company_name=?, phone=?, address=?, tax_code=?, logo_url=?,
                     work_start=?, work_end=?, lunch_start=?, lunch_end=?,
                     grace_period_minutes=?, penalty_per_minute=?, penalty_fixed_block=?, penalty_salary_percent=?,
+                    late_policy_type=?, free_late_occurrences=?, late_penalty_per_minute=?, late_penalty_amount=?, max_late_minutes_for_half_day=?,
                     standard_work_days=?, probation_salary_percent=?,
                     ot_rate_weekday=?, ot_rate_weekend=?, ot_rate_holiday=?, custom_ot_hourly_rate=?,
                     insurance_rate=?, log_retention_days=?,
@@ -212,12 +260,13 @@ class CompanyService {
                     company_name, phone, address, tax_code, logo_url,
                     work_start, work_end, lunch_start, lunch_end,
                     grace_period_minutes, penalty_per_minute, penalty_fixed_block, penalty_salary_percent,
+                    late_policy_type, free_late_occurrences, late_penalty_per_minute, late_penalty_amount, max_late_minutes_for_half_day,
                     standard_work_days, probation_salary_percent,
                     ot_rate_weekday, ot_rate_weekend, ot_rate_holiday, custom_ot_hourly_rate,
                     insurance_rate, log_retention_days,
                     latitude, longitude, radius_meters,
                     allowed_locations, office_ip_whitelist
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 params
             );
         }
@@ -294,6 +343,11 @@ class CompanyService {
             penalty_per_minute: conf.penalty_per_minute !== undefined ? Number(conf.penalty_per_minute) : 2000,
             penalty_fixed_block: conf.penalty_fixed_block !== undefined ? Number(conf.penalty_fixed_block) : 50000,
             penalty_salary_percent: conf.penalty_salary_percent !== undefined ? Number(conf.penalty_salary_percent) : 0,
+            late_policy_type: conf.late_policy_type || 'PER_MINUTE',
+            free_late_occurrences: conf.free_late_occurrences !== undefined ? Number(conf.free_late_occurrences) : 3,
+            late_penalty_per_minute: conf.late_penalty_per_minute !== undefined ? Number(conf.late_penalty_per_minute) : 2000,
+            late_penalty_amount: conf.late_penalty_amount !== undefined ? Number(conf.late_penalty_amount) : 50000,
+            max_late_minutes_for_half_day: conf.max_late_minutes_for_half_day !== undefined ? Number(conf.max_late_minutes_for_half_day) : 60,
             standard_work_days: conf.standard_work_days || 26,
             probation_salary_percent: conf.probation_salary_percent || 85,
             ot_rate_weekday: conf.ot_rate_weekday || 1.5,

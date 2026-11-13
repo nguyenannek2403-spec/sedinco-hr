@@ -314,7 +314,10 @@ export default function SalarySlipModal({
         </div>
 
         {/* Nội dung Phiếu Lương */}
-        <div className="p-4 sm:p-6 space-y-4 text-slate-800 overflow-y-auto flex-1">
+        <div
+          className="p-4 sm:p-6 space-y-4 text-slate-800 overflow-y-auto overscroll-contain touch-pan-y flex-1"
+          style={{ WebkitOverflowScrolling: "touch", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
+        >
           {/* Quốc hiệu & Tiêu đề công ty */}
           <div className="border-b-2 border-slate-800 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>

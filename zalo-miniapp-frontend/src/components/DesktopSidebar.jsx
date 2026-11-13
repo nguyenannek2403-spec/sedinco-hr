@@ -46,7 +46,7 @@ export default function DesktopSidebar({
         { id: "matrix", label: "Bảng Công Ma Trận", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
         {
           id: "payroll",
-          label: "Bảng Lương & Khiếu Nại",
+          label: "Bảng Lương (Giám Sát)",
           shortLabel: "Bảng lương",
           icon: DollarSign,
           badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
@@ -60,15 +60,15 @@ export default function DesktopSidebar({
           badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
           badgeColor: "bg-amber-500 text-slate-950 border-amber-300"
         },
+        { id: "management", label: "Nhân Sự & Ca Làm Việc", shortLabel: "Nhân sự", icon: Users },
         {
           id: "audit_logs",
-          label: "Nhật Ký & Kiểm Tra Chấm Công",
+          label: "Nhật Ký & Chống Gian Lận",
           shortLabel: "Nhật ký",
           icon: ShieldCheck,
           badge: fraudCount > 0 ? `${fraudCount} Cảnh báo` : null,
           badgeColor: fraudCount > 0 ? "bg-rose-600 text-white border-rose-400 animate-pulse" : undefined
         },
-        { id: "management", label: "Quản Lý Nhân Sự", shortLabel: "Nhân sự", icon: Users },
         {
           id: "devices",
           label: "Duyệt Đổi Thiết Bị",
@@ -86,18 +86,18 @@ export default function DesktopSidebar({
 
     if (activeRole === ROLES.ACCOUNTANT) {
       return [
-        { id: "matrix", label: "Bảng Công (Chốt Sổ)", shortLabel: "Bảng công", icon: Calendar, badge: "Chấm công" },
+        { id: "matrix", label: "Bảng Công Kỳ Lương", shortLabel: "Bảng công", icon: Calendar, badge: "Chốt sổ" },
         {
           id: "payroll",
-          label: "Bảng Lương & Khiếu Nại",
-          shortLabel: "Bảng lương",
+          label: "Tính Lương & Điều Chỉnh",
+          shortLabel: "Tính lương",
           icon: DollarSign,
           badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
           badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
         },
         {
           id: "requests",
-          label: "Xử Lý Đơn Từ",
+          label: "Đơn Từ & Tạm Ứng",
           shortLabel: "Đơn từ",
           icon: FileText,
           badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,

@@ -168,17 +168,11 @@ export default function SmartLeaveRequestModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center px-3 sm:p-4"
-      style={{
-        paddingTop: "calc(env(safe-area-inset-top, 0px) + 48px)",
-        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
-      }}
-    >
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-full overflow-y-auto shadow-2xl text-slate-800 border-2 border-slate-300">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
+      <div className="flex flex-col w-full max-w-lg max-h-[88vh] bg-white rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl text-slate-800 border-2 border-slate-300">
         
         {/* Header Modal */}
-        <div className="p-4 sm:p-5 border-b-2 border-slate-100 flex items-center justify-between gap-2 sticky top-0 bg-white z-10">
+        <div className="p-4 sm:p-5 border-b-2 border-slate-100 flex items-center justify-between gap-2 bg-white shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold border-2 shrink-0 ${
               isSalaryAdvance
@@ -206,8 +200,13 @@ export default function SmartLeaveRequestModal({
           </button>
         </div>
 
-        {/* Nội dung Form */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
+        {/* Nội dung Form có thể cuộn mượt trên mọi thiết bị */}
+        <form
+          id="smart-leave-request-form"
+          onSubmit={handleSubmit}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-4 space-y-4"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           {errorMessage && (
             <div className="p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-semibold flex items-start gap-2.5 leading-relaxed">
               <AlertCircle size={18} className="text-rose-600 shrink-0 mt-0.5" />
@@ -416,36 +415,40 @@ export default function SmartLeaveRequestModal({
               required
             />
           </div>
-
-          {/* Nút gửi đơn */}
-          <div className="pt-2 flex gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm border-2 border-slate-300 cursor-pointer whitespace-nowrap"
-            >
-              Hủy bỏ
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || isSubmittingRef.current}
-              className={`flex-1 min-h-[44px] py-2.5 px-4 rounded-xl text-white font-semibold text-sm border-2 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 whitespace-nowrap ${
-                isSalaryAdvance
-                  ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-700"
-                  : "bg-blue-600 hover:bg-blue-700 border-blue-700"
-              }`}
-            >
-              {isSubmitting ? (
-                <span>Đang gửi đơn...</span>
-              ) : (
-                <>
-                  <Send size={16} className="shrink-0" />
-                  <span>{isSalaryAdvance ? "Gửi đơn ứng lương" : "Nộp đơn xét duyệt"}</span>
-                </>
-              )}
-            </button>
-          </div>
         </form>
+
+        {/* Footer nút gửi đơn cố định dưới đáy sheet */}
+        <div
+          className="px-4 py-3 border-t border-slate-200 bg-white flex gap-2.5 shrink-0"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm border-2 border-slate-300 cursor-pointer whitespace-nowrap"
+          >
+            Hủy bỏ
+          </button>
+          <button
+            type="submit"
+            form="smart-leave-request-form"
+            disabled={isSubmitting || isSubmittingRef.current}
+            className={`flex-1 min-h-[44px] py-2.5 px-4 rounded-xl text-white font-semibold text-sm border-2 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 whitespace-nowrap ${
+              isSalaryAdvance
+                ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-700"
+                : "bg-blue-600 hover:bg-blue-700 border-blue-700"
+            }`}
+          >
+            {isSubmitting ? (
+              <span>Đang gửi đơn...</span>
+            ) : (
+              <>
+                <Send size={16} className="shrink-0" />
+                <span>{isSalaryAdvance ? "Gửi đơn ứng lương" : "Nộp đơn xét duyệt"}</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

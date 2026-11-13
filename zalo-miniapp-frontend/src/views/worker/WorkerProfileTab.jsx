@@ -289,9 +289,9 @@ export default function WorkerProfileTab({
 
       {/* Modal Yêu Cầu Đổi Thiết Bị */}
       {isDeviceModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between gap-2">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-sm max-h-[88vh] shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-slate-700/80 shrink-0">
               <h3 className="text-sm font-black text-white flex items-center gap-2">
                 <Smartphone className="w-4 h-4 text-indigo-400" />
                 Yêu Cầu Đổi Thiết Bị Chấm Công
@@ -305,10 +305,14 @@ export default function WorkerProfileTab({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-slate-400">
-              Vui lòng nhập lý do thay đổi máy (ví dụ: mất điện thoại, hỏng máy, đổi máy mới) để Quản trị viên duyệt mở khóa:
-            </p>
-            <form onSubmit={handleRequestDeviceChange} className="space-y-3">
+            <form
+              id="device-change-form"
+              onSubmit={handleRequestDeviceChange}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-3"
+            >
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Vui lòng nhập lý do thay đổi máy (ví dụ: mất điện thoại, hỏng máy, đổi máy mới) để Quản trị viên duyệt mở khóa:
+              </p>
               {deviceError && (
                 <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
                   {deviceError}
@@ -322,23 +326,27 @@ export default function WorkerProfileTab({
                 rows={3}
                 className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
               />
-              <div className="flex gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsDeviceModalOpen(false)}
-                  className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={deviceSubmitting}
-                  className="flex-1 min-h-[44px] py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
-                >
-                  {deviceSubmitting ? "Đang gửi..." : "Gửi yêu cầu"}
-                </button>
-              </div>
             </form>
+            <div
+              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0 flex gap-2.5"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsDeviceModalOpen(false)}
+                className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                form="device-change-form"
+                disabled={deviceSubmitting}
+                className="flex-1 min-h-[44px] py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
+              >
+                {deviceSubmitting ? "Đang gửi..." : "Gửi yêu cầu"}
+              </button>
+            </div>
           </div>
         </div>
       )}

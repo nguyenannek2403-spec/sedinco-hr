@@ -59,8 +59,14 @@ export function useAttendanceCheckIn({ onCheckInSuccess } = {}) {
       setStatusMessage("Đang xác thực tọa độ vị trí...");
 
       let zaloLocationToken = "";
+      let zaloAccessToken = "";
       let latitude = null;
       let longitude = null;
+      let gpsAccuracy = null;
+
+      try {
+        zaloAccessToken = (await zmpAdapter.getAccessToken().catch(() => "")) || "";
+      } catch {}
 
       if (manualCoords?.lat && manualCoords?.lng) {
         latitude = Number(manualCoords.lat);
@@ -74,19 +80,23 @@ export function useAttendanceCheckIn({ onCheckInSuccess } = {}) {
           if (locRes?.latitude && locRes?.longitude) {
             latitude = Number(locRes.latitude);
             longitude = Number(locRes.longitude);
+            gpsAccuracy = locRes.accuracy !== undefined ? Number(locRes.accuracy) : null;
           }
         } catch (locErr) {
           console.warn("Không lấy được tọa độ Zalo SDK, thử fallback trình duyệt:", locErr);
-          if (typeof navigator !== "undefined" && navigator.geolocation) {
-            try {
-              const pos = await new Promise((res, rej) => {
-                navigator.geolocation.getCurrentPosition(res, rej, { timeout: 6000, enableHighAccuracy: true });
-              });
-              latitude = pos.coords.latitude;
-              longitude = pos.coords.longitude;
-            } catch (navErr) {
-              console.warn("Fallback GPS trình duyệt cũng thất bại:", navErr);
-            }
+        }
+
+        // Luôn lấy thêm tọa độ GPS thiết bị nếu Zalo SDK chỉ trả về token mà chưa kèm lat/lng
+        if ((latitude === null || longitude === null) && typeof navigator !== "undefined" && navigator.geolocation) {
+          try {
+            const pos = await new Promise((res, rej) => {
+              navigator.geolocation.getCurrentPosition(res, rej, { timeout: 6000, enableHighAccuracy: true });
+            });
+            latitude = Number(pos.coords.latitude);
+            longitude = Number(pos.coords.longitude);
+            gpsAccuracy = pos.coords.accuracy !== undefined ? Number(pos.coords.accuracy) : null;
+          } catch (navErr) {
+            console.warn("Fallback GPS trình duyệt thất bại:", navErr);
           }
         }
       }
@@ -114,9 +124,11 @@ export function useAttendanceCheckIn({ onCheckInSuccess } = {}) {
       const idempotencyKey = generateIdempotencyKey();
       const payload = {
         token: qrToken || undefined,
-        lat: latitude ?? 16.0544,
-        lng: longitude ?? 108.2022,
+        lat: latitude ?? null,
+        lng: longitude ?? null,
+        gps_accuracy: gpsAccuracy,
         zalo_location_token: zaloLocationToken || undefined,
+        zalo_access_token: zaloAccessToken || undefined,
         image_snapshot: imageSnapshot || "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==",
         device_info: typeof navigator !== "undefined" ? {
           userAgent: navigator.userAgent,

@@ -207,9 +207,9 @@ export default function HolidaysTab({ currentUser, showToast }) {
 
       {/* Modal Add Holiday */}
       {isAddOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between gap-2">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-sm max-h-[88vh] shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-slate-700/80 shrink-0">
               <h3 className="text-base font-black text-white flex items-center gap-2">
                 <Gift className="w-5 h-5 text-rose-400" />
                 Thêm Dịp Nghỉ Lễ Mới
@@ -224,7 +224,11 @@ export default function HolidaysTab({ currentUser, showToast }) {
               </button>
             </div>
 
-            <form onSubmit={handleAddHoliday} className="space-y-3">
+            <form
+              id="add-holiday-form"
+              onSubmit={handleAddHoliday}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-3"
+            >
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Tên dịp lễ</label>
                 <input
@@ -259,24 +263,28 @@ export default function HolidaysTab({ currentUser, showToast }) {
                   />
                 </div>
               </div>
-
-              <div className="pt-2 flex gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsAddOpen(false)}
-                  className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 min-h-[44px] py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50 whitespace-nowrap"
-                >
-                  {isSubmitting ? "Đang lưu..." : "Lưu ngày lễ"}
-                </button>
-              </div>
             </form>
+
+            <div
+              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0 flex gap-2.5"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsAddOpen(false)}
+                className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                form="add-holiday-form"
+                disabled={isSubmitting}
+                className="flex-1 min-h-[44px] py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50 whitespace-nowrap"
+              >
+                {isSubmitting ? "Đang lưu..." : "Lưu ngày lễ"}
+              </button>
+            </div>
           </div>
         </div>
       )}

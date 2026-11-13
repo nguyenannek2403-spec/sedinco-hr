@@ -4,6 +4,25 @@ const { SAFE_EMPLOYEE_FIELDS, resolveUserRole, logAuditEvent, invalidateUserCach
 const { verifyZaloUserToken } = require('../utils/zaloAdapter');
 const { hashPassword } = require('../utils/passwordHelper');
 
+function normalizeOptionalTime(rawVal, label = 'Giờ làm việc riêng') {
+    if (rawVal === null || rawVal === '') return null;
+    const trimmed = String(rawVal).trim();
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+    if (!match) {
+        const error = new Error(`${label} không đúng định dạng HH:mm!`);
+        error.statusCode = 400;
+        throw error;
+    }
+    const hh = parseInt(match[1], 10);
+    const mm = parseInt(match[2], 10);
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+        const error = new Error(`${label} không hợp lệ!`);
+        error.statusCode = 400;
+        throw error;
+    }
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
 class EmployeeService {
     async getAllEmployees(pagination = {}) {
         const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 200));
@@ -27,8 +46,11 @@ class EmployeeService {
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
-            status, is_locked
+            status, is_locked, custom_start_time, custom_end_time
         } = data;
+
+        const cleanCustomStart = custom_start_time !== undefined ? normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng') : null;
+        const cleanCustomEnd = custom_end_time !== undefined ? normalizeOptionalTime(custom_end_time, 'Giờ tan ca riêng') : null;
 
         // Chỉ Quản trị viên (Admin) mới có quyền gán role 'accountant' hoặc 'admin' (Chống Mass Assignment & Privilege Escalation)
         let normalizedRole = 'worker';
@@ -62,8 +84,8 @@ class EmployeeService {
                 ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb, 
                 phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, 
                 thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
-                status, is_locked, password, must_change_password
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                status, is_locked, password, must_change_password, custom_start_time, custom_end_time
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         const values = [
             ma_nv, ho_ten, ngay_sinh || null, dien_thoai || '', email || '', chuc_danh || '', normalizedRole,
@@ -74,7 +96,9 @@ class EmployeeService {
             status || 'active',
             is_locked ? 1 : 0,
             hashedPassword,
-            mustChangePassword
+            mustChangePassword,
+            cleanCustomStart,
+            cleanCustomEnd
         ];
         await query(sql, values);
 
@@ -100,12 +124,17 @@ class EmployeeService {
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
-            status, is_locked
+            status, is_locked, custom_start_time, custom_end_time
         } = data;
+
+        const cleanCustomStart = custom_start_time !== undefined ? normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng') : null;
+        const cleanCustomEnd = custom_end_time !== undefined ? normalizeOptionalTime(custom_end_time, 'Giờ tan ca riêng') : null;
 
         const updateStatus = status !== undefined;
         const updateLocked = is_locked !== undefined;
         const updateRole = (current_user && current_user.role === 'admin') && role !== undefined && ['worker', 'accountant', 'admin'].includes(role);
+        const updateCustomStart = custom_start_time !== undefined;
+        const updateCustomEnd = custom_end_time !== undefined;
 
         let sql = `
             UPDATE employees SET 
@@ -133,6 +162,14 @@ class EmployeeService {
         if (updateLocked) {
             sql += `, is_locked=?`;
             values.push(is_locked ? 1 : 0);
+        }
+        if (updateCustomStart) {
+            sql += `, custom_start_time=?`;
+            values.push(cleanCustomStart);
+        }
+        if (updateCustomEnd) {
+            sql += `, custom_end_time=?`;
+            values.push(cleanCustomEnd);
         }
 
         sql += ` WHERE ma_nv=?`;
@@ -195,7 +232,7 @@ class EmployeeService {
         return { success: true };
     }
 
-    async updateEmployeeShift(ma_nv, { shift_type = null, annual_leave_quota = null } = {}, current_user = null) {
+    async updateEmployeeShift(ma_nv, { shift_type = null, annual_leave_quota = null, custom_start_time, custom_end_time } = {}, current_user = null) {
         const allowedShifts = ['FULL_DAY', 'MORNING_SHIFT', 'AFTERNOON_SHIFT', 'NIGHT_SHIFT'];
         const updates = [];
         const params = [];
@@ -223,6 +260,20 @@ class EmployeeService {
             updates.push('annual_leave_quota = ?');
             params.push(cleanQuota);
             details.annual_leave_quota = cleanQuota;
+        }
+
+        if (custom_start_time !== undefined) {
+            const cleanStart = normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng');
+            updates.push('custom_start_time = ?');
+            params.push(cleanStart);
+            details.custom_start_time = cleanStart;
+        }
+
+        if (custom_end_time !== undefined) {
+            const cleanEnd = normalizeOptionalTime(custom_end_time, 'Giờ tan ca riêng');
+            updates.push('custom_end_time = ?');
+            params.push(cleanEnd);
+            details.custom_end_time = cleanEnd;
         }
 
         if (updates.length === 0) {

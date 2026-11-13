@@ -50,40 +50,75 @@ export const realSdkAdapter = {
   },
 
   async getLocation() {
+    let token = "";
+    let sdkError = null;
+
     try {
       // getLocation của Zalo SDK chỉ trả về token vị trí (sống trong 2 phút)
       const data = await zmpGetLocation({});
       if (data && data.token) {
-        return { token: data.token };
+        token = data.token;
+      } else if (typeof data === "string") {
+        token = data;
       }
-      // Một số phiên bản cũ có thể trả token trong trường khác
-      if (typeof data === "string") {
-        return { token: data };
+      if (data && typeof data === "object" && data.latitude && data.longitude) {
+        return {
+          token,
+          latitude: Number(data.latitude),
+          longitude: Number(data.longitude),
+          accuracy: data.accuracy !== undefined ? Number(data.accuracy) : null
+        };
       }
-      throw new Error("Không nhận được token vị trí từ Zalo.");
     } catch (err) {
-      console.warn("[RealSDK] getLocation error:", err);
-      const msg = err?.message || String(err);
-      if (msg.includes("permission") || msg.includes("denied") || err?.code === -1004) {
-        throw {
-          code: "LOCATION_PERMISSION_DENIED",
-          message: "Ứng dụng chưa được cấp quyền vị trí. Vui lòng cho phép quyền truy cập vị trí trong cài đặt Zalo.",
-          raw: err
+      sdkError = err;
+      console.warn("[RealSDK] zmpGetLocation error:", err);
+    }
+
+    // Luôn cố gắng lấy thêm tọa độ GPS thực từ thiết bị/trình duyệt để fallback khi token hết hạn hoặc Zalo API gặp sự cố
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 4500,
+            enableHighAccuracy: true,
+            maximumAge: 15000
+          });
+        });
+        return {
+          ...(token ? { token } : {}),
+          latitude: Number(pos.coords.latitude),
+          longitude: Number(pos.coords.longitude),
+          accuracy: pos.coords.accuracy !== undefined ? Number(pos.coords.accuracy) : null
         };
+      } catch (geoErr) {
+        console.warn("[RealSDK] navigator.geolocation fallback failed:", geoErr);
       }
-      if (msg.includes("disabled") || msg.includes("gps") || err?.code === -1005) {
-        throw {
-          code: "GPS_DISABLED",
-          message: "Định vị GPS trên thiết bị đang tắt. Vui lòng bật GPS trên điện thoại để chấm công.",
-          raw: err
-        };
-      }
+    }
+
+    if (token) {
+      return { token };
+    }
+
+    const msg = sdkError?.message || String(sdkError || "");
+    if (msg.includes("permission") || msg.includes("denied") || sdkError?.code === -1004) {
       throw {
-        code: "LOCATION_FAILED",
-        message: "Không thể xác định vị trí hiện tại. Vui lòng kiểm tra kết nối mạng và thử lại.",
-        raw: err
+        code: "LOCATION_PERMISSION_DENIED",
+        message: "Ứng dụng chưa được cấp quyền vị trí. Vui lòng cho phép quyền truy cập vị trí trong cài đặt Zalo.",
+        raw: sdkError
       };
     }
+    if (msg.includes("disabled") || msg.includes("gps") || sdkError?.code === -1005) {
+      throw {
+        code: "GPS_DISABLED",
+        message: "Định vị GPS trên thiết bị đang tắt. Vui lòng bật GPS trên điện thoại để chấm công.",
+        raw: sdkError
+      };
+    }
+    throw {
+      code: "LOCATION_FAILED",
+      message: "Không thể xác định vị trí hiện tại. Vui lòng kiểm tra kết nối mạng và thử lại.",
+      raw: sdkError
+    };
   },
 
   async checkStateBioAuthentication() {

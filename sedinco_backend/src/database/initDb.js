@@ -361,6 +361,15 @@ async function initDatabase() {
         await query("ALTER TABLE company_settings ADD COLUMN announcement_text TEXT NULL").catch(() => {});
         await query("ALTER TABLE company_settings ADD COLUMN announcement_updated_at DATETIME NULL").catch(() => {});
 
+        // V11 MISA AMIS Smart Attendance: Custom Employee Hours + Late Policy Config
+        await query("ALTER TABLE employees ADD COLUMN custom_start_time VARCHAR(10) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN custom_end_time VARCHAR(10) NULL").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN late_policy_type VARCHAR(30) DEFAULT 'PER_MINUTE'").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN free_late_occurrences INT DEFAULT 3").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN late_penalty_per_minute DECIMAL(15,2) NULL").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN late_penalty_amount DECIMAL(15,2) NULL").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN max_late_minutes_for_half_day INT DEFAULT 60").catch(() => {});
+
         // Khởi tạo Điểm 1 mặc định trong allowed_locations từ latitude/longitude hiện tại nếu chưa có
         const csRows = await query("SELECT id, latitude, longitude, radius_meters, allowed_locations FROM company_settings LIMIT 1").catch(() => []);
         if (csRows && csRows.length > 0) {

@@ -42,12 +42,18 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
     email: "",
     role: "worker",
     shift_type: "FULL_DAY",
+    custom_start_time: "",
+    custom_end_time: "",
     luong_cb: 8000000,
     has_insurance: true
   });
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
+
+  const [editingScheduleEmp, setEditingScheduleEmp] = useState(null);
+  const [scheduleForm, setScheduleForm] = useState({ custom_start_time: "", custom_end_time: "" });
+  const [savingSchedule, setSavingSchedule] = useState(false);
 
   const [confirmAction, setConfirmAction] = useState({
     open: false,
@@ -188,6 +194,57 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
     }
   };
 
+  const handleOpenCustomSchedule = (emp) => {
+    setEditingScheduleEmp(emp);
+    setScheduleForm({
+      custom_start_time: emp.custom_start_time || "",
+      custom_end_time: emp.custom_end_time || ""
+    });
+  };
+
+  const handleSaveCustomSchedule = async (e, clearToDefault = false) => {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    if (!editingScheduleEmp || savingSchedule) return;
+    setSavingSchedule(true);
+    const payload = clearToDefault
+      ? { custom_start_time: null, custom_end_time: null }
+      : {
+          custom_start_time: scheduleForm.custom_start_time ? scheduleForm.custom_start_time : null,
+          custom_end_time: scheduleForm.custom_end_time ? scheduleForm.custom_end_time : null
+        };
+    try {
+      const res = await safePut(`/employees/${editingScheduleEmp.ma_nv}/shift`, payload);
+      if (res?.success) {
+        setEmployees((prev) =>
+          prev.map((item) =>
+            item.ma_nv === editingScheduleEmp.ma_nv
+              ? {
+                  ...item,
+                  custom_start_time: payload.custom_start_time,
+                  custom_end_time: payload.custom_end_time
+                }
+              : item
+          )
+        );
+        if (showToast) {
+          showToast(
+            clearToDefault
+              ? `Đã đưa ${editingScheduleEmp.ma_nv} về giờ chuẩn công ty/ca!`
+              : `Đã lưu giờ làm việc riêng cho ${editingScheduleEmp.ma_nv}!`,
+            "success"
+          );
+        }
+        setEditingScheduleEmp(null);
+      } else {
+        if (showToast) showToast(res?.message || "Không thể cập nhật giờ làm việc riêng.", "error");
+      }
+    } catch (err) {
+      if (showToast) showToast(err.message || "Lỗi cập nhật giờ làm việc riêng.", "error");
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
   // Kích hoạt đổi mật khẩu hàng loạt
   const handleBatchForcePassword = () => {
     setConfirmAction({
@@ -224,12 +281,21 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
       const targetShift = form.shift_type || "FULL_DAY";
       const res = await safePost(
         "/employees",
-        { ...form, ma_nv: targetMaNv },
+        {
+          ...form,
+          ma_nv: targetMaNv,
+          custom_start_time: form.custom_start_time || null,
+          custom_end_time: form.custom_end_time || null
+        },
         { idempotencyKey: generateIdempotencyKey("emp_add") }
       );
       if (res?.success) {
-        if (targetShift !== "FULL_DAY") {
-          await safePut(`/employees/${targetMaNv}/shift`, { shift_type: targetShift }).catch(() => {});
+        if (targetShift !== "FULL_DAY" || form.custom_start_time || form.custom_end_time) {
+          await safePut(`/employees/${targetMaNv}/shift`, {
+            shift_type: targetShift,
+            custom_start_time: form.custom_start_time || null,
+            custom_end_time: form.custom_end_time || null
+          }).catch(() => {});
         }
         if (showToast) showToast(`Thêm nhân viên ${targetMaNv} thành công!`, "success");
         setIsAddModalOpen(false);
@@ -248,6 +314,8 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
           email: "",
           role: "worker",
           shift_type: "FULL_DAY",
+          custom_start_time: "",
+          custom_end_time: "",
           luong_cb: 8000000,
           has_insurance: true
         });
@@ -412,13 +480,13 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                       <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                       <select
                         value={emp.shift_type || "FULL_DAY"}
                         disabled={updatingShiftMaNv === emp.ma_nv}
                         onChange={(e) => handleChangeShift(emp, e.target.value)}
-                        className="flex-1 min-h-[38px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-indigo-200 font-medium disabled:opacity-50"
+                        className="flex-1 min-w-[140px] min-h-[38px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-indigo-200 font-medium disabled:opacity-50"
                       >
                         {SHIFT_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>
@@ -426,6 +494,19 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
                           </option>
                         ))}
                       </select>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCustomSchedule(emp)}
+                        className={`min-h-[38px] px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition-colors cursor-pointer shrink-0 ${
+                          emp.custom_start_time && emp.custom_end_time
+                            ? "bg-amber-500/20 border-amber-500/40 text-amber-200 hover:bg-amber-500/30"
+                            : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-700"
+                        }`}
+                      >
+                        {emp.custom_start_time && emp.custom_end_time
+                          ? `Giờ riêng: ${emp.custom_start_time}–${emp.custom_end_time}`
+                          : "Giờ riêng"}
+                      </button>
                     </div>
                   </div>
                 );
@@ -472,18 +553,33 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
                         </select>
                       </td>
                       <td className="p-3.5">
-                        <select
-                          value={emp.shift_type || "FULL_DAY"}
-                          disabled={updatingShiftMaNv === emp.ma_nv}
-                          onChange={(e) => handleChangeShift(emp, e.target.value)}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-indigo-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                        >
-                          {SHIFT_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex flex-col items-start gap-1.5">
+                          <select
+                            value={emp.shift_type || "FULL_DAY"}
+                            disabled={updatingShiftMaNv === emp.ma_nv}
+                            onChange={(e) => handleChangeShift(emp, e.target.value)}
+                            className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-indigo-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                          >
+                            {SHIFT_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCustomSchedule(emp)}
+                            className={`px-2 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
+                              emp.custom_start_time && emp.custom_end_time
+                                ? "bg-amber-500/20 border-amber-500/40 text-amber-200 hover:bg-amber-500/30"
+                                : "bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700"
+                            }`}
+                          >
+                            {emp.custom_start_time && emp.custom_end_time
+                              ? `Giờ riêng: ${emp.custom_start_time}–${emp.custom_end_time}`
+                              : "Cài giờ riêng"}
+                          </button>
+                        </div>
                       </td>
                       <td className="p-3.5 text-slate-300 font-mono font-medium whitespace-nowrap">
                         {Number(emp.luong_cb || 0).toLocaleString("vi-VN")} đ
@@ -552,42 +648,59 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
       />
 
       {createdCreds && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-white">Thông tin đăng nhập mới</h3>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              Đã tạo tài khoản cho <strong>{createdCreds.ho_ten}</strong> ({createdCreds.ma_nv}). Vui lòng gửi mật khẩu tạm thời bên dưới cho nhân viên:
-            </p>
-            <div className="p-3 bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-between gap-2">
-              <code className="text-base font-mono font-bold text-emerald-400">{createdCreds.password}</code>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-sm max-h-[88vh] shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-slate-700/80 shrink-0">
+              <h3 className="text-base font-bold text-white">Thông tin đăng nhập mới</h3>
               <button
                 type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(createdCreds.password);
-                  if (showToast) showToast("Đã sao chép mật khẩu tạm thời!", "success");
-                }}
-                className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                onClick={() => setCreatedCreds(null)}
+                className="w-9 h-9 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
+                aria-label="Đóng"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>Sao chép</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setCreatedCreds(null)}
-              className="w-full min-h-[44px] py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl cursor-pointer"
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-4">
+              <p className="text-sm text-slate-300 leading-relaxed">
+                Đã tạo tài khoản cho <strong>{createdCreds.ho_ten}</strong> ({createdCreds.ma_nv}). Vui lòng gửi mật khẩu tạm thời bên dưới cho nhân viên:
+              </p>
+              <div className="p-3 bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-between gap-2">
+                <code className="text-base font-mono font-bold text-emerald-400">{createdCreds.password}</code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(createdCreds.password);
+                    if (showToast) showToast("Đã sao chép mật khẩu tạm thời!", "success");
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Sao chép</span>
+                </button>
+              </div>
+            </div>
+            <div
+              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
             >
-              Đã ghi lại
-            </button>
+              <button
+                type="button"
+                onClick={() => setCreatedCreds(null)}
+                className="w-full min-h-[44px] py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl cursor-pointer"
+              >
+                Đã ghi lại
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Modal Thêm Nhân Sự Mới */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between gap-2">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[88vh] shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-slate-700/80 shrink-0">
               <h3 className="text-base font-black text-white flex items-center gap-2">
                 <Plus className="w-5 h-5 text-blue-400" />
                 Thêm Nhân Viên Mới
@@ -602,7 +715,11 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
               </button>
             </div>
 
-            <form onSubmit={handleAddEmployee} className="space-y-3">
+            <form
+              id="add-employee-form"
+              onSubmit={handleAddEmployee}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-3"
+            >
               {formError && (
                 <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
                   {formError}
@@ -686,23 +803,155 @@ export default function EmployeeManagementTab({ currentUser, showToast }) {
                 </select>
               </div>
 
-              <div className="pt-2 flex gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 min-h-[44px] py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
-                >
-                  {isSubmitting ? "Đang lưu..." : "Lưu nhân viên"}
-                </button>
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Giờ vào riêng (tùy chọn)
+                  </label>
+                  <input
+                    type="time"
+                    value={form.custom_start_time || ""}
+                    onChange={(e) => setForm({ ...form, custom_start_time: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Giờ tan riêng (tùy chọn)
+                  </label>
+                  <input
+                    type="time"
+                    value={form.custom_end_time || ""}
+                    onChange={(e) => setForm({ ...form, custom_end_time: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Bỏ trống 2 ô giờ riêng nếu nhân viên áp dụng giờ chuẩn của Ca làm việc / Công ty.
+              </p>
             </form>
+
+            <div
+              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0 flex gap-2.5"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                form="add-employee-form"
+                disabled={isSubmitting}
+                className="flex-1 min-h-[44px] py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
+              >
+                {isSubmitting ? "Đang lưu..." : "Lưu nhân viên"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Cài Giờ Làm Việc Riêng Từng Nhân Sự */}
+      {editingScheduleEmp && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[88vh] shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-slate-700/80 shrink-0">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-black text-white flex items-center gap-2 truncate">
+                  <Clock className="w-5 h-5 text-amber-400 shrink-0" />
+                  <span className="truncate">Giờ làm việc riêng</span>
+                </h3>
+                <p className="text-xs text-slate-300 font-semibold truncate mt-0.5">
+                  {editingScheduleEmp.ho_ten} ({editingScheduleEmp.ma_nv})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingScheduleEmp(null)}
+                className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
+                aria-label="Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              id="custom-schedule-form"
+              onSubmit={(e) => handleSaveCustomSchedule(e, false)}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-4"
+            >
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-700 text-xs text-slate-300 leading-relaxed">
+                Khung giờ riêng sẽ được ưu tiên hơn giờ ca mặc định (<strong className="text-indigo-300">{SHIFT_OPTIONS.find((s) => s.value === (editingScheduleEmp.shift_type || "FULL_DAY"))?.label || editingScheduleEmp.shift_type || "FULL_DAY"}</strong>) khi chấm công vào/ra và tính đi muộn.
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Giờ vào riêng
+                  </label>
+                  <input
+                    type="time"
+                    value={scheduleForm.custom_start_time || ""}
+                    onChange={(e) =>
+                      setScheduleForm((prev) => ({ ...prev, custom_start_time: e.target.value }))
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Giờ tan riêng
+                  </label>
+                  <input
+                    type="time"
+                    value={scheduleForm.custom_end_time || ""}
+                    onChange={(e) =>
+                      setScheduleForm((prev) => ({ ...prev, custom_end_time: e.target.value }))
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Ví dụ: nhân viên bộ phận hỗ trợ làm <strong>09:00 – 18:00</strong> sẽ được tính đúng giờ nếu chấm vào trước hoặc đúng 09:00. Bấm <strong>"Dùng giờ chuẩn"</strong> nếu muốn xóa giờ riêng để quay về giờ mặc định.
+              </p>
+            </form>
+
+            <div
+              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0 flex flex-wrap gap-2"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+            >
+              <button
+                type="button"
+                disabled={savingSchedule}
+                onClick={() => handleSaveCustomSchedule(null, true)}
+                className="min-h-[44px] px-3 py-2.5 bg-slate-900 hover:bg-slate-700 border border-slate-600 text-amber-200 text-xs font-bold rounded-xl transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+              >
+                Dùng giờ chuẩn
+              </button>
+              <button
+                type="button"
+                disabled={savingSchedule}
+                onClick={() => setEditingScheduleEmp(null)}
+                className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                form="custom-schedule-form"
+                disabled={savingSchedule}
+                className="flex-1 min-h-[44px] py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-sm font-black rounded-xl shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
+              >
+                {savingSchedule ? "Đang lưu..." : "Lưu giờ riêng"}
+              </button>
+            </div>
           </div>
         </div>
       )}
