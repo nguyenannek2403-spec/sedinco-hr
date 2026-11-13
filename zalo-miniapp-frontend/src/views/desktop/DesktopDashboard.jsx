@@ -7,6 +7,7 @@ import CompanySettingsTab from "./CompanySettingsTab";
 import HolidaysTab from "./HolidaysTab";
 import AuditLogsTab from "./AuditLogsTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
+import LiveAttendanceBoardModal from "../../components/LiveAttendanceBoardModal";
 import { getDefaultTabForRole } from "../../constants/roles";
 import { safeGet } from "../../utils/api";
 import { RefreshCw } from "lucide-react";
@@ -22,6 +23,7 @@ export default function DesktopDashboard({
   activeRole,
   onRoleSwitch,
   onLogout,
+  onClearCache,
   showToast,
   onChangePasswordRequest
 }) {
@@ -33,6 +35,8 @@ export default function DesktopDashboard({
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [liveBoardModal, setLiveBoardModal] = useState({ open: false, initialTab: "present" });
   const [alertsSummary, setAlertsSummary] = useState({
     fraud_count: 0,
     fraud_alerts: [],
@@ -44,12 +48,17 @@ export default function DesktopDashboard({
   });
 
   const fetchAlertsSummary = useCallback(async () => {
+    setAlertsLoading(true);
     try {
       const res = await safeGet("/notifications/summary");
       if (res?.success && res.data) {
         setAlertsSummary(res.data);
       }
-    } catch {}
+    } catch {
+      // Bỏ qua lỗi mạng nền khi tải badge cảnh báo
+    } finally {
+      setAlertsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -75,6 +84,7 @@ export default function DesktopDashboard({
         onRoleSwitch={onRoleSwitch}
         currentUser={currentUser}
         onLogout={onLogout}
+        onClearCache={onClearCache}
         alertsSummary={alertsSummary}
         pendingRequestsCount={alertsSummary.pending_requests_count || 0}
         isMobileMenuOpen={isMobileMenuOpen}
@@ -98,6 +108,7 @@ export default function DesktopDashboard({
           selectedYear={selectedYear}
           setSelectedYear={setSelectedYear}
           alertsSummary={alertsSummary}
+          isLoading={alertsLoading}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           onRefresh={() => {
             setRefreshTick((t) => t + 1);
@@ -105,24 +116,53 @@ export default function DesktopDashboard({
           }}
         />
 
-        {/* THANH TÓM TẮT QUÂN SỐ THỜI GIAN THỰC TRONG NGÀY (KPI V6 CHO ADMIN & KẾ TOÁN) */}
+        {/* THANH TÓM TẮT QUÂN SỐ THỜI GIAN THỰC TRONG NGÀY (BẤM ĐỂ XEM CHI TIẾT NHÂN SỰ) */}
         {alertsSummary?.headcount_today && (
-          <div className="bg-slate-900/95 border-b border-slate-800 px-3 sm:px-6 py-2 flex items-center gap-2 overflow-x-auto touch-scroll-x shrink-0 text-[11px] font-bold">
-            <span className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 shrink-0">
+          <div className="bg-slate-900/95 border-b border-slate-800 px-3 sm:px-6 py-2 flex items-center gap-2 overflow-x-auto touch-scroll-x shrink-0 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setLiveBoardModal({ open: true, initialTab: "present" })}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 shrink-0 whitespace-nowrap cursor-pointer transition"
+            >
               👥 Quân số: <strong className="text-white">{alertsSummary.headcount_today.total_employees}</strong>
-            </span>
-            <span className="px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 shrink-0">
+            </button>
+            <button
+              type="button"
+              onClick={() => setLiveBoardModal({ open: true, initialTab: "present" })}
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+            >
               🟢 Có mặt: <strong>{alertsSummary.headcount_today.present}</strong>
-            </span>
-            <span className="px-2.5 py-1 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-300 shrink-0">
+            </button>
+            <button
+              type="button"
+              onClick={() => setLiveBoardModal({ open: true, initialTab: "late" })}
+              className="px-2.5 py-1.5 rounded-lg bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500/40 text-amber-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+            >
               🟡 Đi muộn: <strong>{alertsSummary.headcount_today.late}</strong>
-            </span>
-            <span className="px-2.5 py-1 rounded-lg bg-orange-950/70 border border-orange-500/40 text-orange-300 shrink-0">
+            </button>
+            <button
+              type="button"
+              onClick={() => setLiveBoardModal({ open: true, initialTab: "field_work" })}
+              className="px-2.5 py-1.5 rounded-lg bg-orange-950/70 hover:bg-orange-900/80 border border-orange-500/40 text-orange-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+            >
               🚧 Công trình: <strong>{alertsSummary.headcount_today.field_work}</strong>
-            </span>
-            <span className="px-2.5 py-1 rounded-lg bg-purple-950/70 border border-purple-500/40 text-purple-300 shrink-0">
+            </button>
+            <button
+              type="button"
+              onClick={() => setLiveBoardModal({ open: true, initialTab: "leave" })}
+              className="px-2.5 py-1.5 rounded-lg bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/40 text-purple-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+            >
               🟣 Nghỉ phép: <strong>{alertsSummary.headcount_today.leave}</strong>
-            </span>
+            </button>
+            {Array.isArray(alertsSummary.headcount_today?.live_board?.absent_list) && (
+              <button
+                type="button"
+                onClick={() => setLiveBoardModal({ open: true, initialTab: "absent" })}
+                className="px-2.5 py-1.5 rounded-lg bg-rose-950/70 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+              >
+                ⚪ Chưa chấm: <strong>{alertsSummary.headcount_today.live_board.absent_list.length}</strong>
+              </button>
+            )}
           </div>
         )}
 
@@ -242,6 +282,16 @@ export default function DesktopDashboard({
           </Suspense>
         </main>
       </div>
+
+      {/* Modal Bảng Sĩ Số Trực Tiếp (Live Attendance Board) */}
+      <LiveAttendanceBoardModal
+        open={liveBoardModal.open}
+        initialTab={liveBoardModal.initialTab}
+        headcount={alertsSummary?.headcount_today}
+        loading={alertsLoading}
+        onRefresh={fetchAlertsSummary}
+        onClose={() => setLiveBoardModal({ open: false, initialTab: "present" })}
+      />
     </div>
   );
 }

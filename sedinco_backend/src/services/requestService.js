@@ -27,7 +27,16 @@ function classifyRequestCategory(requestType) {
         return 'ATTENDANCE_COMPENSATION';
     }
     if (
+        t === 'salary_advance' ||
+        t === 'advance' ||
+        t.includes('ứng lương') ||
+        t.includes('tạm ứng')
+    ) {
+        return 'SALARY_ADVANCE';
+    }
+    if (
         t === 'p' ||
+        t === 'kp' ||
         t === 'leave' ||
         t.includes('leave') ||
         t.includes('phép') ||
@@ -91,7 +100,8 @@ class RequestService {
         const offset = (page - 1) * limit;
 
         const sql = `
-            SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, 
+            SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, r.request_type,
+                   COALESCE(r.advance_amount, 0) as advance_amount,
                    DATE_FORMAT(r.request_date, '%d/%m/%Y') as date, r.reason, r.status, r.created_at
             FROM requests r 
             LEFT JOIN employees e ON r.employee_id = e.ma_nv 
@@ -109,7 +119,8 @@ class RequestService {
         const offset = (page - 1) * limit;
 
         const sql = `
-            SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, 
+            SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, r.request_type,
+                   COALESCE(r.advance_amount, 0) as advance_amount,
                    DATE_FORMAT(r.request_date, '%d/%m/%Y') as date, r.reason, r.status, r.created_at
             FROM requests r 
             LEFT JOIN employees e ON r.employee_id = e.ma_nv 
@@ -121,7 +132,66 @@ class RequestService {
         return results || [];
     }
 
-    async createRequest({ employee_id, request_type, request_date, from_date, to_date, reason, current_user = null }) {
+    async getLeaveBalance(ma_nv, year = new Date().getFullYear()) {
+        const targetYear = parseInt(year, 10) || new Date().getFullYear();
+        const empRows = await query(
+            'SELECT ma_nv, ho_ten, annual_leave_quota FROM employees WHERE ma_nv = ? LIMIT 1',
+            [ma_nv]
+        );
+        if (!empRows || empRows.length === 0) {
+            const error = new Error(`Không tìm thấy nhân viên ${ma_nv}!`);
+            error.statusCode = 404;
+            throw error;
+        }
+        const quota = Number(empRows[0].annual_leave_quota) || 12;
+
+        const logCountRows = await query(
+            `SELECT COUNT(*) as cnt FROM attendance_logs WHERE employee_id = ? AND YEAR(record_date) = ? AND status = 'P'`,
+            [ma_nv, targetYear]
+        );
+        const reqExtraRows = await query(
+            `SELECT COUNT(*) as cnt
+             FROM requests r
+             WHERE r.employee_id = ?
+               AND YEAR(r.request_date) = ?
+               AND r.status = 'approved'
+               AND (LOWER(r.request_type) = 'p' OR LOWER(r.request_type) LIKE '%phép%' OR LOWER(r.request_type) LIKE '%leave%')
+               AND LOWER(r.request_type) NOT LIKE '%không lương%'
+               AND LOWER(r.request_type) NOT LIKE '%unpaid%'
+               AND LOWER(r.request_type) != 'kp'
+               AND NOT EXISTS (
+                   SELECT 1 FROM attendance_logs al
+                   WHERE al.employee_id = r.employee_id AND al.record_date = r.request_date AND al.status = 'P'
+               )`,
+            [ma_nv, targetYear]
+        );
+        const pendingRows = await query(
+            `SELECT COUNT(*) as cnt
+             FROM requests
+             WHERE employee_id = ?
+               AND YEAR(request_date) = ?
+               AND status = 'pending'
+               AND (LOWER(request_type) = 'p' OR LOWER(request_type) LIKE '%phép%' OR LOWER(request_type) LIKE '%leave%')
+               AND LOWER(request_type) NOT LIKE '%không lương%'
+               AND LOWER(request_type) NOT LIKE '%unpaid%'
+               AND LOWER(request_type) != 'kp'`,
+            [ma_nv, targetYear]
+        );
+        const used = Number(((Number(logCountRows?.[0]?.cnt) || 0) + (Number(reqExtraRows?.[0]?.cnt) || 0)).toFixed(1));
+        const pending = Number(pendingRows?.[0]?.cnt) || 0;
+        const remaining = Number(Math.max(0, quota - used).toFixed(1));
+
+        return {
+            employee_id: ma_nv,
+            year: targetYear,
+            quota,
+            used,
+            pending,
+            remaining
+        };
+    }
+
+    async createRequest({ employee_id, request_type, request_date, from_date, to_date, reason, advance_amount = 0, current_user = null }) {
         // Chỉ Admin mới được tạo đơn hộ nhân viên khác
         const targetId = (current_user && current_user.role !== 'admin')
             ? current_user.ma_nv
@@ -162,6 +232,16 @@ class RequestService {
 
         const cleanReason = String(reason || '').trim().slice(0, 1000);
         const reqCategory = classifyRequestCategory(cleanType);
+        const parsedAdvanceAmount = reqCategory === 'SALARY_ADVANCE' ? Math.round(Number(advance_amount) || 0) : 0;
+        if (reqCategory === 'SALARY_ADVANCE') {
+            if (!Number.isFinite(parsedAdvanceAmount) || parsedAdvanceAmount < 10000 || parsedAdvanceAmount > 500000000) {
+                const error = new Error('Vui lòng nhập số tiền xin ứng lương hợp lệ (tối thiểu 10.000 đ)!');
+                error.statusCode = 400;
+                throw error;
+            }
+            // Đơn xin ứng lương chỉ gắn với 1 ngày lập đơn
+            datesList.splice(1);
+        }
 
         // Kiểm tra kỳ công đã khóa cho từng tháng trong khoảng ngày đơn
         const checkedMonths = new Set();
@@ -227,12 +307,19 @@ class RequestService {
 
             for (const row of existingSameDates || []) {
                 const existingCat = classifyRequestCategory(row.request_type);
-                const isConflict =
-                    existingCat === reqCategory ||
-                    (reqCategory === 'OTHER' && String(row.request_type || '').toLowerCase() === cleanType.toLowerCase());
+                const isAdvanceDuplicate =
+                    reqCategory === 'SALARY_ADVANCE' && existingCat === 'SALARY_ADVANCE' && String(row.status || '').toLowerCase() === 'pending';
+                const isRegularConflict =
+                    reqCategory !== 'SALARY_ADVANCE' &&
+                    (existingCat === reqCategory ||
+                    (reqCategory === 'OTHER' && String(row.request_type || '').toLowerCase() === cleanType.toLowerCase()));
 
-                if (isConflict) {
-                    const error = new Error('Bạn đã có đơn cho ngày này đang chờ duyệt hoặc đã được duyệt, không thể gửi trùng!');
+                if (isAdvanceDuplicate || isRegularConflict) {
+                    const error = new Error(
+                        isAdvanceDuplicate
+                            ? 'Bạn đang có một đơn xin ứng lương ngày này chờ duyệt, vui lòng chờ xử lý trước khi gửi thêm!'
+                            : 'Bạn đã có đơn cho ngày này đang chờ duyệt hoặc đã được duyệt, không thể gửi trùng!'
+                    );
                     error.statusCode = 409;
                     error.code = 'DUPLICATE_REQUEST';
                     throw error;
@@ -261,15 +348,15 @@ class RequestService {
             const insertedIds = [];
             for (const iso of datesList) {
                 const insertRes = await txQuery(
-                    'INSERT INTO requests (employee_id, request_type, request_date, reason, status) VALUES (?, ?, ?, ?, ?)',
-                    [targetId, cleanType, iso, cleanReason, 'pending']
+                    'INSERT INTO requests (employee_id, request_type, request_date, reason, status, advance_amount) VALUES (?, ?, ?, ?, ?, ?)',
+                    [targetId, cleanType, iso, cleanReason, 'pending', parsedAdvanceAmount]
                 );
                 if (insertRes && insertRes.insertId) {
                     insertedIds.push(insertRes.insertId);
                 }
             }
 
-            return { id: insertedIds[0] || null, ids: insertedIds, dates: datesList };
+            return { id: insertedIds[0] || null, ids: insertedIds, dates: datesList, advance_amount: parsedAdvanceAmount };
         });
 
         if (current_user) {
@@ -350,9 +437,28 @@ class RequestService {
             }
 
             const type = (row.request_type || '').toLowerCase();
+            const isSalaryAdvance = type === 'salary_advance' || type.includes('ứng lương') || type.includes('tạm ứng');
+            const isUnpaidLeave = type === 'kp' || type.includes('không lương') || type.includes('unpaid');
 
             if (normalizedStatus === 'approved') {
-                if (type.includes('làm thêm') || type.includes('tăng ca') || type.includes('công tác') || type.includes('ot') || type.includes('overtime')) {
+                if (isSalaryAdvance) {
+                    const advAmt = Math.max(0, Math.round(Number(row.advance_amount) || 0));
+                    if (advAmt > 0) {
+                        const csRows = await txQuery('SELECT standard_work_days FROM company_settings LIMIT 1').catch(() => []);
+                        const stdDays = (csRows && csRows[0] && Number(csRows[0].standard_work_days)) || 26;
+                        await txQuery(
+                            `INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, advance_deduction, adjustment_note)
+                             VALUES (?, ?, ?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE
+                                 advance_deduction = COALESCE(advance_deduction, 0) + VALUES(advance_deduction),
+                                 adjustment_note = CASE
+                                     WHEN adjustment_note IS NULL OR adjustment_note = '' THEN VALUES(adjustment_note)
+                                     ELSE CONCAT(LEFT(adjustment_note, 180), '; ', VALUES(adjustment_note))
+                                 END`,
+                            [row.employee_id, month, year, stdDays, advAmt, `Ứng lương (${dateStr}): ${advAmt.toLocaleString('vi-VN')}đ`]
+                        );
+                    }
+                } else if (type.includes('làm thêm') || type.includes('tăng ca') || type.includes('công tác') || type.includes('ot') || type.includes('overtime')) {
                     const logRes = await txQuery(
                         'SELECT status FROM attendance_logs WHERE employee_id = ? AND record_date = ? FOR UPDATE',
                         [row.employee_id, dateStr]
@@ -372,6 +478,13 @@ class RequestService {
                          VALUES (?, ?, 4, ?, ?, 'approved')
                          ON DUPLICATE KEY UPDATE status = 'approved', approved_by = VALUES(approved_by)`,
                         [row.employee_id, dateStr, row.reason || 'Duyệt từ đơn tăng ca', actorId || 'admin']
+                    );
+                } else if (isUnpaidLeave) {
+                    await txQuery(
+                        `INSERT INTO attendance_logs (employee_id, record_date, status)
+                         VALUES (?, ?, 'KP')
+                         ON DUPLICATE KEY UPDATE status = 'KP'`,
+                        [row.employee_id, dateStr]
                     );
                 } else if (type.includes('nửa ngày') || type.includes('0.5')) {
                     await txQuery(
@@ -396,14 +509,16 @@ class RequestService {
                     );
                 }
             } else if (normalizedStatus === 'rejected') {
-                const isHalfDay = type.includes('nửa ngày') || type.includes('0.5') || type.includes('buổi');
-                const absentStatus = isHalfDay ? '0.5' : 'V';
-                await txQuery(
-                    `INSERT INTO attendance_logs (employee_id, record_date, status)
-                     VALUES (?, ?, ?)
-                     ON DUPLICATE KEY UPDATE status = ?`,
-                    [row.employee_id, dateStr, absentStatus, absentStatus]
-                );
+                if (!isSalaryAdvance) {
+                    const isHalfDay = type.includes('nửa ngày') || type.includes('0.5') || type.includes('buổi');
+                    const absentStatus = isHalfDay ? '0.5' : 'V';
+                    await txQuery(
+                        `INSERT INTO attendance_logs (employee_id, record_date, status)
+                         VALUES (?, ?, ?)
+                         ON DUPLICATE KEY UPDATE status = ?`,
+                        [row.employee_id, dateStr, absentStatus, absentStatus]
+                    );
+                }
             }
 
             return row;

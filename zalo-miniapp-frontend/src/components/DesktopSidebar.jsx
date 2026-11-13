@@ -239,22 +239,28 @@ export default function DesktopSidebar({
           {onClearCache && (
             <button
               type="button"
-              onClick={onClearCache}
-              className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-600 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 hover:text-white transition-all cursor-pointer"
+              onClick={() => {
+                if (onCloseMobileMenu) onCloseMobileMenu();
+                onClearCache();
+              }}
+              className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-600 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 hover:text-white transition-all cursor-pointer whitespace-nowrap"
               title="Làm mới bộ nhớ đệm"
             >
-              <RotateCcw size={14} />
-              <span>Xóa Cache</span>
+              <RotateCcw size={14} className="shrink-0" />
+              <span>Xóa cache</span>
             </button>
           )}
 
           <button
             type="button"
-            onClick={onLogout}
-            className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border-2 border-rose-500 bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-md transition-all cursor-pointer"
+            onClick={() => {
+              if (onCloseMobileMenu) onCloseMobileMenu();
+              if (onLogout) onLogout();
+            }}
+            className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-rose-500 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-md transition-all cursor-pointer whitespace-nowrap"
           >
-            <LogOut size={14} />
-            <span>Đăng Xuất</span>
+            <LogOut size={14} className="shrink-0" />
+            <span>Đăng xuất</span>
           </button>
         </div>
       </div>

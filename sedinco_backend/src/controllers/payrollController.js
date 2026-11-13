@@ -58,6 +58,7 @@ class PayrollController {
                 'Mã NV', 'Họ và Tên', 'Chức Danh', 'Lương Cơ Bản', 'Ngày Công',
                 'Lương Theo Công', 'Phụ Cấp Ăn Trưa', 'Phụ Cấp Xăng Xe', 'Phụ Cấp Nhà Ở',
                 'Thưởng HTCV', 'Phụ Cấp Trách Nhiệm', 'Tổng Phụ Cấp', 'Tiền Tăng Ca (OT)',
+                'Thưởng Thêm', 'Phạt / Khấu Trừ', 'Tạm Ứng Đã Trừ',
                 'Khấu Trừ BHXH (10.5%)', 'Thực Lĩnh (Net)'
             ];
 
@@ -77,6 +78,9 @@ class PayrollController {
                     b.trach_nhiem || 0,
                     emp.totalAllowance || 0,
                     emp.otAmount || 0,
+                    emp.bonusAmount || 0,
+                    emp.penaltyAmount || 0,
+                    emp.advanceDeduction || 0,
                     emp.totalInsurance || 0,
                     emp.netSalary || 0
                 ].join(',');
@@ -135,13 +139,41 @@ class PayrollController {
 
     async resolveSalaryDispute(req, res, next) {
         try {
-            const { ma_nv, month, year, admin_response, new_status } = req.body;
+            const { ma_nv, month, year, admin_response, new_status, status } = req.body;
+            const resolvedStatus = new_status || status || 'CONFIRMED';
             const result = await payrollService.resolveSalaryDispute({
                 ma_nv,
                 month,
                 year,
                 admin_response,
-                new_status,
+                new_status: resolvedStatus,
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async adjustSalary(req, res, next) {
+        try {
+            const {
+                ma_nv,
+                month,
+                year,
+                bonus_amount,
+                penalty_amount,
+                advance_deduction,
+                adjustment_note
+            } = req.body;
+            const result = await payrollService.adjustSalary({
+                ma_nv,
+                month,
+                year,
+                bonus_amount,
+                penalty_amount,
+                advance_deduction,
+                adjustment_note,
                 current_user: req.user
             });
             return res.json(result);

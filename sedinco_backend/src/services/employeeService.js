@@ -195,6 +195,57 @@ class EmployeeService {
         return { success: true };
     }
 
+    async updateEmployeeShift(ma_nv, { shift_type = null, annual_leave_quota = null } = {}, current_user = null) {
+        const allowedShifts = ['FULL_DAY', 'MORNING_SHIFT', 'AFTERNOON_SHIFT', 'NIGHT_SHIFT'];
+        const updates = [];
+        const params = [];
+        const details = { ma_nv };
+
+        if (shift_type !== null && shift_type !== undefined) {
+            const cleanShift = String(shift_type).trim().toUpperCase();
+            if (!allowedShifts.includes(cleanShift)) {
+                const error = new Error('Ca làm việc không hợp lệ!');
+                error.statusCode = 400;
+                throw error;
+            }
+            updates.push('shift_type = ?');
+            params.push(cleanShift);
+            details.shift_type = cleanShift;
+        }
+
+        if (annual_leave_quota !== null && annual_leave_quota !== undefined && annual_leave_quota !== '') {
+            const cleanQuota = Math.max(0, Math.min(60, Number(annual_leave_quota)));
+            if (!Number.isFinite(cleanQuota)) {
+                const error = new Error('Hạn mức phép năm không hợp lệ!');
+                error.statusCode = 400;
+                throw error;
+            }
+            updates.push('annual_leave_quota = ?');
+            params.push(cleanQuota);
+            details.annual_leave_quota = cleanQuota;
+        }
+
+        if (updates.length === 0) {
+            return { success: true };
+        }
+
+        params.push(ma_nv);
+        await query(`UPDATE employees SET ${updates.join(', ')} WHERE ma_nv = ?`, params);
+        invalidateUserCache(ma_nv);
+
+        if (current_user) {
+            await logAuditEvent({
+                actor_id: current_user.ma_nv || current_user.username || 'admin',
+                actor_role: current_user.role || 'admin',
+                action: 'UPDATE_EMPLOYEE_WORK_CONFIG',
+                resource: 'employees',
+                details
+            });
+        }
+
+        return { success: true, message: 'Đã cập nhật ca làm việc & định mức phép!', data: details };
+    }
+
     async deleteEmployee(id, current_user = null) {
         await query('DELETE FROM employees WHERE ma_nv=?', [id]);
 

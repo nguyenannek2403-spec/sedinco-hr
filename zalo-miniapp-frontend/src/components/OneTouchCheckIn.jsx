@@ -225,10 +225,17 @@ export default function OneTouchCheckIn({
   }, []);
 
   const handleCaptureSelfie = async () => {
-    const res = await captureDirectCameraPhoto();
-    if (res?.success && res?.photoUrl) {
-      setCapturedPhoto(res.photoUrl);
-      setStatusMessage("Đã chụp & nén ảnh hiện trường (< 50KB). Chạm nút CHẤM CÔNG để hoàn tất!");
+    try {
+      const res = await captureDirectCameraPhoto();
+      if (res?.success && res?.photoUrl) {
+        setCapturedPhoto(res.photoUrl);
+        setErrorMessage("");
+        setStatusMessage("Đã chụp & nén ảnh hiện trường (< 50KB). Chạm nút CHẤM CÔNG để hoàn tất!");
+      } else {
+        setErrorMessage(res?.message || "Không thể mở máy ảnh. Vui lòng kiểm tra quyền Camera và thử lại!");
+      }
+    } catch (err) {
+      setErrorMessage(err?.message || "Lỗi chụp ảnh hiện trường. Vui lòng thử lại!");
     }
   };
 
@@ -246,21 +253,33 @@ export default function OneTouchCheckIn({
       }
     }
 
-    const nowMs = Date.now();
-    if (isLockedRef.current || isDebounceLocked || (nowMs - globalCheckInLockTimestamp < 3000)) return;
-    globalCheckInLockTimestamp = nowMs;
-    isLockedRef.current = true;
-    setIsDebounceLocked(true);
-    setTimeout(() => {
-      isLockedRef.current = false;
-      setIsDebounceLocked(false);
-    }, 3000);
-
     if (isLockedPeriod) {
+      isLockedRef.current = false;
+      globalCheckInLockTimestamp = 0;
+      setIsDebounceLocked(false);
       setStage(STAGES.ERROR);
       setErrorMessage("Kỳ chấm công tháng này đã được Kế toán chốt. Không thể ghi nhận thêm.");
       return;
     }
+
+    const hasSeenPerm = localStorage.getItem("sedinco_has_seen_location_perm");
+    if (!hasSeenPerm && !bypassPermExplain) {
+      isLockedRef.current = false;
+      globalCheckInLockTimestamp = 0;
+      setIsDebounceLocked(false);
+      if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+      setStage(STAGES.PERM_EXPLAIN);
+      return;
+    }
+
+    const nowMs = Date.now();
+    if (isLockedRef.current || isDebounceLocked || (nowMs - globalCheckInLockTimestamp < 1800)) return;
+    globalCheckInLockTimestamp = nowMs;
+    isLockedRef.current = true;
+    setIsDebounceLocked(true);
+    setTimeout(() => {
+      setIsDebounceLocked(false);
+    }, 1800);
 
     setErrorMessage("");
     setErrorDetails("");
@@ -272,17 +291,12 @@ export default function OneTouchCheckIn({
         setStage(STAGES.ERROR);
         setErrorMessage("Quá thời gian xử lý 20 giây. Vui lòng kiểm tra kết nối mạng và thử lại.");
         isLockedRef.current = false;
+        setIsDebounceLocked(false);
+        globalCheckInLockTimestamp = 0;
       }
     }, 20000);
 
     try {
-      const hasSeenPerm = localStorage.getItem("sedinco_has_seen_location_perm");
-      if (!hasSeenPerm && !bypassPermExplain) {
-        setStage(STAGES.PERM_EXPLAIN);
-        isLockedRef.current = false;
-        if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
-        return;
-      }
 
       if (FEATURE_BIOMETRIC_ENABLED) {
         setStage(STAGES.BIO_AUTH);
@@ -423,11 +437,17 @@ export default function OneTouchCheckIn({
       setErrorDetails("Vui lòng kiểm tra lại kết nối mạng 4G/Wifi hoặc thử lại sau.");
     } finally {
       isLockedRef.current = false;
+      setIsDebounceLocked(false);
+      globalCheckInLockTimestamp = 0;
+      if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
     }
   };
 
   const handleAcceptPermExplain = () => {
     localStorage.setItem("sedinco_has_seen_location_perm", "true");
+    isLockedRef.current = false;
+    globalCheckInLockTimestamp = 0;
+    setIsDebounceLocked(false);
     setStage(STAGES.IDLE);
     handleStartCheckIn(true);
   };
@@ -473,6 +493,23 @@ export default function OneTouchCheckIn({
         <span>{locationFriendlyBadge.text}</span>
       </div>
 
+      {/* F4: THÔNG BÁO NỘI BỘ CÔNG TY */}
+      {companyMeta?.announcement_text && String(companyMeta.announcement_text).trim() && (
+        <div className="w-full max-w-sm bg-amber-500/15 border border-amber-400/50 rounded-2xl px-3.5 py-2.5 text-left space-y-1 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-amber-300">📢 Thông báo từ Công ty</span>
+            {companyMeta.announcement_updated_at && (
+              <span className="text-[11px] text-amber-200/80 whitespace-nowrap">
+                {new Date(companyMeta.announcement_updated_at).toLocaleDateString("vi-VN")}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-amber-50 leading-relaxed whitespace-pre-line">
+            {companyMeta.announcement_text}
+          </p>
+        </div>
+      )}
+
       {/* 3. THẺ TÓM TẮT CÔNG HÔM NAY & CA CHUẨN */}
       <div className="w-full max-w-sm bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2 text-xs shadow-md">
         <div className="flex items-center justify-between">
@@ -480,7 +517,7 @@ export default function OneTouchCheckIn({
             <span className="text-slate-400 font-medium block">
               Hôm nay ({new Date().toLocaleDateString("vi-VN")}):
             </span>
-            <span className="font-black text-emerald-400 text-sm">
+            <span className="font-bold text-emerald-400 text-sm">
               {effectiveToday?.check_out_time
                 ? `Vào ${effectiveToday.check_in_time?.slice(0, 5)} • Ra ${effectiveToday.check_out_time?.slice(0, 5)}`
                 : effectiveToday?.check_in_time
@@ -488,29 +525,39 @@ export default function OneTouchCheckIn({
                 : "Chưa chấm công vào ca"}
             </span>
             {effectiveToday?.location_name && (
-              <span className="block text-[11px] text-slate-400 mt-0.5">
+              <span className="block text-xs text-slate-400 mt-0.5">
                 📍 {effectiveToday.location_name}
               </span>
             )}
           </div>
-          <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Công tháng này</span>
-            <span className="text-base font-black text-blue-400">{monthlyCount} ngày</span>
+          <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700 shrink-0">
+            <span className="text-[11px] text-slate-400 font-medium block">Công tháng này</span>
+            <span className="text-base font-bold text-blue-400">{monthlyCount} ngày</span>
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-400">
+        <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-xs text-slate-400">
           <span>
-            Ca chuẩn: <strong className="text-slate-200">{companyMeta.work_start || "08:00"} - {companyMeta.lunch_start || "12:00"}</strong> &{" "}
-            <strong className="text-slate-200">{companyMeta.lunch_end || "13:30"} - {companyMeta.work_end || "17:30"}</strong>
+            {(() => {
+              const sType = effectiveToday?.shift_type || currentUser?.shift_type || "FULL_DAY";
+              if (sType === "MORNING_SHIFT") return <>Ca sáng: <strong className="text-slate-200">07:30 - 12:00</strong></>;
+              if (sType === "AFTERNOON_SHIFT") return <>Ca chiều: <strong className="text-slate-200">13:00 - 17:30</strong></>;
+              if (sType === "NIGHT_SHIFT") return <>Ca tối: <strong className="text-slate-200">18:00 - 22:00</strong></>;
+              return (
+                <>
+                  Ca hành chính: <strong className="text-slate-200">{companyMeta.work_start || "08:00"} - {companyMeta.lunch_start || "12:00"}</strong> &{" "}
+                  <strong className="text-slate-200">{companyMeta.lunch_end || "13:30"} - {companyMeta.work_end || "17:30"}</strong>
+                </>
+              );
+            })()}
           </span>
           {Number(effectiveToday?.late_minutes) > 0 && (
-            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold">
+            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-semibold whitespace-nowrap">
               Muộn {effectiveToday.late_minutes}p
             </span>
           )}
           {Number(effectiveToday?.ot_hours) > 0 && (
-            <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-bold">
+            <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold whitespace-nowrap">
               OT +{effectiveToday.ot_hours}h
             </span>
           )}

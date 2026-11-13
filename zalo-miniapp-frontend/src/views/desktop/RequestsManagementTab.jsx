@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 const getStatusBadge = (status) => {
   const s = String(status).toUpperCase();
@@ -37,8 +38,13 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [batchApproving, setBatchApproving] = useState(false);
+  const [dialogState, setDialogState] = useState(null);
   const actionInFlightRef = useRef(false);
   const batchInFlightRef = useRef(false);
+
+  const notify = useCallback((msg, type = "info") => {
+    if (showToast) showToast(msg, type);
+  }, [showToast]);
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -61,21 +67,8 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
     fetchRequests();
   }, [fetchRequests]);
 
-  const handleAction = async (id, newStatus, ownerMaNv) => {
+  const executeAction = async (id, newStatus, rejectReason = "") => {
     if (actionInFlightRef.current) return;
-    // SoD (Separation of Duties): Chặn người tạo tự duyệt đơn của mình
-    if (ownerMaNv && ownerMaNv === currentUser?.ma_nv) {
-      if (showToast) showToast("Quy tắc SoD: Bạn không thể tự phê duyệt đơn của chính mình!", "warning");
-      return;
-    }
-
-    let rejectReason = "";
-    if (newStatus === "rejected") {
-      const promptRes = window.prompt("Nhập lý do từ chối đơn:");
-      if (promptRes === null) return;
-      rejectReason = promptRes.trim() || "Không phù hợp kế hoạch công tác";
-    }
-
     actionInFlightRef.current = true;
     setActionLoadingId(id);
     try {
@@ -87,30 +80,63 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
       });
 
       if (res?.success) {
-        if (showToast) {
-          showToast(newStatus === "approved" ? "Đã phê duyệt đơn thành công!" : "Đã từ chối đơn!", "success");
-        }
+        notify(newStatus === "approved" ? "Đã phê duyệt đơn thành công!" : "Đã từ chối đơn!", "success");
+        setDialogState(null);
         fetchRequests();
       } else {
-        alert(res?.message || "Không thể cập nhật trạng thái đơn.");
+        notify(res?.message || "Không thể cập nhật trạng thái đơn.", "error");
       }
     } catch (err) {
-      alert(err.message || "Lỗi xử lý duyệt đơn.");
+      notify(err.message || "Lỗi xử lý duyệt đơn.", "error");
     } finally {
       actionInFlightRef.current = false;
       setActionLoadingId(null);
     }
   };
 
+  const handleAction = (id, newStatus, ownerMaNv) => {
+    if (actionInFlightRef.current) return;
+    if (ownerMaNv && ownerMaNv === currentUser?.ma_nv) {
+      notify("Quy tắc SoD: Bạn không thể tự phê duyệt đơn của chính mình!", "warning");
+      return;
+    }
+
+    if (newStatus === "rejected") {
+      setDialogState({
+        mode: "reject",
+        id,
+        title: "Từ chối đơn yêu cầu",
+        message: "Vui lòng nhập lý do để nhân viên nắm rõ thông tin.",
+        showInput: true,
+        inputLabel: "Lý do từ chối",
+        inputPlaceholder: "VD: Thiếu nhân sự trực ca, vui lòng điều chỉnh ngày...",
+        confirmLabel: "Xác nhận từ chối",
+        variant: "danger"
+      });
+      return;
+    }
+
+    executeAction(id, newStatus, "");
+  };
+
   const eligiblePendingIds = requests
     .filter((r) => String(r.status).toUpperCase() === "PENDING" && r.ma_nv !== currentUser?.ma_nv)
     .map((r) => r.id);
 
-  const handleBatchApprove = async () => {
+  const handleBatchApprove = () => {
     if (batchInFlightRef.current || eligiblePendingIds.length === 0) return;
-    if (!window.confirm(`Xác nhận DUYỆT NHANH tất cả ${eligiblePendingIds.length} đơn đang chờ hợp lệ?`)) {
-      return;
-    }
+    setDialogState({
+      mode: "batch",
+      title: "Duyệt nhanh hàng loạt",
+      message: `Xác nhận phê duyệt toàn bộ ${eligiblePendingIds.length} đơn đang chờ hợp lệ? (Các đơn vi phạm quy tắc SoD sẽ được tự động bỏ qua.)`,
+      showInput: false,
+      confirmLabel: `Duyệt ${eligiblePendingIds.length} đơn`,
+      variant: "primary"
+    });
+  };
+
+  const executeBatchApprove = async () => {
+    if (batchInFlightRef.current || eligiblePendingIds.length === 0) return;
     batchInFlightRef.current = true;
     setBatchApproving(true);
     try {
@@ -120,13 +146,14 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
         idempotencyKey: generateIdempotencyKey("req_batch")
       });
       if (res?.success) {
-        if (showToast) showToast(res.message || `Đã duyệt nhanh ${res.approved_count} đơn!`, "success");
+        notify(res.message || `Đã duyệt nhanh ${res.approved_count} đơn!`, "success");
+        setDialogState(null);
         fetchRequests();
       } else {
-        if (showToast) showToast(res?.message || "Lỗi duyệt hàng loạt", "error");
+        notify(res?.message || "Lỗi duyệt hàng loạt", "error");
       }
     } catch (err) {
-      if (showToast) showToast(err.message || "Lỗi duyệt nhanh hàng loạt.", "error");
+      notify(err.message || "Lỗi duyệt nhanh hàng loạt.", "error");
     } finally {
       batchInFlightRef.current = false;
       setBatchApproving(false);
@@ -144,41 +171,42 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-28">
       {/* Header and Controls */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-black text-white flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-400" />
-            Xét Duyệt Đơn Từ & Nghỉ Phép
+          <h2 className="text-lg font-bold text-white leading-snug flex items-center gap-2">
+            <FileText className="w-5 h-5 text-blue-400 shrink-0" />
+            Xét duyệt đơn từ & Nghỉ phép
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Quản trị & kế toán xét duyệt theo quy tắc phân tách nhiệm vụ (SoD)
+          <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+            Duyệt đơn nghỉ phép, ứng lương, tăng ca (bảo vệ quy tắc SoD)
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           {/* Search box */}
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial min-w-[180px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo mã NV, tên..."
-              className="bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+              placeholder="Tìm mã NV, họ tên..."
+              className="w-full sm:w-48 bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           {/* Status Filter */}
-          <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-700 text-xs">
+          <div className="flex flex-wrap bg-slate-900 p-1 rounded-xl border border-slate-700 text-xs gap-1">
             {["all", "PENDING", "APPROVED", "REJECTED"].map(st => (
               <button
                 key={st}
+                type="button"
                 onClick={() => setFilterStatus(st)}
-                className={`px-3 py-1 font-bold rounded-lg transition-all ${
+                className={`px-3 py-1.5 font-medium rounded-lg whitespace-nowrap shrink-0 transition-all ${
                   filterStatus === st
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                    ? "bg-blue-600 text-white shadow-sm"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
@@ -188,12 +216,14 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
           </div>
 
           <button
+            type="button"
             onClick={fetchRequests}
             disabled={loading}
-            className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+            className="min-h-[42px] px-3 bg-slate-700/60 hover:bg-slate-700 text-slate-200 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-medium whitespace-nowrap"
             title="Làm mới"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-blue-400" : ""}`} />
+            <span className="sm:hidden">Tải lại</span>
           </button>
 
           {eligiblePendingIds.length > 0 && (
@@ -201,13 +231,13 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
               type="button"
               disabled={batchApproving}
               onClick={handleBatchApprove}
-              className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-lg shadow-emerald-600/25 cursor-pointer disabled:opacity-50"
+              className="w-full sm:w-auto min-h-[42px] px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/25 cursor-pointer whitespace-nowrap disabled:opacity-50"
             >
               {batchApproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
               <span>
                 {batchApproving
                   ? "Đang duyệt hàng loạt..."
-                  : `✅ Duyệt nhanh tất cả đơn đang chờ (${eligiblePendingIds.length} đơn)`}
+                  : `Duyệt nhanh (${eligiblePendingIds.length} đơn)`}
               </span>
             </button>
           )}
@@ -243,16 +273,21 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                 return (
                   <div key={req.id} className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="font-black text-sm text-white block">
+                      <div className="min-w-0">
+                        <span className="font-semibold text-sm text-white block truncate">
                           {req.ho_ten || req.ma_nv}{" "}
                           <span className="text-xs font-mono text-blue-400">({req.ma_nv})</span>
                         </span>
-                        <span className="text-xs font-bold text-amber-300 block mt-0.5">
-                          Loại đơn: {req.request_type || "Nghỉ phép"} • Ngày: {req.request_date || req.start_date}
+                        <span className="text-xs font-medium text-amber-300 block mt-0.5">
+                          {req.request_type || req.type || "Nghỉ phép"} • {req.request_date || req.date || req.start_date}
+                          {Number(req.advance_amount) > 0 && (
+                            <span className="ml-1.5 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-semibold whitespace-nowrap">
+                              Ứng {Number(req.advance_amount).toLocaleString("vi-VN")}đ
+                            </span>
+                          )}
                         </span>
                       </div>
-                      <span className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border inline-flex items-center gap-1 shrink-0 ${badge.bg}`}>
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-lg border inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${badge.bg}`}>
                         <badge.icon className="w-3 h-3" />
                         {badge.text}
                       </span>
@@ -323,10 +358,15 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                         <div className="text-[10px] text-slate-400 font-mono">{req.ma_nv}</div>
                       </td>
                       <td className="p-3.5 font-semibold text-slate-200">
-                        {req.request_type || "Nghỉ phép"}
+                        <div>{req.request_type || req.type || "Nghỉ phép"}</div>
+                        {Number(req.advance_amount) > 0 && (
+                          <div className="text-xs text-emerald-400 font-semibold mt-0.5">
+                            Ứng: {Number(req.advance_amount).toLocaleString("vi-VN")} đ
+                          </div>
+                        )}
                       </td>
-                      <td className="p-3.5 text-slate-300 font-medium">
-                        {req.request_date || req.start_date}
+                      <td className="p-3.5 text-slate-300 font-medium whitespace-nowrap">
+                        {req.request_date || req.date || req.start_date}
                       </td>
                       <td className="p-3.5 max-w-xs truncate text-slate-400" title={req.reason}>
                         {req.reason || "--"}
@@ -376,6 +416,26 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(dialogState)}
+        title={dialogState?.title}
+        message={dialogState?.message}
+        confirmLabel={dialogState?.confirmLabel}
+        variant={dialogState?.variant || "primary"}
+        showInput={Boolean(dialogState?.showInput)}
+        inputLabel={dialogState?.inputLabel}
+        inputPlaceholder={dialogState?.inputPlaceholder}
+        loading={batchApproving || actionLoadingId !== null}
+        onCancel={() => setDialogState(null)}
+        onConfirm={(val) => {
+          if (dialogState?.mode === "batch") {
+            executeBatchApprove();
+          } else if (dialogState?.mode === "reject") {
+            executeAction(dialogState.id, "rejected", val || "Không phù hợp kế hoạch công tác");
+          }
+        }}
+      />
     </div>
   );
 }

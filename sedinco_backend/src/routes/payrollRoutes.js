@@ -20,6 +20,7 @@ router.get('/', authenticateToken, requirePermission('payroll_view_all'), (req, 
 // 3. Tính toán bảng lương tháng (Yêu cầu permission: payroll_calculate)
 router.post('/calculate', authenticateToken, requirePermission('payroll_calculate'), (req, res, next) => payrollController.calculatePayroll(req, res, next));
 router.get('/calculate', authenticateToken, requirePermission('payroll_calculate'), (req, res, next) => payrollController.calculatePayroll(req, res, next));
+router.post('/adjustments', authenticateToken, requirePermission('payroll_calculate'), idempotencyMiddleware(), (req, res, next) => payrollController.adjustSalary(req, res, next));
 
 // 4. Phê duyệt bảng lương chính thức (Yêu cầu permission: payroll_approve)
 router.post('/approve', authenticateToken, requirePermission('payroll_approve'), (req, res, next) => payrollController.approvePayroll(req, res, next));

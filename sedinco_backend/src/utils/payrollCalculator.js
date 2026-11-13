@@ -14,7 +14,10 @@ function calculateEmployeeSalary({
     allowances = {},
     has_insurance = true,
     otRegistrations = null,
-    companySettings = {}
+    companySettings = {},
+    bonusAmount = 0,
+    penaltyAmount = 0,
+    advanceDeduction = 0
 }) {
     const luongCb = Number(luong_cb) || 0;
     const congChuan = Number(companySettings.standard_work_days) || Number(cong_chuan) || 26;
@@ -118,15 +121,19 @@ function calculateEmployeeSalary({
     };
 
     const grossSalary = salaryByWork + allowanceByWork + tienOt;
-    // Nếu nhân viên không đi làm ngày nào (0 ngày công), không trích trừ BHXH và netSalary = 0 (tránh lương âm)
+    const cleanBonus = Math.max(0, Math.round(Number(bonusAmount) || 0));
+    const cleanPenalty = Math.max(0, Math.round(Number(penaltyAmount) || 0));
+    const cleanAdvance = Math.max(0, Math.round(Number(advanceDeduction) || 0));
+
+    // Nếu nhân viên không đi làm ngày nào (0 ngày công), không trích trừ BHXH và chỉ tính các khoản thưởng/trừ phát sinh (không âm)
     let baoHiem = 0;
     let netSalary = 0;
     if (actualWorkDays === 0) {
         baoHiem = 0;
-        netSalary = 0;
+        netSalary = Math.max(0, Math.round(grossSalary + cleanBonus - cleanPenalty - cleanAdvance));
     } else {
         baoHiem = (has_insurance !== false && has_insurance !== 0) ? (luongCb * insuranceRatio) : 0;
-        netSalary = Math.max(0, Math.round(grossSalary - baoHiem));
+        netSalary = Math.max(0, Math.round(grossSalary - baoHiem + cleanBonus - cleanPenalty - cleanAdvance));
     }
 
     return {
@@ -143,6 +150,9 @@ function calculateEmployeeSalary({
         totalAllowance: Math.round(allowanceByWork),
         allowances_breakdown,
         otAmount: Math.round(tienOt),
+        bonusAmount: cleanBonus,
+        penaltyAmount: cleanPenalty,
+        advanceDeduction: cleanAdvance,
         totalInsurance: Math.round(baoHiem),
         grossSalary: Math.round(grossSalary),
         netSalary,

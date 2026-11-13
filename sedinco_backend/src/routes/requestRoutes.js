@@ -8,7 +8,8 @@ const {
     requirePermission 
 } = require('../middlewares/authMiddleware');
 
-// 1. Xem đơn cá nhân của chính mình (Công nhân, Kế toán, Admin)
+// 1. Xem đơn cá nhân & Quỹ phép năm cá nhân (Công nhân, Kế toán, Admin)
+router.get('/leave-balance', authenticateToken, requireAuth, (req, res, next) => requestController.getLeaveBalance(req, res, next));
 router.get('/me', authenticateToken, requireAuth, (req, res, next) => requestController.getMyRequests(req, res, next));
 router.get('/my', authenticateToken, requireAuth, (req, res, next) => requestController.getMyRequests(req, res, next));
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -31,6 +31,11 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [retentionDays, setRetentionDays] = useState(30);
   const [cleaning, setCleaning] = useState(false);
+
+  const pinLockRef = useRef(false);
+  const keepLockRef = useRef(false);
+  const accLockRef = useRef(false);
+  const cleanupLockRef = useRef(false);
 
   const fetchEmployeesAndSettings = useCallback(async () => {
     try {
@@ -80,6 +85,8 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
   }, [fetchLogs]);
 
   const handleTogglePin = async (log) => {
+    if (pinLockRef.current) return;
+    pinLockRef.current = true;
     const nextPinned = !Boolean(log.is_pinned);
     try {
       const res = await safePut(`/audit-logs/${log.id}/pin`, { is_pinned: nextPinned });
@@ -91,11 +98,14 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
       }
     } catch (err) {
       if (showToast) showToast(err.message || "Không thể ghim dòng lịch sử.", "error");
+    } finally {
+      pinLockRef.current = false;
     }
   };
 
   const handleToggleKeepEmployeeLogs = async (actorId, currentKeep) => {
-    if (!actorId || actorId === "SYSTEM" || actorId === "admin") return;
+    if (!actorId || actorId === "SYSTEM" || actorId === "admin" || keepLockRef.current) return;
+    keepLockRef.current = true;
     const nextKeep = !Boolean(currentKeep);
     try {
       const res = await safePut(`/audit-logs/keep-employee/${actorId}`, { keep_logs: nextKeep });
@@ -110,11 +120,14 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
       }
     } catch (err) {
       if (showToast) showToast(err.message || "Lỗi cập nhật chế độ lưu trữ của nhân viên.", "error");
+    } finally {
+      keepLockRef.current = false;
     }
   };
 
   const handleToggleLockAccount = async (actorId, currentLocked) => {
-    if (!actorId || actorId === "SYSTEM" || actorId === "admin") return;
+    if (!actorId || actorId === "SYSTEM" || actorId === "admin" || accLockRef.current) return;
+    accLockRef.current = true;
     const nextLocked = !Boolean(currentLocked);
     try {
       const res = await safePut(`/employees/${actorId}/status`, {
@@ -128,8 +141,8 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
         if (showToast) {
           showToast(
             nextLocked
-              ? `🔒 Đã KHÓA KHẨN CẤP tài khoản nhân viên ${actorId}!`
-              : `🔓 Đã mở khóa tài khoản nhân viên ${actorId}!`,
+              ? `Đã tạm khóa khẩn cấp tài khoản nhân viên ${actorId}!`
+              : `Đã mở khóa tài khoản nhân viên ${actorId}!`,
             nextLocked ? "warning" : "success"
           );
         }
@@ -137,10 +150,14 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
       }
     } catch (err) {
       if (showToast) showToast(err.message || "Không thể khóa/mở khóa tài khoản.", "error");
+    } finally {
+      accLockRef.current = false;
     }
   };
 
   const handleRunCleanup = async (newDays = retentionDays) => {
+    if (cleanupLockRef.current) return;
+    cleanupLockRef.current = true;
     setCleaning(true);
     try {
       const res = await safePost("/audit-logs/cleanup", { retention_days: Number(newDays) });
@@ -156,6 +173,7 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
     } catch (err) {
       if (showToast) showToast(err.message || "Lỗi dọn dẹp nhật ký.", "error");
     } finally {
+      cleanupLockRef.current = false;
       setCleaning(false);
     }
   };

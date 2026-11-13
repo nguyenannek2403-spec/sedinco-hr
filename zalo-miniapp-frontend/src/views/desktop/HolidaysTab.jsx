@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Gift, Plus, Trash2, Calendar, RefreshCw, AlertCircle, X } from "lucide-react";
 import { safeGet, safePost, safeDelete } from "../../utils/api";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 export default function HolidaysTab({ currentUser, showToast }) {
   const [holidays, setHolidays] = useState([]);
@@ -14,6 +15,10 @@ export default function HolidaysTab({ currentUser, showToast }) {
     multiplier: 3.0
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, name: "" });
+  const [isDeleting, setIsDeleting] = useState(false);
+  const addInFlightRef = useRef(false);
+  const deleteInFlightRef = useRef(false);
 
   const fetchHolidays = useCallback(async () => {
     setLoading(true);
@@ -38,8 +43,13 @@ export default function HolidaysTab({ currentUser, showToast }) {
 
   const handleAddHoliday = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.start_date || !form.end_date) return;
+    if (addInFlightRef.current) return;
+    if (!form.name || !form.start_date || !form.end_date) {
+      if (showToast) showToast("Vui lòng nhập đầy đủ tên và ngày nghỉ lễ.", "error");
+      return;
+    }
 
+    addInFlightRef.current = true;
     setIsSubmitting(true);
     try {
       const res = await safePost("/holidays", {
@@ -52,57 +62,70 @@ export default function HolidaysTab({ currentUser, showToast }) {
         setForm({ name: "", start_date: "", end_date: "", multiplier: 3.0 });
         fetchHolidays();
       } else {
-        alert(res?.message || "Không thể thêm ngày lễ.");
+        if (showToast) showToast(res?.message || "Không thể thêm ngày lễ.", "error");
       }
     } catch (err) {
-      alert(err.message || "Lỗi kết nối.");
+      if (showToast) showToast(err.message || "Lỗi kết nối.", "error");
     } finally {
+      addInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteHoliday = async (id, name) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa ngày lễ "${name}"?`)) return;
+  const handleDeleteHoliday = (id, name) => {
+    setConfirmDelete({ open: true, id, name: name || "ngày lễ này" });
+  };
 
+  const executeDeleteHoliday = async () => {
+    if (deleteInFlightRef.current || !confirmDelete.id) return;
+    deleteInFlightRef.current = true;
+    setIsDeleting(true);
     try {
-      const res = await safeDelete(`/holidays/${id}`);
+      const res = await safeDelete(`/holidays/${confirmDelete.id}`);
       if (res?.success) {
-        if (showToast) showToast(`Đã xóa ngày lễ "${name}"!`, "success");
+        if (showToast) showToast(`Đã xóa ngày lễ "${confirmDelete.name}"!`, "success");
+        setConfirmDelete({ open: false, id: null, name: "" });
         fetchHolidays();
       } else {
-        alert(res?.message || "Không thể xóa ngày lễ.");
+        if (showToast) showToast(res?.message || "Không thể xóa ngày lễ.", "error");
       }
     } catch (err) {
-      alert(err.message || "Lỗi xóa ngày lễ.");
+      if (showToast) showToast(err.message || "Lỗi xóa ngày lễ.", "error");
+    } finally {
+      deleteInFlightRef.current = false;
+      setIsDeleting(false);
     }
   };
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4 max-w-4xl pb-28">
       {/* Header */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4 shadow-xl flex items-center justify-between">
+      <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-black text-white flex items-center gap-2">
-            <Gift className="w-5 h-5 text-rose-400" />
-            Danh Mục Lịch Nghỉ Lễ Quốc Gia
+          <h2 className="text-lg font-bold leading-snug text-white flex items-center gap-2">
+            <Gift className="w-5 h-5 text-rose-400 shrink-0" />
+            Danh mục lịch nghỉ lễ quốc gia
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-sm text-slate-300 leading-relaxed mt-0.5">
             Ngày lễ được nhân hệ số lương 3.0x khi làm thêm giờ theo quy định
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
+            type="button"
             onClick={() => setIsAddOpen(true)}
-            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5"
+            className="min-h-[42px] px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            <Plus className="w-4 h-4" />
-            <span>Thêm Ngày Lễ</span>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>Thêm ngày lễ</span>
           </button>
           <button
+            type="button"
             onClick={fetchHolidays}
             disabled={loading}
-            className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+            aria-label="Làm mới"
+            className="min-h-[42px] min-w-[42px] p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors flex items-center justify-center shrink-0"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-rose-400" : ""}`} />
           </button>
@@ -128,33 +151,34 @@ export default function HolidaysTab({ currentUser, showToast }) {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 border-b border-slate-700/80 text-slate-400 uppercase tracking-wider font-bold">
+              <thead className="bg-slate-900/80 border-b border-slate-700/80 text-slate-300 font-semibold">
                 <tr>
-                  <th className="p-3.5 pl-5">Tên Dịp Lễ</th>
-                  <th className="p-3.5">Từ Ngày</th>
-                  <th className="p-3.5">Đến Ngày</th>
-                  <th className="p-3.5">Hệ Số Lương</th>
-                  <th className="p-3.5 text-right pr-5">Thao Tác</th>
+                  <th className="p-3.5 pl-5 whitespace-nowrap">Tên dịp lễ</th>
+                  <th className="p-3.5 whitespace-nowrap">Từ ngày</th>
+                  <th className="p-3.5 whitespace-nowrap">Đến ngày</th>
+                  <th className="p-3.5 whitespace-nowrap">Hệ số lương</th>
+                  <th className="p-3.5 text-right pr-5 whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50 text-slate-300">
                 {holidays.map(h => (
                   <tr key={h.id} className="hover:bg-slate-700/30 transition-colors">
-                    <td className="p-3.5 pl-5 font-bold text-white flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-rose-400" />
-                      {h.holiday_name || h.name}
+                    <td className="p-3.5 pl-5 font-semibold text-white flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>{h.holiday_name || h.name}</span>
                     </td>
-                    <td className="p-3.5 font-mono text-slate-300">{h.start_date}</td>
-                    <td className="p-3.5 font-mono text-slate-300">{h.end_date}</td>
-                    <td className="p-3.5">
-                      <span className="px-2 py-0.5 bg-rose-500/15 border border-rose-500/30 text-rose-400 font-bold rounded-md text-[11px]">
+                    <td className="p-3.5 font-mono text-slate-300 whitespace-nowrap">{h.start_date}</td>
+                    <td className="p-3.5 font-mono text-slate-300 whitespace-nowrap">{h.end_date}</td>
+                    <td className="p-3.5 whitespace-nowrap">
+                      <span className="px-2.5 py-0.5 bg-rose-500/15 border border-rose-500/30 text-rose-400 font-semibold rounded-md text-xs whitespace-nowrap">
                         x{h.multiplier || 3.0}
                       </span>
                     </td>
-                    <td className="p-3.5 text-right pr-5">
+                    <td className="p-3.5 text-right pr-5 whitespace-nowrap">
                       <button
-                        onClick={() => handleDeleteHoliday(h.id, h.name)}
-                        className="p-1.5 text-rose-400 hover:bg-rose-500/15 rounded-lg transition-colors"
+                        type="button"
+                        onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
+                        className="min-h-[38px] min-w-[38px] p-2 text-rose-400 hover:bg-rose-500/15 rounded-lg transition-colors inline-flex items-center justify-center"
                         title="Xóa"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -167,6 +191,19 @@ export default function HolidaysTab({ currentUser, showToast }) {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete.open}
+        title="Xác nhận xóa ngày lễ"
+        message={`Bạn có chắc chắn muốn xóa ngày lễ "${confirmDelete.name}" khỏi danh mục lịch nghỉ lễ?`}
+        confirmLabel="Xóa ngày lễ"
+        danger={true}
+        loading={isDeleting}
+        onCancel={() => {
+          if (!isDeleting) setConfirmDelete({ open: false, id: null, name: "" });
+        }}
+        onConfirm={executeDeleteHoliday}
+      />
 
       {/* Modal Add Holiday */}
       {isAddOpen && (
@@ -189,54 +226,54 @@ export default function HolidaysTab({ currentUser, showToast }) {
 
             <form onSubmit={handleAddHoliday} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Tên Dịp Lễ</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Tên dịp lễ</label>
                 <input
                   type="text"
                   required
                   placeholder="Ví dụ: Tết Dương Lịch"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Bắt Đầu</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Bắt đầu</label>
                   <input
                     type="date"
                     required
                     value={form.start_date}
                     onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Kết Thúc</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Kết thúc</label>
                   <input
                     type="date"
                     required
                     value={form.end_date}
                     onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />
                 </div>
               </div>
 
-              <div className="pt-2 flex gap-3">
+              <div className="pt-2 flex gap-2.5">
                 <button
                   type="button"
                   onClick={() => setIsAddOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-xl transition-colors"
+                  className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50"
+                  className="flex-1 min-h-[44px] py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50 whitespace-nowrap"
                 >
-                  {isSubmitting ? "Đang lưu..." : "Lưu Ngày Lễ"}
+                  {isSubmitting ? "Đang lưu..." : "Lưu ngày lễ"}
                 </button>
               </div>
             </form>

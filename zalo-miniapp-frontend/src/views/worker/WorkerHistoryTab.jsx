@@ -186,25 +186,27 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
   }, [logs, month, year]);
 
   return (
-    <div className="p-3 sm:p-4 space-y-4">
+    <div className="p-3 sm:p-4 pb-28 space-y-4">
       {/* Month Navigator */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-3.5 flex items-center justify-between shadow-lg">
         <button
           type="button"
           onClick={prevMonth}
+          aria-label="Tháng trước"
           className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-700 text-slate-300 rounded-xl flex items-center justify-center cursor-pointer"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
 
         <div className="text-center">
-          <div className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">Lịch Công Heatmap</div>
-          <div className="text-base sm:text-lg font-black text-white">Tháng {month} / {year}</div>
+          <div className="text-xs font-semibold text-blue-400">Lịch công Heatmap</div>
+          <div className="text-base sm:text-lg font-bold text-white">Tháng {month} / {year}</div>
         </div>
 
         <button
           type="button"
           onClick={nextMonth}
+          aria-label="Tháng sau"
           className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-700 text-slate-300 rounded-xl flex items-center justify-center cursor-pointer"
         >
           <ChevronRight className="w-5 h-5" />
@@ -215,19 +217,19 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
       {summary && (
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">Ngày công</div>
-            <div className="text-lg font-black text-emerald-400 mt-0.5">{summary.total_work_days || 0}</div>
-            <div className="text-[10px] text-slate-500 font-semibold">/ {summary.standard_days || 26} công</div>
+            <div className="text-xs font-semibold text-slate-300">Ngày công</div>
+            <div className="text-lg font-bold text-emerald-400 mt-0.5">{summary.total_work_days || 0}</div>
+            <div className="text-[11px] text-slate-400">/ {summary.standard_days || 26} công</div>
           </div>
           <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">Tăng ca OT</div>
-            <div className="text-lg font-black text-blue-400 mt-0.5">{summary.total_ot_hours || 0}h</div>
-            <div className="text-[10px] text-slate-500 font-semibold">ngoài giờ</div>
+            <div className="text-xs font-semibold text-slate-300">Tăng ca OT</div>
+            <div className="text-lg font-bold text-blue-400 mt-0.5">{summary.total_ot_hours || 0}h</div>
+            <div className="text-[11px] text-slate-400">ngoài giờ</div>
           </div>
           <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">Nghỉ phép</div>
-            <div className="text-lg font-black text-purple-400 mt-0.5">{summary.total_leave_days || 0}</div>
-            <div className="text-[10px] text-slate-500 font-semibold">hưởng lương</div>
+            <div className="text-xs font-semibold text-slate-300">Nghỉ phép</div>
+            <div className="text-lg font-bold text-purple-400 mt-0.5">{summary.total_leave_days || 0}</div>
+            <div className="text-[11px] text-slate-400">hưởng lương</div>
           </div>
         </div>
       )}

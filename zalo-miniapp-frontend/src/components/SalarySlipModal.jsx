@@ -55,7 +55,6 @@ export default function SalarySlipModal({
 
   const notify = (msg, type = "info") => {
     if (showToast) showToast(msg, type);
-    else alert(msg);
   };
 
   const formatCurrency = (val) => {
@@ -216,8 +215,11 @@ export default function SalarySlipModal({
       ["Lương theo ngày công", Number(item.salaryByWork || 0)],
       ["Tổng phụ cấp", Number(item.totalAllowance || 0)],
       ["Lương tăng ca (OT)", Number(item.otAmount || 0)],
+      ["Thưởng thêm", Number(item.bonusAmount || 0)],
       ["Khấu trừ BHXH", -Number(item.totalInsurance || item.insuranceDeduction || 0)],
       ["Phạt đi muộn", -Number(item.latePenaltyAmount || 0)],
+      ["Phạt / Khấu trừ khác", -Number(item.penaltyAmount || 0)],
+      ["Trừ tạm ứng lương", -Number(item.advanceDeduction || 0)],
       ["THỰC LĨNH (NET)", Number(item.netSalary || 0)],
       ["Trạng thái xác nhận", confirmStatus]
     ];
@@ -409,30 +411,30 @@ export default function SalarySlipModal({
                     +{formatCurrency(item.totalAllowance)}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pl-3 border-l-2 border-blue-200 text-[11px] text-slate-600">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pl-3 border-l-2 border-blue-200 text-xs text-slate-600">
                   <div className="flex justify-between">
-                    <span>• Phụ cấp chức vụ:</span>
-                    <span className="font-mono">{formatCurrency(b.chuc_vu)}</span>
+                    <span>• Phụ cấp ăn trưa:</span>
+                    <span className="font-mono">{formatCurrency(b.an_trua ?? b.an_ca)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• Phụ cấp xăng xe:</span>
+                    <span className="font-mono">{formatCurrency(b.xang_xe ?? b.xang)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• Phụ cấp nhà ở:</span>
+                    <span className="font-mono">{formatCurrency(b.nha_o ?? b.doc_hai)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• Thưởng hoàn thành CV:</span>
+                    <span className="font-mono">{formatCurrency(b.thuong_htcv)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>• Phụ cấp trách nhiệm:</span>
                     <span className="font-mono">{formatCurrency(b.trach_nhiem)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>• Phụ cấp độc hại:</span>
-                    <span className="font-mono">{formatCurrency(b.doc_hai)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>• Phụ cấp xăng xe:</span>
-                    <span className="font-mono">{formatCurrency(b.xang)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>• Phụ cấp điện thoại:</span>
-                    <span className="font-mono">{formatCurrency(b.dien_thoai)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>• Phụ cấp ăn ca:</span>
-                    <span className="font-mono">{formatCurrency(b.an_ca)}</span>
+                    <span>• Phụ cấp tiếp khách / ĐT:</span>
+                    <span className="font-mono">{formatCurrency(b.tiep_khach ?? b.dien_thoai)}</span>
                   </div>
                 </div>
               </div>
@@ -445,19 +447,30 @@ export default function SalarySlipModal({
                   +{formatCurrency(item.otAmount)}
                 </span>
               </div>
+
+              {Number(item.bonusAmount) > 0 && (
+                <div className="px-3.5 py-2.5 flex justify-between items-center bg-emerald-50/40">
+                  <span className="font-semibold text-emerald-800">
+                    5. Thưởng nóng / Phụ cấp thêm
+                  </span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    +{formatCurrency(item.bonusAmount)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Khấu trừ & Thực lĩnh */}
           <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="bg-slate-100 px-3.5 py-2 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider border-b border-slate-200">
-              Khấu Trừ Bảo Hiểm & Thực Lĩnh
+            <div className="bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-600 border-b border-slate-200">
+              Khấu trừ & Thực lĩnh
             </div>
             <div className="divide-y divide-slate-100 text-xs">
               <div className="px-3.5 py-2.5 flex justify-between text-slate-600">
                 <span>Mức lương đóng BHXH</span>
                 <span className="font-mono font-semibold">
-                  {formatCurrency(item.insuranceBase)}
+                  {formatCurrency(item.insuranceBase || item.baseSalary)}
                 </span>
               </div>
               <div className="px-3.5 py-2.5 flex justify-between text-red-600">
@@ -474,9 +487,31 @@ export default function SalarySlipModal({
                   </span>
                 </div>
               )}
-              <div className="px-3.5 py-3 flex justify-between bg-emerald-50 font-black text-sm">
-                <span className="text-emerald-900 uppercase">
-                  Thực Lĩnh Cuối Cùng (NET)
+              {Number(item.penaltyAmount) > 0 && (
+                <div className="px-3.5 py-2.5 flex justify-between text-rose-600">
+                  <span>Khấu trừ phạt / Vi phạm</span>
+                  <span className="font-mono font-bold">
+                    -{formatCurrency(item.penaltyAmount)}
+                  </span>
+                </div>
+              )}
+              {Number(item.advanceDeduction) > 0 && (
+                <div className="px-3.5 py-2.5 flex justify-between text-amber-700">
+                  <span>Trừ tiền đã tạm ứng lương</span>
+                  <span className="font-mono font-bold">
+                    -{formatCurrency(item.advanceDeduction)}
+                  </span>
+                </div>
+              )}
+              {item.adjustment_note && (
+                <div className="px-3.5 py-2 bg-slate-50 text-xs text-slate-600">
+                  <span className="font-semibold">Ghi chú kế toán: </span>
+                  {item.adjustment_note}
+                </div>
+              )}
+              <div className="px-3.5 py-3 flex justify-between bg-emerald-50 font-bold text-sm">
+                <span className="text-emerald-900">
+                  Thực lĩnh cuối cùng (NET)
                 </span>
                 <span className="text-emerald-700 font-mono text-base">
                   {formatCurrency(item.netSalary)}

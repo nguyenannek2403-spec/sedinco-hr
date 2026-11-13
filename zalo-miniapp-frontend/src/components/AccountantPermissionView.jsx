@@ -41,11 +41,12 @@ const DEFAULT_PRESETS = {
   report_view: true
 };
 
-export default function AccountantPermissionView() {
+export default function AccountantPermissionView({ showToast }) {
   const [permissions, setPermissions] = useState([]);
   const [permMap, setPermMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const savingRef = React.useRef(false);
   const [message, setMessage] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
 
@@ -95,6 +96,7 @@ export default function AccountantPermissionView() {
   };
 
   const handleApplyPreset = () => {
+    if (savingRef.current) return;
     setPermMap(prev => {
       const updated = { ...prev };
       // Đặt tất cả về false trước
@@ -107,24 +109,35 @@ export default function AccountantPermissionView() {
       });
       return updated;
     });
-    setMessage({ type: "info", text: "Đã nạp bộ 13 quyền Kế toán mặc định (Chưa lưu vào DB. Nhấn 'Lưu Cấu Hình' để áp dụng)." });
+    const infoMsg = "Đã nạp bộ 13 quyền Kế toán mặc định (Chưa lưu vào DB. Nhấn 'Lưu phân quyền' để áp dụng).";
+    setMessage({ type: "info", text: infoMsg });
+    if (showToast) showToast(infoMsg, "info");
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setMessage(null);
     try {
       const res = await safePut("/settings/accountant-permissions", { permissions: permMap });
       if (res && res.success) {
-        setMessage({ type: "success", text: "Lưu cấu hình phân quyền Kế toán thành công! Hệ thống đã cập nhật tức thì." });
+        const okMsg = "Lưu cấu hình phân quyền Kế toán thành công! Hệ thống đã cập nhật tức thì.";
+        setMessage({ type: "success", text: okMsg });
+        if (showToast) showToast(okMsg, "success");
         loadPermissions();
         loadAuditLogs();
       } else {
-        setMessage({ type: "error", text: res?.message || "Lưu thất bại" });
+        const errMsg = res?.message || "Lưu thất bại";
+        setMessage({ type: "error", text: errMsg });
+        if (showToast) showToast(errMsg, "error");
       }
     } catch (err) {
-      setMessage({ type: "error", text: "Lỗi kết nối khi lưu: " + err.message });
+      const errMsg = "Lỗi kết nối khi lưu: " + err.message;
+      setMessage({ type: "error", text: errMsg });
+      if (showToast) showToast(errMsg, "error");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -138,36 +151,38 @@ export default function AccountantPermissionView() {
   }, {});
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-6 max-w-5xl mx-auto pb-28">
       {/* Header card */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 rounded-2xl p-5 sm:p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-300 text-xs font-semibold rounded-full border border-blue-400/30 mb-2">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            QUẢN TRỊ VIÊN — CẤU HÌNH RBAC ĐỘNG
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+            <span>Quản trị viên — Cấu hình phân quyền</span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">Phân Quyền Nghiệp Vụ Kế Toán</h2>
-          <p className="text-slate-300 text-sm mt-1 max-w-xl">
+          <h2 className="text-lg sm:text-xl font-bold leading-snug">Phân quyền nghiệp vụ Kế toán</h2>
+          <p className="text-slate-300 text-sm leading-relaxed mt-1 max-w-xl">
             Quản trị viên có toàn quyền bật/tắt từng nghiệp vụ của Kế toán. Thay đổi được áp dụng ngay lập tức tại Backend theo nguyên tắc bảo mật Least Privilege.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
+            type="button"
             onClick={handleApplyPreset}
             disabled={saving || loading}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-xl border border-slate-700 transition flex items-center gap-2 shadow-sm disabled:opacity-50"
+            className="min-h-[42px] px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-xl border border-slate-700 transition flex items-center gap-2 shadow-sm disabled:opacity-50 whitespace-nowrap"
           >
-            <RotateCcw className="w-4 h-4" />
-            Cấu Hình Mặc Định
+            <RotateCcw className="w-4 h-4 shrink-0" />
+            <span>Cấu hình mặc định</span>
           </button>
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving || loading}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center gap-2 disabled:opacity-50"
+            className="min-h-[42px] px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center gap-2 disabled:opacity-50 whitespace-nowrap"
           >
-            <Save className="w-4 h-4" />
-            {saving ? "Đang lưu..." : "Lưu Phân Quyền"}
+            <Save className="w-4 h-4 shrink-0" />
+            <span>{saving ? "Đang lưu..." : "Lưu phân quyền"}</span>
           </button>
         </div>
       </div>
@@ -225,15 +240,15 @@ export default function AccountantPermissionView() {
                         onClick={() => handleToggle(p.permission_key)}
                         className="px-6 py-3.5 flex items-center justify-between hover:bg-slate-50/50 cursor-pointer transition select-none"
                       >
-                        <div className="pr-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-slate-900 text-sm">{p.permission_name}</span>
-                            <code className="text-[11px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                        <div className="pr-3 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-slate-900 text-sm leading-snug">{p.permission_name}</span>
+                            <code className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">
                               {p.permission_key}
                             </code>
                           </div>
                           {p.description && (
-                            <p className="text-xs text-slate-500 mt-0.5">{p.description}</p>
+                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">{p.description}</p>
                           )}
                         </div>
 
@@ -264,12 +279,12 @@ export default function AccountantPermissionView() {
               </h3>
               <div className="space-y-2">
                 {auditLogs.map(log => (
-                  <div key={log.id} className="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between">
-                    <div>
+                  <div key={log.id} className="text-xs bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                    <div className="min-w-0 break-words leading-relaxed">
                       <span className="font-semibold text-slate-800">{log.actor_id}</span> ({log.actor_role}) — <span className="font-mono text-blue-600">{log.action}</span>
                       <span className="text-slate-500 ml-2">{typeof log.details === 'object' ? JSON.stringify(log.details) : log.details}</span>
                     </div>
-                    <span className="text-slate-400 shrink-0 ml-4">{new Date(log.created_at).toLocaleString("vi-VN")}</span>
+                    <span className="text-slate-400 shrink-0 sm:ml-4 whitespace-nowrap">{new Date(log.created_at).toLocaleString("vi-VN")}</span>
                   </div>
                 ))}
               </div>

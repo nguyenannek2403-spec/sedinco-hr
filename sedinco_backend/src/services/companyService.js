@@ -18,7 +18,8 @@ const DEFAULT_COMPANY_SETTINGS = {
     custom_ot_hourly_rate: 0,
     insurance_rate: 10.5,
     log_retention_days: 30,
-    office_ip_whitelist: ''
+    office_ip_whitelist: '',
+    announcement_text: ''
 };
 
 function normalizeIp(rawIp) {
@@ -117,6 +118,8 @@ class CompanyService {
             log_retention_days: Number(row.log_retention_days) || DEFAULT_COMPANY_SETTINGS.log_retention_days,
             allowed_locations,
             office_ip_whitelist,
+            announcement_text: row.announcement_text ? String(row.announcement_text) : '',
+            announcement_updated_at: row.announcement_updated_at || null,
             current_client_ip: normalizedClientIp,
             is_matching_office_wifi
         };
@@ -235,6 +238,16 @@ class CompanyService {
                     office_ip_whitelist
                 }
             });
+        }
+
+        if (payload.announcement_text !== undefined) {
+            const cleanAnnouncement = payload.announcement_text === null
+                ? ''
+                : String(payload.announcement_text).trim().slice(0, 2000);
+            await query(
+                'UPDATE company_settings SET announcement_text = ?, announcement_updated_at = ?',
+                [cleanAnnouncement || null, cleanAnnouncement ? new Date() : null]
+            );
         }
 
         const updated = await this.getCompanyConfig(clientIp);

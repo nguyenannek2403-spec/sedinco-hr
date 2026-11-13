@@ -37,6 +37,7 @@ router.post('/', authenticateToken, requirePermission('employee_create'), (req, 
 
 // 4. Thay đổi phân quyền vai trò Role (Chỉ Quản trị viên - Admin)
 router.put('/:ma_nv/role', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.updateEmployeeRole(req, res, next));
+router.put('/:ma_nv/shift', authenticateToken, requirePermission('employee_edit'), (req, res, next) => employeeController.updateEmployeeShift(req, res, next));
 
 // 4.1 Phê duyệt đổi thiết bị cho nhân viên (Chỉ Admin)
 router.put('/:ma_nv/approve-device-change', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.approveDeviceChange(req, res, next));

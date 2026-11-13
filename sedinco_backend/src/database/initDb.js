@@ -349,6 +349,17 @@ async function initDatabase() {
         await query("ALTER TABLE attendance_logs ADD COLUMN location_name VARCHAR(150) NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN field_note TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN work_location_type VARCHAR(30) DEFAULT 'OFFICE'").catch(() => {});
+        // V7 / V10 Feature Upgrades: Leave Balance, Salary Advance & Adjustments, Flexible Shifts, Announcements
+        await query("ALTER TABLE employees ADD COLUMN annual_leave_quota DECIMAL(4,1) DEFAULT 12.0").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN shift_type VARCHAR(30) DEFAULT 'FULL_DAY'").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN shift_type VARCHAR(30) DEFAULT 'FULL_DAY'").catch(() => {});
+        await query("ALTER TABLE requests ADD COLUMN advance_amount DECIMAL(12,0) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN advance_deduction DECIMAL(12,0) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN bonus_amount DECIMAL(12,0) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN penalty_amount DECIMAL(12,0) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN adjustment_note VARCHAR(255) NULL").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN announcement_text TEXT NULL").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN announcement_updated_at DATETIME NULL").catch(() => {});
 
         // Khởi tạo Điểm 1 mặc định trong allowed_locations từ latitude/longitude hiện tại nếu chưa có
         const csRows = await query("SELECT id, latitude, longitude, radius_meters, allowed_locations FROM company_settings LIMIT 1").catch(() => []);

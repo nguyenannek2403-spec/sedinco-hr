@@ -3,6 +3,13 @@ const { logAuditEvent, getAccountantPermissions } = require('../middlewares/auth
 const { calculateDistanceMeters } = require('../utils/geoHelper');
 const { parseAllowedLocations, normalizeIp } = require('./companyService');
 
+const SHIFT_DEFINITIONS = {
+    FULL_DAY: { code: 'FULL_DAY', label: 'Ca hành chính', start: '08:00', end: '17:30' },
+    MORNING_SHIFT: { code: 'MORNING_SHIFT', label: 'Ca sáng', start: '07:30', end: '12:00' },
+    AFTERNOON_SHIFT: { code: 'AFTERNOON_SHIFT', label: 'Ca chiều', start: '13:00', end: '17:30' },
+    NIGHT_SHIFT: { code: 'NIGHT_SHIFT', label: 'Ca tối', start: '18:00', end: '22:00' }
+};
+
 class AttendanceService {
     async getAttendanceMatrix(month, year, pagination = {}) {
         const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 200));
@@ -42,12 +49,19 @@ class AttendanceService {
 
         const logs = await query(
             `SELECT record_date, status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours,
-                    is_suspicious, suspicious_reason, location_name, field_note, work_location_type
+                    is_suspicious, suspicious_reason, location_name, field_note, work_location_type,
+                    COALESCE(shift_type, 'FULL_DAY') as shift_type
              FROM attendance_logs
              WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
              ORDER BY record_date ASC`,
             [ma_nv, m, y]
         );
+
+        const empShiftRows = await query('SELECT COALESCE(shift_type, \'FULL_DAY\') as shift_type FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]).catch(() => []);
+        const empShiftCode = (empShiftRows && empShiftRows[0] && SHIFT_DEFINITIONS[empShiftRows[0].shift_type])
+            ? empShiftRows[0].shift_type
+            : 'FULL_DAY';
+        const shiftInfo = SHIFT_DEFINITIONS[empShiftCode];
 
         // Phát hiện ngày làm việc gần nhất trước hôm nay bị Quên Bấm Giờ Ra (check_in_time IS NOT NULL AND check_out_time IS NULL)
         const { getVietnamDateString } = require('../utils/timeHelper');
@@ -91,6 +105,8 @@ class AttendanceService {
             logs: logs || [],
             days: logs || [],
             forgotten_checkout: forgottenCheckout,
+            shift_type: empShiftCode,
+            shift_info: shiftInfo,
             summary: {
                 total_work_days: Number(total_work_days.toFixed(1)),
                 total_ot_hours: Number(total_ot_hours.toFixed(1)),
@@ -417,7 +433,7 @@ class AttendanceService {
         return null;
     }
 
-    async checkInMultiFactor({ lat, lng, zalo_location_token, image_snapshot, device_info, is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
+    async checkInMultiFactor({ lat, lng, zalo_location_token, image_snapshot, device_info, is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
             error.statusCode = 401;
@@ -430,8 +446,8 @@ class AttendanceService {
         const dateStr = getVietnamDateString(today);
         const timeStr = getVietnamTimeString(today);
 
-        // 1. Kiểm tra tài khoản có bị tạm khóa không & lấy thông tin ràng buộc thiết bị
-        const empCheck = await query('SELECT is_locked, status, bound_device_id, device_binding_mode FROM employees WHERE ma_nv = ?', [ma_nv]);
+        // 1. Kiểm tra tài khoản có bị tạm khóa không & lấy thông tin ràng buộc thiết bị + ca làm việc
+        const empCheck = await query("SELECT is_locked, status, bound_device_id, device_binding_mode, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM employees WHERE ma_nv = ?", [ma_nv]);
         if (!empCheck || empCheck.length === 0) {
             const error = new Error('Mã nhân viên không tồn tại trong hệ thống!');
             error.statusCode = 404;
@@ -712,11 +728,34 @@ class AttendanceService {
             throw error;
         }
 
-        // 7. Phân tích Giờ Vào (Check-in) / Giờ Ra (Check-out), Đi muộn, Về sớm & Tăng ca (OT) theo Cấu hình Công ty
-        const workStartStr = cs.work_start || '08:00';
+        // 7. Phân tích Giờ Vào (Check-in) / Giờ Ra (Check-out), Đi muộn, Về sớm & Tăng ca (OT) theo Ca làm việc & Cấu hình Công ty
+        const requestedShift = shift_type && SHIFT_DEFINITIONS[String(shift_type).trim().toUpperCase()]
+            ? String(shift_type).trim().toUpperCase()
+            : null;
+        const empAssignedShift = emp.shift_type && SHIFT_DEFINITIONS[String(emp.shift_type).trim().toUpperCase()]
+            ? String(emp.shift_type).trim().toUpperCase()
+            : 'FULL_DAY';
+        let activeShiftCode = requestedShift || empAssignedShift;
+        if (activeShiftCode === 'FULL_DAY') {
+            const todayLeaves = await query(
+                `SELECT request_type, reason FROM requests WHERE employee_id = ? AND request_date = ? AND status = 'approved'`,
+                [ma_nv, dateStr]
+            ).catch(() => []);
+            const hasMorningHalfLeave = (todayLeaves || []).some((r) => {
+                const txt = `${r.request_type || ''} ${r.reason || ''}`.toLowerCase();
+                const isHalf = txt.includes('0.5') || txt.includes('nửa ngày') || txt.includes('buổi sáng');
+                return isHalf && !txt.includes('chiều');
+            });
+            if (hasMorningHalfLeave) {
+                activeShiftCode = 'AFTERNOON_SHIFT';
+            }
+        }
+        const activeShiftDef = SHIFT_DEFINITIONS[activeShiftCode] || SHIFT_DEFINITIONS.FULL_DAY;
+
+        const workStartStr = activeShiftCode === 'FULL_DAY' ? (cs.work_start || activeShiftDef.start) : activeShiftDef.start;
         const lunchStartStr = cs.lunch_start || '12:00';
         const lunchEndStr = cs.lunch_end || '13:30';
-        const workEndStr = cs.work_end || '17:30';
+        const workEndStr = activeShiftCode === 'FULL_DAY' ? (cs.work_end || activeShiftDef.end) : activeShiftDef.end;
         const graceMinutes = cs.grace_period_minutes !== undefined && cs.grace_period_minutes !== null ? Number(cs.grace_period_minutes) : 15;
 
         const workStartMins = this.parseTimeToMinutes(workStartStr, 480);   // 08:00 -> 480
@@ -795,8 +834,8 @@ class AttendanceService {
                         check_in_lat, check_in_lng, check_in_method, check_in_image,
                         is_suspicious, suspicious_reason, device_fingerprint,
                         location_source, is_low_trust, late_minutes, early_leave_minutes, work_hours,
-                        location_name, field_note, work_location_type
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
+                        location_name, field_note, work_location_type, shift_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE
                         status = VALUES(status),
                         check_in_time = COALESCE(check_in_time, VALUES(check_in_time)),
@@ -810,7 +849,8 @@ class AttendanceService {
                         late_minutes = VALUES(late_minutes),
                         location_name = VALUES(location_name),
                         field_note = COALESCE(VALUES(field_note), field_note),
-                        work_location_type = VALUES(work_location_type)
+                        work_location_type = VALUES(work_location_type),
+                        shift_type = VALUES(shift_type)
                 `;
                 await txQuery(insertSql, [
                     ma_nv,
@@ -830,23 +870,29 @@ class AttendanceService {
                     late_minutes,
                     locationName,
                     cleanFieldNote || null,
-                    finalLocationType
+                    finalLocationType,
+                    activeShiftCode
                 ]);
             } else {
                 // LẦN BẤM 2 TRỞ ĐI TRONG NGÀY -> CHECK-OUT (RA CA)
-                const inMins = this.parseTimeToMinutes(existingLog.check_in_time, workStartMins);
+                const logShiftCode = (existingLog.shift_type && SHIFT_DEFINITIONS[existingLog.shift_type]) ? existingLog.shift_type : activeShiftCode;
+                const effectiveWorkStartMins = logShiftCode === 'FULL_DAY' ? workStartMins : this.parseTimeToMinutes(SHIFT_DEFINITIONS[logShiftCode].start, workStartMins);
+                const effectiveWorkEndMins = logShiftCode === 'FULL_DAY' ? workEndMins : this.parseTimeToMinutes(SHIFT_DEFINITIONS[logShiftCode].end, workEndMins);
+                const inMins = this.parseTimeToMinutes(existingLog.check_in_time, effectiveWorkStartMins);
                 const effectiveIn = Math.min(inMins, currentMins);
-                const lunchOverlap = Math.max(0, Math.min(currentMins, lunchEndMins) - Math.max(effectiveIn, lunchStartMins));
+                const lunchOverlap = logShiftCode === 'FULL_DAY'
+                    ? Math.max(0, Math.min(currentMins, lunchEndMins) - Math.max(effectiveIn, lunchStartMins))
+                    : 0;
                 const rawWorkedMins = Math.max(0, currentMins - effectiveIn - lunchOverlap);
                 work_hours = Number((rawWorkedMins / 60).toFixed(2));
 
-                if (currentMins < workEndMins) {
-                    early_leave_minutes = workEndMins - currentMins;
+                if (currentMins < effectiveWorkEndMins) {
+                    early_leave_minutes = effectiveWorkEndMins - currentMins;
                     newStatus = work_hours > 0 && work_hours <= 4.5 ? '0.5' : (ot_hours > 0 ? '1/OT' : '1');
                     shiftEvaluation = `Về sớm ${early_leave_minutes} phút • Tổng ${work_hours}h làm việc`;
                 } else {
                     early_leave_minutes = 0;
-                    const extraMins = currentMins - workEndMins;
+                    const extraMins = currentMins - effectiveWorkEndMins;
                     if (extraMins >= 30) {
                         const autoOt = Number((extraMins / 60).toFixed(2));
                         ot_hours = Math.max(ot_hours, autoOt);
@@ -940,6 +986,8 @@ class AttendanceService {
                 work_hours,
                 ot_hours,
                 shift_evaluation: shiftEvaluation,
+                shift_type: activeShiftCode,
+                shift_label: activeShiftDef.label,
                 distanceMeters,
                 is_suspicious,
                 suspicious_reason,
@@ -969,6 +1017,8 @@ class AttendanceService {
                 ot_hours,
                 status: newStatus,
                 shift_evaluation: shiftEvaluation,
+                shift_type: activeShiftCode,
+                shift_label: activeShiftDef.label,
                 distanceMeters,
                 is_suspicious,
                 suspicious_reason,
@@ -1008,7 +1058,7 @@ class AttendanceService {
         const totalEmployees = totalEmpRow ? Number(totalEmpRow.total) : 0;
 
         const logs = await query(
-            'SELECT status, check_in_time, late_minutes, work_location_type FROM attendance_logs WHERE record_date = ?',
+            "SELECT status, check_in_time, late_minutes, work_location_type, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM attendance_logs WHERE record_date = ?",
             [targetDate]
         );
 
@@ -1022,7 +1072,7 @@ class AttendanceService {
                 leave++;
             } else if (l.status !== '0') {
                 present++;
-                if ((Number(l.late_minutes) || 0) > 0 || (l.check_in_time && l.check_in_time > '08:15:00')) {
+                if ((Number(l.late_minutes) || 0) > 0 || (l.shift_type === 'FULL_DAY' && l.late_minutes == null && l.check_in_time && l.check_in_time > '08:15:00')) {
                     late++;
                 }
                 if (l.work_location_type === 'FIELD_WORK') {

@@ -220,28 +220,74 @@ class PermissionService {
                 SELECT COUNT(*) as cnt FROM requests WHERE status = 'pending'
             `).catch(() => [{ cnt: 0 }]),
             query('SELECT log_retention_days FROM company_settings LIMIT 1').catch(() => [{ log_retention_days: 30 }]),
-            query("SELECT COUNT(*) as total FROM employees WHERE status != 'inactive'").catch(() => [{ total: 0 }]),
-            query('SELECT status, late_minutes, check_in_time, work_location_type FROM attendance_logs WHERE record_date = ?', [todayStr]).catch(() => [])
+            query("SELECT ma_nv, ho_ten, chuc_danh, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM employees WHERE status != 'inactive' ORDER BY ma_nv ASC").catch(() => []),
+            query("SELECT a.employee_id, a.status, a.late_minutes, a.check_in_time, a.check_out_time, a.work_location_type, a.location_name, a.field_note, COALESCE(a.shift_type, 'FULL_DAY') as shift_type, CASE WHEN a.check_in_image IS NOT NULL AND LENGTH(a.check_in_image) > 100 THEN 1 ELSE 0 END as has_photo FROM attendance_logs a WHERE a.record_date = ?", [todayStr]).catch(() => [])
         ]);
+
+        const empList = Array.isArray(totalEmpRows) ? totalEmpRows : [];
+        const empMap = {};
+        empList.forEach((e) => {
+            empMap[e.ma_nv] = e;
+        });
 
         let presentToday = 0;
         let lateToday = 0;
         let fieldWorkToday = 0;
         let leaveToday = 0;
+
+        const presentList = [];
+        const lateList = [];
+        const fieldWorkList = [];
+        const leaveList = [];
+        const recordedIds = new Set();
+
         (todayLogsRows || []).forEach((l) => {
-            if (l.status === 'P') {
+            recordedIds.add(l.employee_id);
+            const empInfo = empMap[l.employee_id] || {};
+            const baseItem = {
+                ma_nv: l.employee_id,
+                ho_ten: empInfo.ho_ten || l.employee_id,
+                chuc_danh: empInfo.chuc_danh || '',
+                shift_type: l.shift_type || empInfo.shift_type || 'FULL_DAY',
+                status: l.status,
+                check_in_time: l.check_in_time || null,
+                check_out_time: l.check_out_time || null,
+                late_minutes: Number(l.late_minutes) || 0,
+                work_location_type: l.work_location_type || 'OFFICE',
+                location_name: l.location_name || '',
+                field_note: l.field_note || '',
+                has_photo: Boolean(l.has_photo)
+            };
+
+            if (l.status === 'P' || l.status === 'KP') {
                 leaveToday++;
+                leaveList.push(baseItem);
             } else if (l.status !== '0') {
                 presentToday++;
-                if ((Number(l.late_minutes) || 0) > 0 || (l.check_in_time && l.check_in_time > '08:15:00')) {
+                presentList.push(baseItem);
+                const isLate = (Number(l.late_minutes) || 0) > 0 || (baseItem.shift_type === 'FULL_DAY' && l.late_minutes == null && l.check_in_time && l.check_in_time > '08:15:00');
+                if (isLate) {
                     lateToday++;
+                    lateList.push(baseItem);
                 }
                 if (l.work_location_type === 'FIELD_WORK') {
                     fieldWorkToday++;
+                    fieldWorkList.push(baseItem);
                 }
             }
         });
-        const totalEmployees = totalEmpRows && totalEmpRows[0] ? Number(totalEmpRows[0].total) : 0;
+
+        const absentList = empList
+            .filter((e) => !recordedIds.has(e.ma_nv))
+            .map((e) => ({
+                ma_nv: e.ma_nv,
+                ho_ten: e.ho_ten || e.ma_nv,
+                chuc_danh: e.chuc_danh || '',
+                shift_type: e.shift_type || 'FULL_DAY',
+                status: 'NOT_CHECKED_IN'
+            }));
+
+        const totalEmployees = empList.length;
 
         const fraudAlerts = fraudRows || [];
         const salaryDisputes = disputedRows || [];
@@ -265,7 +311,15 @@ class PermissionService {
                 late: lateToday,
                 field_work: fieldWorkToday,
                 leave: leaveToday,
-                absent: Math.max(0, totalEmployees - presentToday - leaveToday)
+                absent: Math.max(0, totalEmployees - presentToday - leaveToday),
+                live_board: {
+                    date: todayStr,
+                    present_list: presentList,
+                    late_list: lateList,
+                    field_work_list: fieldWorkList,
+                    leave_list: leaveList,
+                    absent_list: absentList
+                }
             }
         };
     }

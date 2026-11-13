@@ -17,7 +17,11 @@ class PayrollService {
         const sql = `
             SELECT e.*, IFNULL(a.cong_chuan, ?) as cong_chuan,
                    COALESCE(a.salary_confirm_status, 'PENDING') as salary_confirm_status,
-                   a.dispute_reason, a.dispute_evidence_media, a.admin_response, a.confirmed_at
+                   a.dispute_reason, a.dispute_evidence_media, a.admin_response, a.confirmed_at,
+                   COALESCE(a.bonus_amount, 0) as bonus_amount,
+                   COALESCE(a.penalty_amount, 0) as penalty_amount,
+                   COALESCE(a.advance_deduction, 0) as advance_deduction,
+                   a.adjustment_note
             FROM employees e 
             LEFT JOIN attendance a ON e.ma_nv = a.ma_nv AND a.thang = ? AND a.nam = ?
             ORDER BY e.ma_nv ASC
@@ -63,8 +67,19 @@ class PayrollService {
                 allowances: allowances,
                 has_insurance: emp.has_insurance,
                 otRegistrations: safeOtRegs.filter(r => r.employee_id === emp.ma_nv),
-                companySettings
+                companySettings,
+                bonusAmount: Number(emp.bonus_amount) || 0,
+                penaltyAmount: Number(emp.penalty_amount) || 0,
+                advanceDeduction: Number(emp.advance_deduction) || 0
             });
+
+            const bonusAmount = Number(emp.bonus_amount) || 0;
+            const penaltyAmount = Number(emp.penalty_amount) || 0;
+            const advanceDeduction = Number(emp.advance_deduction) || 0;
+            const hasManualNet = calc.bonusAmount !== undefined;
+            const finalNetSalary = hasManualNet
+                ? calc.netSalary
+                : Math.max(0, Math.round((calc.netSalary || 0) + bonusAmount - penaltyAmount - advanceDeduction));
 
             return {
                 id_nhan_vien: emp.ma_nv,
@@ -82,13 +97,18 @@ class PayrollService {
                 totalWorkDays: calc.totalWorkDays,
                 actualWorkDays: calc.actualWorkDays,
                 totalLateMinutes: calc.totalLateMinutes,
+                latePenaltyAmount: calc.latePenaltyAmount || 0,
                 salaryByWork: calc.salaryByWork,
                 totalAllowance: calc.totalAllowance,
                 allowances_breakdown: calc.allowances_breakdown,
                 otAmount: calc.otAmount,
+                bonusAmount,
+                penaltyAmount,
+                advanceDeduction,
+                adjustment_note: emp.adjustment_note || null,
                 totalInsurance: calc.totalInsurance,
                 grossSalary: calc.grossSalary,
-                netSalary: calc.netSalary,
+                netSalary: finalNetSalary,
                 salary_confirm_status: emp.salary_confirm_status || 'PENDING',
                 dispute_reason: emp.dispute_reason || null,
                 dispute_evidence_media: emp.dispute_evidence_media || null,
@@ -110,7 +130,11 @@ class PayrollService {
         const sql = `
             SELECT e.*, IFNULL(a.cong_chuan, ?) as cong_chuan,
                    COALESCE(a.salary_confirm_status, 'PENDING') as salary_confirm_status,
-                   a.dispute_reason, a.dispute_evidence_media, a.admin_response, a.confirmed_at
+                   a.dispute_reason, a.dispute_evidence_media, a.admin_response, a.confirmed_at,
+                   COALESCE(a.bonus_amount, 0) as bonus_amount,
+                   COALESCE(a.penalty_amount, 0) as penalty_amount,
+                   COALESCE(a.advance_deduction, 0) as advance_deduction,
+                   a.adjustment_note
             FROM employees e 
             LEFT JOIN attendance a ON e.ma_nv = a.ma_nv AND a.thang = ? AND a.nam = ?
             WHERE e.ma_nv = ?
@@ -155,8 +179,19 @@ class PayrollService {
             allowances: allowances,
             has_insurance: emp.has_insurance,
             otRegistrations: safeOtRegs,
-            companySettings
+            companySettings,
+            bonusAmount: Number(emp.bonus_amount) || 0,
+            penaltyAmount: Number(emp.penalty_amount) || 0,
+            advanceDeduction: Number(emp.advance_deduction) || 0
         });
+
+        const bonusAmount = Number(emp.bonus_amount) || 0;
+        const penaltyAmount = Number(emp.penalty_amount) || 0;
+        const advanceDeduction = Number(emp.advance_deduction) || 0;
+        const hasManualNet = calc.bonusAmount !== undefined;
+        const finalNetSalary = hasManualNet
+            ? calc.netSalary
+            : Math.max(0, Math.round((calc.netSalary || 0) + bonusAmount - penaltyAmount - advanceDeduction));
 
         return {
             id_nhan_vien: emp.ma_nv,
@@ -173,13 +208,18 @@ class PayrollService {
             totalWorkDays: calc.totalWorkDays,
             actualWorkDays: calc.actualWorkDays,
             totalLateMinutes: calc.totalLateMinutes,
+            latePenaltyAmount: calc.latePenaltyAmount || 0,
             salaryByWork: calc.salaryByWork,
             totalAllowance: calc.totalAllowance,
             allowances_breakdown: calc.allowances_breakdown,
             otAmount: calc.otAmount,
+            bonusAmount,
+            penaltyAmount,
+            advanceDeduction,
+            adjustment_note: emp.adjustment_note || null,
             totalInsurance: calc.totalInsurance,
             grossSalary: calc.grossSalary,
-            netSalary: calc.netSalary,
+            netSalary: finalNetSalary,
             salary_confirm_status: emp.salary_confirm_status || 'PENDING',
             dispute_reason: emp.dispute_reason || null,
             dispute_evidence_media: emp.dispute_evidence_media || null,
@@ -307,6 +347,72 @@ class PayrollService {
             details: { month: m, year: y }
         });
         return { success: true, message: `Phê duyệt bảng lương tháng ${m}/${y} thành công!` };
+    }
+
+    async adjustSalary({ ma_nv, month, year, bonus_amount = 0, penalty_amount = 0, advance_deduction = 0, adjustment_note = '', current_user = null }) {
+        if (!ma_nv) {
+            const err = new Error('Thiếu mã nhân viên cần điều chỉnh lương!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const m = parseInt(month, 10) || (new Date().getMonth() + 1);
+        const y = parseInt(year, 10) || new Date().getFullYear();
+
+        const empRows = await query('SELECT ma_nv FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+        if (!empRows || empRows.length === 0) {
+            const err = new Error(`Không tìm thấy nhân viên ${ma_nv}!`);
+            err.statusCode = 404;
+            throw err;
+        }
+
+        const lockRows = await query('SELECT is_locked FROM period_locks WHERE month = ? AND year = ? LIMIT 1', [m, y]);
+        if (lockRows && lockRows.length > 0 && Boolean(lockRows[0].is_locked)) {
+            const err = new Error(`Kỳ công Tháng ${m}/${y} đã bị KHÓA SỔ. Không thể điều chỉnh thưởng/phạt!`);
+            err.statusCode = 400;
+            err.code = 'PERIOD_LOCKED';
+            throw err;
+        }
+
+        const cleanBonus = Math.max(0, Math.round(Number(bonus_amount) || 0));
+        const cleanPenalty = Math.max(0, Math.round(Number(penalty_amount) || 0));
+        const cleanAdvance = Math.max(0, Math.round(Number(advance_deduction) || 0));
+        const cleanNote = adjustment_note ? String(adjustment_note).trim().slice(0, 255) : null;
+
+        const csRows = await query('SELECT standard_work_days FROM company_settings LIMIT 1').catch(() => []);
+        const stdDays = (csRows && csRows[0] && Number(csRows[0].standard_work_days)) || 26;
+
+        await query(`
+            INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, bonus_amount, penalty_amount, advance_deduction, adjustment_note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                bonus_amount = VALUES(bonus_amount),
+                penalty_amount = VALUES(penalty_amount),
+                advance_deduction = VALUES(advance_deduction),
+                adjustment_note = VALUES(adjustment_note)
+        `, [ma_nv, m, y, stdDays, cleanBonus, cleanPenalty, cleanAdvance, cleanNote]);
+
+        await logAuditEvent({
+            actor_id: current_user ? (current_user.ma_nv || current_user.username) : 'admin',
+            actor_role: current_user ? current_user.role : 'admin',
+            action: 'ADJUST_PAYROLL_ITEM',
+            resource: 'payroll',
+            details: {
+                target_ma_nv: ma_nv,
+                month: m,
+                year: y,
+                bonus_amount: cleanBonus,
+                penalty_amount: cleanPenalty,
+                advance_deduction: cleanAdvance,
+                adjustment_note: cleanNote
+            }
+        });
+
+        const updatedSlip = await this.getMyPayroll(ma_nv, m, y);
+        return {
+            success: true,
+            message: `Đã lưu điều chỉnh lương cho ${ma_nv} (Tháng ${m}/${y})!`,
+            data: updatedSlip
+        };
     }
 
     async updatePaymentStatus(month, year, status, user) {

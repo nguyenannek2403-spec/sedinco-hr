@@ -1,21 +1,43 @@
-import React, { useState } from 'react';
-import { Modal, Box, Text, Input, Button, Icon } from 'zmp-ui';
-import { Lock, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import { API_BASE } from '../utils/api';
+import React, { useState, useRef } from 'react';
+import { Modal, Box, Text, Input, Button } from 'zmp-ui';
+import { ShieldAlert, X } from 'lucide-react';
+import { safePost } from '../utils/api';
 
 /**
  * ForcePasswordChangeModal (G3 Security Hardening)
  * Bắt buộc nhân viên đổi mật khẩu khi đăng nhập lần đầu với mật khẩu mặc định (must_change_password = true)
  */
-export default function ForcePasswordChangeModal({ visible, maNv, token, onPasswordChanged }) {
+export default function ForcePasswordChangeModal({
+    visible,
+    maNv,
+    token,
+    canClose = false,
+    onClose,
+    showToast,
+    onPasswordChanged
+}) {
     const [oldPassword, setOldPassword] = useState('123456');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const submitInFlightRef = useRef(false);
+
+    const handleSafeClose = () => {
+        if (!canClose || submitInFlightRef.current) return;
+        setError('');
+        setNewPassword('');
+        setConfirmPassword('');
+        if (onClose) onClose();
+    };
 
     const handleSubmit = async () => {
+        if (submitInFlightRef.current) return;
         setError('');
+        if (!oldPassword) {
+            setError('Vui lòng nhập mật khẩu hiện tại.');
+            return;
+        }
         if (!newPassword || newPassword.length < 6) {
             setError('Mật khẩu mới phải có tối thiểu 6 ký tự!');
             return;
@@ -29,29 +51,30 @@ export default function ForcePasswordChangeModal({ visible, maNv, token, onPassw
             return;
         }
 
+        submitInFlightRef.current = true;
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/change-password`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    ma_nv: maNv,
-                    old_password: oldPassword,
-                    new_password: newPassword
-                })
+            const data = await safePost('/change-password', {
+                ma_nv: maNv,
+                old_password: oldPassword,
+                new_password: newPassword
             });
-            const data = await res.json();
-            if (data.success) {
+            if (data?.success) {
+                setNewPassword('');
+                setConfirmPassword('');
+                if (showToast) showToast('Đổi mật khẩu thành công!', 'success');
                 if (onPasswordChanged) onPasswordChanged(newPassword);
             } else {
-                setError(data.message || 'Đổi mật khẩu thất bại, vui lòng thử lại.');
+                const msg = data?.message || 'Đổi mật khẩu thất bại, vui lòng thử lại.';
+                setError(msg);
+                if (showToast) showToast(msg, 'error');
             }
         } catch (err) {
-            setError('Lỗi kết nối máy chủ khi đổi mật khẩu.');
+            const msg = err?.message || 'Lỗi kết nối máy chủ khi đổi mật khẩu.';
+            setError(msg);
+            if (showToast) showToast(msg, 'error');
         } finally {
+            submitInFlightRef.current = false;
             setLoading(false);
         }
     };
@@ -60,27 +83,42 @@ export default function ForcePasswordChangeModal({ visible, maNv, token, onPassw
         <Modal
             visible={visible}
             title=""
-            maskClosable={false}
+            maskClosable={canClose}
+            onClose={handleSafeClose}
             actions={[]}
         >
-            <Box className="p-4 text-center">
+            <Box className="p-4 text-center relative">
+                {canClose && (
+                    <button
+                        type="button"
+                        onClick={handleSafeClose}
+                        aria-label="Đóng"
+                        className="absolute top-1 right-1 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors"
+                    >
+                        <X size={18} />
+                    </button>
+                )}
+
                 <Box className="flex justify-center mb-3">
                     <div style={{
-                        background: '#FEF2F2',
+                        background: canClose ? '#EFF6FF' : '#FEF2F2',
                         padding: '16px',
                         borderRadius: '50%',
                         display: 'inline-flex',
-                        color: '#DC2626'
+                        color: canClose ? '#1D4ED8' : '#DC2626'
                     }}>
                         <ShieldAlert size={36} />
                     </div>
                 </Box>
 
                 <Text className="font-bold text-lg text-slate-800 mb-1">
-                    Bắt Buộc Đổi Mật Khẩu
+                    {canClose ? 'Đổi Mật Khẩu Tài Khoản' : 'Bắt Buộc Đổi Mật Khẩu'}
                 </Text>
-                <Text className="text-sm text-slate-500 mb-4">
-                    Tài khoản <strong>{maNv}</strong> đang sử dụng mật khẩu mặc định ban đầu. Để đảm bảo an toàn thông tin cá nhân và tiền lương, bạn vui lòng thiết lập mật khẩu mới trước khi tiếp tục.
+                <Text className="text-sm text-slate-500 mb-4 leading-relaxed">
+                    {canClose
+                        ? <>Thiết lập mật khẩu mới cho tài khoản <strong>{maNv}</strong> để bảo vệ thông tin công &amp; lương.</>
+                        : <>Tài khoản <strong>{maNv}</strong> đang sử dụng mật khẩu mặc định ban đầu. Để đảm bảo an toàn thông tin cá nhân và tiền lương, bạn vui lòng thiết lập mật khẩu mới trước khi tiếp tục.</>
+                    }
                 </Text>
 
                 {error && (
@@ -116,15 +154,26 @@ export default function ForcePasswordChangeModal({ visible, maNv, token, onPassw
                     </div>
                 </Box>
 
-                <Box className="mt-5">
+                <Box className="mt-5 flex flex-col gap-2">
                     <Button
                         fullWidth
                         loading={loading}
                         onClick={handleSubmit}
                         style={{ background: '#1E3A8A' }}
                     >
-                        Lưu Mật Khẩu & Bắt Đầu Sử Dụng
+                        {canClose ? 'Lưu Mật Khẩu Mới' : 'Lưu Mật Khẩu & Bắt Đầu Sử Dụng'}
                     </Button>
+                    {canClose && (
+                        <Button
+                            fullWidth
+                            variant="secondary"
+                            type="neutral"
+                            disabled={loading}
+                            onClick={handleSafeClose}
+                        >
+                            Hủy / Đóng
+                        </Button>
+                    )}
                 </Box>
             </Box>
         </Modal>

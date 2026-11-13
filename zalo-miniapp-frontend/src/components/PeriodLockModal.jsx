@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Lock, Unlock, AlertTriangle, X, CheckCircle2, ShieldAlert } from "lucide-react";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 
@@ -15,6 +15,7 @@ export default function PeriodLockModal({
 }) {
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInFlightRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [lowTrustCount, setLowTrustCount] = useState(0);
   const [lowTrustLogs, setLowTrustLogs] = useState([]);
@@ -44,6 +45,7 @@ export default function PeriodLockModal({
 
   const handleAction = async (e) => {
     e.preventDefault();
+    if (submitInFlightRef.current) return;
     if (!isLockAction && userRole !== "admin") {
       setErrorMessage("Tách quyền: Chỉ Quản Trị Viên mới có thẩm quyền mở lại kỳ công đã chốt!");
       return;
@@ -64,6 +66,7 @@ export default function PeriodLockModal({
       return;
     }
 
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
     setErrorMessage("");
 
@@ -78,18 +81,7 @@ export default function PeriodLockModal({
         confirm_low_trust: confirmLowTrust
       };
 
-      try {
-        await safePost(endpoint, payload, { idempotencyKey });
-      } catch (err) {
-        // Fallback Backend V1 compat: Lưu trạng thái chốt công vào hệ thống
-        console.warn("Backend lock-period API not available in V1, recording state in local storage session.");
-        const key = `sedinco_locked_period_${year}_${month}`;
-        if (isLockAction) {
-          localStorage.setItem(key, JSON.stringify({ locked: true, locked_at: new Date().toISOString() }));
-        } else {
-          localStorage.removeItem(key);
-        }
-      }
+      await safePost(endpoint, payload, { idempotencyKey });
 
       if (onStatusChanged) {
         onStatusChanged(isLockAction, payload.reason);
@@ -98,6 +90,7 @@ export default function PeriodLockModal({
     } catch (err) {
       setErrorMessage(err.message || "Lỗi cập nhật trạng thái chốt kỳ công.");
     } finally {
+      submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };

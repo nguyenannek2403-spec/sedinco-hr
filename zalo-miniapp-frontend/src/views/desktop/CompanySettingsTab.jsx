@@ -102,6 +102,8 @@ export default function CompanySettingsTab({ showToast }) {
     insurance_rate: 10.5,
     log_retention_days: 30,
     office_ip_whitelist: "",
+    announcement_text: "",
+    announcement_updated_at: null,
     current_client_ip: "",
     is_matching_office_wifi: false,
     allowed_locations: [
@@ -283,6 +285,7 @@ export default function CompanySettingsTab({ showToast }) {
         insurance_rate: Math.max(0, toNum(config.insurance_rate, 10.5)),
         log_retention_days: Math.max(1, Math.round(toNum(config.log_retention_days, 30))),
         office_ip_whitelist: String(config.office_ip_whitelist || "").trim(),
+        announcement_text: String(config.announcement_text || "").trim(),
         allowed_locations: cleanedLocations,
         latitude: primary.lat,
         longitude: primary.lng,
@@ -379,6 +382,34 @@ export default function CompanySettingsTab({ showToast }) {
           <span>{statusBanner.msg}</span>
         </div>
       )}
+
+      {/* F4: Bảng tin Thông báo Nội bộ */}
+      <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 space-y-2.5 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-amber-950">📢 Bảng tin thông báo nội bộ</h3>
+            <p className="text-xs text-amber-800/80 mt-0.5">
+              Hiển thị nổi bật ngay đầu màn hình chấm công của toàn bộ công nhân.
+            </p>
+          </div>
+          {config.announcement_text && (
+            <button
+              type="button"
+              onClick={() => updateField("announcement_text", "")}
+              className="px-2.5 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-medium text-amber-900 hover:bg-amber-100 whitespace-nowrap shrink-0"
+            >
+              Xóa thông báo
+            </button>
+          )}
+        </div>
+        <textarea
+          rows={3}
+          value={config.announcement_text || ""}
+          onChange={(e) => updateField("announcement_text", e.target.value)}
+          placeholder="VD: Thứ 7 tuần này công trình A nghỉ bảo trì điện, anh em ca chiều chuyển sang kho B lúc 13:00..."
+          className="w-full p-3 rounded-xl border border-amber-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:outline-none"
+        />
+      </div>
 
       {/* Mục 1: Giờ làm việc & Nghỉ trưa */}
       <AccordionSection

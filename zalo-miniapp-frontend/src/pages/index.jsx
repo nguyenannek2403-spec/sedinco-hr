@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useAuth } from "../hooks/useAuth";
+import ConfirmDialog from "../components/ConfirmDialog";
 import AuthView from "../views/AuthView";
 import WorkerDashboard from "../views/worker/WorkerDashboard";
 import DesktopDashboard from "../views/desktop/DesktopDashboard";
@@ -54,11 +55,16 @@ export default function HomePage() {
     }
   };
 
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
   const handleLogout = () => {
-    if (window.confirm("Bạn có chắc chắn muốn đăng xuất và kết thúc phiên làm việc?")) {
-      const msg = logout();
-      showToast(msg, "info");
-    }
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    const msg = logout();
+    showToast(msg, "info");
   };
 
   const handlePasswordChanged = () => {
@@ -91,6 +97,7 @@ export default function HomePage() {
           onRoleSwitch={setActiveRole}
           screenWidth={screenWidth}
           onLogout={handleLogout}
+          onClearCache={clearCache}
           showToast={showToast}
           onChangePasswordRequest={() => setMustChangePassword(true)}
         />
@@ -106,17 +113,31 @@ export default function HomePage() {
         />
       )}
 
-      {/* Modal Bắt Buộc Đổi Mật Khẩu Lần Đầu */}
+      {/* Modal Bắt Buộc / Tự Nguyện Đổi Mật Khẩu */}
       {currentUser && mustChangePassword && (
         <Suspense fallback={null}>
           <ForcePasswordChangeModal
             visible={true}
             maNv={currentUser.ma_nv}
             token={currentUser.token}
+            canClose={!currentUser.must_change_password}
+            onClose={() => setMustChangePassword(false)}
+            showToast={showToast}
             onPasswordChanged={handlePasswordChanged}
           />
         </Suspense>
       )}
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="Đăng xuất tài khoản"
+        message="Bạn có chắc chắn muốn đăng xuất và kết thúc phiên làm việc hiện tại?"
+        confirmLabel="Đăng xuất"
+        cancelLabel="Ở lại"
+        variant="danger"
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
 
       {/* Global Toast Notification Container - Tránh cụm nút mặc định Zalo ở góc trên bên phải */}
       {toastNotification && (

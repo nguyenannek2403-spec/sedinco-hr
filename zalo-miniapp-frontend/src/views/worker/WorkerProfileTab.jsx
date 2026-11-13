@@ -1,20 +1,25 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  User,
   DollarSign,
   Smartphone,
   Lock,
   LogOut,
   ChevronRight,
-  ShieldCheck,
   Phone,
   Mail,
-  Building,
-  AlertCircle,
+  Clock,
+  CalendarCheck,
   X
 } from "lucide-react";
 import { safePost, safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
+
+const SHIFT_LABELS = {
+  FULL_DAY: "Ca hành chính (08:00 – 17:30)",
+  MORNING_SHIFT: "Ca sáng (07:30 – 12:00)",
+  AFTERNOON_SHIFT: "Ca chiều (13:00 – 17:30)",
+  NIGHT_SHIFT: "Ca tối / đêm (18:00 – 22:00)"
+};
 
 export default function WorkerProfileTab({
   currentUser,
@@ -27,13 +32,34 @@ export default function WorkerProfileTab({
   const [salaryLoading, setSalaryLoading] = useState(false);
   const [slipMonth, setSlipMonth] = useState(new Date().getMonth() + 1);
   const [slipYear, setSlipYear] = useState(new Date().getFullYear());
+  const [leaveBalance, setLeaveBalance] = useState(null);
 
   // Yêu cầu đổi thiết bị
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [deviceReason, setDeviceReason] = useState("");
   const [deviceSubmitting, setDeviceSubmitting] = useState(false);
+  const [deviceError, setDeviceError] = useState("");
+
+  const salaryLoadingRef = useRef(false);
+  const deviceSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    safeGet("/requests/leave-balance")
+      .then((res) => {
+        if (active && res?.success && res.data) {
+          setLeaveBalance(res.data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleOpenSalarySlip = async () => {
+    if (salaryLoadingRef.current) return;
+    salaryLoadingRef.current = true;
     setSalaryLoading(true);
     try {
       const res = await safeGet("/payroll/me", { month: slipMonth, year: slipYear });
@@ -46,15 +72,22 @@ export default function WorkerProfileTab({
     } catch (err) {
       if (showToast) showToast(err.message || "Không thể tải phiếu lương.", "error");
     } finally {
+      salaryLoadingRef.current = false;
       setSalaryLoading(false);
     }
   };
 
   const handleRequestDeviceChange = async (e) => {
     e.preventDefault();
-    if (!deviceReason.trim()) return;
+    if (deviceSubmittingRef.current) return;
+    if (!deviceReason.trim()) {
+      setDeviceError("Vui lòng nhập lý do đổi thiết bị.");
+      return;
+    }
 
+    deviceSubmittingRef.current = true;
     setDeviceSubmitting(true);
+    setDeviceError("");
     try {
       const res = await safePost("/employees/request-device-change", {
         reason: deviceReason.trim(),
@@ -65,49 +98,82 @@ export default function WorkerProfileTab({
         setIsDeviceModalOpen(false);
         setDeviceReason("");
       } else {
-        alert(res?.message || "Không thể gửi yêu cầu đổi thiết bị.");
+        const msg = res?.message || "Không thể gửi yêu cầu đổi thiết bị.";
+        setDeviceError(msg);
+        if (showToast) showToast(msg, "error");
       }
     } catch (err) {
-      alert(err.message || "Lỗi gửi yêu cầu.");
+      const msg = err.message || "Lỗi gửi yêu cầu đổi thiết bị.";
+      setDeviceError(msg);
+      if (showToast) showToast(msg, "error");
     } finally {
+      deviceSubmittingRef.current = false;
       setDeviceSubmitting(false);
     }
   };
 
+  const activeShiftLabel = SHIFT_LABELS[currentUser?.shift_type] || SHIFT_LABELS.FULL_DAY;
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 pb-28 space-y-4">
       {/* Profile Header Card */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-3xl p-5 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="flex items-center gap-4 relative z-10">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 p-0.5 shadow-lg shadow-blue-600/30">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 p-0.5 shadow-lg shadow-blue-600/30 shrink-0">
             <img
               src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
               alt="Avatar"
               className="w-full h-full object-cover rounded-2xl"
             />
           </div>
-          <div>
-            <h2 className="text-base font-black text-white">{currentUser?.ho_ten || "Cán bộ công nhân viên"}</h2>
-            <p className="text-xs text-blue-400 font-bold mt-0.5">{currentUser?.chuc_danh || "Nhân viên Sedinco"}</p>
-            <span className="inline-block mt-1 px-2.5 py-0.5 bg-slate-900/60 border border-slate-700 text-[10px] font-mono font-bold text-slate-300 rounded-md">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold leading-snug text-white truncate">{currentUser?.ho_ten || "Cán bộ công nhân viên"}</h2>
+            <p className="text-sm text-blue-400 font-semibold mt-0.5">{currentUser?.chuc_danh || "Nhân viên Sedinco"}</p>
+            <span className="inline-block mt-1 px-2.5 py-0.5 bg-slate-900/60 border border-slate-700 text-xs font-mono font-semibold text-slate-300 rounded-md whitespace-nowrap">
               Mã NV: {currentUser?.ma_nv}
             </span>
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-slate-700/60 grid grid-cols-2 gap-2 text-xs text-slate-400">
+        <div className="mt-4 pt-3 border-t border-slate-700/60 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
           <div className="flex items-center gap-1.5">
-            <Phone className="w-3.5 h-3.5 text-slate-500" />
-            <span>{currentUser?.dien_thoai || "0905123456"}</span>
+            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span>{currentUser?.dien_thoai || "Chưa cập nhật SĐT"}</span>
           </div>
           <div className="flex items-center gap-1.5 truncate">
-            <Mail className="w-3.5 h-3.5 text-slate-500" />
+            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span className="truncate">{currentUser?.email || "worker@sedinco.vn"}</span>
+          </div>
+          <div className="flex items-center gap-1.5 sm:col-span-2 text-indigo-300">
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-medium">Ca làm việc: {activeShiftLabel}</span>
           </div>
         </div>
       </div>
+
+      {/* Quỹ Phép Năm */}
+      {leaveBalance && (
+        <div className="bg-indigo-950/60 border border-indigo-500/30 rounded-2xl p-4 shadow-lg flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0">
+              <CalendarCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white">Quỹ phép năm {leaveBalance.year}</div>
+              <div className="text-xs text-slate-300">
+                Đã dùng {leaveBalance.used} • Chờ duyệt {leaveBalance.pending} ngày
+              </div>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="text-sm font-bold text-emerald-400 whitespace-nowrap">
+              Còn {leaveBalance.remaining}/{leaveBalance.quota} ngày
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Action List */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-2 shadow-lg divide-y divide-slate-700/50">
@@ -146,57 +212,64 @@ export default function WorkerProfileTab({
           </div>
 
           <button
+            type="button"
             onClick={handleOpenSalarySlip}
             disabled={salaryLoading}
-            className="w-full min-h-[44px] py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md transition"
+            className="w-full min-h-[44px] py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md transition whitespace-nowrap cursor-pointer disabled:opacity-50"
           >
-            <DollarSign className="w-4 h-4" />
-            <span>{salaryLoading ? "Đang tải phiếu lương..." : `Mở Phiếu Lương Tháng ${slipMonth}/${slipYear}`}</span>
+            <DollarSign className="w-4 h-4 shrink-0" />
+            <span>{salaryLoading ? "Đang tải phiếu lương..." : `Mở phiếu lương tháng ${slipMonth}/${slipYear}`}</span>
           </button>
         </div>
 
         {/* Yêu Cầu Đổi Thiết Bị */}
         <button
-          onClick={() => setIsDeviceModalOpen(true)}
-          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-700/40 rounded-xl transition-colors group"
+          type="button"
+          onClick={() => {
+            setDeviceError("");
+            setIsDeviceModalOpen(true);
+          }}
+          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-700/40 rounded-xl transition-colors group cursor-pointer"
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs font-bold text-white">Yêu Cầu Đổi Thiết Bị</div>
-              <div className="text-[11px] text-slate-400">Đăng ký đổi điện thoại chấm công mới</div>
+              <div className="text-sm font-semibold text-white">Yêu cầu đổi thiết bị</div>
+              <div className="text-xs text-slate-400">Đăng ký đổi điện thoại chấm công mới</div>
             </div>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors shrink-0" />
         </button>
 
         {/* Đổi Mật Khẩu */}
         <button
+          type="button"
           onClick={onChangePasswordRequest}
-          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-700/40 rounded-xl transition-colors group"
+          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-700/40 rounded-xl transition-colors group cursor-pointer"
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs font-bold text-white">Đổi Mật Khẩu</div>
-              <div className="text-[11px] text-slate-400">Cập nhật mật khẩu bảo mật tài khoản</div>
+              <div className="text-sm font-semibold text-white">Đổi mật khẩu</div>
+              <div className="text-xs text-slate-400">Cập nhật mật khẩu bảo mật tài khoản</div>
             </div>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors shrink-0" />
         </button>
       </div>
 
       {/* Nút Đăng Xuất */}
       <button
+        type="button"
         onClick={onLogout}
-        className="w-full py-3.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold text-xs rounded-2xl transition-all flex items-center justify-center gap-2"
+        className="w-full min-h-[44px] py-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-sm rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
       >
-        <LogOut className="w-4 h-4" />
-        <span>Đăng Xuất Khỏi Thiết Bị</span>
+        <LogOut className="w-4 h-4 shrink-0" />
+        <span>Đăng xuất khỏi thiết bị</span>
       </button>
 
       {/* Salary Slip Modal */}
@@ -235,29 +308,34 @@ export default function WorkerProfileTab({
             <p className="text-xs text-slate-400">
               Vui lòng nhập lý do thay đổi máy (ví dụ: mất điện thoại, hỏng máy, đổi máy mới) để Quản trị viên duyệt mở khóa:
             </p>
-            <form onSubmit={handleRequestDeviceChange} className="space-y-4">
+            <form onSubmit={handleRequestDeviceChange} className="space-y-3">
+              {deviceError && (
+                <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
+                  {deviceError}
+                </div>
+              )}
               <textarea
                 value={deviceReason}
                 onChange={(e) => setDeviceReason(e.target.value)}
                 placeholder="Nhập lý do cụ thể..."
                 required
                 rows={3}
-                className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
               />
               <div className="flex gap-2.5">
                 <button
                   type="button"
                   onClick={() => setIsDeviceModalOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-xl transition-colors"
+                  className="flex-1 min-h-[44px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={deviceSubmitting}
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50"
+                  className="flex-1 min-h-[44px] py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
                 >
-                  {deviceSubmitting ? "Đang gửi..." : "Gửi Yêu Cầu"}
+                  {deviceSubmitting ? "Đang gửi..." : "Gửi yêu cầu"}
                 </button>
               </div>
             </form>

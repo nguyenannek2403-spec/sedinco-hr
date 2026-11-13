@@ -15,7 +15,9 @@ import {
   AlertTriangle,
   Calculator,
   CheckCircle2,
-  Loader2
+  Loader2,
+  SlidersHorizontal,
+  X
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
 import { safeGet, safePost, sanitizeFormula, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
@@ -41,6 +43,18 @@ export default function PayrollGridTable({
   const [approving, setApproving] = useState(false);
   const calcInFlightRef = useRef(false);
   const approveInFlightRef = useRef(false);
+  const adjInFlightRef = useRef(false);
+
+  // Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2)
+  const [adjustItem, setAdjustItem] = useState(null);
+  const [adjForm, setAdjForm] = useState({
+    bonus_amount: 0,
+    penalty_amount: 0,
+    advance_deduction: 0,
+    adjustment_note: ""
+  });
+  const [adjSaving, setAdjSaving] = useState(false);
+  const [adjError, setAdjError] = useState("");
 
   const fetchPayrollFromApi = useCallback(async () => {
     if (Array.isArray(payrollData)) return;
@@ -111,6 +125,54 @@ export default function PayrollGridTable({
     }
   };
 
+  const handleOpenAdjustmentModal = (item) => {
+    setAdjustItem(item);
+    setAdjForm({
+      bonus_amount: Math.max(0, Math.round(Number(item.bonusAmount) || 0)),
+      penalty_amount: Math.max(0, Math.round(Number(item.penaltyAmount) || 0)),
+      advance_deduction: Math.max(0, Math.round(Number(item.advanceDeduction ?? item.advance_deduction) || 0)),
+      adjustment_note: item.adjustment_note || item.adjustmentNote || ""
+    });
+    setAdjError("");
+  };
+
+  const handleSaveAdjustment = async (e) => {
+    e.preventDefault();
+    if (!adjustItem || adjInFlightRef.current) return;
+    const empId = adjustItem.ma_nv || adjustItem.id_nhan_vien;
+    adjInFlightRef.current = true;
+    setAdjSaving(true);
+    setAdjError("");
+    try {
+      const res = await safePost(
+        "/payroll/adjustments",
+        {
+          ma_nv: empId,
+          month,
+          year,
+          bonus_amount: Math.max(0, Math.round(Number(adjForm.bonus_amount) || 0)),
+          penalty_amount: Math.max(0, Math.round(Number(adjForm.penalty_amount) || 0)),
+          advance_deduction: Math.max(0, Math.round(Number(adjForm.advance_deduction) || 0)),
+          adjustment_note: String(adjForm.adjustment_note || "").trim()
+        },
+        { idempotencyKey: generateIdempotencyKey("pay_adj") }
+      );
+      if (res?.success) {
+        if (notify) notify(`Đã cập nhật thưởng / phạt / tạm ứng cho ${adjustItem.ho_ten || empId}!`, "success");
+        setAdjustItem(null);
+        await fetchPayrollFromApi();
+        if (onRefresh) onRefresh();
+      } else {
+        setAdjError(res?.message || "Không thể lưu điều chỉnh.");
+      }
+    } catch (err) {
+      setAdjError(err.message || "Lỗi kết nối máy chủ khi lưu điều chỉnh.");
+    } finally {
+      adjInFlightRef.current = false;
+      setAdjSaving(false);
+    }
+  };
+
   const isLoading = propIsLoading || loadingPayroll;
   const sourceList = Array.isArray(payrollData) ? payrollData : internalPayroll;
 
@@ -146,6 +208,10 @@ export default function PayrollGridTable({
       "Phụ Cấp Trách Nhiệm",
       "Tổng Phụ Cấp",
       "Tiền Tăng Ca (OT)",
+      "Thưởng Thêm",
+      "Phạt / Khấu Trừ",
+      "Tạm Ứng Đã Trừ",
+      "Ghi Chú Điều Chỉnh",
       "Khấu Trừ BHXH (10.5%)",
       "Thực Lĩnh (Net)"
     ];
@@ -173,6 +239,10 @@ export default function PayrollGridTable({
         trachNhiem,
         totalAllowance,
         Number(item.otAmount) || 0,
+        Number(item.bonusAmount) || 0,
+        Number(item.penaltyAmount) || 0,
+        Number(item.advanceDeduction) || 0,
+        formatCsvCellRFC4180(item.adjustment_note || item.adjustmentNote || ""),
         Number(item.insuranceDeduction || item.totalInsurance) || 0,
         Number(item.netSalary) || 0
       ];
@@ -190,72 +260,72 @@ export default function PayrollGridTable({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-28">
       
       {/* 4 Card KPI Tổng Quan Tài Chính */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
         {/* KPI 1: Tổng Quỹ Lương Net */}
-        <div className="bg-gradient-to-br from-emerald-600 to-teal-800 text-white rounded-3xl p-5 shadow-md border-2 border-emerald-700 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-emerald-100 font-black uppercase tracking-wider">Tổng Quỹ Lương (Net)</span>
-            <div className="p-2 bg-white/20 rounded-xl border border-white/30">
-              <DollarSign size={22} className="text-white" />
+        <div className="bg-gradient-to-br from-emerald-600 to-teal-800 text-white rounded-3xl p-4 sm:p-5 shadow-md border-2 border-emerald-700 relative overflow-hidden">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-emerald-100 font-semibold">Tổng quỹ lương (Net)</span>
+            <div className="p-2 bg-white/20 rounded-xl border border-white/30 shrink-0">
+              <DollarSign size={20} className="text-white" />
             </div>
           </div>
-          <div className="mt-3">
-            <span className="text-2xl font-black tracking-tight">
+          <div className="mt-2.5">
+            <span className="text-xl sm:text-2xl font-bold">
               {totalNetSalary.toLocaleString("vi-VN")} đ
             </span>
-            <span className="text-xs text-emerald-100 block mt-1 font-bold">Chi trả kỳ tháng {month}/{year}</span>
+            <span className="text-xs text-emerald-100 block mt-1 font-medium">Chi trả kỳ tháng {month}/{year}</span>
           </div>
         </div>
 
         {/* KPI 2: Tổng Số Nhân Sự */}
-        <div className="bg-white rounded-3xl p-5 border-2 border-slate-300 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-600 font-black uppercase tracking-wider">Tổng Số Nhân Sự</span>
-            <div className="p-2 bg-blue-50 text-blue-700 rounded-xl border-2 border-blue-200">
-              <Users size={22} />
+        <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-slate-300 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-slate-600 font-semibold">Tổng số nhân sự</span>
+            <div className="p-2 bg-blue-50 text-blue-700 rounded-xl border-2 border-blue-200 shrink-0">
+              <Users size={20} />
             </div>
           </div>
-          <div className="mt-3">
-            <span className="text-2xl font-black text-slate-900 tracking-tight">
+          <div className="mt-2.5">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900">
               {totalEmployees} nhân sự
             </span>
-            <span className="text-xs text-emerald-700 block mt-1 font-bold">100% hồ sơ hoàn tất</span>
+            <span className="text-xs text-emerald-700 block mt-1 font-medium">100% hồ sơ hoàn tất</span>
           </div>
         </div>
 
         {/* KPI 3: Tổng Ngày Công Thực Tế */}
-        <div className="bg-white rounded-3xl p-5 border-2 border-slate-300 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-600 font-black uppercase tracking-wider">Tổng Ngày Công Thực Tế</span>
-            <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl border-2 border-indigo-200">
-              <TrendingUp size={22} />
+        <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-slate-300 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-slate-600 font-semibold">Tổng ngày công thực tế</span>
+            <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl border-2 border-indigo-200 shrink-0">
+              <TrendingUp size={20} />
             </div>
           </div>
-          <div className="mt-3">
-            <span className="text-2xl font-black text-slate-900 tracking-tight">
+          <div className="mt-2.5">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900">
               {totalWorkDays.toFixed(1)} công
             </span>
-            <span className="text-xs text-slate-500 font-semibold block mt-1">Định mức chuẩn 26.0 ngày</span>
+            <span className="text-xs text-slate-500 font-medium block mt-1">Định mức chuẩn 26.0 ngày</span>
           </div>
         </div>
 
         {/* KPI 4: Bình Quân Thu Nhập */}
-        <div className="bg-white rounded-3xl p-5 border-2 border-slate-300 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-600 font-black uppercase tracking-wider">Thu Nhập Bình Quân</span>
-            <div className="p-2 bg-amber-50 text-amber-700 rounded-xl border-2 border-amber-200">
-              <Award size={22} />
+        <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-slate-300 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-slate-600 font-semibold">Thu nhập bình quân</span>
+            <div className="p-2 bg-amber-50 text-amber-700 rounded-xl border-2 border-amber-200 shrink-0">
+              <Award size={20} />
             </div>
           </div>
-          <div className="mt-3">
-            <span className="text-2xl font-black text-slate-900 tracking-tight">
+          <div className="mt-2.5">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900">
               {averageIncome > 0 ? `${(averageIncome / 1000000).toFixed(1)} tr` : "0 tr"}
             </span>
-            <span className="text-xs text-slate-500 font-semibold block mt-1">Bình quân thực nhận / người</span>
+            <span className="text-xs text-slate-500 font-medium block mt-1">Bình quân thực nhận / người</span>
           </div>
         </div>
 
@@ -265,52 +335,52 @@ export default function PayrollGridTable({
       <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-sm overflow-hidden">
         
         {/* Header Tác Vụ */}
-        <div className="p-5 border-b-2 border-slate-200 flex flex-wrap items-center justify-between gap-4 bg-slate-50/70">
+        <div className="p-4 sm:p-5 border-b-2 border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
           <div>
             <div className="flex items-center gap-2">
-              <DollarSign className="text-emerald-600" size={24} />
-              <h3 className="font-black text-lg md:text-xl text-slate-900 tracking-tight">
-                BẢNG THANH TOÁN TIỀN LƯƠNG & PHỤ CẤP DOANH NGHIỆP
+              <DollarSign className="text-emerald-600 shrink-0" size={22} />
+              <h3 className="font-bold text-lg leading-snug text-slate-900">
+                Bảng thanh toán tiền lương &amp; phụ cấp
               </h3>
             </div>
-            <p className="text-sm font-medium text-slate-600 mt-1">
-              Hệ thống tự động tính theo công thức Luật Lao Động (85% thử việc, OT 1.5x-3.0x, BHXH 10.5%)
+            <p className="text-sm text-slate-600 leading-relaxed mt-1">
+              Tự động tính công chuẩn, tăng ca, thưởng/phạt/tạm ứng và BHXH
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Bộ chọn tháng/năm */}
-            <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl px-2.5 py-1.5 shadow-sm">
+            <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl px-2 py-1 shadow-sm">
               <button
                 type="button"
                 onClick={() => onMonthChange(month > 1 ? month - 1 : 12, month > 1 ? year : year - 1)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer border border-transparent hover:border-slate-300"
+                className="min-w-[36px] min-h-[36px] p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer flex items-center justify-center"
                 title="Tháng trước"
               >
-                <ChevronLeft size={20} />
+                <ChevronLeft size={18} />
               </button>
-              <span className="font-black text-sm px-3 text-slate-900">
+              <span className="font-bold text-sm px-2.5 text-slate-900 whitespace-nowrap">
                 Tháng {month}/{year}
               </span>
               <button
                 type="button"
                 onClick={() => onMonthChange(month < 12 ? month + 1 : 1, month < 12 ? year : year + 1)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer border border-transparent hover:border-slate-300"
+                className="min-w-[36px] min-h-[36px] p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer flex items-center justify-center"
                 title="Tháng sau"
               >
-                <ChevronRight size={20} />
+                <ChevronRight size={18} />
               </button>
             </div>
 
             {/* Tìm kiếm */}
-            <div className="relative min-w-[220px]">
+            <div className="relative flex-1 min-w-[200px]">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Tìm nhân sự, chức vụ, mã NV..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 shadow-sm"
+                className="w-full min-h-[42px] pl-9 pr-3 py-2 text-sm bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 shadow-sm"
               />
             </div>
 
@@ -319,10 +389,10 @@ export default function PayrollGridTable({
               type="button"
               onClick={handleCalculatePayroll}
               disabled={calculating || isLoading}
-              className="min-h-[44px] flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-black px-3.5 py-2.5 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer disabled:opacity-50"
+              className="min-h-[42px] flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
             >
               {calculating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
-              <span>{calculating ? "Đang tính..." : "Tính Lương"}</span>
+              <span>{calculating ? "Đang tính..." : "Tính lương"}</span>
             </button>
 
             {/* Nút Duyệt & Phát Hành Phiếu Lương */}
@@ -330,17 +400,17 @@ export default function PayrollGridTable({
               type="button"
               onClick={handleApprovePayroll}
               disabled={approving || isLoading}
-              className="min-h-[44px] flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-black px-3.5 py-2.5 rounded-xl border-2 border-indigo-700 shadow-sm cursor-pointer disabled:opacity-50"
+              className="min-h-[42px] flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl border-2 border-indigo-700 shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
             >
               {approving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-              <span>{approving ? "Đang lưu..." : "Chốt & Phát Hành"}</span>
+              <span>{approving ? "Đang lưu..." : "Chốt & Phát hành"}</span>
             </button>
 
             {/* Nút Xuất CSV */}
             <button
               type="button"
               onClick={handleExportCSV}
-              className="min-h-[44px] flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-black px-3.5 py-2.5 rounded-xl border-2 border-emerald-700 shadow-sm cursor-pointer"
+              className="min-h-[42px] flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl border-2 border-emerald-700 shadow-sm cursor-pointer whitespace-nowrap"
             >
               <Download size={16} />
               <span>Xuất CSV</span>
@@ -353,7 +423,7 @@ export default function PayrollGridTable({
                 fetchPayrollFromApi();
                 if (onRefresh) onRefresh();
               }}
-              className="min-w-[44px] min-h-[44px] p-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer flex items-center justify-center"
+              className="min-w-[42px] min-h-[42px] p-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer flex items-center justify-center"
               title="Làm mới bảng lương"
             >
               <RefreshCw size={16} className={isLoading ? "animate-spin text-emerald-600" : ""} />
@@ -373,42 +443,130 @@ export default function PayrollGridTable({
           </div>
         )}
 
-        {/* Bảng Dữ Liệu Grid (Vuốt ngang mượt trên điện thoại + Sticky cột Tên NV) */}
-        <div className="overflow-x-auto touch-scroll-x">
+        {/* Mobile Cards View (Tối ưu cho Zalo Mini App < 768px) */}
+        <div className="md:hidden divide-y divide-slate-200">
+          {isLoading ? (
+            <div className="py-12 text-center text-slate-500">
+              <RefreshCw size={24} className="mx-auto mb-2 animate-spin text-emerald-600" />
+              <p className="text-sm font-medium">Đang tải bảng lương...</p>
+            </div>
+          ) : filteredList.length === 0 ? (
+            <div className="py-12 text-center text-slate-500">
+              <FileText size={30} className="mx-auto mb-2 text-slate-400" />
+              <p className="text-sm font-medium">Không có dữ liệu tiền lương tháng {month}/{year}.</p>
+            </div>
+          ) : (
+            filteredList.map((item, idx) => {
+              const empId = item.ma_nv || item.id_nhan_vien;
+              const confirmStatus = item.salary_confirm_status || "PENDING";
+              const bonusAmt = Number(item.bonusAmount) || 0;
+              const penaltyAmt = Number(item.penaltyAmount) || 0;
+              const advAmt = Number(item.advanceDeduction) || 0;
+              return (
+                <div
+                  key={empId || idx}
+                  className={`p-4 space-y-3 ${confirmStatus === "DISPUTED" ? "bg-rose-50" : "bg-white"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-sm truncate">{item.ho_ten}</div>
+                      <div className="text-xs text-slate-500 font-mono">
+                        {empId} • {item.totalWorkDays} công
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-bold text-base text-emerald-700 whitespace-nowrap">
+                        {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
+                      </div>
+                      <div className="text-[11px] text-slate-500">Thực lĩnh</div>
+                    </div>
+                  </div>
+
+                  {(bonusAmt > 0 || penaltyAmt > 0 || advAmt > 0) && (
+                    <div className="flex flex-wrap gap-1.5 text-xs">
+                      {bonusAmt > 0 && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-semibold whitespace-nowrap">
+                          +Thưởng {bonusAmt.toLocaleString("vi-VN")} đ
+                        </span>
+                      )}
+                      {penaltyAmt > 0 && (
+                        <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-semibold whitespace-nowrap">
+                          -Phạt {penaltyAmt.toLocaleString("vi-VN")} đ
+                        </span>
+                      )}
+                      {advAmt > 0 && (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-semibold whitespace-nowrap">
+                          -Ứng {advAmt.toLocaleString("vi-VN")} đ
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAdjustmentModal(item)}
+                      className="min-h-[40px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                    >
+                      <SlidersHorizontal size={14} className="shrink-0" />
+                      <span>Thưởng / Phạt / Ứng</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSlipItem(item)}
+                      className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                    >
+                      <Eye size={14} className="shrink-0" />
+                      <span>{confirmStatus === "DISPUTED" ? "Xem khiếu nại" : "Chi tiết"}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Bảng Dữ Liệu Grid (Desktop >= 768px) */}
+        <div className="hidden md:block overflow-x-auto touch-scroll-x">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-100 text-slate-800 font-black border-b-2 border-slate-300 uppercase text-xs">
-                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-slate-100 z-10 min-w-[145px] sm:min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">Cán Bộ Nhân Sự</th>
-                <th className="p-3.5 text-right">Lương CB (HĐ)</th>
-                <th className="p-3.5 text-center">Công TT</th>
-                <th className="p-3.5 text-right">Lương Công</th>
-                <th className="p-3.5 text-right">Tổng Phụ Cấp</th>
-                <th className="p-3.5 text-right">Tăng Ca (OT)</th>
-                <th className="p-3.5 text-right text-rose-700">Trích BHXH</th>
-                <th className="p-3.5 text-right text-emerald-900 font-black">Thực Lĩnh (Net)</th>
-                <th className="p-3.5 text-center">Xác Nhận Lương</th>
-                <th className="p-3.5 text-center pr-5">Phiếu Lương</th>
+              <tr className="bg-slate-100 text-slate-800 font-semibold border-b-2 border-slate-300 text-xs">
+                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-slate-100 z-10 min-w-[160px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)] whitespace-nowrap">Cán bộ nhân sự</th>
+                <th className="p-3.5 text-right whitespace-nowrap">Lương CB (HĐ)</th>
+                <th className="p-3.5 text-center whitespace-nowrap">Công TT</th>
+                <th className="p-3.5 text-right whitespace-nowrap">Lương công</th>
+                <th className="p-3.5 text-right whitespace-nowrap">Phụ cấp</th>
+                <th className="p-3.5 text-right whitespace-nowrap">Tăng ca (OT)</th>
+                <th className="p-3.5 text-right whitespace-nowrap">Thưởng / Phạt / Ứng</th>
+                <th className="p-3.5 text-right text-rose-700 whitespace-nowrap">Trích BHXH</th>
+                <th className="p-3.5 text-right text-emerald-900 font-bold whitespace-nowrap">Thực lĩnh (Net)</th>
+                <th className="p-3.5 text-center whitespace-nowrap">Xác nhận</th>
+                <th className="p-3.5 text-center pr-5 whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="py-16 text-center text-slate-500">
+                  <td colSpan={11} className="py-16 text-center text-slate-500">
                     <RefreshCw size={28} className="mx-auto mb-2 animate-spin text-emerald-600" />
-                    <p className="text-sm font-bold">Đang tải và tính toán dữ liệu bảng lương...</p>
+                    <p className="text-sm font-semibold">Đang tải và tính toán dữ liệu bảng lương...</p>
                   </td>
                 </tr>
               ) : filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-16 text-center text-slate-500">
+                  <td colSpan={11} className="py-16 text-center text-slate-500">
                     <FileText size={36} className="mx-auto mb-2 text-slate-400" />
-                    <p className="text-sm font-bold">Không có dữ liệu tiền lương trong kỳ tháng {month}/{year}.</p>
+                    <p className="text-sm font-semibold">Không có dữ liệu tiền lương trong kỳ tháng {month}/{year}.</p>
                   </td>
                 </tr>
               ) : (
                 filteredList.map((item, idx) => {
                   const empId = item.ma_nv || item.id_nhan_vien;
                   const confirmStatus = item.salary_confirm_status || "PENDING";
+                  const bonusAmt = Number(item.bonusAmount) || 0;
+                  const penaltyAmt = Number(item.penaltyAmount) || 0;
+                  const advAmt = Number(item.advanceDeduction) || 0;
+                  const netAdj = bonusAmt - penaltyAmt - advAmt;
                   return (
                     <tr
                       key={empId || idx}
@@ -416,66 +574,88 @@ export default function PayrollGridTable({
                         confirmStatus === "DISPUTED" ? "bg-rose-50 hover:bg-rose-100/70" : "hover:bg-emerald-50/40"
                       }`}
                     >
-                      <td className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-white z-10 min-w-[145px] sm:min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
-                        <div className="font-black text-slate-900 text-xs sm:text-sm truncate">{item.ho_ten}</div>
+                      <td className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-white z-10 min-w-[160px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+                        <div className="font-bold text-slate-900 text-xs sm:text-sm truncate">{item.ho_ten}</div>
                         <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                          <span className="font-mono text-blue-700 font-bold">{empId}</span>
+                          <span className="font-mono text-blue-700 font-semibold">{empId}</span>
                         </div>
                       </td>
-                      <td className="p-3.5 text-right font-bold text-slate-800 text-sm">
+                      <td className="p-3.5 text-right font-semibold text-slate-800 text-sm whitespace-nowrap">
                         {Number(item.baseSalary || 0).toLocaleString("vi-VN")} đ
                       </td>
-                      <td className="p-3.5 text-center">
-                        <span className="inline-block px-3 py-1 rounded-xl bg-blue-100 text-blue-900 font-black text-xs border border-blue-300">
+                      <td className="p-3.5 text-center whitespace-nowrap">
+                        <span className="inline-block px-2.5 py-1 rounded-xl bg-blue-100 text-blue-900 font-bold text-xs border border-blue-300">
                           {item.totalWorkDays} công
                         </span>
                       </td>
-                      <td className="p-3.5 text-right font-bold text-slate-800 text-sm">
+                      <td className="p-3.5 text-right font-semibold text-slate-800 text-sm whitespace-nowrap">
                         {Number(item.salaryByWork || 0).toLocaleString("vi-VN")} đ
                       </td>
-                      <td className="p-3.5 text-right font-bold text-slate-800 text-sm">
+                      <td className="p-3.5 text-right font-semibold text-slate-800 text-sm whitespace-nowrap">
                         {Number(item.totalAllowance || 0).toLocaleString("vi-VN")} đ
                       </td>
-                      <td className="p-3.5 text-right font-bold text-indigo-800 text-sm">
+                      <td className="p-3.5 text-right font-semibold text-indigo-800 text-sm whitespace-nowrap">
                         +{Number(item.otAmount || 0).toLocaleString("vi-VN")} đ
                       </td>
-                      <td className="p-3.5 text-right font-bold text-rose-700 text-sm">
+                      <td className="p-3.5 text-right text-xs whitespace-nowrap">
+                        {netAdj === 0 && bonusAmt === 0 && penaltyAmt === 0 && advAmt === 0 ? (
+                          <span className="text-slate-400">0 đ</span>
+                        ) : (
+                          <div className="space-y-0.5">
+                            {bonusAmt > 0 && <div className="text-emerald-700 font-semibold">+{bonusAmt.toLocaleString("vi-VN")} Thưởng</div>}
+                            {penaltyAmt > 0 && <div className="text-rose-700 font-semibold">-{penaltyAmt.toLocaleString("vi-VN")} Phạt</div>}
+                            {advAmt > 0 && <div className="text-amber-700 font-semibold">-{advAmt.toLocaleString("vi-VN")} Ứng</div>}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-right font-semibold text-rose-700 text-sm whitespace-nowrap">
                         -{Number(item.insuranceDeduction || item.totalInsurance || 0).toLocaleString("vi-VN")} đ
                       </td>
-                      <td className="p-3.5 text-right font-black text-base">
+                      <td className="p-3.5 text-right font-bold text-base whitespace-nowrap">
                         <span className="text-emerald-800">
                           {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
                         </span>
                       </td>
-                      <td className="p-3.5 text-center">
+                      <td className="p-3.5 text-center whitespace-nowrap">
                         {confirmStatus === "CONFIRMED" ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 font-black text-[11px] border border-emerald-300">
-                            ✅ Đã xác nhận
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 font-semibold text-xs border border-emerald-300">
+                            Đã xác nhận
                           </span>
                         ) : confirmStatus === "DISPUTED" ? (
                           <button
                             type="button"
                             onClick={() => setSelectedSlipItem(item)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600 text-white font-black text-[11px] shadow-sm animate-pulse cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600 text-white font-semibold text-xs shadow-sm animate-pulse cursor-pointer"
                             title={item.dispute_reason || "Nhấn để xem minh chứng khiếu nại lương"}
                           >
-                            ⚠️ Khiếu nại (Xem)
+                            Khiếu nại (Xem)
                           </button>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-bold text-[11px] border border-slate-300">
-                            ⏳ Chờ XN
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-medium text-xs border border-slate-300">
+                            Chờ xác nhận
                           </span>
                         )}
                       </td>
-                      <td className="p-3.5 text-center pr-5">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedSlipItem(item)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-900 text-xs font-black border-2 border-slate-300 hover:border-emerald-600 transition-all cursor-pointer"
-                        >
-                          <Eye size={14} />
-                          <span>Chi tiết</span>
-                        </button>
+                      <td className="p-3.5 text-center pr-5 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAdjustmentModal(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold border border-amber-300 transition-all cursor-pointer whitespace-nowrap"
+                            title="Thưởng / Phạt / Tạm ứng"
+                          >
+                            <SlidersHorizontal size={14} />
+                            <span>Điều chỉnh</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSlipItem(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-900 text-xs font-semibold border border-slate-300 hover:border-emerald-600 transition-all cursor-pointer whitespace-nowrap"
+                          >
+                            <Eye size={14} />
+                            <span>Chi tiết</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -484,27 +664,36 @@ export default function PayrollGridTable({
             </tbody>
             {filteredList.length > 0 && (
               <tfoot>
-                <tr className="bg-slate-100 text-slate-900 border-t-2 border-slate-300 font-black">
-                  <td className="p-4 pl-5 uppercase text-xs">TỔNG CỘNG ({filteredList.length} NV):</td>
-                  <td className="p-4 text-right text-sm">
+                <tr className="bg-slate-100 text-slate-900 border-t-2 border-slate-300 font-bold">
+                  <td className="p-4 pl-5 text-xs whitespace-nowrap">Tổng cộng ({filteredList.length} NV):</td>
+                  <td className="p-4 text-right text-sm whitespace-nowrap">
                     {filteredList.reduce((acc, c) => acc + (Number(c.baseSalary) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-center text-blue-800 text-sm">
+                  <td className="p-4 text-center text-blue-800 text-sm whitespace-nowrap">
                     {totalWorkDays.toFixed(1)} công
                   </td>
-                  <td className="p-4 text-right text-sm">
+                  <td className="p-4 text-right text-sm whitespace-nowrap">
                     {filteredList.reduce((acc, c) => acc + (Number(c.salaryByWork) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-right text-sm">
+                  <td className="p-4 text-right text-sm whitespace-nowrap">
                     {filteredList.reduce((acc, c) => acc + (Number(c.totalAllowance) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-right text-indigo-800 text-sm">
+                  <td className="p-4 text-right text-indigo-800 text-sm whitespace-nowrap">
                     +{filteredList.reduce((acc, c) => acc + (Number(c.otAmount) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-right text-rose-700 text-sm">
+                  <td className="p-4 text-right text-slate-800 text-xs whitespace-nowrap">
+                    {(
+                      filteredList.reduce(
+                        (acc, c) =>
+                          acc + (Number(c.bonusAmount) || 0) - (Number(c.penaltyAmount) || 0) - (Number(c.advanceDeduction) || 0),
+                        0
+                      )
+                    ).toLocaleString("vi-VN")} đ
+                  </td>
+                  <td className="p-4 text-right text-rose-700 text-sm whitespace-nowrap">
                     -{filteredList.reduce((acc, c) => acc + (Number(c.insuranceDeduction || c.totalInsurance) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-right text-emerald-800 text-base">
+                  <td className="p-4 text-right text-emerald-800 text-base whitespace-nowrap">
                     {totalNetSalary.toLocaleString("vi-VN")} đ
                   </td>
                   <td className="p-4 text-center"></td>
@@ -516,6 +705,110 @@ export default function PayrollGridTable({
         </div>
 
       </div>
+
+      {/* Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2) */}
+      {adjustItem && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4"
+          style={{
+            paddingTop: "calc(env(safe-area-inset-top, 0px) + 16px)",
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
+          }}
+        >
+          <div className="bg-white border-2 border-slate-200 rounded-3xl w-full max-w-md max-h-full overflow-y-auto p-5 shadow-2xl text-slate-800 space-y-4">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-base font-bold text-slate-900">Điều chỉnh thưởng / phạt / tạm ứng</h4>
+                <p className="text-xs text-slate-500">
+                  {adjustItem.ho_ten} ({adjustItem.ma_nv || adjustItem.id_nhan_vien}) • Tháng {month}/{year}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !adjSaving && setAdjustItem(null)}
+                aria-label="Đóng"
+                className="min-w-[40px] min-h-[40px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {adjError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
+                {adjError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveAdjustment} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Tiền thưởng thêm (VNĐ)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={50000}
+                  value={adjForm.bonus_amount}
+                  onChange={(e) => setAdjForm((f) => ({ ...f, bonus_amount: Number(e.target.value) || 0 }))}
+                  className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-emerald-700 focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Khấu trừ phạt (VNĐ)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={50000}
+                    value={adjForm.penalty_amount}
+                    onChange={(e) => setAdjForm((f) => ({ ...f, penalty_amount: Number(e.target.value) || 0 }))}
+                    className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-rose-700 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Tạm ứng đã trừ (VNĐ)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={50000}
+                    value={adjForm.advance_deduction}
+                    onChange={(e) => setAdjForm((f) => ({ ...f, advance_deduction: Number(e.target.value) || 0 }))}
+                    className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-amber-800 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Ghi chú điều chỉnh (hiển thị trên phiếu lương)</label>
+                <textarea
+                  rows={2}
+                  value={adjForm.adjustment_note}
+                  onChange={(e) => setAdjForm((f) => ({ ...f, adjustment_note: e.target.value }))}
+                  placeholder="Ví dụ: Thưởng hoàn thành vượt tiến độ công trình..."
+                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-600 leading-relaxed"
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setAdjustItem(null)}
+                  disabled={adjSaving}
+                  className="flex-1 min-h-[44px] py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-xl border border-slate-300 cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={adjSaving}
+                  className="flex-1 min-h-[44px] py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                >
+                  {adjSaving ? "Đang lưu..." : "Lưu điều chỉnh"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Phiếu Lương Chi Tiết */}
       {selectedSlipItem && (

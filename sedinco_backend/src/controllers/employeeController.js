@@ -55,6 +55,20 @@ class EmployeeController {
         }
     }
 
+    async updateEmployeeShift(req, res, next) {
+        try {
+            const { shift_type, annual_leave_quota } = req.body;
+            const result = await employeeService.updateEmployeeShift(
+                req.params.ma_nv,
+                { shift_type, annual_leave_quota },
+                req.user
+            );
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async updateEmployeeStatus(req, res, next) {
         try {
             const ma_nv = req.params.ma_nv || req.params.id;
