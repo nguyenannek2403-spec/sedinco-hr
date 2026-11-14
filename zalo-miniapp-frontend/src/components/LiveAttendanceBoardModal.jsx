@@ -40,6 +40,7 @@ export default function LiveAttendanceBoardModal({
   const [proxyTarget, setProxyTarget] = useState(null);
   const [proxyInTime, setProxyInTime] = useState("07:30");
   const [proxyOutTime, setProxyOutTime] = useState("");
+  const [proxyLocationType, setProxyLocationType] = useState("OFFICE");
   const [proxyNote, setProxyNote] = useState("");
   const [proxySubmitting, setProxySubmitting] = useState(false);
   const [proxyError, setProxyError] = useState("");
@@ -94,6 +95,7 @@ export default function LiveAttendanceBoardModal({
     setProxyTarget(emp);
     setProxyInTime(emp.check_in_time ? String(emp.check_in_time).slice(0, 5) : "07:30");
     setProxyOutTime(emp.check_out_time ? String(emp.check_out_time).slice(0, 5) : "");
+    setProxyLocationType("OFFICE");
     setProxyNote("");
     setProxyError("");
   };
@@ -118,6 +120,7 @@ export default function LiveAttendanceBoardModal({
           date: board.date || undefined,
           check_in_time: proxyInTime,
           check_out_time: proxyOutTime || null,
+          work_location_type: proxyLocationType,
           note: proxyNote.trim() || "Chấm công hộ từ bảng theo dõi trực tiếp",
         },
         { idempotencyKey }
@@ -159,7 +162,7 @@ export default function LiveAttendanceBoardModal({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition active:scale-[0.98]"
+              className="min-h-[44px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition active:scale-[0.98]"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Trở về</span>
@@ -169,7 +172,7 @@ export default function LiveAttendanceBoardModal({
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 <span className="break-words">Ai đang làm việc hôm nay</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5 leading-snug">
+              <p className="text-xs text-slate-300 mt-0.5 leading-snug">
                 Quân số: {headcount?.total_employees || 0} nhân sự • Ngày {board.date || "hôm nay"}
               </p>
             </div>
@@ -179,7 +182,8 @@ export default function LiveAttendanceBoardModal({
               type="button"
               onClick={onRefresh}
               disabled={loading}
-              className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 shrink-0 transition active:scale-[0.98]"
+              aria-label="Làm mới bảng quân số"
+              className="min-w-[44px] min-h-[44px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 shrink-0 transition active:scale-[0.98]"
               title="Cập nhật dữ liệu trực tiếp"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-blue-400" : ""}`} />
@@ -199,17 +203,17 @@ export default function LiveAttendanceBoardModal({
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 border transition ${
+                  className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 border transition ${
                     isActive
                       ? "bg-blue-600 text-white border-blue-500 shadow-sm"
-                      : "bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800"
+                      : "bg-slate-800/80 text-slate-200 border-slate-700 hover:bg-slate-800"
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
                   <span>{tab.label}</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded-md text-[11px] font-bold ${
-                      isActive ? "bg-white/20 text-white" : "bg-slate-900 text-slate-300"
+                    className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${
+                      isActive ? "bg-white/20 text-white" : "bg-slate-900 text-slate-200"
                     }`}
                   >
                     {counts[tab.key]}
@@ -319,7 +323,7 @@ export default function LiveAttendanceBoardModal({
                             <button
                               type="button"
                               onClick={() => setProxyTarget(null)}
-                              className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-slate-800"
+                              className="min-h-[44px] text-xs font-semibold text-slate-200 hover:text-white px-3 py-2 rounded-xl bg-slate-800"
                             >
                               Hủy
                             </button>
@@ -329,6 +333,30 @@ export default function LiveAttendanceBoardModal({
                               {proxyError}
                             </div>
                           )}
+                          <div className="grid grid-cols-2 gap-1.5 bg-slate-950/70 p-1 rounded-xl border border-slate-700">
+                            <button
+                              type="button"
+                              onClick={() => setProxyLocationType("OFFICE")}
+                              className={`min-h-[44px] px-2.5 py-2 rounded-lg text-xs font-bold transition ${
+                                proxyLocationType === "OFFICE"
+                                  ? "bg-blue-600 text-white"
+                                  : "text-slate-300 hover:bg-slate-800"
+                              }`}
+                            >
+                              🏢 Tại văn phòng/Xưởng
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setProxyLocationType("FIELD_WORK")}
+                              className={`min-h-[44px] px-2.5 py-2 rounded-lg text-xs font-bold transition ${
+                                proxyLocationType === "FIELD_WORK"
+                                  ? "bg-amber-600 text-white"
+                                  : "text-slate-300 hover:bg-slate-800"
+                              }`}
+                            >
+                              🚧 Đi công trình
+                            </button>
+                          </div>
                           <div className="flex items-center justify-between gap-3 bg-slate-950/70 px-3 py-2 rounded-xl border border-slate-700">
                             <label className="text-xs font-semibold text-slate-200">Giờ vào</label>
                             <input

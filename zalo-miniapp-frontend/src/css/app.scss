@@ -119,7 +119,7 @@ select {
   box-sizing: border-box !important;
   -webkit-appearance: none;
   appearance: none;
-  font-size: 16px; /* Ngăn iOS tự zoom màn hình khi chạm vào ô nhập liệu */
+  font-size: max(16px, 1rem); /* WCAG 1.4.4 scalable + prevents iOS WebView auto-zoom */ /* Ngăn iOS tự zoom màn hình khi chạm vào ô nhập liệu */
 }
 
 input[type="time"],

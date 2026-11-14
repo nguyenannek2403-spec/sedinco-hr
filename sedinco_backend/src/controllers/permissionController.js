@@ -54,7 +54,7 @@ class PermissionController {
     async cleanupAuditLogs(req, res, next) {
         try {
             const { retention_days } = req.body || {};
-            const result = await permissionService.cleanupExpiredAuditLogs(retention_days);
+            const result = await permissionService.cleanupExpiredAuditLogs(retention_days, req.user);
             return res.json(result);
         } catch (err) {
             next(err);

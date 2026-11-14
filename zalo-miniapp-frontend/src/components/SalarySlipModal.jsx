@@ -299,7 +299,7 @@ export default function SalarySlipModal({
             <button
               type="button"
               onClick={handleExportSingleSlipExcel}
-              className="min-h-[38px] px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+              className="min-h-[44px] px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
               title="Tải phiếu lương Excel/CSV"
             >
               <Download size={14} />
@@ -308,7 +308,7 @@ export default function SalarySlipModal({
             <button
               type="button"
               onClick={handleShareZalo}
-              className="min-h-[38px] px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+              className="min-h-[44px] px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
               title="Chia sẻ qua Zalo"
             >
               <Share2 size={14} />
@@ -317,7 +317,7 @@ export default function SalarySlipModal({
             <button
               type="button"
               onClick={() => window.print()}
-              className="hidden sm:flex min-h-[38px] px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold items-center gap-1 transition cursor-pointer"
+              className="hidden sm:flex min-h-[44px] px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold items-center gap-1.5 transition cursor-pointer"
             >
               <Printer size={14} />
               <span>In</span>
@@ -336,8 +336,8 @@ export default function SalarySlipModal({
               <h2 className="text-sm sm:text-base font-black text-slate-900 uppercase">
                 CÔNG TY CỔ PHẦN SEDINCO
               </h2>
-              <p className="text-[11px] text-slate-500">
-                Hệ thống Quản trị Nhân sự & Phiếu lương Điện tử
+              <p className="text-xs text-slate-600">
+                Hệ thống Quản trị Nhân sự &amp; Phiếu lương Điện tử
               </p>
             </div>
             <div className="sm:text-right flex sm:flex-col items-center sm:items-end gap-2">
@@ -345,12 +345,12 @@ export default function SalarySlipModal({
                 Kỳ Lương: Tháng {thang}/{nam}
               </span>
               {confirmStatus === "CONFIRMED" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-black">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black">
                   <CheckCircle2 size={12} /> Đã xác nhận đúng lương
                 </span>
               )}
               {confirmStatus === "DISPUTED" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[11px] font-black">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-xs font-black">
                   <AlertTriangle size={12} /> Đang khiếu nại sai lương
                 </span>
               )}
@@ -360,7 +360,7 @@ export default function SalarySlipModal({
           {/* Thông tin nhân sự */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase font-semibold">
+              <span className="text-slate-600 block text-xs uppercase font-semibold">
                 Mã Nhân Viên
               </span>
               <span className="font-mono font-bold text-slate-900 text-sm">
@@ -368,15 +368,15 @@ export default function SalarySlipModal({
               </span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase font-semibold">
+              <span className="text-slate-600 block text-xs uppercase font-semibold">
                 Họ và Tên
               </span>
-              <span className="font-bold text-slate-900 truncate block">
+              <span className="font-bold text-slate-900 break-words block">
                 {item.ho_ten}
               </span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px] font-semibold">
+              <span className="text-slate-600 block text-xs font-semibold">
                 Chức danh &amp; Bộ phận
               </span>
               <span className="font-semibold text-slate-700 break-words block">
@@ -384,7 +384,7 @@ export default function SalarySlipModal({
               </span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase font-semibold">
+              <span className="text-slate-600 block text-xs uppercase font-semibold">
                 Ngày Công Thực Tế
               </span>
               <span className="font-extrabold text-emerald-700">
@@ -569,16 +569,16 @@ export default function SalarySlipModal({
                           )}
                         </div>
                         {log.location_name && (
-                          <div className="text-[11px] text-slate-500 break-words">
+                          <div className="text-xs text-slate-600 break-words">
                             {log.location_name}
                           </div>
                         )}
                       </div>
                       <div className="text-right shrink-0">
-                        <span className={`inline-block px-2 py-0.5 rounded-md border text-[11px] font-semibold ${statusInfo.badgeClass}`}>
+                        <span className={`inline-block px-2 py-0.5 rounded-md border text-xs font-semibold ${statusInfo.badgeClass}`}>
                           {statusInfo.shortLabel}
                         </span>
-                        <div className="text-[11px] font-bold text-slate-700 mt-0.5">
+                        <div className="text-xs font-bold text-slate-700 mt-0.5">
                           {statusInfo.creditText}
                         </div>
                       </div>
@@ -606,7 +606,7 @@ export default function SalarySlipModal({
 
               {(evidenceMedia || item.dispute_evidence_media) && (
                 <div className="space-y-1.5">
-                  <span className="text-[11px] font-bold text-slate-600 block">
+                  <span className="text-xs font-bold text-slate-700 block">
                     Hình ảnh / Video bằng chứng đính kèm:
                   </span>
                   {(evidenceMedia || item.dispute_evidence_media).startsWith("data:video") ? (
@@ -652,7 +652,7 @@ export default function SalarySlipModal({
                       type="button"
                       disabled={resolving}
                       onClick={() => handleResolveDispute("CONFIRMED")}
-                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="min-h-[44px] px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       {resolving ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
                       <span>{resolving ? "Đang xử lý..." : "Đã điều chỉnh & Chốt lại"}</span>
@@ -741,17 +741,17 @@ export default function SalarySlipModal({
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-600">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-700">
                         Đính kèm Ảnh minh chứng (&lt;50KB) hoặc Video ngắn (&lt;800KB):
                       </span>
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+                        className="min-h-[44px] px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Camera size={13} />
-                        <Video size={13} />
+                        <Camera size={14} />
+                        <Video size={14} />
                         <span>Chọn Ảnh / Video</span>
                       </button>
                     </div>
@@ -763,14 +763,14 @@ export default function SalarySlipModal({
                       className="hidden"
                     />
                     {mediaNotice && (
-                      <p className="text-[11px] text-emerald-700 font-bold">{mediaNotice}</p>
+                      <p className="text-xs text-emerald-700 font-bold">{mediaNotice}</p>
                     )}
                   </div>
 
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-50"
+                    className="w-full min-h-[46px] py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-50"
                   >
                     {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                     <span>{submitting ? "Đang gửi báo cáo..." : "Gửi Báo Cáo Tới Kế Toán & Admin"}</span>
@@ -781,18 +781,18 @@ export default function SalarySlipModal({
           )}
 
           {/* Chữ ký xác nhận */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 text-center text-[11px] text-slate-500">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 text-center text-xs text-slate-600">
             <div>
-              <p className="font-bold text-slate-700">Người lập biểu</p>
-              <p className="italic text-[10px]">(Ký, ghi rõ họ tên)</p>
+              <p className="font-bold text-slate-800">Người lập biểu</p>
+              <p className="italic text-xs">(Ký, ghi rõ họ tên)</p>
             </div>
             <div>
-              <p className="font-bold text-slate-700">Kế toán trưởng</p>
-              <p className="italic text-[10px]">(Ký, ghi rõ họ tên)</p>
+              <p className="font-bold text-slate-800">Kế toán trưởng</p>
+              <p className="italic text-xs">(Ký, ghi rõ họ tên)</p>
             </div>
             <div>
-              <p className="font-bold text-slate-700">Giám đốc</p>
-              <p className="italic text-[10px]">(Ký, đóng dấu)</p>
+              <p className="font-bold text-slate-800">Giám đốc</p>
+              <p className="italic text-xs">(Ký, đóng dấu)</p>
             </div>
             <div>
               <p className="font-bold text-slate-700">Người nhận tiền</p>

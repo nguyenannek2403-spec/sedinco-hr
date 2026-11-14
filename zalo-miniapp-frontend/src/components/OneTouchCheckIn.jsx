@@ -323,7 +323,7 @@ export default function OneTouchCheckIn({
 
       if (FEATURE_BIOMETRIC_ENABLED) {
         setStage(STAGES.BIO_AUTH);
-        setStatusMessage("Đang xác thực sinh trắc học trên thiết bị...");
+        setStatusMessage("Đang xác nhận vân tay / khuôn mặt trên điện thoại...");
         const secretData = `sedinco_bio_${Date.now()}_${currentUser?.ma_nv}`;
         await zmpAdapter.openBioAuthentication({ secretData });
       }
@@ -410,14 +410,14 @@ export default function OneTouchCheckIn({
 
         if (
           errCode === "SECURITY_VIOLATION_FRAUD" ||
-          errText.includes("CẢNH BÁO VI PHẠM AN NINH") ||
-          errText.includes("Fake GPS") ||
+          errText.includes("VI PHẠM") ||
+          errText.includes("giả mạo") ||
           errText.includes("thiết bị chưa được cấp phép")
         ) {
           await zmpAdapter.vibrate("heavy").catch(() => {});
           setStage(STAGES.SECURITY_FRAUD);
           setErrorMessage(
-            "⚠️ CẢNH BÁO VI PHẠM AN NINH: Hệ thống phát hiện dấu hiệu giả mạo vị trí hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!"
+            "⚠️ Không thể xác nhận chấm công: Hệ thống nhận thấy vị trí hoặc thiết bị chưa khớp với thông tin đã đăng ký. Vui lòng tắt ứng dụng giả lập (nếu có) hoặc liên hệ Quản lý để được hỗ trợ."
           );
           setFraudDetails(postErr.data?.fraud_reason || errText);
           return;
@@ -524,9 +524,9 @@ export default function OneTouchCheckIn({
       {companyMeta?.announcement_text && String(companyMeta.announcement_text).trim() && (
         <div className="w-full max-w-sm bg-amber-500/15 border border-amber-400/50 rounded-2xl px-3.5 py-2.5 text-left space-y-1 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-amber-300">📢 Thông báo từ Công ty</span>
+            <span className="text-xs font-bold text-amber-200">📢 Thông báo từ Công ty</span>
             {companyMeta.announcement_updated_at && (
-              <span className="text-[11px] text-amber-200/80 whitespace-nowrap">
+              <span className="text-xs text-amber-100/90 whitespace-nowrap">
                 {new Date(companyMeta.announcement_updated_at).toLocaleDateString("vi-VN")}
               </span>
             )}
@@ -539,9 +539,9 @@ export default function OneTouchCheckIn({
 
       {/* 3. THẺ TÓM TẮT CÔNG HÔM NAY & CA CHUẨN */}
       <div className="w-full max-w-sm bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2 text-xs shadow-md">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <span className="text-slate-400 font-medium block">
+            <span className="text-slate-300 font-medium block">
               Hôm nay ({new Date().toLocaleDateString("vi-VN")}):
             </span>
             <span className="font-bold text-emerald-400 text-sm">
@@ -552,23 +552,23 @@ export default function OneTouchCheckIn({
                 : "Chưa chấm công vào ca"}
             </span>
             {effectiveToday?.location_name && (
-              <span className="block text-xs text-slate-400 mt-0.5">
+              <span className="block text-xs text-slate-300 mt-0.5">
                 📍 {effectiveToday.location_name}
               </span>
             )}
             {effectiveToday?.proxy_by && (
-              <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/40 text-blue-300 text-[11px] font-semibold">
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/40 text-blue-200 text-xs font-semibold">
                 Quản lý chấm hộ{effectiveToday.proxy_note ? `: ${effectiveToday.proxy_note}` : ""}
               </span>
             )}
           </div>
           <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700 shrink-0">
-            <span className="text-[11px] text-slate-400 font-medium block">Công tháng này</span>
+            <span className="text-xs text-slate-300 font-medium block">Công tháng này</span>
             <span className="text-base font-bold text-blue-400">{monthlyCount} ngày</span>
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-800 space-y-1.5 text-xs text-slate-400">
+        <div className="pt-2 border-t border-slate-800 space-y-1.5 text-xs text-slate-300">
           <div className="flex flex-wrap items-center justify-between gap-1.5">
             <span>
               {(() => {
@@ -618,13 +618,13 @@ export default function OneTouchCheckIn({
             </div>
           </div>
 
-          <div className="text-[11px] font-semibold text-slate-300 flex flex-wrap items-center gap-1">
+          <div className="text-xs font-semibold text-slate-200 flex flex-wrap items-center gap-1">
             <span>Tháng này:</span>
             <span className="text-amber-300 font-bold">
               Đi trễ {attendanceSummary?.late_count || 0} lần (Tổng {attendanceSummary?.total_late_minutes || 0} phút)
             </span>
-            <span className="text-slate-500">•</span>
-            <span className="text-emerald-400 font-bold">
+            <span className="text-slate-400">•</span>
+            <span className="text-emerald-300 font-bold">
               Đi sớm/Đúng giờ {attendanceSummary?.on_time_count || 0} ngày
             </span>
           </div>
@@ -652,7 +652,7 @@ export default function OneTouchCheckIn({
               <button
                 type="button"
                 onClick={() => setStage(STAGES.IDLE)}
-                className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-[0.98]"
+                className="min-h-[44px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-[0.98]"
               >
                 <ArrowLeft size={16} />
                 <span>Trở về</span>
@@ -706,7 +706,7 @@ export default function OneTouchCheckIn({
               <button
                 type="button"
                 onClick={() => setStage(STAGES.IDLE)}
-                className="min-h-[40px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition active:scale-[0.98]"
+                className="min-h-[44px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition active:scale-[0.98]"
               >
                 <ArrowLeft size={16} />
                 <span>Trở về</span>
@@ -765,7 +765,7 @@ export default function OneTouchCheckIn({
 
         {isFieldWorkMode && (
           <div className="mt-2.5 bg-amber-950/35 border border-amber-500/40 rounded-2xl p-3.5 space-y-2.5 text-xs">
-            <label className="block text-[11px] font-black text-amber-200 uppercase">
+            <label className="block text-xs font-black text-amber-200 uppercase">
               Ghi chú tên công trình / khách hàng (Bắt buộc):
             </label>
             <input
@@ -773,9 +773,9 @@ export default function OneTouchCheckIn({
               value={fieldNote}
               onChange={(e) => setFieldNote(e.target.value)}
               placeholder="VD: Giao gạch công trình Hòa Xuân / Gặp anh Minh..."
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500"
+              className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-400"
             />
-            <p className="text-[11px] text-amber-200/90">
+            <p className="text-xs text-amber-100">
               * Bắt buộc bấm nút chụp ảnh hiện trường bên dưới trước khi chấm công.
             </p>
           </div>
@@ -789,7 +789,7 @@ export default function OneTouchCheckIn({
           type="button"
           onClick={() => handleStartCheckIn(false)}
           disabled={isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || isLockedPeriod}
-          className={`relative w-52 h-52 md:w-60 md:h-60 rounded-full flex flex-col items-center justify-center text-white transition-all duration-200 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed border-[6px] ${
+          className={`relative min-w-[208px] min-h-[208px] w-auto h-auto max-w-[90vw] px-6 py-6 md:min-w-[240px] md:min-h-[240px] rounded-full flex flex-col items-center justify-center text-white transition-all duration-200 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed border-[6px] ${
             isLockedPeriod
               ? "bg-slate-600 border-slate-400 opacity-70"
               : stage === STAGES.SUCCESS

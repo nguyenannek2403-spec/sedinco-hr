@@ -1,8 +1,7 @@
 const companyService = require('../services/companyService');
 
 function extractClientIp(req) {
-    const xff = req.headers && req.headers['x-forwarded-for'];
-    if (xff) return String(xff).split(',')[0].trim();
+    // Chỉ tin cậy IP đã qua filter trust proxy từ app middleware; tuyệt đối không đọc x-forwarded-for thô
     return req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '';
 }
 

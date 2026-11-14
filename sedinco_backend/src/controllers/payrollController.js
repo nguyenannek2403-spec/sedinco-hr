@@ -29,7 +29,7 @@ class PayrollController {
         try {
             const month = req.body?.month || req.query?.month;
             const year = req.body?.year || req.query?.year;
-            const data = await payrollService.calculateMonthlyPayroll(month, year);
+            const data = await payrollService.calculateMonthlyPayroll(month, year, { exportAll: true });
             return res.json({ success: true, message: 'Tính toán bảng lương thành công!', data });
         } catch (err) {
             next(err);
@@ -40,7 +40,7 @@ class PayrollController {
         try {
             const month = req.query?.month || req.body?.month || (new Date().getMonth() + 1);
             const year = req.query?.year || req.body?.year || new Date().getFullYear();
-            const data = await payrollService.calculateMonthlyPayroll(month, year);
+            const data = await payrollService.calculateMonthlyPayroll(month, year, { exportAll: true });
 
             // Khử CSV Formula Injection cho các ký tự =, +, -, @, \t, \r
             const sanitizeCell = (val) => {

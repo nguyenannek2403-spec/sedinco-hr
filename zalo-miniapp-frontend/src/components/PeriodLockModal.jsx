@@ -111,7 +111,7 @@ export default function PeriodLockModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1 min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-bold cursor-pointer shrink-0"
           >
             <ArrowLeft size={16} />
             <span>Trở về</span>
@@ -136,7 +136,7 @@ export default function PeriodLockModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 border-2 border-slate-200 flex items-center justify-center cursor-pointer shrink-0"
+            className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 text-slate-700 hover:text-slate-900 border-2 border-slate-200 flex items-center justify-center cursor-pointer shrink-0"
             aria-label="Đóng"
           >
             <X size={20} />

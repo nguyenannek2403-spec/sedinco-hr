@@ -4,6 +4,7 @@ const employeeController = require('../controllers/employeeController');
 const permissionController = require('../controllers/permissionController');
 const { 
     authenticateToken, 
+    requireAuth,
     requirePermission, 
     requireRole 
 } = require('../middlewares/authMiddleware');
@@ -16,10 +17,10 @@ router.get('/pending-device-changes', authenticateToken, requireRole(['admin']),
 router.get('/pending-device-requests', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.getPendingDeviceChanges(req, res, next));
 
 // 1.2 Liên kết tài khoản Zalo (Xác minh qua access token Zalo trên Server)
-router.post('/bind-zalo', authenticateToken, (req, res, next) => employeeController.bindZalo(req, res, next));
+router.post('/bind-zalo', authenticateToken, requireAuth, (req, res, next) => employeeController.bindZalo(req, res, next));
 
 // 1.3 Yêu cầu đổi thiết bị (Dành cho Worker)
-router.post('/request-device-change', authenticateToken, (req, res, next) => employeeController.requestDeviceChange(req, res, next));
+router.post('/request-device-change', authenticateToken, requireAuth, (req, res, next) => employeeController.requestDeviceChange(req, res, next));
 
 // 1.4 Phê duyệt đổi thiết bị (hỗ trợ cả param trong body lẫn URL path)
 router.post('/approve-device-change', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.approveDeviceChange(req, res, next));
@@ -37,7 +38,7 @@ router.post('/', authenticateToken, requirePermission('employee_create'), (req, 
 
 // 4. Thay đổi phân quyền vai trò Role (Chỉ Quản trị viên - Admin)
 router.put('/:ma_nv/role', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.updateEmployeeRole(req, res, next));
-router.put('/:ma_nv/shift', authenticateToken, requirePermission('employee_edit'), (req, res, next) => employeeController.updateEmployeeShift(req, res, next));
+router.put('/:ma_nv/shift', authenticateToken, requirePermission('shift_manage'), (req, res, next) => employeeController.updateEmployeeShift(req, res, next));
 
 // 4.1 Phê duyệt đổi thiết bị cho nhân viên (Chỉ Admin)
 router.put('/:ma_nv/approve-device-change', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.approveDeviceChange(req, res, next));

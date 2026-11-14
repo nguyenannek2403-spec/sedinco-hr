@@ -201,7 +201,7 @@ export default function DesktopSidebar({
 
               {item.badge && (
                 <span
-                  className={`text-[11px] px-2.5 py-0.5 rounded-full font-black border shrink-0 ${
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-black border shrink-0 ${
                     item.badgeColor || (isActive ? "bg-white/20 text-white border-white/40" : "bg-slate-800 text-slate-200 border-slate-700")
                   }`}
                 >
@@ -227,8 +227,8 @@ export default function DesktopSidebar({
             />
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-black text-sm text-white truncate">{currentUser?.ho_ten}</h4>
-            <p className="text-[11px] text-blue-300 font-semibold truncate">{currentUser?.chuc_danh || "Ban Quản Trị"}</p>
+            <h4 className="font-black text-sm text-white break-words leading-snug">{currentUser?.ho_ten}</h4>
+            <p className="text-xs text-blue-300 font-semibold leading-snug break-words">{currentUser?.chuc_danh || "Ban Quản Trị"}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-xs text-emerald-400 font-mono font-bold">Mã: {currentUser?.ma_nv}</span>
               <span className="text-xs text-slate-500">•</span>
@@ -310,22 +310,23 @@ export default function DesktopSidebar({
               onClick={() => handleSelect(item.id)}
               className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl transition-all ${
                 isActive
-                  ? "text-blue-400 font-bold bg-blue-500/10"
-                  : "text-slate-400 hover:text-slate-200 font-medium"
+                  ? "text-blue-300 font-bold bg-blue-500/10"
+                  : "text-slate-300 hover:text-white font-medium"
               }`}
             >
               <Icon className="w-5 h-5" />
-              <span className="text-[10px] truncate max-w-[64px]">{item.shortLabel || item.label}</span>
+              <span className="text-xs leading-tight whitespace-nowrap">{item.shortLabel || item.label}</span>
             </button>
           );
         })}
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          className="flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl text-slate-300 hover:text-white font-bold"
+          aria-label="Mở menu đầy đủ"
+          className="flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl text-slate-200 hover:text-white font-bold"
         >
           <Menu className="w-5 h-5 text-amber-400" />
-          <span className="text-[10px]">Menu</span>
+          <span className="text-xs leading-tight">Menu</span>
         </button>
       </nav>
     </>

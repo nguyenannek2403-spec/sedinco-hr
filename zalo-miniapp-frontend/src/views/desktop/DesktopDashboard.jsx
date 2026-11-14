@@ -8,7 +8,7 @@ import HolidaysTab from "./HolidaysTab";
 import AuditLogsTab from "./AuditLogsTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
 import LiveAttendanceBoardModal from "../../components/LiveAttendanceBoardModal";
-import { getDefaultTabForRole } from "../../constants/roles";
+import { getDefaultTabForRole, isTabAllowedForRole } from "../../constants/roles";
 import { safeGet } from "../../utils/api";
 import { RefreshCw } from "lucide-react";
 
@@ -60,9 +60,21 @@ export default function DesktopDashboard({
     }
   }, []);
 
+  const resolvedRole = activeRole || currentUser?.role;
+  const dynamicPerms = currentUser?.dynamic_permissions || {};
+  const effectiveTab = isTabAllowedForRole(currentTab, resolvedRole, dynamicPerms)
+    ? currentTab
+    : getDefaultTabForRole(resolvedRole);
+
+  useEffect(() => {
+    if (!isTabAllowedForRole(currentTab, resolvedRole, dynamicPerms)) {
+      setCurrentTab(getDefaultTabForRole(resolvedRole));
+    }
+  }, [currentTab, resolvedRole, dynamicPerms]);
+
   useEffect(() => {
     fetchAlertsSummary();
-  }, [fetchAlertsSummary, refreshTick, currentTab]);
+  }, [fetchAlertsSummary, refreshTick, effectiveTab]);
 
   const handleMonthChange = (m, y) => {
     if (m) setSelectedMonth(Number(m));
@@ -73,13 +85,17 @@ export default function DesktopDashboard({
     <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans relative">
       {/* Sidebar Trái (Tự động chuyển thành Drawer + Bottom Nav khi mở trên điện thoại < 1024px) */}
       <DesktopSidebar
-        currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        currentTab={effectiveTab}
+        setCurrentTab={(tabId) => {
+          if (!isTabAllowedForRole(tabId, resolvedRole, dynamicPerms)) return;
+          setCurrentTab(tabId);
+        }}
         onSelectTab={(tabId) => {
+          if (!isTabAllowedForRole(tabId, resolvedRole, dynamicPerms)) return;
           setCurrentTab(tabId);
           setIsMobileMenuOpen(false);
         }}
-        activeRole={activeRole || currentUser?.role}
+        activeRole={resolvedRole}
         onRoleSwitch={onRoleSwitch}
         currentUser={currentUser}
         onLogout={onLogout}
@@ -96,10 +112,13 @@ export default function DesktopDashboard({
         {/* Header (Hỗ trợ Safe Area Top & Tránh cụm nút Zalo góc phải trên điện thoại) */}
         <DesktopHeader
           currentUser={currentUser}
-          activeRole={activeRole || currentUser?.role}
+          activeRole={resolvedRole}
           onRoleSwitch={onRoleSwitch}
-          currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
+          currentTab={effectiveTab}
+          setCurrentTab={(tabId) => {
+            if (!isTabAllowedForRole(tabId, resolvedRole, dynamicPerms)) return;
+            setCurrentTab(tabId);
+          }}
           onLogout={onLogout}
           onChangePasswordRequest={onChangePasswordRequest}
           selectedMonth={selectedMonth}
@@ -179,12 +198,12 @@ export default function DesktopDashboard({
             }
           >
             {/* 1. Ma Trận Chấm Công Toàn Công Ty */}
-            {currentTab === "matrix" && (
+            {effectiveTab === "matrix" && (
               <AttendanceMatrixTable
                 key={`matrix-${selectedMonth}-${selectedYear}-${refreshTick}`}
                 currentUser={currentUser}
-                activeRole={activeRole || currentUser?.role}
-                userRole={activeRole || currentUser?.role}
+                activeRole={resolvedRole}
+                userRole={resolvedRole}
                 month={selectedMonth}
                 year={selectedYear}
                 onMonthChange={handleMonthChange}
@@ -194,12 +213,12 @@ export default function DesktopDashboard({
             )}
 
             {/* 2. Bảng Tính Lương & Xuất Báo Cáo */}
-            {currentTab === "payroll" && (
+            {effectiveTab === "payroll" && (
               <PayrollGridTable
                 key={`payroll-${selectedMonth}-${selectedYear}-${refreshTick}`}
                 currentUser={currentUser}
-                activeRole={activeRole || currentUser?.role}
-                userRole={activeRole || currentUser?.role}
+                activeRole={resolvedRole}
+                userRole={resolvedRole}
                 month={selectedMonth}
                 year={selectedYear}
                 onMonthChange={handleMonthChange}
@@ -209,7 +228,7 @@ export default function DesktopDashboard({
             )}
 
             {/* 3. Xét Duyệt Đơn Từ */}
-            {currentTab === "requests" && (
+            {effectiveTab === "requests" && (
               <RequestsManagementTab
                 key={`requests-${refreshTick}`}
                 currentUser={currentUser}
@@ -218,19 +237,19 @@ export default function DesktopDashboard({
             )}
 
             {/* 4 & 9. Quản Lý Hồ Sơ Nhân Sự & Phê Duyệt Đổi Thiết Bị */}
-            {(currentTab === "management" || currentTab === "devices") && (
+            {(effectiveTab === "management" || effectiveTab === "devices") && (
               <EmployeeManagementTab
-                key={`management-${refreshTick}-${currentTab}`}
+                key={`management-${refreshTick}-${effectiveTab}`}
                 currentUser={currentUser}
                 showToast={showToast}
-                initialSubTab={currentTab === "devices" ? "devices" : "list"}
+                initialSubTab={effectiveTab === "devices" ? "devices" : "list"}
                 pendingDeviceCount={alertsSummary?.pending_device_count || 0}
                 onRefreshAlerts={fetchAlertsSummary}
               />
             )}
 
             {/* 5. Cấu Hình Công Ty & GPS */}
-            {currentTab === "company" && (
+            {effectiveTab === "company" && (
               <CompanySettingsTab
                 currentUser={currentUser}
                 showToast={showToast}
@@ -238,7 +257,7 @@ export default function DesktopDashboard({
             )}
 
             {/* 6. Danh Mục Ngày Lễ */}
-            {currentTab === "holidays" && (
+            {effectiveTab === "holidays" && (
               <HolidaysTab
                 currentUser={currentUser}
                 showToast={showToast}
@@ -246,7 +265,7 @@ export default function DesktopDashboard({
             )}
 
             {/* 7. Nhật Ký Kiểm Toán & Giám Sát Nhân Viên (V5) */}
-            {currentTab === "audit_logs" && (
+            {effectiveTab === "audit_logs" && (
               <AuditLogsTab
                 currentUser={currentUser}
                 showToast={showToast}
@@ -255,7 +274,7 @@ export default function DesktopDashboard({
             )}
 
             {/* 8. Phân Quyền Kế Toán */}
-            {currentTab === "permissions" && (
+            {effectiveTab === "permissions" && (
               <AccountantPermissionView
                 currentUser={currentUser}
                 showToast={showToast}
@@ -263,7 +282,7 @@ export default function DesktopDashboard({
             )}
 
             {/* 10. Hồ Sơ Cá Nhân & Phiếu Lương */}
-            {currentTab === "profile" && (
+            {effectiveTab === "profile" && (
               <div className="max-w-lg mx-auto">
                 <WorkerProfileTab
                   currentUser={currentUser}

@@ -172,56 +172,56 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${card.iconClass}`}>
                   <CardIcon className="w-4 h-4" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold leading-snug break-words">{card.title}</div>
-                  <div className="text-[11px] opacity-80 mt-0.5 leading-snug break-words">{card.desc}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold leading-snug break-words">{card.title}</div>
+                    <div className="text-xs opacity-90 mt-0.5 leading-snug break-words">{card.desc}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* F1: Thẻ Quỹ Phép Năm */}
+        {leaveBalance && (
+          <div className="bg-gradient-to-r from-indigo-950/90 to-slate-800/90 border border-indigo-500/30 rounded-2xl p-4 shadow-lg flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shrink-0">
+                <CalendarCheck className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white">
+                  Quỹ phép năm {leaveBalance.year}
                 </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* F1: Thẻ Quỹ Phép Năm */}
-      {leaveBalance && (
-        <div className="bg-gradient-to-r from-indigo-950/90 to-slate-800/90 border border-indigo-500/30 rounded-2xl p-4 shadow-lg flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shrink-0">
-              <CalendarCheck className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-white">
-                Quỹ phép năm {leaveBalance.year}
-              </div>
-              <div className="text-xs text-slate-300 mt-0.5 leading-relaxed">
-                Đã dùng {leaveBalance.used} • Chờ duyệt {leaveBalance.pending} ngày
+                <div className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                  Đã dùng {leaveBalance.used} • Chờ duyệt {leaveBalance.pending} ngày
+                </div>
               </div>
             </div>
-          </div>
-          <div className="text-right shrink-0">
-            <div className={`text-base font-bold whitespace-nowrap ${
-              leaveBalance.remaining > 0 ? "text-emerald-400" : "text-rose-400"
-            }`}>
-              Còn {leaveBalance.remaining} / {leaveBalance.quota}
+            <div className="text-right shrink-0">
+              <div className={`text-base font-bold whitespace-nowrap ${
+                leaveBalance.remaining > 0 ? "text-emerald-400" : "text-rose-400"
+              }`}>
+                Còn {leaveBalance.remaining} / {leaveBalance.quota}
+              </div>
+              <div className="text-xs text-slate-300">ngày phép</div>
             </div>
-            <div className="text-[11px] text-slate-400">ngày phép</div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 text-xs gap-1">
-        {["all", "PENDING", "APPROVED", "REJECTED"].map((st) => (
-          <button
-            key={st}
-            type="button"
-            onClick={() => setFilterStatus(st)}
-            className={`flex-1 min-h-[36px] px-2 py-1.5 font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-              filterStatus === st
-                ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
+        {/* Filter Tabs */}
+        <div className="flex flex-wrap bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 text-xs gap-1">
+          {["all", "PENDING", "APPROVED", "REJECTED"].map((st) => (
+            <button
+              key={st}
+              type="button"
+              onClick={() => setFilterStatus(st)}
+              className={`flex-1 min-h-[44px] px-2.5 py-2 font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                filterStatus === st
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
             {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
           </button>
         ))}
@@ -261,7 +261,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                       {getRequestTypeLabel(req.request_type)}
                     </span>
                     {req.correction_mode && getCorrectionModeLabel(req.correction_mode) && (
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 text-amber-200 text-xs font-semibold">
                         {getCorrectionModeLabel(req.correction_mode)}
                       </span>
                     )}
@@ -349,7 +349,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
         title="Xác nhận hủy đơn"
         message={`Bạn có chắc chắn muốn hủy đơn #${confirmCancel.id || ""} không?`}
         confirmLabel="Xác nhận hủy"
-        danger={true}
+        variant="danger"
         loading={cancelling}
         onCancel={() => {
           if (!cancelling) setConfirmCancel({ open: false, id: null });

@@ -374,8 +374,9 @@ class AuthService {
         // V6 Zero-Password Zalo Auto-Login: Liên kết tự động zalo_user_id và device_id vào hồ sơ nhân viên
         if (zalo_user_id && String(zalo_user_id).trim().length > 0) {
             const cleanZaloId = String(zalo_user_id).trim().slice(0, 100);
-            await query('UPDATE employees SET zalo_user_id = ? WHERE ma_nv = ?', [cleanZaloId, emp.ma_nv]).catch(() => {});
+            await query('UPDATE employees SET zalo_user_id = ?, zalo_id = ? WHERE ma_nv = ?', [cleanZaloId, cleanZaloId, emp.ma_nv]).catch(() => {});
             emp.zalo_user_id = cleanZaloId;
+            emp.zalo_id = cleanZaloId;
         }
         if (device_id && String(device_id).trim().length > 0 && !emp.bound_device_id) {
             const cleanDevId = String(device_id).trim().slice(0, 140);
@@ -429,12 +430,12 @@ class AuthService {
         let rows = [];
         if (cleanHint) {
             rows = await query(
-                `SELECT * FROM employees WHERE ma_nv = ? AND ((? != '' AND zalo_user_id = ?) OR (? != '' AND bound_device_id = ?)) LIMIT 1`,
-                [cleanHint, cleanZaloId, cleanZaloId, cleanDevId, cleanDevId]
+                `SELECT * FROM employees WHERE ma_nv = ? AND ((? != '' AND (zalo_user_id = ? OR zalo_id = ?)) OR (? != '' AND bound_device_id = ?)) LIMIT 1`,
+                [cleanHint, cleanZaloId, cleanZaloId, cleanZaloId, cleanDevId, cleanDevId]
             );
         }
         if ((!rows || rows.length === 0) && cleanZaloId) {
-            rows = await query('SELECT * FROM employees WHERE zalo_user_id = ? LIMIT 1', [cleanZaloId]);
+            rows = await query('SELECT * FROM employees WHERE zalo_user_id = ? OR zalo_id = ? LIMIT 1', [cleanZaloId, cleanZaloId]);
         }
         if ((!rows || rows.length === 0) && cleanDevId) {
             rows = await query('SELECT * FROM employees WHERE bound_device_id = ? LIMIT 1', [cleanDevId]);
@@ -699,6 +700,13 @@ class AuthService {
             return { success: false, message: 'Bạn không có quyền cập nhật ảnh đại diện của người khác!' };
         }
         await query('UPDATE employees SET avatar_url = ? WHERE ma_nv = ?', [avatar_url, ma_nv]);
+        await logAuditEvent({
+            actor_id: current_user ? (current_user.ma_nv || current_user.username) : ma_nv,
+            actor_role: current_user ? current_user.role : 'worker',
+            action: 'UPDATE_AVATAR',
+            resource: 'employees',
+            details: { target_ma_nv: ma_nv }
+        });
         return { success: true };
     }
 

@@ -1,3 +1,6 @@
+// Guard non-Zalo browser runtime before zmp-sdk/apis module initialization
+import "./utils/zmpRuntimeGuard";
+
 // React core
 import React from "react";
 import { createRoot } from "react-dom/client";

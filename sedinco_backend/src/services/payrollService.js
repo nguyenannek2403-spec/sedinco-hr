@@ -6,7 +6,8 @@ class PayrollService {
     async calculateMonthlyPayroll(month, year, pagination = {}) {
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
         const y = parseInt(year, 10) || new Date().getFullYear();
-        const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 200));
+        const maxCap = pagination.exportAll ? 5000 : 200;
+        const limit = Math.min(maxCap, Math.max(1, parseInt(pagination.limit, 10) || maxCap));
         const page = Math.max(1, parseInt(pagination.page, 10) || 1);
         const offset = (page - 1) * limit;
 

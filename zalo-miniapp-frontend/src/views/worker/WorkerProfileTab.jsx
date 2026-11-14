@@ -187,24 +187,26 @@ export default function WorkerProfileTab({
                 <DollarSign className="w-5 h-5" />
               </div>
               <div>
-                <div className="text-xs font-bold text-white">Phiếu Lương Điện Tử</div>
-                <div className="text-[11px] text-slate-400">Xem chi tiết công, phụ cấp, BHXH & thực lĩnh</div>
+                <div className="text-sm font-bold text-white">Phiếu Lương Điện Tử</div>
+                <div className="text-xs text-slate-300">Xem chi tiết công, phụ cấp, BHXH &amp; thực lĩnh</div>
               </div>
             </div>
             <div className="flex items-center gap-1.5">
               <select
+                aria-label="Chọn tháng phiếu lương"
                 value={slipMonth}
                 onChange={(e) => setSlipMonth(Number(e.target.value))}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-bold"
+                className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                   <option key={m} value={m}>T{m}</option>
                 ))}
               </select>
               <select
+                aria-label="Chọn năm phiếu lương"
                 value={slipYear}
                 onChange={(e) => setSlipYear(Number(e.target.value))}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-bold"
+                className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
               >
                 {[2025, 2026, 2027].map((y) => (
                   <option key={y} value={y}>{y}</option>
@@ -310,7 +312,7 @@ export default function WorkerProfileTab({
               <button
                 type="button"
                 onClick={() => setIsDeviceModalOpen(false)}
-                className="min-h-[40px] px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition active:scale-[0.98]"
+                className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition active:scale-[0.98]"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Trở về</span>

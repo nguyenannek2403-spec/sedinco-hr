@@ -1,5 +1,5 @@
 import React from "react";
-import { getSystemInfo } from "zmp-sdk";
+import { getSystemInfo } from "zmp-sdk/apis";
 import {
   AnimationRoutes,
   App,

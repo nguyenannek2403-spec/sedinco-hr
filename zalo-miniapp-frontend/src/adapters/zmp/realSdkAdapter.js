@@ -43,7 +43,7 @@ export const realSdkAdapter = {
       console.warn("[RealSDK] getAccessToken error:", err);
       throw {
         code: "AUTH_TOKEN_FAILED",
-        message: "Không thể lấy mã truy cập Zalo (Access Token). Vui lòng thử lại.",
+        message: "Chưa kết nối được phiên Zalo trên máy này. Vui lòng mở lại ứng dụng hoặc đăng nhập bằng Mã nhân viên.",
         raw: err
       };
     }
@@ -143,7 +143,7 @@ export const realSdkAdapter = {
       if (typeof zmpOpenBioAuthentication !== "function") {
         throw {
           code: "BIO_NOT_SUPPORTED",
-          message: "Thiết bị hoặc phiên bản Zalo chưa hỗ trợ xác thực sinh trắc học."
+          message: "Thiết bị hoặc phiên bản Zalo chưa hỗ trợ mở khóa bằng vân tay / khuôn mặt."
         };
       }
       const res = await zmpOpenBioAuthentication({ secretData });
@@ -166,13 +166,13 @@ export const realSdkAdapter = {
       if (code === -105 || err?.message?.includes("cancel")) {
         throw {
           code: "BIO_USER_CANCELLED",
-          message: "Bạn đã hủy quá trình xác thực sinh trắc học.",
+          message: "Bạn đã hủy bước xác nhận vân tay / khuôn mặt.",
           raw: err
         };
       }
       throw {
         code: "BIO_AUTH_FAILED",
-        message: "Xác thực sinh trắc học không thành công. Vui lòng thử lại.",
+        message: "Xác nhận vân tay / khuôn mặt chưa thành công. Vui lòng thử lại.",
         raw: err
       };
     }

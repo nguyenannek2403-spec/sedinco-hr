@@ -45,7 +45,7 @@ export default function WorkerDashboard({
             <button
               type="button"
               onClick={() => setActiveTab("checkin")}
-              className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 flex items-center gap-1 text-xs font-bold shrink-0"
+              className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 flex items-center gap-1.5 text-xs font-bold shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Trở về</span>
@@ -54,7 +54,7 @@ export default function WorkerDashboard({
             <button
               type="button"
               onClick={() => onRoleSwitch(currentUser.role)}
-              className="min-h-[38px] px-2.5 py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-xl text-[11px] font-bold shrink-0"
+              className="min-h-[44px] px-3 py-2 bg-amber-500/20 border border-amber-500/40 text-amber-200 rounded-xl text-xs font-bold shrink-0"
             >
               Quản trị
             </button>
@@ -68,7 +68,7 @@ export default function WorkerDashboard({
           <div className="text-xs font-extrabold text-white leading-tight truncate">
             {currentUser?.ho_ten || "Nhân viên"}
           </div>
-          <div className="text-[10px] text-blue-400 font-semibold leading-tight truncate">
+          <div className="text-xs text-blue-300 font-semibold leading-snug break-words">
             {currentUser?.ma_nv || "NV"} • {currentUser?.role === "admin" ? "Quản trị" : currentUser?.role === "accountant" ? "Kế toán" : "Nhân sự"}
           </div>
         </div>
@@ -78,7 +78,7 @@ export default function WorkerDashboard({
           type="button"
           onClick={onLogout}
           title="Đăng xuất"
-          className="min-h-[38px] px-2.5 py-1.5 bg-slate-800/90 hover:bg-rose-500/20 border border-slate-700 hover:border-rose-500/40 text-slate-200 hover:text-rose-300 rounded-xl transition-colors flex items-center gap-1 text-[11px] font-bold shrink-0"
+          className="min-h-[44px] px-3 py-2 bg-slate-800/90 hover:bg-rose-500/20 border border-slate-700 hover:border-rose-500/40 text-slate-200 hover:text-rose-300 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-bold shrink-0"
         >
           <LogOut className="w-3.5 h-3.5 shrink-0" />
           <span>Đăng xuất</span>
@@ -131,7 +131,7 @@ export default function WorkerDashboard({
           }`}
         >
           <Clock className={`w-5 h-5 ${activeTab === "checkin" ? "scale-110" : ""}`} />
-          <span className="text-[10px]">Chấm công</span>
+          <span className="text-xs leading-tight">Chấm công</span>
         </button>
 
         <button
@@ -143,7 +143,7 @@ export default function WorkerDashboard({
           }`}
         >
           <Calendar className={`w-5 h-5 ${activeTab === "history" ? "scale-110" : ""}`} />
-          <span className="text-[10px]">Lịch sử</span>
+          <span className="text-xs leading-tight">Lịch sử</span>
         </button>
 
         <button
@@ -155,7 +155,7 @@ export default function WorkerDashboard({
           }`}
         >
           <FileText className={`w-5 h-5 ${activeTab === "requests" ? "scale-110" : ""}`} />
-          <span className="text-[10px]">Đơn từ</span>
+          <span className="text-xs leading-tight">Đơn từ</span>
         </button>
 
         <button
@@ -167,7 +167,7 @@ export default function WorkerDashboard({
           }`}
         >
           <User className={`w-5 h-5 ${activeTab === "profile" ? "scale-110" : ""}`} />
-          <span className="text-[10px]">Tài khoản</span>
+          <span className="text-xs leading-tight">Tài khoản</span>
         </button>
       </nav>
 

@@ -70,7 +70,7 @@ class PermissionService {
         };
     }
 
-    async cleanupExpiredAuditLogs(customRetentionDays = null) {
+    async cleanupExpiredAuditLogs(customRetentionDays = null, current_user = null) {
         let retentionDays = 30;
         if (customRetentionDays !== null && customRetentionDays !== undefined && !isNaN(Number(customRetentionDays))) {
             retentionDays = Math.max(1, Math.min(365, parseInt(customRetentionDays, 10)));
@@ -89,10 +89,21 @@ class PermissionService {
               AND actor_id NOT IN (SELECT ma_nv FROM employees WHERE keep_logs = 1)
         `, [retentionDays]);
 
+        const deletedCount = res && res.affectedRows ? res.affectedRows : 0;
+        if (current_user) {
+            await logAuditEvent({
+                actor_id: current_user.ma_nv || current_user.username || 'admin',
+                actor_role: current_user.role || 'admin',
+                action: 'CLEANUP_AUDIT_LOGS',
+                resource: 'audit_logs',
+                details: { retention_days: retentionDays, deleted_count: deletedCount }
+            });
+        }
+
         return {
             success: true,
             retention_days: retentionDays,
-            deleted_count: res && res.affectedRows ? res.affectedRows : 0
+            deleted_count: deletedCount
         };
     }
 

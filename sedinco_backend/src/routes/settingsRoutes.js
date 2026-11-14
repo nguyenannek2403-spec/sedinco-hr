@@ -4,11 +4,12 @@ const companyController = require('../controllers/companyController');
 const permissionController = require('../controllers/permissionController');
 const { 
     authenticateToken, 
+    requireAuth,
     requireRole 
 } = require('../middlewares/authMiddleware');
 
 // 1. Quản lý cấu hình ca làm việc & thang phạt đi trễ
-router.get('/penalties', (req, res, next) => companyController.getPenalties(req, res, next));
+router.get('/penalties', authenticateToken, requireAuth, (req, res, next) => companyController.getPenalties(req, res, next));
 router.post('/penalties', authenticateToken, requireRole(['admin']), (req, res, next) => companyController.updatePenalties(req, res, next));
 router.put('/penalties', authenticateToken, requireRole(['admin']), (req, res, next) => companyController.updatePenalties(req, res, next));
 

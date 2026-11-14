@@ -117,6 +117,9 @@ function calculateEmployeeSalary({
             if (isProbation) congThuViec += credit; else congChinhThuc += credit;
         } else if (log.status === '0.5') {
             if (isProbation) congThuViec += 0.5; else congChinhThuc += 0.5;
+        } else if (log.status === 'P' || log.status === 'L') {
+            // Nghỉ phép năm có hưởng lương (P) & Nghỉ lễ/Tết hưởng nguyên lương (L) tính 1.0 công
+            if (isProbation) congThuViec += 1; else congChinhThuc += 1;
         } else if (log.status === 'OT' || log.status === '1/OT') {
             if (log.status === '1/OT') {
                 const credit = dayCredit(1);

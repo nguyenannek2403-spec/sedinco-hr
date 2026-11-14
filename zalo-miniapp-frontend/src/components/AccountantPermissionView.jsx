@@ -236,14 +236,18 @@ export default function AccountantPermissionView({ showToast }) {
                   {items.map(p => {
                     const isChecked = Boolean(permMap[p.permission_key]);
                     return (
-                      <div 
+                      <div
                         key={p.permission_key}
-                        onClick={() => handleToggle(p.permission_key)}
-                        className="px-6 py-3.5 flex items-center justify-between hover:bg-slate-50/50 cursor-pointer transition select-none"
+                        className="px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/50 transition"
                       >
-                        <div className="pr-3 min-w-0">
+                        <div className="pr-2 min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-slate-900 text-sm sm:text-base leading-snug break-words">{p.permission_name}</span>
+                            {["payroll_approve", "attendance_unlock"].includes(p.permission_key) && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                                Quyền phê duyệt Giám đốc
+                              </span>
+                            )}
                           </div>
                           {p.description && (
                             <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed break-words">{p.description}</p>
@@ -251,7 +255,14 @@ export default function AccountantPermissionView({ showToast }) {
                         </div>
 
                         {/* Switch button */}
-                        <div className="shrink-0">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={Boolean(isChecked)}
+                          aria-label={p.permission_name || p.permission_key}
+                          onClick={() => handleToggle(p.permission_key)}
+                          className="shrink-0 min-w-[44px] min-h-[44px] inline-flex items-center justify-end rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
+                        >
                           <div className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out ${
                             isChecked ? "bg-blue-600" : "bg-slate-300"
                           }`}>
@@ -259,7 +270,7 @@ export default function AccountantPermissionView({ showToast }) {
                               isChecked ? "translate-x-5" : "translate-x-0"
                             }`} />
                           </div>
-                        </div>
+                        </button>
                       </div>
                     );
                   })}

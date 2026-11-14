@@ -138,8 +138,8 @@ class AttendanceController {
                 field_note,
                 shift_type
             } = req.body;
-            const xff = req.headers && req.headers['x-forwarded-for'];
-            const ip = xff ? String(xff).split(',')[0].trim() : (req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '');
+            // Chỉ sử dụng IP đã được app middleware chuẩn hóa (tuân thủ TRUST_PROXY)
+            const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '';
             const result = await attendanceService.checkInMultiFactor({
                 lat,
                 lng,

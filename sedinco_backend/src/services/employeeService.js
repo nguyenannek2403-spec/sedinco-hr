@@ -406,7 +406,7 @@ class EmployeeService {
             throw error;
         }
 
-        await query('UPDATE employees SET zalo_id = ? WHERE ma_nv = ?', [verified.zaloId, ma_nv]);
+        await query('UPDATE employees SET zalo_id = ?, zalo_user_id = ? WHERE ma_nv = ?', [verified.zaloId, verified.zaloId, ma_nv]);
 
         await logAuditEvent({
             actor_id: ma_nv,

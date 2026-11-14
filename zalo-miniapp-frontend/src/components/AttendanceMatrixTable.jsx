@@ -83,6 +83,7 @@ export default function AttendanceMatrixTable({
   const proxyInFlightRef = useRef(false);
   const [internalData, setInternalData] = useState([]);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
+  const [matrixError, setMatrixError] = useState("");
 
   useLockBodyScroll(Boolean(detailEmpCode || editingCell || showProxyModal));
 
@@ -98,6 +99,7 @@ export default function AttendanceMatrixTable({
   const fetchMatrixFromApi = useCallback(async () => {
     if (Array.isArray(attendanceData)) return;
     setLoadingMatrix(true);
+    setMatrixError("");
     try {
       const res = await safeGet("/attendance", { month, year }, { cancelPrevious: true });
       if (Array.isArray(res?.data)) {
@@ -112,6 +114,7 @@ export default function AttendanceMatrixTable({
       }
     } catch (e) {
       console.warn("Lỗi tải bảng công ma trận:", e);
+      setMatrixError(e?.message || "Không thể tải bảng chấm công. Vui lòng thử lại.");
     } finally {
       setLoadingMatrix(false);
     }
@@ -467,10 +470,10 @@ export default function AttendanceMatrixTable({
             <button
               type="button"
               onClick={() => setViewMode("cards")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[38px] ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] ${
                 viewMode === "cards"
                   ? "bg-white text-blue-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  : "text-slate-700 hover:text-slate-900"
               }`}
             >
               <List size={15} />
@@ -479,10 +482,10 @@ export default function AttendanceMatrixTable({
             <button
               type="button"
               onClick={() => setViewMode("matrix")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[38px] ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] ${
                 viewMode === "matrix"
                   ? "bg-white text-blue-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  : "text-slate-700 hover:text-slate-900"
               }`}
             >
               <LayoutGrid size={15} />
@@ -501,14 +504,27 @@ export default function AttendanceMatrixTable({
 
         <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-700">
           <span className="font-black text-slate-900">Ký hiệu:</span>
-          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-500">1</span> Đủ công</span>
-          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-teal-100 text-teal-900 border border-teal-500">0.5</span> Nửa công</span>
-          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-500">P</span> Có phép</span>
-          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-indigo-100 text-indigo-900 border border-indigo-500">OT</span> Tăng ca</span>
-          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-rose-100 text-rose-900 border border-rose-500">L</span> Lễ</span>
-          <span className="flex items-center gap-1"><span className="w-6 h-5 rounded text-center inline-flex items-center justify-center text-[11px] font-black bg-slate-200 text-slate-800 border border-slate-400">KP</span> Không phép</span>
+          <span className="flex items-center gap-1"><span className="w-7 h-5 rounded text-center inline-flex items-center justify-center text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-500">1</span> Đủ công</span>
+          <span className="flex items-center gap-1"><span className="w-7 h-5 rounded text-center inline-flex items-center justify-center text-xs font-black bg-teal-100 text-teal-900 border border-teal-500">0.5</span> Nửa công</span>
+          <span className="flex items-center gap-1"><span className="w-7 h-5 rounded text-center inline-flex items-center justify-center text-xs font-black bg-amber-100 text-amber-900 border border-amber-500">P</span> Có phép</span>
+          <span className="flex items-center gap-1"><span className="w-7 h-5 rounded text-center inline-flex items-center justify-center text-xs font-black bg-indigo-100 text-indigo-900 border border-indigo-500">OT</span> Tăng ca</span>
+          <span className="flex items-center gap-1"><span className="w-7 h-5 rounded text-center inline-flex items-center justify-center text-xs font-black bg-rose-100 text-rose-900 border border-rose-500">L</span> Lễ</span>
+          <span className="flex items-center gap-1"><span className="w-7 h-5 rounded text-center inline-flex items-center justify-center text-xs font-black bg-slate-200 text-slate-800 border border-slate-400">KP</span> Không phép</span>
         </div>
       </div>
+
+      {matrixError && (
+        <div className="mx-4 mt-3 p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-800 text-xs sm:text-sm font-bold flex items-center justify-between gap-2">
+          <span>{matrixError}</span>
+          <button
+            type="button"
+            onClick={fetchMatrixFromApi}
+            className="min-h-[44px] px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
 
       {/* CHẾ ĐỘ 1: DẠNG THẺ MOBILE-FIRST */}
       {viewMode === "cards" && (
@@ -639,9 +655,9 @@ export default function AttendanceMatrixTable({
                 return (
                   <tr key={emp.ma_nv || empIdx} className="hover:bg-blue-50/50 transition-colors">
                     {/* Cột cố định: Tên & Mã NV */}
-                    <td className="p-2.5 sm:p-3 pl-3 sm:pl-4 sticky left-0 bg-white z-10 min-w-[140px] sm:min-w-[190px] max-w-[155px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
-                      <div className="font-black text-slate-900 text-xs sm:text-sm leading-tight truncate">{emp.ho_ten}</div>
-                      <div className="text-[11px] text-blue-700 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
+                    <td className="p-2.5 sm:p-3 pl-3 sm:pl-4 sticky left-0 bg-white z-10 min-w-[140px] sm:min-w-[190px] max-w-[165px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+                      <div className="font-black text-slate-900 text-xs sm:text-sm leading-tight break-words">{emp.ho_ten}</div>
+                      <div className="text-xs text-blue-700 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
                     </td>
 
                     {/* 31 Cột ngày */}
@@ -653,17 +669,19 @@ export default function AttendanceMatrixTable({
                       return (
                         <td
                           key={d}
-                          onClick={() => handleCellClick(emp, dIdx)}
-                          className={`p-1 text-center border-l border-slate-100 cursor-pointer select-none ${
+                          className={`p-1 text-center border-l border-slate-100 ${
                             isSunday ? "bg-rose-50/30" : ""
                           }`}
-                          title={`Ngày ${d}/${month}: ${val || "Chưa có công"} (Nhấp để sửa)`}
                         >
-                          <div
-                            className={`min-w-[42px] h-[42px] px-1 mx-auto rounded-xl flex items-center justify-center text-xs font-black shadow-none active:scale-95 transition ${badgeClass}`}
+                          <button
+                            type="button"
+                            onClick={() => handleCellClick(emp, dIdx)}
+                            title={`Ngày ${d}/${month}: ${val || "Chưa có công"} (Nhấp để sửa)`}
+                            aria-label={`${emp.ho_ten} ngày ${d}/${month}: ${val || "Chưa có công"}`}
+                            className={`min-w-[44px] min-h-[44px] px-1 mx-auto rounded-xl flex items-center justify-center text-xs font-black shadow-none active:scale-95 transition cursor-pointer ${badgeClass}`}
                           >
                             {val || "·"}
-                          </div>
+                          </button>
                         </td>
                       );
                     })}

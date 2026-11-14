@@ -64,12 +64,14 @@ export default function PayrollGridTable({
   });
   const [adjSaving, setAdjSaving] = useState(false);
   const [adjError, setAdjError] = useState("");
+  const [payrollError, setPayrollError] = useState("");
 
   useLockBodyScroll(Boolean(adjustItem));
 
   const fetchPayrollFromApi = useCallback(async () => {
     if (Array.isArray(payrollData)) return;
     setLoadingPayroll(true);
+    setPayrollError("");
     try {
       const res = await safeGet("/payroll", { month, year }, { cancelPrevious: true });
       if (Array.isArray(res?.data) && res.data.length > 0) {
@@ -85,6 +87,7 @@ export default function PayrollGridTable({
       }
     } catch (e) {
       console.warn("Lỗi tải bảng lương:", e);
+      setPayrollError(e?.message || "Không thể tải bảng lương. Vui lòng thử lại.");
     } finally {
       setLoadingPayroll(false);
     }
@@ -370,12 +373,13 @@ export default function PayrollGridTable({
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Bộ chọn tháng/năm */}
-            <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl px-2 py-1 shadow-sm">
+            <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl px-1.5 py-0.5 shadow-sm">
               <button
                 type="button"
                 onClick={() => onMonthChange(month > 1 ? month - 1 : 12, month > 1 ? year : year - 1)}
-                className="min-w-[36px] min-h-[36px] p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer flex items-center justify-center"
+                className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer flex items-center justify-center"
                 title="Tháng trước"
+                aria-label="Tháng trước"
               >
                 <ChevronLeft size={18} />
               </button>
@@ -385,8 +389,9 @@ export default function PayrollGridTable({
               <button
                 type="button"
                 onClick={() => onMonthChange(month < 12 ? month + 1 : 1, month < 12 ? year : year + 1)}
-                className="min-w-[36px] min-h-[36px] p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer flex items-center justify-center"
+                className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer flex items-center justify-center"
                 title="Tháng sau"
+                aria-label="Tháng sau"
               >
                 <ChevronRight size={18} />
               </button>
@@ -465,13 +470,27 @@ export default function PayrollGridTable({
                 fetchPayrollFromApi();
                 if (onRefresh) onRefresh();
               }}
-              className="min-w-[42px] min-h-[42px] p-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer flex items-center justify-center"
+              aria-label="Làm mới bảng lương"
+              className="min-w-[44px] min-h-[44px] p-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer flex items-center justify-center"
               title="Làm mới bảng lương"
             >
               <RefreshCw size={16} className={isLoading ? "animate-spin text-emerald-600" : ""} />
             </button>
           </div>
         </div>
+
+        {payrollError && (
+          <div className="mx-4 mt-4 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-xl text-rose-800 text-xs sm:text-sm font-bold flex items-center justify-between gap-2">
+            <span>{payrollError}</span>
+            <button
+              type="button"
+              onClick={fetchPayrollFromApi}
+              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0"
+            >
+              Thử lại
+            </button>
+          </div>
+        )}
 
         {/* Cảnh báo Thực lĩnh âm nếu có (Sổ lỗi P1: Chờ Kế toán trưởng phê duyệt quy tắc) */}
         {filteredList.some(item => Number(item.netSalary) < 0) && (
@@ -520,7 +539,7 @@ export default function PayrollGridTable({
                       <div className="font-bold text-base text-emerald-700 whitespace-nowrap">
                         {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
                       </div>
-                      <div className="text-[11px] text-slate-500">Thực lĩnh</div>
+                      <div className="text-xs text-slate-600 font-medium">Thực lĩnh</div>
                     </div>
                   </div>
 
@@ -549,7 +568,7 @@ export default function PayrollGridTable({
                       <button
                         type="button"
                         onClick={() => handleOpenAdjustmentModal(item)}
-                        className="min-h-[40px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                        className="min-h-[44px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
                       >
                         <SlidersHorizontal size={14} className="shrink-0" />
                         <span>Thưởng / Phạt / Ứng</span>
@@ -558,7 +577,7 @@ export default function PayrollGridTable({
                     <button
                       type="button"
                       onClick={() => setSelectedSlipItem(item)}
-                      className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                      className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
                     >
                       <Eye size={14} className="shrink-0" />
                       <span>{confirmStatus === "DISPUTED" ? "Xem khiếu nại" : "Chi tiết"}</span>
@@ -620,7 +639,7 @@ export default function PayrollGridTable({
                     >
                       <td className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-white z-10 min-w-[160px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
                         <div className="font-bold text-slate-900 text-xs sm:text-sm truncate">{item.ho_ten}</div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                        <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5">
                           <span className="font-mono text-blue-700 font-semibold">{empId}</span>
                         </div>
                       </td>
@@ -780,7 +799,7 @@ export default function PayrollGridTable({
                 type="button"
                 onClick={() => !adjSaving && setAdjustItem(null)}
                 aria-label="Đóng"
-                className="min-w-[40px] min-h-[40px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer shrink-0"
+                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer shrink-0"
               >
                 <X size={18} />
               </button>

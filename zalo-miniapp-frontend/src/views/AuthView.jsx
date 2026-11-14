@@ -42,7 +42,7 @@ export default function AuthView({
         {/* Huy hiệu Định Tuyến Tự Động V6 */}
         <div className="px-3.5 py-2 rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center gap-2 text-center">
           <Sparkles className="w-4 h-4 text-blue-400 shrink-0" />
-          <span className="text-[11px] font-bold text-blue-200">
+          <span className="text-xs font-bold text-blue-200">
             Đăng nhập 1 chạm tự động qua Zalo
           </span>
         </div>
@@ -50,13 +50,13 @@ export default function AuthView({
         {/* NÚT ĐĂNG NHẬP NHANH 1 CHẠM BẰNG ZALO (Zero-Password Auto Login) */}
         {typeof onZaloOneTouchLogin === "function" && (
           <div className="bg-gradient-to-br from-emerald-950/80 via-slate-900 to-teal-950/70 border-2 border-emerald-500/50 rounded-2xl p-4 space-y-2.5 shadow-lg shadow-emerald-950/40">
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="font-black text-emerald-300 uppercase tracking-wide flex items-center gap-1.5">
                 <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
                 <span>Đăng Nhập 1 Chạm Qua Zalo</span>
               </span>
               {linkedZaloMeta?.ma_nv && (
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 font-mono text-[10px] font-bold">
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 font-mono text-xs font-bold">
                   Đã liên kết: {linkedZaloMeta.ma_nv}
                 </span>
               )}
@@ -74,15 +74,15 @@ export default function AuthView({
               onClick={() => onZaloOneTouchLogin(false)}
               className="w-full min-h-[48px] py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              <Zap className="w-4 h-4 fill-slate-950" />
+              <Zap className="w-4 h-4 fill-slate-950 shrink-0" />
               <span>
                 {linkedZaloMeta?.ma_nv
                   ? `⚡ Đăng nhập nhanh 1 chạm bằng Zalo (${linkedZaloMeta.ma_nv})`
                   : "⚡ Đăng nhập nhanh 1 chạm bằng Zalo"}
               </span>
             </button>
-            <p className="text-[10px] text-slate-400 text-center">
-              * Đăng nhập bằng Mã NV & Mật khẩu lần đầu để tự động liên kết Zalo ID cho các lần sau.
+            <p className="text-xs text-slate-300 text-center leading-relaxed">
+              * Đăng nhập bằng Mã NV & Mật khẩu lần đầu để tự động liên kết tài khoản Zalo cho các lần sau.
             </p>
           </div>
         )}
@@ -90,7 +90,7 @@ export default function AuthView({
         {/* Dòng phân cách */}
         <div className="relative flex py-1 items-center">
           <div className="grow border-t border-slate-800"></div>
-          <span className="shrink mx-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+          <span className="shrink mx-3 text-xs font-bold text-slate-300 uppercase tracking-wider text-center">
             Hoặc đăng nhập / đổi tài khoản
           </span>
           <div className="grow border-t border-slate-800"></div>
@@ -137,7 +137,8 @@ export default function AuthView({
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white transition-colors"
+                aria-label={showPassword ? "Ẩn mật khẩu" : "Hiển thị mật khẩu"}
+                className="absolute inset-y-0 right-0 min-w-[44px] min-h-[44px] px-3 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
@@ -180,9 +181,9 @@ export default function AuthView({
             <button
               type="button"
               onClick={onClearCache}
-              className="text-slate-400 hover:text-slate-200 underline font-medium transition-colors"
+              className="min-h-[44px] px-3 py-2 inline-flex items-center justify-center text-slate-300 hover:text-white underline font-medium transition-colors"
             >
-              Làm mới cache
+              Làm mới bộ nhớ tạm
             </button>
           )}
         </div>

@@ -21,8 +21,11 @@ async function verifyZaloLocationToken(optionsOrToken) {
 
     if (!token || typeof token !== 'string') return null;
 
-    // [mock Zalo & Web Fallback] Hỗ trợ token mô phỏng cho kiểm thử tự động L2 & L3 E2E
-    if (token.startsWith('mock_zalo_loc_') || token.startsWith('mock_loc_token_') || token.startsWith('web_gps_')) {
+    // [mock Zalo & Web Fallback] Hỗ trợ token mô phỏng CHỈ trong môi trường dev/test (Chặn tuyệt đối trên production)
+    if (
+        process.env.NODE_ENV !== 'production' &&
+        (token.startsWith('mock_zalo_loc_') || token.startsWith('mock_loc_token_') || token.startsWith('web_gps_'))
+    ) {
         if (token === 'mock_zalo_loc_expired') {
             return null; // Giả lập token hết hạn (> 2 phút)
         }
@@ -88,8 +91,8 @@ async function verifyZaloLocationToken(optionsOrToken) {
 async function verifyZaloUserToken(accessToken) {
     if (!accessToken || typeof accessToken !== 'string') return null;
 
-    // [mock Zalo] Hỗ trợ access token mô phỏng
-    if (accessToken.startsWith('mock_zalo_user_')) {
+    // [mock Zalo] Hỗ trợ access token mô phỏng CHỈ trong dev/test (Chặn trên production)
+    if (process.env.NODE_ENV !== 'production' && accessToken.startsWith('mock_zalo_user_')) {
         const id = accessToken.slice('mock_zalo_user_'.length);
         return {
             zaloId: id || 'mock_zalo_user_default',

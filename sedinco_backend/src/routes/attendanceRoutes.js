@@ -18,9 +18,9 @@ router.get('/my-monthly', authenticateToken, requireAuth, (req, res, next) => at
 // 2. Xem ma trận bảng chấm công toàn công ty (Yêu cầu permission: attendance_view_all)
 router.get('/', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getAttendance(req, res, next));
 
-// 3. Trạng thái khóa sổ kỳ công (Cho phép xem trạng thái trước khi nộp đơn/chấm công)
-router.get('/period-status', (req, res, next) => attendanceController.getPeriodStatus(req, res, next));
-router.get('/period-lock-status', (req, res, next) => attendanceController.getPeriodStatus(req, res, next));
+// 3. Trạng thái khóa sổ kỳ công (Yêu cầu đăng nhập để xem trạng thái kỳ công)
+router.get('/period-status', authenticateToken, requireAuth, (req, res, next) => attendanceController.getPeriodStatus(req, res, next));
+router.get('/period-lock-status', authenticateToken, requireAuth, (req, res, next) => attendanceController.getPeriodStatus(req, res, next));
 
 // 4. Khóa kỳ công tháng (Yêu cầu permission: attendance_lock)
 router.post('/lock-period', authenticateToken, requirePermission('attendance_lock'), idempotencyMiddleware(), (req, res, next) => attendanceController.lockPeriod(req, res, next));

@@ -27,8 +27,27 @@ export function useLockBodyScroll(isOpen = true) {
       document.body.style.width = '100%';
     }
     lockCount += 1;
+    let focusTimer = null;
+    const handleFocusIn = (e) => {
+      const target = e?.target;
+      if (!target || typeof target.scrollIntoView !== 'function') return;
+      const tag = String(target.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        if (focusTimer) clearTimeout(focusTimer);
+        focusTimer = setTimeout(() => {
+          try {
+            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          } catch {
+            // Bỏ qua nếu trình duyệt không hỗ trợ smooth scroll options
+          }
+        }, 150);
+      }
+    };
+    document.addEventListener('focusin', handleFocusIn);
 
     return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      if (focusTimer) clearTimeout(focusTimer);
       lockCount = Math.max(0, lockCount - 1);
       if (lockCount === 0) {
         document.documentElement.style.overflow = '';

@@ -34,69 +34,28 @@ export const registerIssuedLinkCode = (code, userInfo) => {
 };
 
 /**
- * F0: Xác định phiên đăng nhập tự động khi mở Mini App
+ * F0: Xác định phiên đăng nhập tự động khi mở Mini App (kiểm tra cache cục bộ hợp lệ)
  */
 export const resolveSession = async () => {
-  // 1. Kiểm tra môi trường Zalo Mini App
-  const isZalo = typeof window !== "undefined" && (
-    window.location.pathname.startsWith("/zapps") ||
-    Boolean(window.ZaloJavaScriptInterface) ||
-    (Boolean(window.zAppID) && !window.location.hostname.includes("workers.dev") && !window.location.hostname.includes("localhost"))
-  );
-
   try {
-    let zaloAccessToken = "";
-    try {
-      zaloAccessToken = await zmpAdapter.getAccessToken();
-    } catch (e) {
-      console.warn("Could not get Zalo access token:", e);
-    }
-
-    // Nếu có token Zalo thật hoặc mock
-    if (zaloAccessToken) {
-      // Gọi API phiên hiện tại lên Backend
-      try {
-        const sessionRes = await safeGet("/session", { access_token: zaloAccessToken }, { timeout: 8000 });
-        if (sessionRes?.linked) {
-          setAuthToken(sessionRes.token);
-          return {
-            isDetermined: true,
-            isLinked: true,
-            role: sessionRes.role || ROLES.EMPLOYEE,
-            employee: sessionRes.employee || sessionRes.user,
-            token: sessionRes.token
-          };
-        }
-        return {
-          isDetermined: true,
-          isLinked: false,
-          zaloAccessToken
-        };
-      } catch (apiErr) {
-        // Backend V1 chưa có endpoint /session -> fallback kiểm tra cache hoặc mock
-        console.warn("Backend /session endpoint not available yet (V1 limitation).");
-      }
-    }
-
-    // 2. Fallback kiểm tra phiên lưu trữ cục bộ (Web hoặc đã đăng nhập trước đó)
+    // Kiểm tra phiên lưu trữ cục bộ (Web hoặc đã đăng nhập trước đó; Zalo Auto-Login đã được xử lý qua /zalo-auto-login)
     const saved = localStorage.getItem(SESSION_STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.ma_nv) {
-          // Xác thực lại với server qua endpoint /employees hoặc verify
+        if (parsed && parsed.ma_nv && parsed.token && parsed.token !== "mock_jwt_token") {
           return {
             isDetermined: true,
             isLinked: true,
             role: parsed.role || ROLES.EMPLOYEE,
             employee: parsed,
-            token: parsed.token || ""
+            token: parsed.token
           };
         }
       } catch (e) {}
     }
 
-    // 3. Nếu chưa đăng nhập / chưa liên kết
+    // Nếu chưa đăng nhập / chưa liên kết
     return {
       isDetermined: true,
       isLinked: false,
@@ -111,7 +70,7 @@ export const resolveSession = async () => {
 };
 
 /**
- * F1: Tra cứu thông tin nhân viên theo mã 8 ký tự trước khi liên kết
+ * F1: Tra cứu thông tin nhân viên theo mã liên kết cục bộ
  */
 export const previewLinkCode = async (code) => {
   const cleanCode = String(code).trim().toUpperCase();
@@ -119,17 +78,6 @@ export const previewLinkCode = async (code) => {
     throw new Error("Mã liên kết phải có tối thiểu 6-8 ký tự.");
   }
 
-  // 1. Thử gọi API Backend nếu có
-  try {
-    const res = await safeGet("/auth/link-preview", { code: cleanCode });
-    if (res?.success && res.data) {
-      return res.data;
-    }
-  } catch (e) {
-    // Backend V1 fallback sang mock demo
-  }
-
-  // 2. Kiểm tra danh sách mock mẫu hoặc mã được cấp
   if (MOCK_LINK_CODES[cleanCode]) {
     return MOCK_LINK_CODES[cleanCode];
   }
@@ -138,49 +86,36 @@ export const previewLinkCode = async (code) => {
     if (stored[cleanCode]) return stored[cleanCode];
   } catch (e) {}
 
-  throw new Error("Mã liên kết không tồn tại hoặc đã hết hạn. Vui lòng liên hệ phòng Nhân sự.");
+  throw new Error("Mã liên kết không tồn tại hoặc đã hết hạn. Vui lòng đăng nhập bằng Mã NV & Mật khẩu.");
 };
 
 /**
- * F1: Xác nhận liên kết tài khoản Zalo với mã 8 ký tự
+ * F1: Liên kết tài khoản Zalo qua tài khoản nhân viên đang hoạt động
  */
 export const confirmLinkAccount = async (code, zaloAccessToken) => {
   const cleanCode = String(code).trim().toUpperCase();
-  const idempotencyKey = generateIdempotencyKey("link");
-
-  try {
-    const res = await safePost("/auth/link", {
-      code: cleanCode,
-      zalo_token: zaloAccessToken
-    }, { idempotencyKey });
-
+  if (zaloAccessToken) {
+    const res = await safePost("/employees/bind-zalo", { zalo_token: zaloAccessToken }, {
+      idempotencyKey: generateIdempotencyKey("link")
+    });
     if (res?.success) {
-      const user = res.data?.employee || res.data?.user;
-      const role = res.data?.role || ROLES.EMPLOYEE;
-      const token = res.data?.token || "";
-      
-      setAuthToken(token);
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ ...user, role, token }));
-      return { success: true, user, role, token };
+      return { success: true, data: res.data };
     }
-  } catch (err) {
-    // Nếu backend chưa hỗ trợ /auth/link, fallback kích hoạt mock để test flow
-    let mockUser = MOCK_LINK_CODES[cleanCode];
-    if (!mockUser) {
-      try {
-        const stored = JSON.parse(localStorage.getItem("sedinco_issued_link_codes") || "{}");
-        if (stored[cleanCode]) mockUser = stored[cleanCode];
-      } catch (e) {}
-    }
-
-    if (mockUser) {
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(mockUser));
-      return { success: true, user: mockUser, role: mockUser.role, token: "mock_jwt_token" };
-    }
-    throw err;
   }
 
-  throw new Error("Không thể liên kết tài khoản. Vui lòng thử lại sau.");
+  let mockUser = MOCK_LINK_CODES[cleanCode];
+  if (!mockUser) {
+    try {
+      const stored = JSON.parse(localStorage.getItem("sedinco_issued_link_codes") || "{}");
+      if (stored[cleanCode]) mockUser = stored[cleanCode];
+    } catch (e) {}
+  }
+  if (mockUser) {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(mockUser));
+    return { success: true, user: mockUser, role: mockUser.role, token: "" };
+  }
+
+  throw new Error("Không thể liên kết tài khoản. Vui lòng đăng nhập bằng Mã nhân viên & Mật khẩu.");
 };
 
 /**

@@ -13,7 +13,7 @@ class HolidayController {
     async createHoliday(req, res, next) {
         try {
             const { holiday_name, start_date, end_date } = req.body;
-            await holidayService.createHoliday(holiday_name, start_date, end_date);
+            await holidayService.createHoliday(holiday_name, start_date, end_date, req.user);
             return res.status(201).json({ success: true });
         } catch (err) {
             next(err);
@@ -22,7 +22,7 @@ class HolidayController {
 
     async deleteHoliday(req, res, next) {
         try {
-            await holidayService.deleteHoliday(req.params.id);
+            await holidayService.deleteHoliday(req.params.id, req.user);
             return res.json({ success: true });
         } catch (err) {
             next(err);

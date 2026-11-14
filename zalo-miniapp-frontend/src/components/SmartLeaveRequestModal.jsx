@@ -371,7 +371,7 @@ export default function SmartLeaveRequestModal({
                       key={amt}
                       type="button"
                       onClick={() => setAdvanceAmount(String(amt))}
-                      className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer whitespace-nowrap ${
+                      className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer whitespace-nowrap ${
                         parsedAdvanceNum === amt
                           ? "bg-emerald-600 text-white border-emerald-700"
                           : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
@@ -389,7 +389,7 @@ export default function SmartLeaveRequestModal({
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-36 min-h-[40px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-emerald-600"
+                  className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-emerald-600"
                   required
                 />
               </div>
@@ -406,7 +406,7 @@ export default function SmartLeaveRequestModal({
                     setStartDate(e.target.value);
                     setEndDate(e.target.value);
                   }}
-                  className="w-36 min-h-[40px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-amber-600"
+                  className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-amber-600"
                   required
                 />
               </div>
@@ -434,7 +434,7 @@ export default function SmartLeaveRequestModal({
                         }`}
                       >
                         <div className="text-xs font-bold leading-snug">{m.label}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{m.desc}</div>
+                        <div className="text-xs text-slate-600 mt-0.5 leading-snug">{m.desc}</div>
                       </button>
                     );
                   })}
@@ -609,7 +609,7 @@ export default function SmartLeaveRequestModal({
                         <button
                           type="button"
                           onClick={() => setRequestType("KP")}
-                          className="w-full min-h-[38px] px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-xs cursor-pointer transition whitespace-nowrap"
+                          className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-xs cursor-pointer transition whitespace-nowrap"
                         >
                           Chuyển sang Nghỉ Không Lương (KP)
                         </button>

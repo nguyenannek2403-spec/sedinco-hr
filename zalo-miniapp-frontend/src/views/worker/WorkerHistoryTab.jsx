@@ -21,16 +21,18 @@ const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 function getHeatmapCellStyle(log, dayNum, isFuture) {
   if (isFuture) {
     return {
-      cellClass: "bg-slate-900/40 border-slate-800/60 text-slate-600",
-      dotClass: "bg-slate-700",
+      cellClass: "bg-slate-900/40 border-slate-800/60 text-slate-400",
+      dotClass: "bg-slate-600",
+      shortCode: "",
       badgeText: "Chưa tới",
       needsCorrection: false
     };
   }
   if (!log) {
     return {
-      cellClass: "bg-rose-950/50 border-rose-500/40 text-rose-300",
+      cellClass: "bg-rose-950/50 border-rose-500/40 text-rose-200",
       dotClass: "bg-rose-500",
+      shortCode: "V",
       badgeText: "Vắng / Chưa chấm",
       needsCorrection: true
     };
@@ -45,6 +47,7 @@ function getHeatmapCellStyle(log, dayNum, isFuture) {
     return {
       cellClass: "bg-purple-950/60 border-purple-500/50 text-purple-200",
       dotClass: "bg-purple-400",
+      shortCode: st,
       badgeText: st === "L" ? "Nghỉ lễ (L)" : "Nghỉ phép (P)",
       needsCorrection: false
     };
@@ -53,6 +56,7 @@ function getHeatmapCellStyle(log, dayNum, isFuture) {
     return {
       cellClass: "bg-blue-950/70 border-blue-500/60 text-blue-200",
       dotClass: "bg-blue-400",
+      shortCode: st === "1/OT" ? "1/OT" : "OT",
       badgeText: `Tăng ca (${log.ot_hours || 0}h OT)`,
       needsCorrection: forgotOut
     };
@@ -61,6 +65,7 @@ function getHeatmapCellStyle(log, dayNum, isFuture) {
     return {
       cellClass: "bg-rose-950/70 border-rose-500/60 text-rose-200",
       dotClass: "bg-rose-500",
+      shortCode: st === "0" ? "KP" : st,
       badgeText: "Vắng không phép / Thiếu công",
       needsCorrection: true
     };
@@ -69,6 +74,7 @@ function getHeatmapCellStyle(log, dayNum, isFuture) {
     return {
       cellClass: "bg-amber-950/65 border-amber-500/60 text-amber-200",
       dotClass: "bg-amber-400",
+      shortCode: st === "0.5" ? "0.5" : (st || "1"),
       badgeText: forgotOut
         ? "Quên Check-out"
         : st === "0.5"
@@ -83,13 +89,15 @@ function getHeatmapCellStyle(log, dayNum, isFuture) {
     return {
       cellClass: "bg-emerald-950/65 border-emerald-500/50 text-emerald-200",
       dotClass: "bg-emerald-400",
+      shortCode: "1",
       badgeText: "Đủ công (1.0)",
       needsCorrection: false
     };
   }
   return {
-    cellClass: "bg-slate-800/70 border-slate-700 text-slate-300",
+    cellClass: "bg-slate-800/70 border-slate-700 text-slate-200",
     dotClass: "bg-slate-500",
+    shortCode: st || "·",
     badgeText: st || "Khác",
     needsCorrection: false
   };
@@ -223,38 +231,38 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
         <div className="space-y-2.5">
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
-              <div className="text-xs font-semibold text-slate-300">Ngày công</div>
+              <div className="text-xs font-semibold text-slate-200">Ngày công</div>
               <div className="text-lg font-bold text-emerald-400 mt-0.5">{summary.total_work_days || 0}</div>
-              <div className="text-[11px] text-slate-400">/ {summary.standard_days || 26} công</div>
+              <div className="text-xs text-slate-300">/ {summary.standard_days || 26} công</div>
             </div>
             <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
-              <div className="text-xs font-semibold text-slate-300">Tăng ca OT</div>
+              <div className="text-xs font-semibold text-slate-200">Tăng ca OT</div>
               <div className="text-lg font-bold text-blue-400 mt-0.5">{summary.total_ot_hours || 0}h</div>
-              <div className="text-[11px] text-slate-400">ngoài giờ</div>
+              <div className="text-xs text-slate-300">ngoài giờ</div>
             </div>
             <div className="bg-slate-800/70 border border-slate-700/60 rounded-2xl p-2.5 text-center">
-              <div className="text-xs font-semibold text-slate-300">Nghỉ phép</div>
+              <div className="text-xs font-semibold text-slate-200">Nghỉ phép</div>
               <div className="text-lg font-bold text-purple-400 mt-0.5">{summary.total_leave_days || 0}</div>
-              <div className="text-[11px] text-slate-400">hưởng lương</div>
+              <div className="text-xs text-slate-300">hưởng lương</div>
             </div>
           </div>
 
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl px-3.5 py-2.5 text-xs space-y-1">
             {summary.effective_shift_start && summary.effective_shift_end && (
-              <div className="text-slate-300 font-medium">
+              <div className="text-slate-200 font-medium">
                 Ca làm việc của bạn hôm nay:{" "}
                 <strong className="text-white">
                   {summary.effective_shift_start} – {summary.effective_shift_end}
                 </strong>
               </div>
             )}
-            <div className="text-[11px] text-slate-300 font-semibold flex flex-wrap items-center gap-1.5">
+            <div className="text-xs text-slate-200 font-semibold flex flex-wrap items-center gap-1.5">
               <span>Tháng này:</span>
               <span className="text-amber-300 font-bold">
                 Đi trễ {summary.late_count || 0} lần (Tổng {summary.total_late_minutes || 0} phút)
               </span>
-              <span className="text-slate-500">•</span>
-              <span className="text-emerald-400 font-bold">
+              <span className="text-slate-400">•</span>
+              <span className="text-emerald-300 font-bold">
                 Đi sớm/Đúng giờ {summary.on_time_count || 0} ngày
               </span>
             </div>
@@ -264,32 +272,33 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
 
       {/* CALENDAR GRID HEATMAP (7 CỘT T2 -> CN) */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-xl space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-black text-slate-200 flex items-center gap-1.5 uppercase">
-            <Calendar className="w-4 h-4 text-blue-400" />
-            <span>Chạm vào từng ô ngày để xem & bù công</span>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-black text-slate-100 flex items-center gap-1.5 uppercase">
+            <Calendar className="w-4 h-4 text-blue-400 shrink-0" />
+            <span>Chạm vào từng ô ngày để xem &amp; bù công</span>
           </h3>
           <button
             type="button"
             onClick={fetchHistory}
             disabled={loading}
-            className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 cursor-pointer"
+            aria-label="Làm mới lịch công"
+            className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-300 font-bold flex items-center justify-center shrink-0 cursor-pointer"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
-        {/* Chú thích màu Heatmap */}
-        <div className="flex flex-wrap gap-2 text-[10px] font-bold text-slate-300">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>Đủ công</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>Muộn/Quên ra</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-400"></span>Phép/Lễ</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-400"></span>Tăng ca OT</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>Vắng/Thiếu</span>
+        {/* Chú thích màu + Ký hiệu Heatmap (hỗ trợ người lớn tuổi & mù màu) */}
+        <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-200">
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>1: Đủ công</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>0.5/Muộn</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-400"></span>P/L: Phép, Lễ</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-400"></span>OT: Tăng ca</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>V/KP: Vắng</span>
         </div>
 
         {/* Header Thứ */}
-        <div className="grid grid-cols-7 gap-1.5 text-center text-[11px] font-black text-slate-400">
+        <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-black text-slate-300">
           {WEEKDAYS.map((w) => (
             <div key={w} className="py-1">{w}</div>
           ))}
@@ -297,32 +306,44 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
 
         {/* Lưới Ngày */}
         {loading ? (
-          <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
+          <div className="py-12 text-center text-slate-300 text-xs flex flex-col items-center gap-2">
             <RefreshCw className="w-6 h-6 animate-spin text-blue-400" />
             <span>Đang tải Heatmap tháng...</span>
           </div>
         ) : error ? (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={fetchHistory}
+              className="min-h-[44px] px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold shrink-0"
+            >
+              Thử lại
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-7 gap-1.5">
             {calendarCells.map((cell) => {
               if (cell.empty) {
-                return <div key={cell.key} className="h-12 rounded-xl" />;
+                return <div key={cell.key} className="min-h-[48px] rounded-xl" />;
               }
               return (
                 <button
                   key={cell.key}
                   type="button"
                   onClick={() => setSelectedDayDetail(cell)}
-                  className={`h-12 rounded-xl border flex flex-col items-center justify-center relative transition active:scale-95 cursor-pointer ${
+                  aria-label={`Ngày ${cell.dayNum} tháng ${month}: ${cell.style.badgeText}`}
+                  className={`min-h-[48px] py-1 px-0.5 rounded-xl border flex flex-col items-center justify-center relative transition active:scale-95 cursor-pointer ${
                     cell.style.cellClass
                   } ${cell.isToday ? "ring-2 ring-blue-400" : ""}`}
                 >
                   <span className="text-xs font-black leading-none">{cell.dayNum}</span>
-                  <span className={`w-2 h-2 rounded-full mt-1.5 ${cell.style.dotClass}`} />
+                  <span className="text-xs font-extrabold leading-tight mt-0.5">
+                    {cell.style.shortCode || "·"}
+                  </span>
                 </button>
               );
             })}
@@ -430,7 +451,7 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
               <button
                 type="button"
                 onClick={() => setSelectedDayDetail(null)}
-                className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition active:scale-[0.98]"
+                className="min-h-[44px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition active:scale-[0.98]"
               >
                 <ArrowLeft size={16} />
                 <span>Trở về</span>
