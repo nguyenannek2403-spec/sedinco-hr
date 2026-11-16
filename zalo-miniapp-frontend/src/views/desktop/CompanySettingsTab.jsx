@@ -97,10 +97,14 @@ export default function CompanySettingsTab({ showToast }) {
     max_late_minutes_for_half_day: 60,
     standard_work_days: 26,
     probation_salary_percent: 85,
+    probation_allowance_full: 1,
     ot_rate_weekday: 1.5,
     ot_rate_weekend: 2.0,
     ot_rate_holiday: 3.0,
     custom_ot_hourly_rate: 0,
+    ot_calculation_mode: "APPROVED_OR_AUTO",
+    free_late_exempts_halfday: 0,
+    negative_salary_policy: "CLAMP_ZERO",
     insurance_rate: 10.5,
     log_retention_days: 30,
     office_ip_whitelist: "",
@@ -287,10 +291,14 @@ export default function CompanySettingsTab({ showToast }) {
         max_late_minutes_for_half_day: Math.max(1, Math.round(toNum(config.max_late_minutes_for_half_day, 60))),
         standard_work_days: Math.max(1, toNum(config.standard_work_days, 26)),
         probation_salary_percent: Math.min(100, Math.max(0, toNum(config.probation_salary_percent, 85))),
+        probation_allowance_full: config.probation_allowance_full === 0 || config.probation_allowance_full === false || String(config.probation_allowance_full) === "0" ? 0 : 1,
         ot_rate_weekday: Math.max(0, toNum(config.ot_rate_weekday, 1.5)),
         ot_rate_weekend: Math.max(0, toNum(config.ot_rate_weekend, 2.0)),
         ot_rate_holiday: Math.max(0, toNum(config.ot_rate_holiday, 3.0)),
         custom_ot_hourly_rate: Math.max(0, toNum(config.custom_ot_hourly_rate, 0)),
+        ot_calculation_mode: config.ot_calculation_mode || "APPROVED_OR_AUTO",
+        free_late_exempts_halfday: Number(config.free_late_exempts_halfday) ? 1 : 0,
+        negative_salary_policy: config.negative_salary_policy || "CLAMP_ZERO",
         insurance_rate: Math.max(0, toNum(config.insurance_rate, 10.5)),
         log_retention_days: Math.max(1, Math.round(toNum(config.log_retention_days, 30))),
         office_ip_whitelist: String(config.office_ip_whitelist || "").trim(),
@@ -768,6 +776,67 @@ export default function CompanySettingsTab({ showToast }) {
               onChange={(e) => updateField("ot_rate_holiday", e.target.value)}
               className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
             />
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-slate-100 space-y-2.5">
+          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+            Quy tắc linh hoạt phụ cấp thử việc, tăng ca &amp; khấu trừ
+          </h4>
+          <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
+            <FormRow
+              label="Phụ cấp & đơn giá tăng ca thử việc"
+              description="Áp dụng cho ngày công trước ngày chính thức"
+            >
+              <select
+                value={String(config.probation_allowance_full ?? 1)}
+                onChange={(e) => updateField("probation_allowance_full", Number(e.target.value))}
+                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800"
+              >
+                <option value="1">Hưởng đủ 100% phụ cấp &amp; đơn giá tăng ca</option>
+                <option value="0">Nhân theo tỷ lệ lương thử việc</option>
+              </select>
+            </FormRow>
+            <FormRow
+              label="Chế độ ghi nhận tăng ca"
+              description="Kiểm soát điều kiện chi trả giờ tăng ca"
+            >
+              <select
+                value={config.ot_calculation_mode || "APPROVED_OR_AUTO"}
+                onChange={(e) => updateField("ot_calculation_mode", e.target.value)}
+                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800"
+              >
+                <option value="APPROVED_OR_AUTO">Ưu tiên đơn duyệt, tự tính theo chấm công</option>
+                <option value="REQUIRE_APPROVAL">Bắt buộc có đơn tăng ca đã duyệt</option>
+                <option value="AUTO_ACTUAL">Tính đủ theo giờ thực tế chấm công</option>
+              </select>
+            </FormRow>
+            <FormRow
+              label="Miễn hạ công khi trễ nặng"
+              description="Áp dụng khi bật trừ nửa ngày công"
+            >
+              <select
+                value={String(config.free_late_exempts_halfday ? 1 : 0)}
+                onChange={(e) => updateField("free_late_exempts_halfday", Number(e.target.value))}
+                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800"
+              >
+                <option value="0">Không miễn (Vẫn trừ 0.5 công nếu trễ nặng)</option>
+                <option value="1">Có miễn trong số lần trễ cho phép</option>
+              </select>
+            </FormRow>
+            <FormRow
+              label="Xử lý khi lương thực lĩnh âm"
+              description="Khi tổng khấu trừ vượt thu nhập kỳ lương"
+            >
+              <select
+                value={config.negative_salary_policy || "CLAMP_ZERO"}
+                onChange={(e) => updateField("negative_salary_policy", e.target.value)}
+                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800"
+              >
+                <option value="CLAMP_ZERO">Giữ 0đ &amp; ghi nhận nợ chuyển kỳ sau</option>
+                <option value="SHOW_NEGATIVE">Hiển thị số âm trực tiếp trên phiếu lương</option>
+              </select>
+            </FormRow>
           </div>
         </div>
 

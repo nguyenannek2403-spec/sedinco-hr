@@ -91,9 +91,11 @@ class PayrollService {
             const penaltyAmount = Number(emp.penalty_amount) || 0;
             const advanceDeduction = Number(emp.advance_deduction) || 0;
             const hasManualNet = calc.bonusAmount !== undefined;
+            const allowNegative = calc.negativeSalaryPolicy === 'SHOW_NEGATIVE';
+            const fallbackRawNet = Math.round((calc.netSalary || 0) + bonusAmount - penaltyAmount - advanceDeduction);
             const finalNetSalary = hasManualNet
                 ? calc.netSalary
-                : Math.max(0, Math.round((calc.netSalary || 0) + bonusAmount - penaltyAmount - advanceDeduction));
+                : (allowNegative ? fallbackRawNet : Math.max(0, fallbackRawNet));
 
             return {
                 id_nhan_vien: emp.ma_nv,
@@ -126,7 +128,14 @@ class PayrollService {
                 adjustment_note: emp.adjustment_note || null,
                 totalInsurance: calc.totalInsurance,
                 grossSalary: calc.grossSalary,
+                rawNetSalary: calc.rawNetSalary !== undefined ? calc.rawNetSalary : finalNetSalary,
                 netSalary: finalNetSalary,
+                carryOverDebt: calc.carryOverDebt || 0,
+                carry_over_debt: calc.carry_over_debt || 0,
+                probationAllowanceFull: calc.probationAllowanceFull,
+                otCalculationMode: calc.otCalculationMode,
+                freeLateExemptsHalfday: calc.freeLateExemptsHalfday,
+                negativeSalaryPolicy: calc.negativeSalaryPolicy,
                 salary_confirm_status: emp.salary_confirm_status || 'PENDING',
                 dispute_reason: emp.dispute_reason || null,
                 dispute_evidence_media: emp.dispute_evidence_media || null,
@@ -209,9 +218,11 @@ class PayrollService {
         const penaltyAmount = Number(emp.penalty_amount) || 0;
         const advanceDeduction = Number(emp.advance_deduction) || 0;
         const hasManualNet = calc.bonusAmount !== undefined;
+        const allowNegative = calc.negativeSalaryPolicy === 'SHOW_NEGATIVE';
+        const fallbackRawNet = Math.round((calc.netSalary || 0) + bonusAmount - penaltyAmount - advanceDeduction);
         const finalNetSalary = hasManualNet
             ? calc.netSalary
-            : Math.max(0, Math.round((calc.netSalary || 0) + bonusAmount - penaltyAmount - advanceDeduction));
+            : (allowNegative ? fallbackRawNet : Math.max(0, fallbackRawNet));
 
         return {
             id_nhan_vien: emp.ma_nv,
@@ -243,7 +254,14 @@ class PayrollService {
             adjustment_note: emp.adjustment_note || null,
             totalInsurance: calc.totalInsurance,
             grossSalary: calc.grossSalary,
+            rawNetSalary: calc.rawNetSalary !== undefined ? calc.rawNetSalary : finalNetSalary,
             netSalary: finalNetSalary,
+            carryOverDebt: calc.carryOverDebt || 0,
+            carry_over_debt: calc.carry_over_debt || 0,
+            probationAllowanceFull: calc.probationAllowanceFull,
+            otCalculationMode: calc.otCalculationMode,
+            freeLateExemptsHalfday: calc.freeLateExemptsHalfday,
+            negativeSalaryPolicy: calc.negativeSalaryPolicy,
             salary_confirm_status: emp.salary_confirm_status || 'PENDING',
             dispute_reason: emp.dispute_reason || null,
             dispute_evidence_media: emp.dispute_evidence_media || null,
@@ -616,6 +634,76 @@ class PayrollService {
             params
         );
         return rows || [];
+    }
+
+    async getBackupSnapshot(month, year, user = null) {
+        const m = parseInt(month, 10) || (new Date().getMonth() + 1);
+        const y = parseInt(year, 10) || new Date().getFullYear();
+        if (!Number.isInteger(m) || m < 1 || m > 12 || !Number.isInteger(y) || y < 2000 || y > 2200) {
+            const err = new Error('Tháng hoặc năm sao lưu không hợp lệ!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const companyService = require('./companyService');
+        const { startDateStr, endDateStr } = getMonthDateBounds(m, y);
+
+        const [
+            payrollRows,
+            companyConfig,
+            periodRows,
+            holidays,
+            attendanceLogs,
+            requestRows
+        ] = await Promise.all([
+            this.calculateMonthlyPayroll(m, y, { exportAll: true }),
+            companyService.getCompanyConfig(),
+            query('SELECT id, month, year, status, payment_status, approved_by, approved_at, rejected_by, rejected_reason, rejected_at, paid_by, paid_at, updated_at FROM payroll_periods WHERE month = ? AND year = ? LIMIT 1', [m, y]).catch(() => []),
+            query('SELECT id, holiday_name, start_date, end_date FROM public_holidays ORDER BY start_date ASC').catch(() => []),
+            query(
+                `SELECT id, employee_id, DATE_FORMAT(record_date, "%Y-%m-%d") as record_date, status, ot_hours, check_in_time, check_out_time, check_in_lat, check_in_lng, check_in_method, is_suspicious, suspicious_reason, late_minutes, early_leave_minutes, work_hours, location_name, work_location_type, shift_type
+                 FROM attendance_logs
+                 WHERE record_date >= ? AND record_date < ?
+                 ORDER BY employee_id ASC, record_date ASC`,
+                [startDateStr, endDateStr]
+            ).catch(() => []),
+            query(
+                `SELECT * FROM requests
+                 WHERE request_date >= ? AND request_date < ?
+                 ORDER BY id ASC`,
+                [startDateStr, endDateStr]
+            ).catch(() => [])
+        ]);
+
+        const actorId = user?.ma_nv || user?.username || user?.id || 'admin';
+        await logAuditEvent({
+            actor_id: actorId,
+            actor_role: user?.role || 'admin',
+            action: 'EXPORT_PAYROLL_BACKUP_SNAPSHOT',
+            resource: 'payroll',
+            details: {
+                month: m,
+                year: y,
+                payroll_count: (payrollRows || []).length,
+                attendance_logs_count: (attendanceLogs || []).length,
+                requests_count: (requestRows || []).length
+            }
+        });
+
+        return {
+            meta: {
+                version: 'sedinco-hr-v14-snapshot',
+                generated_at: new Date().toISOString(),
+                generated_by: actorId,
+                month: m,
+                year: y
+            },
+            company_settings: companyConfig,
+            period_status: (periodRows && periodRows[0]) ? periodRows[0] : null,
+            holidays: holidays || [],
+            payroll_rows: payrollRows || [],
+            attendance_logs: attendanceLogs || [],
+            requests: requestRows || []
+        };
     }
 }
 

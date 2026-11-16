@@ -140,6 +140,160 @@ export function getAttendanceStatusInfo(status) {
   return { label: s, shortLabel: s, credit: 0, creditText: s, badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' };
 }
 
+export const ACCOUNTANT_PERMISSION_GROUPS = [
+  {
+    id: 'attendance_requests',
+    label: 'Nhóm 1: Quản lý Chấm công & Đơn từ',
+    description: 'Kiểm soát quyền xem, điều chỉnh, khóa sổ chấm công và xử lý đơn từ nhân viên',
+    color: 'text-blue-600 bg-blue-50',
+    items: [
+      {
+        key: 'attendance_view_all',
+        name: 'Xem bảng chấm công toàn công ty',
+        desc: 'Xem bảng công ma trận 31 ngày, nhật ký nghi vấn và thống kê đi làm toàn bộ nhân viên',
+        defaultEnabled: true
+      },
+      {
+        key: 'attendance_edit',
+        name: 'Điều chỉnh ngày công & Chấm công hộ',
+        desc: 'Chỉnh sửa ngày công trực tiếp trên ma trận và thực hiện chấm công hộ nhân viên',
+        defaultEnabled: false
+      },
+      {
+        key: 'attendance_lock',
+        name: 'Khóa sổ kỳ chấm công tháng',
+        desc: 'Chốt đóng băng kỳ chấm công để chuẩn bị tính lương (Mở lại kỳ đã chốt thuộc quyền Giám đốc)',
+        defaultEnabled: false
+      },
+      {
+        key: 'leave_view_all',
+        name: 'Xem danh sách đơn từ & tăng ca',
+        desc: 'Xem đơn xin nghỉ phép, bổ sung công, ứng lương và đăng ký tăng ca của toàn công ty',
+        defaultEnabled: true
+      },
+      {
+        key: 'leave_approve',
+        name: 'Phê duyệt / Từ chối đơn nghỉ phép, bổ sung công & tăng ca',
+        desc: 'Duyệt hoặc từ chối đơn từ và tăng ca của nhân viên khác (Không được tự duyệt đơn của chính mình)',
+        defaultEnabled: false,
+        sodWarning: 'Chặn tự duyệt đơn của chính mình'
+      }
+    ]
+  },
+  {
+    id: 'employee_shift',
+    label: 'Nhóm 2: Quản lý Hồ sơ Nhân sự & Phân ca',
+    description: 'Quản lý danh sách nhân viên, thông tin hồ sơ, tài khoản và ca làm việc',
+    color: 'text-purple-600 bg-purple-50',
+    items: [
+      {
+        key: 'employee_view',
+        name: 'Xem danh sách & hồ sơ nhân viên',
+        desc: 'Xem thông tin hồ sơ, mức lương hợp đồng và phụ cấp của cán bộ nhân viên',
+        defaultEnabled: true
+      },
+      {
+        key: 'employee_create',
+        name: 'Thêm nhân viên mới',
+        desc: 'Tạo hồ sơ nhân sự và cấp tài khoản đăng nhập cho nhân viên mới vào công ty',
+        defaultEnabled: false
+      },
+      {
+        key: 'employee_edit',
+        name: 'Chỉnh sửa thông tin nhân viên',
+        desc: 'Cập nhật họ tên, chức danh, mức lương cơ bản, phụ cấp và thông tin bảo hiểm',
+        defaultEnabled: false
+      },
+      {
+        key: 'employee_delete',
+        name: 'Xóa hồ sơ nhân viên',
+        desc: 'Xóa hồ sơ nhân viên không còn làm việc khỏi danh sách công ty',
+        defaultEnabled: false,
+        sodWarning: 'Thao tác nhạy cảm cần Giám đốc kiểm soát'
+      },
+      {
+        key: 'employee_status_manage',
+        name: 'Khóa / Mở khóa tài khoản nhân sự',
+        desc: 'Tạm khóa tài khoản khi nghỉ việc hoặc kích hoạt lại tài khoản đang bị khóa',
+        defaultEnabled: false
+      },
+      {
+        key: 'shift_manage',
+        name: 'Phân ca & Giờ làm việc',
+        desc: 'Thiết lập loại ca làm việc, giờ vào/ra riêng và phép năm định mức cho từng nhân viên',
+        defaultEnabled: false
+      }
+    ]
+  },
+  {
+    id: 'payroll',
+    label: 'Nhóm 3: Tính toán, Điều chỉnh & Chi trả Tiền lương',
+    description: 'Kiểm soát quy trình tính lương, chốt phiếu lương, giải quyết khiếu nại và chi trả',
+    color: 'text-emerald-600 bg-emerald-50',
+    items: [
+      {
+        key: 'payroll_view_all',
+        name: 'Xem bảng lương toàn công ty',
+        desc: 'Xem bảng thanh toán tiền lương, phụ cấp, thưởng phạt và trạng thái chi trả hàng tháng',
+        defaultEnabled: true
+      },
+      {
+        key: 'payroll_calculate',
+        name: 'Tính toán lương & Điều chỉnh thưởng/phạt/tạm ứng',
+        desc: 'Chạy tính lương toàn công ty và cập nhật thưởng nóng, phạt hoặc khấu trừ tạm ứng',
+        defaultEnabled: true
+      },
+      {
+        key: 'payroll_approve',
+        name: 'Phê duyệt chốt bảng lương & Xử lý khiếu nại lương',
+        desc: 'Chốt phát hành phiếu lương, trả lại chỉnh sửa hoặc giải quyết khiếu nại sai lương của nhân viên',
+        defaultEnabled: false,
+        sodWarning: 'Không được tự xử lý khiếu nại của chính mình'
+      },
+      {
+        key: 'payroll_payment_status_manage',
+        name: 'Cập nhật trạng thái chi trả lương',
+        desc: 'Xác nhận đã chi trả tiền lương cho kỳ lương đã được phê duyệt',
+        defaultEnabled: false,
+        sodWarning: 'Tách quyền giữa người duyệt và người chi trả'
+      }
+    ]
+  },
+  {
+    id: 'config_reports',
+    label: 'Nhóm 4: Cấu hình, Ngày lễ & Xuất báo cáo',
+    description: 'Xuất file bảng lương, sao lưu kỳ lương và minh bạch các quyền độc quyền Giám đốc',
+    color: 'text-indigo-600 bg-indigo-50',
+    items: [
+      {
+        key: 'payroll_export',
+        name: 'Xuất báo cáo lương Excel/CSV & Sao lưu dữ liệu tháng',
+        desc: 'Tải file Excel/CSV bảng lương và xuất gói sao lưu dữ liệu kỳ lương 1 chạm',
+        defaultEnabled: true
+      }
+    ]
+  }
+];
+
+export const ADMIN_SOD_EXCLUSIVE_ITEMS = [
+  {
+    name: 'Mở khóa kỳ chấm công đã chốt sổ',
+    desc: 'Chỉ Quản trị viên / Giám đốc được phép mở lại kỳ công đã đóng băng để bảo vệ tính toàn vẹn dữ liệu'
+  },
+  {
+    name: 'Cấu hình thông tin công ty, Wi-Fi & Quy tắc lương',
+    desc: 'Chỉnh sửa vị trí chi nhánh, chính sách đi trễ, thử việc, tăng ca và mức lương âm'
+  },
+  {
+    name: 'Quản lý lịch nghỉ lễ quốc gia & Vai trò/Thiết bị',
+    desc: 'Thêm/xóa ngày lễ nhân hệ số 3.0x, phân vai Admin/Kế toán và duyệt đổi thiết bị nhân viên'
+  },
+  {
+    name: 'Nhật ký kiểm toán an ninh & Cấu hình phân quyền',
+    desc: 'Xem nhật ký thao tác hệ thống, ghim/dọn nhật ký và thay đổi quyền Kế toán'
+  }
+];
+
 export function getAuditActionLabel(action) {
   const map = {
     LOGIN: 'Đăng nhập hệ thống',
@@ -161,7 +315,15 @@ export function getAuditActionLabel(action) {
     REJECT_REQUEST: 'Từ chối đơn từ',
     CANCEL_REQUEST: 'Hủy đơn từ',
     UPDATE_COMPANY: 'Cập nhật thông tin công ty',
+    UPDATE_COMPANY_SETTINGS: 'Cập nhật cấu hình công ty',
     UPDATE_PERMISSION: 'Thay đổi quyền Kế toán',
+    UPDATE_ACCOUNTANT_PERMISSIONS: 'Cập nhật phân quyền Kế toán',
+    APPROVE_PAYROLL: 'Phê duyệt & Chốt bảng lương',
+    REJECT_PAYROLL: 'Trả lại bảng lương chỉnh sửa',
+    UPDATE_PAYMENT_STATUS: 'Xác nhận chi trả lương',
+    EXPORT_MONTHLY_BACKUP_SNAPSHOT: 'Sao lưu dữ liệu kỳ lương tháng',
+    CLEANUP_AUDIT_LOGS: 'Dọn dẹp nhật ký định kỳ',
+    TOGGLE_EMPLOYEE_KEEP_LOGS: 'Bật/tắt giữ lịch sử nhân sự',
     APPROVE_DEVICE: 'Duyệt đổi thiết bị mới',
     REJECT_DEVICE: 'Từ chối đổi thiết bị',
     REQUEST_DEVICE_CHANGE: 'Xin đổi điện thoại chấm công',

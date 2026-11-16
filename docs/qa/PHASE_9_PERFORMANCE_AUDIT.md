@@ -1,6 +1,6 @@
 # SEDINCO HR — PHASE 9 PERFORMANCE & CONCURRENCY AUDIT
 
-Cập nhật: `2026-11-14` | Phiên bản: `Phase 9.6 (Benchmark Critique & Real Concurrent HTTP Load Test)`  
+Cập nhật: `2026-11-16` | Phiên bản: `Phase 9.6 & V14 Enterprise Pool/Worker Tuning`  
 Mục tiêu kiểm thử: Express app thật + MySQL cục bộ `sedinco_hr_test` (`127.0.0.1:3306`) — tuyệt đối không tạo tải lên TiDB Cloud `sedinco_hr`.
 
 ---
@@ -58,11 +58,11 @@ Kịch bản mỗi user đồng thời: `POST /api/login` → bắn song song 4 
 
 ## 3. Phân tích Nút thắt Cổ chai (Bottlenecks) & Ranh giới Local vs TiDB Cloud
 
-| Finding ID | Mức độ | Vị trí (`file:lines`) | Nguyên nhân gốc (Root Cause) | Ảnh hưởng thực tế | Hướng khắc phục kỹ thuật |
+| Finding ID | Mức độ | Vị trí (`file:lines`) | Nguyên nhân gốc (Root Cause) | Ảnh hưởng thực tế | Khắc phục đã triển khai (V14) & Hướng tối ưu tiếp |
 |---|---|---|---|---|---|
-| `P9-PERF-01` | Cao | `sedinco_backend/src/config/db.js:107` | `connectionLimit: 10` và mọi request có auth đều gọi `verifyUserStatusInDb` + các truy vấn service nối tiếp | Ở `200` NV đồng thời (chỉ trên local RTT `<1 ms`), phát sinh **`7,681` lần xếp hàng chờ pool**, đẩy `GET /api/attendance/me` từ `183 ms` (`50` NV) lên `1,478 ms` (`200` NV) và `check-in` P95 lên `3,309 ms` | Tối ưu số roundtrip DB mỗi request (gom/cache ngắn hạn), cân nhắc nâng `DB_POOL_LIMIT` phù hợp gói TiDB Cloud và TLS connection reuse |
-| `P9-PERF-02` | Cao | `sedinco_backend/src/utils/bcryptWorkerPool.js:24-27` | `POOL_SIZE` ở production/staging mặc định là **`2` worker threads** (thấp hơn `5x` so với `10` worker ở môi trường test) | Với **`10`** worker, `200` login đã xếp hàng tới **`134` tác vụ** (P95 `2,719 ms`). Nếu giữ **`2`** worker khi 200 công nhân đăng nhập đầu ca cùng lúc, hàng đợi bcrypt sẽ phình gấp ~5 lần (`MAX_QUEUE_SIZE = 500`, `TASK_TIMEOUT_MS = 10s` có nguy cơ kích hoạt timeout) | Cấu hình `BCRYPT_WORKER_POOL_SIZE` theo vCPU thực tế của container (vd: `4–8`) hoặc tối ưu luồng Zalo auto-login tránh gọi lại password login liên tục |
-| `P9-PERF-03` | Trung bình | TiDB Cloud vs Local `sedinco_hr_test` | Độ trễ thực trên TiDB Cloud chịu thêm TLS + WAN RTT (~`15–40 ms`/query so với `<1 ms` localhost), trong khi `sedinco_hr_test` cục bộ thiếu 4 composite index của Cloud nên `EXPLAIN` của `audit_logs` & `requests` còn hiện table scan | Không được dùng con số `check-in P95 = 3.31s` trên localhost để kết luận Production sẽ nhanh tương đương; trên Cloud với `10` kết nối và RTT WAN, độ trễ cao điểm 200 user giờ vào ca có thể vượt ngưỡng UX nếu mỗi check-in cần nhiều roundtrip DB tuần tự | Kiểm tra kế hoạch thực thi `EXPLAIN` trên TiDB Staging khi chạy tải thật (read-only), giảm số query tuần tự trong `checkInMultiFactor` |
+| `P9-PERF-01` | Cao | `sedinco_backend/src/config/db.js:5-20` | Trước V14: `connectionLimit: 10` và mọi request auth đều gọi `verifyUserStatusInDb` + query nối tiếp | Trong baseline `200` NV đồng thời với `limit=10`, phát sinh **`7,681` lần xếp hàng chờ pool**, đẩy `check-in` P95 lên `3,309 ms` | 🔧 **V14**: Nâng `connectionLimit` lên `Math.max(10, parseInt(process.env.DB_POOL_LIMIT, 10) || 20)`, bổ sung `maxIdle: 10`, `idleTimeout: 60000` (kèm `.unref()` cho timer sweep của `mysql2`) nhằm giảm xếp hàng kết nối giờ cao điểm |
+| `P9-PERF-02` | Cao | `sedinco_backend/src/utils/bcryptWorkerPool.js:20-22` | Trước V14: `POOL_SIZE` ở production/staging mặc định là **`2` worker threads** | Nếu giữ `2` worker khi 200 công nhân đăng nhập đầu ca cùng lúc, hàng đợi bcrypt phình lớn (`MAX_QUEUE_SIZE = 500`, `TASK_TIMEOUT_MS = 10s`) | 🔧 **V14**: Nâng mặc định `POOL_SIZE = Math.max(4, Math.min(os.cpus().length \|\| 4, 8))` ở mọi môi trường (vẫn hỗ trợ override qua `BCRYPT_WORKER_POOL_SIZE`) |
+| `P9-PERF-03` | Trung bình | TiDB Cloud vs Local `sedinco_hr_test` | Độ trễ thực trên TiDB Cloud chịu thêm TLS + WAN RTT (~`15–40 ms`/query so với `<1 ms` localhost), trong khi `sedinco_hr_test` cục bộ thiếu 4 composite index của Cloud nên `EXPLAIN` của `audit_logs` & `requests` còn hiện table scan | Không được dùng con số `check-in P95 = 3.31s` trên localhost để kết luận Production sẽ nhanh tương đương; trên Cloud với RTT WAN, mỗi roundtrip tăng tổng độ trễ | Kiểm tra kế hoạch thực thi `EXPLAIN` trên TiDB Staging khi chạy tải thật (read-only), tiếp tục gộp query trong `checkInMultiFactor` nếu mở rộng vượt ngưỡng hiện tại |
 
 **Xác nhận sạch dữ liệu sau Load Test**: Cả `load_test_local.js` lẫn truy vấn kiểm tra chéo 11 bảng trên `sedinco_hr_test` đều cho thấy `remainingEmployees = 0`, `remainingAttendanceLogs = 0`, `remainingRequests = 0`, `audit_logs = 0`, `idempotency_keys = 0`.
 

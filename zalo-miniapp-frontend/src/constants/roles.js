@@ -134,6 +134,25 @@ export const getDefaultTabForRole = (role, dynamicPermissions = {}) => {
   return perm.defaultTab;
 };
 
+export const ACCOUNTANT_ENFORCED_PERMISSION_KEYS = [
+  "attendance_view_all",
+  "attendance_edit",
+  "attendance_lock",
+  "leave_view_all",
+  "leave_approve",
+  "employee_view",
+  "employee_create",
+  "employee_edit",
+  "employee_delete",
+  "employee_status_manage",
+  "shift_manage",
+  "payroll_view_all",
+  "payroll_calculate",
+  "payroll_approve",
+  "payroll_payment_status_manage",
+  "payroll_export"
+];
+
 /**
  * Kiểm tra quyền cụ thể của role kết hợp dynamic permission
  */

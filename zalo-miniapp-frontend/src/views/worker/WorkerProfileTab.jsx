@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
-  ArrowLeft,
   DollarSign,
   Smartphone,
   Lock,
@@ -14,8 +13,8 @@ import {
 } from "lucide-react";
 import { safePost, safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
-import useLockBodyScroll from "../../hooks/useLockBodyScroll";
 import { getShiftLabel } from "../../utils/viLabels";
+import { AppButton, AppModal, FormRow } from "../../components/ui";
 
 export default function WorkerProfileTab({
   currentUser,
@@ -35,8 +34,6 @@ export default function WorkerProfileTab({
   const [deviceReason, setDeviceReason] = useState("");
   const [deviceSubmitting, setDeviceSubmitting] = useState(false);
   const [deviceError, setDeviceError] = useState("");
-
-  useLockBodyScroll(Boolean(isDeviceModalOpen));
 
   const salaryLoadingRef = useRef(false);
   const deviceSubmittingRef = useRef(false);
@@ -181,49 +178,53 @@ export default function WorkerProfileTab({
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-2 shadow-lg divide-y divide-slate-700/50">
         {/* Phiếu Lương + Bộ chọn kỳ lương */}
         <div className="p-3.5 space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                <DollarSign className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-white">Phiếu Lương Điện Tử</div>
-                <div className="text-xs text-slate-300">Xem chi tiết công, phụ cấp, BHXH &amp; thực lĩnh</div>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+              <DollarSign className="w-5 h-5" />
             </div>
-            <div className="flex items-center gap-1.5">
-              <select
-                aria-label="Chọn tháng phiếu lương"
-                value={slipMonth}
-                onChange={(e) => setSlipMonth(Number(e.target.value))}
-                className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>T{m}</option>
-                ))}
-              </select>
-              <select
-                aria-label="Chọn năm phiếu lương"
-                value={slipYear}
-                onChange={(e) => setSlipYear(Number(e.target.value))}
-                className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
-              >
-                {[2025, 2026, 2027].map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+            <div>
+              <div className="text-sm font-bold text-white">Phiếu Lương Điện Tử</div>
+              <div className="text-xs text-slate-300">Xem chi tiết công, phụ cấp, BHXH &amp; thực lĩnh</div>
             </div>
           </div>
 
-          <button
-            type="button"
+          <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 overflow-hidden">
+            <FormRow dark label="Kỳ phiếu lương">
+              <div className="flex items-center gap-1.5">
+                <select
+                  aria-label="Chọn tháng phiếu lương"
+                  value={slipMonth}
+                  onChange={(e) => setSlipMonth(Number(e.target.value))}
+                  className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>T{m}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Chọn năm phiếu lương"
+                  value={slipYear}
+                  onChange={(e) => setSlipYear(Number(e.target.value))}
+                  className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
+                >
+                  {[2025, 2026, 2027].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </FormRow>
+          </div>
+
+          <AppButton
+            variant="success"
+            fullWidth
+            icon={DollarSign}
+            loading={salaryLoading}
+            loadingText="Đang tải phiếu lương..."
             onClick={handleOpenSalarySlip}
-            disabled={salaryLoading}
-            className="w-full min-h-[44px] py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md transition whitespace-nowrap cursor-pointer disabled:opacity-50"
           >
-            <DollarSign className="w-4 h-4 shrink-0" />
-            <span>{salaryLoading ? "Đang tải phiếu lương..." : `Mở phiếu lương tháng ${slipMonth}/${slipYear}`}</span>
-          </button>
+            Xem phiếu lương tháng {slipMonth}/{slipYear}
+          </AppButton>
         </div>
 
         {/* Yêu Cầu Đổi Thiết Bị */}
@@ -233,7 +234,7 @@ export default function WorkerProfileTab({
             setDeviceError("");
             setIsDeviceModalOpen(true);
           }}
-          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-700/40 rounded-xl transition-colors group cursor-pointer"
+          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-700/40 rounded-xl transition-colors group cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
@@ -251,7 +252,7 @@ export default function WorkerProfileTab({
         <button
           type="button"
           onClick={onChangePasswordRequest}
-          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-700/40 rounded-xl transition-colors group cursor-pointer"
+          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-700/40 rounded-xl transition-colors group cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
@@ -267,14 +268,15 @@ export default function WorkerProfileTab({
       </div>
 
       {/* Nút Đăng Xuất */}
-      <button
-        type="button"
+      <AppButton
+        variant="danger"
+        fullWidth
+        icon={LogOut}
         onClick={onLogout}
-        className="w-full min-h-[44px] py-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-sm rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+        className="rounded-2xl"
       >
-        <LogOut className="w-4 h-4 shrink-0" />
-        <span>Đăng xuất khỏi thiết bị</span>
-      </button>
+        Đăng xuất khỏi thiết bị
+      </AppButton>
 
       {/* Salary Slip Modal */}
       {isSalaryModalOpen && payrollData && (
@@ -292,81 +294,58 @@ export default function WorkerProfileTab({
       )}
 
       {/* Modal Yêu Cầu Đổi Thiết Bị */}
-      {isDeviceModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
-          style={{
-            paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
-            paddingBottom: "env(safe-area-inset-bottom, 0px)"
-          }}
-          onTouchMove={(e) => {
-            if (e.target === e.currentTarget) e.preventDefault();
-          }}
-          onClick={() => setIsDeviceModalOpen(false)}
-        >
-          <div
-            className="bg-slate-800 border border-slate-700 rounded-t-3xl sm:rounded-2xl w-full max-w-sm max-h-[88vh] shadow-2xl flex flex-col overflow-hidden animate-sheet-up"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-700/80 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsDeviceModalOpen(false)}
-                className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition active:scale-[0.98]"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Trở về</span>
-              </button>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2 leading-snug">
-                <Smartphone className="w-4 h-4 text-indigo-400 shrink-0" />
-                <span>Đổi thiết bị chấm công</span>
-              </h3>
-            </div>
-            <form
-              id="device-change-form"
-              onSubmit={handleRequestDeviceChange}
-              className="modal-scroll-area flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-3"
+      <AppModal
+        open={isDeviceModalOpen}
+        onClose={() => !deviceSubmitting && setIsDeviceModalOpen(false)}
+        disableClose={deviceSubmitting}
+        theme="dark"
+        title="Đổi thiết bị chấm công"
+        subtitle="Gửi yêu cầu mở khóa sang điện thoại mới"
+        icon={<Smartphone className="w-4 h-4 text-indigo-400" />}
+        maxWidthClass="max-w-sm"
+        footer={
+          <div className="flex gap-2.5">
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              disabled={deviceSubmitting}
+              onClick={() => setIsDeviceModalOpen(false)}
+              className="flex-1"
             >
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Vui lòng nhập lý do thay đổi điện thoại (ví dụ: mất máy, hỏng máy, đổi điện thoại mới) để Quản trị viên duyệt mở khóa:
-              </p>
-              {deviceError && (
-                <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
-                  {deviceError}
-                </div>
-              )}
-              <textarea
-                value={deviceReason}
-                onChange={(e) => setDeviceReason(e.target.value)}
-                placeholder="Nhập lý do cụ thể..."
-                required
-                rows={3}
-                className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
-              />
-            </form>
-            <div
-              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0 flex gap-2.5"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+              Đóng / Quay lại
+            </AppButton>
+            <AppButton
+              type="submit"
+              form="device-change-form"
+              variant="primary"
+              loading={deviceSubmitting}
+              loadingText="Đang gửi..."
+              className="flex-1"
             >
-              <button
-                type="button"
-                onClick={() => setIsDeviceModalOpen(false)}
-                className="flex-1 min-h-[46px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-xl transition active:scale-[0.98] cursor-pointer"
-              >
-                Đóng / Quay lại
-              </button>
-              <button
-                type="submit"
-                form="device-change-form"
-                disabled={deviceSubmitting}
-                className="flex-1 min-h-[46px] py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition active:scale-[0.98] disabled:opacity-50 cursor-pointer whitespace-nowrap"
-              >
-                {deviceSubmitting ? "Đang gửi..." : "Gửi yêu cầu"}
-              </button>
-            </div>
+              Gửi yêu cầu
+            </AppButton>
           </div>
-        </div>
-      )}
+        }
+      >
+        <form id="device-change-form" onSubmit={handleRequestDeviceChange} className="p-5 space-y-3">
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Vui lòng nhập lý do thay đổi điện thoại (ví dụ: mất máy, hỏng máy, đổi điện thoại mới) để Quản trị viên duyệt mở khóa:
+          </p>
+          {deviceError && (
+            <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
+              {deviceError}
+            </div>
+          )}
+          <textarea
+            value={deviceReason}
+            onChange={(e) => setDeviceReason(e.target.value)}
+            placeholder="Nhập lý do cụ thể..."
+            required
+            rows={3}
+            className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+          />
+        </form>
+      </AppModal>
     </div>
   );
 }

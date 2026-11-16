@@ -1,20 +1,22 @@
 /**
  * Suite 09 — Phase 9 Independent Audit:
- *   1) Payroll Golden Matrix (17 scenarios, flagging unconfirmed business rules vs PASS/NOT_IMPLEMENTED)
- *   2) Device Binding, GPS Token Replay Fallback, Staging vs Production Token Safety, TRUST_PROXY Hardening
+ *   1) Payroll Golden Matrix (18 scenarios incl. V14 dynamic switches & monthly backup snapshot)
+ *   2) Device Binding, Persistent GPS Token Replay Guard, Staging vs Production Token Safety, TRUST_PROXY Hardening
  *   3) Login Security Matrix (Unicode/Special chars, SQLi, Account Enumeration, Admin & Distributed Rate Limits, JWT Revocation Check)
- *   4) Complete 129-Route RBAC & SoD Matrix across Worker / Zero-Perm Accountant / Selective Accountant / Admin
+ *   4) Complete 132-Route RBAC & 1:1 16-Key Permission Matrix / SoD Verification
  */
 process.env.NODE_ENV = 'test';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
 const { calculateEmployeeSalary } = require('../src/utils/payrollCalculator');
 const authService = require('../src/services/authService');
+const { ENFORCED_ACCOUNTANT_KEYS } = require('../src/services/permissionService');
 const { verifyZaloLocationToken, verifyZaloUserToken, resetMockZaloTokens } = require('../src/utils/zaloAdapter');
 const {
     app,
@@ -77,7 +79,7 @@ async function cleanupPhase9Data() {
     await query('DELETE FROM period_locks WHERE year = ?', [TEST_YEAR]);
     await query('DELETE FROM payroll_periods WHERE year = ? OR year >= 2090', [TEST_YEAR]);
     await query('DELETE FROM public_holidays WHERE holiday_name LIKE ?', ['P9_%']);
-    await query(`DELETE FROM idempotency_keys WHERE actor_id IN (${actPh}) OR actor_id LIKE ?`, [...allActors, 'P9_%']);
+    await query(`DELETE FROM idempotency_keys WHERE actor_id IN (${actPh}) OR actor_id LIKE ? OR key_hash LIKE 'LOC_TOKEN_%'`, [...allActors, 'P9_%']);
     await query(`DELETE FROM login_rate_limits WHERE identifier IN (${actPh}) OR identifier LIKE ? OR key_name LIKE ?`, [...allActors, 'P9_%', '%P9_%']);
     await query(`DELETE FROM audit_logs WHERE actor_id IN (${actPh}) OR actor_id LIKE ? OR details LIKE ?`, [...allActors, 'P9_%', '%P9_%']);
     await query('DELETE FROM employees WHERE ma_nv LIKE ?', ['P9_%']);
@@ -167,21 +169,39 @@ test('P9-PAY-GOLDEN: 17 Payroll Business Logic Scenarios & Audit Verification', 
     assert.equal(c1.totalInsurance, 1365000);
     assert.equal(c1.netSalary, 0, 'With 1.1M gross and 1.365M BHXH, net clamps to 0');
 
-    // Case 2: Probation 85% split before & on/after ngay_chinh_thuc (allowances scale by actualWorkDays per L157!)
+    // Case 2: Probation 85% + dynamic probation_allowance_full switch (full vs scaled allowance & OT rate)
     const c2 = calculateEmployeeSalary({
-        luong_cb: 26000000, // 1,000,000/day
+        luong_cb: 26000000, // 1,000,000/day, 125,000/hr
         cong_chuan: 26,
         ngay_chinh_thuc: `${TEST_YEAR}-03-10`,
         has_insurance: false,
+        allowances: { an_trua: 2600000 }, // 100k/day at 100%, 85k/day at 85%
         logs: [
-            { record_date: `${TEST_YEAR}-03-05`, status: '1', ot_hours: 0, late_minutes: 0, dow: 3 },
+            { record_date: `${TEST_YEAR}-03-05`, status: '1/OT', ot_hours: 2, late_minutes: 0, dow: 3 },
             { record_date: `${TEST_YEAR}-03-10`, status: '1', ot_hours: 0, late_minutes: 0, dow: 1 }
         ],
-        companySettings: stdSettings
+        companySettings: { ...stdSettings, probation_allowance_full: 1 }
     });
     assert.equal(c2.congThuViec, 1);
     assert.equal(c2.congChinhThuc, 1);
     assert.equal(c2.salaryByWork, 1850000);
+    assert.equal(c2.totalAllowance, 200000, 'probation_allowance_full=1 pays full allowance on probation day');
+    assert.equal(c2.otAmount, 375000, 'probation_allowance_full=1 uses 100% hourly rate for probation OT');
+
+    const c2Scaled = calculateEmployeeSalary({
+        luong_cb: 26000000,
+        cong_chuan: 26,
+        ngay_chinh_thuc: `${TEST_YEAR}-03-10`,
+        has_insurance: false,
+        allowances: { an_trua: 2600000 },
+        logs: [
+            { record_date: `${TEST_YEAR}-03-05`, status: '1/OT', ot_hours: 2, late_minutes: 0, dow: 3 },
+            { record_date: `${TEST_YEAR}-03-10`, status: '1', ot_hours: 0, late_minutes: 0, dow: 1 }
+        ],
+        companySettings: { ...stdSettings, probation_allowance_full: 0 }
+    });
+    assert.equal(c2Scaled.totalAllowance, 185000, 'probation_allowance_full=0 scales probation allowance by 85%');
+    assert.equal(c2Scaled.otAmount, 318750, 'probation_allowance_full=0 scales probation OT hourly rate by 85%');
 
     // Case 3: Half workday (0.5), Paid Leave (P), Holiday (L), KP/V (unpaid 0)
     const c3 = calculateEmployeeSalary({
@@ -224,19 +244,52 @@ test('P9-PAY-GOLDEN: 17 Payroll Business Logic Scenarios & Audit Verification', 
     assert.equal(c456.salaryByWork, 800000);
     assert.equal(c456.otAmount, 300000 + 600000 + 1200000);
 
-    // Case 7: Unregistered / empty ot_registrations STILL pays OT in current code (NEEDS_BUSINESS_CONFIRMATION)
-    const c7Unreg = calculateEmployeeSalary({
+    // Case 7: Dynamic ot_calculation_mode (APPROVED_OR_AUTO | REQUIRE_APPROVAL | AUTO_ACTUAL)
+    const c7AutoFallback = calculateEmployeeSalary({
         luong_cb: 20800000,
         cong_chuan: 26,
         ngay_chinh_thuc: '2024-01-01',
         has_insurance: false,
         logs: [{ record_date: `${TEST_YEAR}-03-12`, status: '1/OT', ot_hours: 3, late_minutes: 0, dow: 3 }],
         otRegistrations: [],
-        companySettings: stdSettings
+        companySettings: { ...stdSettings, ot_calculation_mode: 'APPROVED_OR_AUTO' }
     });
-    assert.equal(c7Unreg.otAmount, 450000, 'Documents current unguarded OT fallback when ot_registrations has no entry');
+    assert.equal(c7AutoFallback.otAmount, 450000, 'APPROVED_OR_AUTO computes OT when no otRegistrations exist');
 
-    // Cases 8, 9, 10: Late policies (PER_MINUTE, PER_OCCURRENCE, DEDUCT_WORKDAY)
+    const c7StrictNoReg = calculateEmployeeSalary({
+        luong_cb: 20800000,
+        cong_chuan: 26,
+        ngay_chinh_thuc: '2024-01-01',
+        has_insurance: false,
+        logs: [{ record_date: `${TEST_YEAR}-03-12`, status: '1/OT', ot_hours: 3, late_minutes: 0, dow: 3 }],
+        otRegistrations: [],
+        companySettings: { ...stdSettings, ot_calculation_mode: 'REQUIRE_APPROVAL' }
+    });
+    assert.equal(c7StrictNoReg.otAmount, 0, 'REQUIRE_APPROVAL yields 0 OT pay without approved OT registration');
+
+    const c7StrictWithReg = calculateEmployeeSalary({
+        luong_cb: 20800000,
+        cong_chuan: 26,
+        ngay_chinh_thuc: '2024-01-01',
+        has_insurance: false,
+        logs: [{ record_date: `${TEST_YEAR}-03-12`, status: '1/OT', ot_hours: 3, late_minutes: 0, dow: 3 }],
+        otRegistrations: [{ work_date: `${TEST_YEAR}-03-12`, expected_hours: 2, status: 'approved' }],
+        companySettings: { ...stdSettings, ot_calculation_mode: 'REQUIRE_APPROVAL' }
+    });
+    assert.equal(c7StrictWithReg.otAmount, 300000, 'REQUIRE_APPROVAL caps OT hours to approved expected_hours (2h)');
+
+    const c7AutoActual = calculateEmployeeSalary({
+        luong_cb: 20800000,
+        cong_chuan: 26,
+        ngay_chinh_thuc: '2024-01-01',
+        has_insurance: false,
+        logs: [{ record_date: `${TEST_YEAR}-03-12`, status: '1/OT', ot_hours: 3, late_minutes: 0, dow: 3 }],
+        otRegistrations: [{ work_date: `${TEST_YEAR}-03-12`, expected_hours: 2, status: 'approved' }],
+        companySettings: { ...stdSettings, ot_calculation_mode: 'AUTO_ACTUAL' }
+    });
+    assert.equal(c7AutoActual.otAmount, 450000, 'AUTO_ACTUAL pays actual worked OT hours without capping');
+
+    // Cases 8, 9, 10: Late policies (PER_MINUTE, PER_OCCURRENCE, DEDUCT_WORKDAY + free_late_exempts_halfday)
     const lateLogs = [
         { record_date: `${TEST_YEAR}-03-02`, status: '1', ot_hours: 0, late_minutes: 10, dow: 2 }, // free #1 (skipped)
         { record_date: `${TEST_YEAR}-03-03`, status: '1', ot_hours: 0, late_minutes: 25, dow: 3 }  // charged #2
@@ -255,12 +308,19 @@ test('P9-PAY-GOLDEN: 17 Payroll Business Logic Scenarios & Audit Verification', 
     });
     assert.equal(c9PerOcc.latePenaltyAmount, 50000);
 
+    const c10DeductStrict = calculateEmployeeSalary({
+        luong_cb: 13000000, cong_chuan: 26, ngay_chinh_thuc: '2024-01-01', has_insurance: false,
+        logs: [{ record_date: `${TEST_YEAR}-03-04`, status: '1', ot_hours: 0, late_minutes: 75, dow: 4 }],
+        companySettings: { ...stdSettings, late_policy_type: 'DEDUCT_WORKDAY', free_late_occurrences: 1, max_late_minutes_for_half_day: 60, free_late_exempts_halfday: 0 }
+    });
+    assert.equal(c10DeductStrict.actualWorkDays, 0.5, 'free_late_exempts_halfday=0 deducts severe late (>60m) to 0.5 even within free quota');
+
     const c10DeductFree = calculateEmployeeSalary({
         luong_cb: 13000000, cong_chuan: 26, ngay_chinh_thuc: '2024-01-01', has_insurance: false,
         logs: [{ record_date: `${TEST_YEAR}-03-04`, status: '1', ot_hours: 0, late_minutes: 75, dow: 4 }],
-        companySettings: { ...stdSettings, late_policy_type: 'DEDUCT_WORKDAY', free_late_occurrences: 1, max_late_minutes_for_half_day: 60 }
+        companySettings: { ...stdSettings, late_policy_type: 'DEDUCT_WORKDAY', free_late_occurrences: 1, max_late_minutes_for_half_day: 60, free_late_exempts_halfday: 1 }
     });
-    assert.equal(c10DeductFree.actualWorkDays, 1, 'First late occurrence is exempted by free_late_occurrences=1 even for DEDUCT_WORKDAY');
+    assert.equal(c10DeductFree.actualWorkDays, 1, 'free_late_exempts_halfday=1 exempts severe late within free_late_occurrences=1');
 
     const c10DeductCharged = calculateEmployeeSalary({
         luong_cb: 13000000, cong_chuan: 26, ngay_chinh_thuc: '2024-01-01', has_insurance: false,
@@ -313,14 +373,25 @@ test('P9-PAY-GOLDEN: 17 Payroll Business Logic Scenarios & Audit Verification', 
     assert.ok(w1Grid, 'P9_WKR_1 should appear in paginated GET /api/payroll results');
     assert.equal(Number(w1Grid.netSalary), Number(slipMe.json?.data?.netSalary), 'getMyPayroll sargable query MUST match calculateMonthlyPayroll');
 
-    // Case 13 & 14: Deductions > earnings clamp & 0 workdays = 0 insurance
+    // Case 13 & 14: Dynamic negative_salary_policy (CLAMP_ZERO + carryOverDebt vs SHOW_NEGATIVE) & 0 workdays = 0 insurance
     const c13Clamp = calculateEmployeeSalary({
         luong_cb: 13000000, cong_chuan: 26, ngay_chinh_thuc: '2024-01-01', has_insurance: false,
         logs: [{ record_date: `${TEST_YEAR}-04-02`, status: '1', ot_hours: 0, late_minutes: 0, dow: 2 }], // 500k
         penaltyAmount: 900000,
-        companySettings: stdSettings
+        companySettings: { ...stdSettings, negative_salary_policy: 'CLAMP_ZERO' }
     });
-    assert.equal(c13Clamp.netSalary, 0, 'Deductions exceeding earnings clamp to 0 (no carry-over table)');
+    assert.equal(c13Clamp.netSalary, 0, 'CLAMP_ZERO clamps negative net salary to 0');
+    assert.equal(c13Clamp.carry_over_debt, 400000, 'CLAMP_ZERO exposes carry_over_debt=400000');
+
+    const c13Negative = calculateEmployeeSalary({
+        luong_cb: 13000000, cong_chuan: 26, ngay_chinh_thuc: '2024-01-01', has_insurance: false,
+        logs: [{ record_date: `${TEST_YEAR}-04-02`, status: '1', ot_hours: 0, late_minutes: 0, dow: 2 }],
+        penaltyAmount: 900000,
+        companySettings: { ...stdSettings, negative_salary_policy: 'SHOW_NEGATIVE' }
+    });
+    assert.equal(c13Negative.netSalary, -400000, 'SHOW_NEGATIVE displays negative netSalary directly');
+    assert.equal(c13Negative.carry_over_debt, 0, 'SHOW_NEGATIVE does not split carry_over_debt separately');
+
     const c14Zero = calculateEmployeeSalary({
         luong_cb: 13000000, cong_chuan: 26, ngay_chinh_thuc: '2024-01-01', has_insurance: true,
         logs: [],
@@ -390,6 +461,42 @@ test('P9-PAY-GOLDEN: 17 Payroll Business Logic Scenarios & Audit Verification', 
         body: { month: 4, year: TEST_YEAR, reason: 'Late edit attempt' }
     });
     assert.equal(rejPaid.status, 400, 'Rejecting an already PAID payroll period must return 400');
+
+    // Case 18: V14 Dynamic Settings E2E + Monthly JSON Backup Snapshot (GET /api/payroll/backup-snapshot)
+    const dynPut = await apiRequest(baseUrl, 'PUT', '/api/company', {
+        token: admToken,
+        body: {
+            probation_allowance_full: 0,
+            ot_calculation_mode: 'REQUIRE_APPROVAL',
+            free_late_exempts_halfday: 0,
+            negative_salary_policy: 'SHOW_NEGATIVE'
+        }
+    });
+    assert.equal(dynPut.status, 200);
+    assert.equal(Number(dynPut.json?.data?.probation_allowance_full), 0);
+    assert.equal(dynPut.json?.data?.ot_calculation_mode, 'REQUIRE_APPROVAL');
+    assert.equal(Number(dynPut.json?.data?.free_late_exempts_halfday), 0);
+    assert.equal(dynPut.json?.data?.negative_salary_policy, 'SHOW_NEGATIVE');
+
+    const penGet = await apiRequest(baseUrl, 'GET', '/api/settings/penalties', { token: admToken });
+    assert.equal(penGet.status, 200);
+    assert.equal(penGet.json?.data?.ot_calculation_mode, 'REQUIRE_APPROVAL');
+    assert.equal(penGet.json?.data?.negative_salary_policy, 'SHOW_NEGATIVE');
+
+    const snapAdm = await apiRequest(baseUrl, 'GET', `/api/payroll/backup-snapshot?month=4&year=${TEST_YEAR}`, { token: admToken });
+    assert.equal(snapAdm.status, 200, `Admin backup-snapshot failed: ${snapAdm.raw}`);
+    assert.equal(snapAdm.json?.data?.meta?.month, 4);
+    assert.equal(snapAdm.json?.data?.meta?.year, TEST_YEAR);
+    assert.ok(Array.isArray(snapAdm.json?.data?.payroll_rows), 'Snapshot must include payroll_rows array');
+    assert.ok(Array.isArray(snapAdm.json?.data?.attendance_logs), 'Snapshot must include attendance_logs array');
+    assert.ok(Array.isArray(snapAdm.json?.data?.requests), 'Snapshot must include requests array');
+    assert.equal(snapAdm.json?.data?.company_settings?.negative_salary_policy, 'SHOW_NEGATIVE');
+    assert.equal((await apiRequest(baseUrl, 'GET', `/api/payroll/backup-snapshot?month=4&year=${TEST_YEAR}`, { token: w1Token })).status, 403);
+    // Restore default negative_salary_policy before later groups
+    await apiRequest(baseUrl, 'PUT', '/api/company', {
+        token: admToken,
+        body: { probation_allowance_full: 1, ot_calculation_mode: 'APPROVED_OR_AUTO', free_late_exempts_halfday: 0, negative_salary_policy: 'CLAMP_ZERO' }
+    });
 });
 
 // =========================================================================
@@ -490,16 +597,45 @@ test('P9-SEC-DEV-01: Enforced device binding blocks omitted device_info/device_i
     });
     assert.equal(spoofTokAuto.status, 401, `zalo-auto-login with mismatched zalo_access_token MUST return 401, got ${spoofTokAuto.status}`);
 
-    // Replay location token in check-in falls back silently to raw GPS (200) instead of hard-rejecting
+    // Replay location token in HTTP check-in MUST hard-reject with 403 SECURITY_VIOLATION_FRAUD (V14 Persistent Guard)
     const replayLocTok = `mock_zalo_loc_p9_replay_${crypto.randomBytes(3).toString('hex')}`;
-    const firstLoc = await verifyZaloLocationToken({ locationToken: replayLocTok });
-    assert.ok(firstLoc?.verified);
-    const replayCheckIn = await apiRequest(baseUrl, 'POST', '/api/attendance/check-in', {
+    const firstLocCheckIn = await apiRequest(baseUrl, 'POST', '/api/attendance/check-in', {
         token: w2Token,
-        headers: { 'X-Idempotency-Key': `p9-loc-rep-${Date.now()}` },
+        headers: { 'X-Idempotency-Key': `p9-loc-first-${Date.now()}` },
         body: { lat: 16.0544, lng: 108.2022, device_info: 'P9_DEV_PRIMARY', zalo_location_token: replayLocTok }
     });
-    assert.equal(replayCheckIn.status, 200, 'Documents current silent raw fallback when zalo_location_token replay fails verification');
+    assert.equal(firstLocCheckIn.status, 200, `First use of location token must succeed, got ${firstLocCheckIn.status}: ${firstLocCheckIn.raw}`);
+    const [storedLocGuard] = await query(
+        "SELECT key_hash FROM idempotency_keys WHERE endpoint = 'LOC_TOKEN_REPLAY_GUARD' AND actor_id = ? ORDER BY created_at DESC LIMIT 1",
+        [W2]
+    );
+    assert.ok(storedLocGuard, 'First verified zalo_location_token must persist LOC_TOKEN_REPLAY_GUARD row in idempotency_keys');
+
+    await query('DELETE FROM attendance_logs WHERE employee_id = ?', [W2]);
+    const replayCheckInMem = await apiRequest(baseUrl, 'POST', '/api/attendance/check-in', {
+        token: w2Token,
+        headers: { 'X-Idempotency-Key': `p9-loc-rep1-${Date.now()}` },
+        body: { lat: 16.0544, lng: 108.2022, device_info: 'P9_DEV_PRIMARY', zalo_location_token: replayLocTok }
+    });
+    assert.equal(replayCheckInMem.status, 403, `Replayed zalo_location_token MUST return 403, got ${replayCheckInMem.status}`);
+    assert.equal(replayCheckInMem.json?.code, 'SECURITY_VIOLATION_FRAUD');
+
+    // Simulate server restart clearing in-memory cache while DB idempotency_keys still holds token hash
+    resetMockZaloTokens();
+    await query('DELETE FROM attendance_logs WHERE employee_id = ?', [W2]);
+    const replayCheckInDb = await apiRequest(baseUrl, 'POST', '/api/attendance/check-in', {
+        token: w2Token,
+        headers: { 'X-Idempotency-Key': `p9-loc-rep2-${Date.now()}` },
+        body: { lat: 16.0544, lng: 108.2022, device_info: 'P9_DEV_PRIMARY', zalo_location_token: replayLocTok }
+    });
+    assert.equal(replayCheckInDb.status, 403, 'Persistent idempotency_keys store MUST continue blocking replayed token after in-memory reset');
+    assert.equal(replayCheckInDb.json?.code, 'SECURITY_VIOLATION_FRAUD');
+
+    const [replayAudit] = await query(
+        "SELECT id FROM audit_logs WHERE actor_id = ? AND action = 'CRITICAL_FRAUD' AND details LIKE '%LOCATION_TOKEN_REPLAY%' ORDER BY id DESC LIMIT 1",
+        [W2]
+    );
+    assert.ok(replayAudit, 'LOCATION_TOKEN_REPLAY must record CRITICAL_FRAUD audit event');
 
     // Staging vs Production Zalo token hardening audit (mocks strictly allowed ONLY in NODE_ENV=test)
     const prevEnv = process.env.NODE_ENV;
@@ -640,11 +776,11 @@ test('P9-SEC-LOGIN-01: Special/Unicode passwords, SQLi, Account Enumeration (P1 
 });
 
 // =========================================================================
-// GROUP 4: COMPLETE 131-ROUTE RBAC & SOD MATRIX
+// GROUP 4: COMPLETE 132-ROUTE RBAC, 1:1 16-KEY PERMISSION MATRIX & SOD
 // =========================================================================
-test('P9-RBAC-ALL: Route Inventory (131 Routes), Auth Boundaries, 30-Key Accountant Matrix & SoD Verification', async () => {
+test('P9-RBAC-ALL: Route Inventory (132 Routes), Auth Boundaries, 16-Key 1:1 Matrix & SoD Verification', async () => {
     const routes = listExpressRoutes(app);
-    assert.equal(routes.length, 131, `Expected 131 Express routes, observed ${routes.length}`);
+    assert.equal(routes.length, 132, `Expected 132 Express routes, observed ${routes.length}`);
 
     const publicWhitelist = new Set([
         'GET /api/health',
@@ -708,6 +844,7 @@ test('P9-RBAC-ALL: Route Inventory (131 Routes), Auth Boundaries, 30-Key Account
         ['POST', '/api/payroll/reject', { month: 4, year: TEST_YEAR, reason: 'x' }],
         ['POST', '/api/payroll/save', { month: 4, year: TEST_YEAR }],
         ['GET', `/api/payroll/export?month=4&year=${TEST_YEAR}`],
+        ['GET', `/api/payroll/backup-snapshot?month=4&year=${TEST_YEAR}`],
         ['PUT', '/api/payroll/payment-status', { month: 4, year: TEST_YEAR, status: 'PAID' }],
         ['POST', '/api/payroll/payment-status', { month: 4, year: TEST_YEAR, status: 'PAID' }],
         ['GET', `/api/payroll/status-list?month=4&year=${TEST_YEAR}`],
@@ -799,6 +936,7 @@ test('P9-RBAC-ALL: Route Inventory (131 Routes), Auth Boundaries, 30-Key Account
         ['POST', '/api/payroll/reject', { month: 4, year: TEST_YEAR, reason: 'x' }],
         ['POST', '/api/payroll/resolve-dispute', { ma_nv: W2, month: 4, year: TEST_YEAR, new_status: 'CONFIRMED' }],
         ['GET', `/api/payroll/export?month=4&year=${TEST_YEAR}`],
+        ['GET', `/api/payroll/backup-snapshot?month=4&year=${TEST_YEAR}`],
         ['PUT', '/api/payroll/payment-status', { month: 4, year: TEST_YEAR, status: 'PAID' }],
         ['POST', '/api/payroll/payment-status', { month: 4, year: TEST_YEAR, status: 'PAID' }],
         ['GET', `/api/payroll/status-list?month=4&year=${TEST_YEAR}`],
@@ -869,5 +1007,37 @@ test('P9-RBAC-ALL: Route Inventory (131 Routes), Auth Boundaries, 30-Key Account
         if (prevDiagAcc === undefined) delete process.env.ENABLE_DIAGNOSTICS;
         else process.env.ENABLE_DIAGNOSTICS = prevDiagAcc;
     }
+
+    // V14 1:1 Permission Matrix Reconciliation: Backend ENFORCED_ACCOUNTANT_KEYS (16 keys) <-> FE roles.js <-> FE viLabels.js
+    assert.equal(ENFORCED_ACCOUNTANT_KEYS.length, 16, 'Backend ENFORCED_ACCOUNTANT_KEYS must contain exact 16 enforced keys');
+    const rolesSrc = fs.readFileSync(path.join(ROOT_DIR, 'zalo-miniapp-frontend/src/constants/roles.js'), 'utf8');
+    const viLabelsSrc = fs.readFileSync(path.join(ROOT_DIR, 'zalo-miniapp-frontend/src/utils/viLabels.js'), 'utf8');
+    const feRolesBlockMatch = rolesSrc.match(/export const ACCOUNTANT_ENFORCED_PERMISSION_KEYS = \[([\s\S]*?)\];/);
+    assert.ok(feRolesBlockMatch, 'roles.js must export ACCOUNTANT_ENFORCED_PERMISSION_KEYS');
+    const feRoleKeys = [...feRolesBlockMatch[1].matchAll(/['"]([a-z_]+)['"]/g)].map((m) => m[1]);
+
+    const viGroupBlockMatch = viLabelsSrc.match(/export const ACCOUNTANT_PERMISSION_GROUPS = \[([\s\S]*?)\];\s*\n\s*export const ADMIN_SOD_EXCLUSIVE_ITEMS/);
+    assert.ok(viGroupBlockMatch, 'viLabels.js must export ACCOUNTANT_PERMISSION_GROUPS');
+    const viGroupKeys = [...viGroupBlockMatch[1].matchAll(/key:\s*['"]([a-z_]+)['"]/g)].map((m) => m[1]);
+
+    assert.deepEqual([...feRoleKeys].sort(), [...ENFORCED_ACCOUNTANT_KEYS].sort(), 'roles.js must match Backend ENFORCED_ACCOUNTANT_KEYS 1:1');
+    assert.deepEqual([...viGroupKeys].sort(), [...ENFORCED_ACCOUNTANT_KEYS].sort(), 'viLabels.js ACCOUNTANT_PERMISSION_GROUPS must cover all 16 Backend enforced keys 1:1');
+
+    // Granular toggle check: Enable ONLY employee_create + payroll_export; ensure create works (201) & delete remains 403
+    await setAllAccountantPerms(false);
+    const granPut = await apiRequest(baseUrl, 'PUT', '/api/settings/accountant-permissions', {
+        token: admToken,
+        body: { permissions: { employee_create: true, payroll_export: true } }
+    });
+    assert.equal(granPut.status, 200);
+    const createEmpAllowed = await apiRequest(baseUrl, 'POST', '/api/employees', {
+        token: accToken,
+        body: { ma_nv: 'P9_RBAC_TEMP', ho_ten: 'Phase9 Granular Temp', chuc_danh: 'Thợ', role: 'worker' }
+    });
+    assert.ok([200, 201].includes(createEmpAllowed.status), `Accountant with employee_create=true MUST create employee, got ${createEmpAllowed.status}: ${createEmpAllowed.raw}`);
+    const delEmpBlocked = await apiRequest(baseUrl, 'DELETE', '/api/employees/P9_RBAC_TEMP', { token: accToken });
+    assert.equal(delEmpBlocked.status, 403, 'Accountant without employee_delete MUST remain 403 on DELETE /api/employees/:ma_nv');
+    const snapAccAllowed = await apiRequest(baseUrl, 'GET', `/api/payroll/backup-snapshot?month=4&year=${TEST_YEAR}`, { token: accToken });
+    assert.equal(snapAccAllowed.status, 200, 'Accountant with payroll_export=true MUST access GET /api/payroll/backup-snapshot');
 });
 

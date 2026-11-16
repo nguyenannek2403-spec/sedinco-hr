@@ -128,7 +128,7 @@ async function cleanupQaData(prefix = 'QA_', testYear = 2099) {
     await query('DELETE FROM public_holidays WHERE holiday_name LIKE ?', [likePattern]).catch(() => {});
     await query('DELETE FROM audit_logs WHERE actor_id LIKE ? OR details LIKE ? OR actor_id IN (?, ?, ?, ?)', [likePattern, `%${prefix}%`, "' OR '1'='1' -- ", "' OR '1'='1", "admin'--", '" UNION SELECT 1,2--']).catch(() => {});
     await query('DELETE FROM login_rate_limits WHERE identifier LIKE ? OR key_name LIKE ? OR identifier IN (?, ?, ?, ?)', [likePattern, `%${prefix}%`, "' OR '1'='1' -- ", "' OR '1'='1", "admin'--", '" UNION SELECT 1,2--']).catch(() => {});
-    await query('DELETE FROM idempotency_keys WHERE actor_id LIKE ?', [likePattern]).catch(() => {});
+    await query("DELETE FROM idempotency_keys WHERE actor_id LIKE ? OR key_hash LIKE 'LOC_TOKEN_%'", [likePattern]).catch(() => {});
     await query('DELETE FROM employees WHERE ma_nv LIKE ?', [likePattern]).catch(() => {});
     await query('DELETE FROM admins WHERE username LIKE ?', [likePattern]).catch(() => {});
     invalidatePermissionCache();
@@ -156,7 +156,8 @@ async function restoreSettings(snapshot) {
                 ot_rate_weekday=?, ot_rate_weekend=?, ot_rate_holiday=?, custom_ot_hourly_rate=?,
                 insurance_rate=?, log_retention_days=?, allowed_locations=?, office_ip_whitelist=?,
                 late_policy_type=?, free_late_occurrences=?, late_penalty_per_minute=?,
-                late_penalty_amount=?, max_late_minutes_for_half_day=?
+                late_penalty_amount=?, max_late_minutes_for_half_day=?,
+                probation_allowance_full=?, ot_calculation_mode=?, free_late_exempts_halfday=?, negative_salary_policy=?
              WHERE id = ?`,
             [
                 s.company_name, s.phone, s.address, s.tax_code, s.work_start, s.work_end,
@@ -166,7 +167,12 @@ async function restoreSettings(snapshot) {
                 s.ot_rate_weekday, s.ot_rate_weekend, s.ot_rate_holiday, s.custom_ot_hourly_rate,
                 s.insurance_rate, s.log_retention_days, s.allowed_locations, s.office_ip_whitelist,
                 s.late_policy_type, s.free_late_occurrences, s.late_penalty_per_minute,
-                s.late_penalty_amount, s.max_late_minutes_for_half_day, s.id
+                s.late_penalty_amount, s.max_late_minutes_for_half_day,
+                s.probation_allowance_full !== undefined ? s.probation_allowance_full : 1,
+                s.ot_calculation_mode || 'APPROVED_OR_AUTO',
+                s.free_late_exempts_halfday !== undefined ? s.free_late_exempts_halfday : 0,
+                s.negative_salary_policy || 'CLAMP_ZERO',
+                s.id
             ]
         ).catch(() => {});
     }

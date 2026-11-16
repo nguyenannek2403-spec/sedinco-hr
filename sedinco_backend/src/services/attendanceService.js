@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { query, withTransaction } = require('../config/db');
 const { logAuditEvent, getAccountantPermissions } = require('../middlewares/authMiddleware');
 const { calculateDistanceMeters } = require('../utils/geoHelper');
@@ -747,60 +748,13 @@ class AttendanceService {
             .filter(Boolean);
         const matchedWifiIp = Boolean(cleanClientIp && ipWhitelist.includes(cleanClientIp));
 
-        // 3. Xác thực Vị trí & Fallback an toàn sang GPS thô hoặc Wi-Fi công ty (không bao giờ chặn 400/403 vì token Zalo)
+        // 3. Xác thực Vị trí & Khóa Replay Token định vị Zalo qua idempotency_keys (TTL 15 phút)
         let location_source = 'raw';
         let is_low_trust = 1;
         let finalLat = lat;
         let finalLng = lng;
-
-        if (zalo_location_token) {
-            const { verifyZaloLocationToken } = require('../utils/zaloAdapter');
-            let locResult = null;
-            try {
-                locResult = await verifyZaloLocationToken({
-                    locationToken: zalo_location_token,
-                    userAccessToken: zalo_access_token || ''
-                });
-            } catch (zaloErr) {
-                console.warn('[AttendanceService] Giải mã location_token Zalo thất bại, fallback sang GPS/Wi-Fi:', zaloErr?.message || zaloErr);
-            }
-
-            if (locResult && locResult.verified && locResult.lat !== undefined && locResult.lng !== undefined) {
-                finalLat = locResult.lat;
-                finalLng = locResult.lng;
-                location_source = 'token';
-                is_low_trust = 0;
-            } else {
-                // Fallback an toàn: không ném lỗi hết hạn/không hợp lệ để không làm gián đoạn chấm công thực tế
-                location_source = 'raw';
-                is_low_trust = 1;
-            }
-        }
-
-        const hasRawCoords = finalLat !== null && finalLat !== undefined && finalLat !== '' &&
-            finalLng !== null && finalLng !== undefined && finalLng !== '';
-
-        if (!hasRawCoords && !matchedWifiIp) {
-            const error = new Error('Không thể xác định tọa độ GPS hiện tại. Vui lòng bật GPS trên điện thoại hoặc kết nối Wi-Fi Công ty và thử lại!');
-            error.statusCode = 400;
-            throw error;
-        }
-
-        let numLat = null;
-        let numLng = null;
-        if (hasRawCoords) {
-            numLat = Number(finalLat);
-            numLng = Number(finalLng);
-            if (isNaN(numLat) || isNaN(numLng) || numLat < -90 || numLat > 90 || numLng < -180 || numLng > 180) {
-                if (!matchedWifiIp) {
-                    const error = new Error('Tọa độ GPS ngoài phạm vi hợp lệ (Vĩ độ: [-90, 90], Kinh độ: [-180, 180])!');
-                    error.statusCode = 400;
-                    throw error;
-                }
-                numLat = null;
-                numLng = null;
-            }
-        }
+        let numLat = (lat !== null && lat !== undefined && lat !== '' && Number.isFinite(Number(lat))) ? Number(lat) : null;
+        let numLng = (lng !== null && lng !== undefined && lng !== '' && Number.isFinite(Number(lng))) ? Number(lng) : null;
 
         // Helper kích hoạt Cảnh báo Đỏ 2 chiều (CRITICAL_FRAUD)
         const triggerCriticalFraud = async (fraudType, fraudReason) => {
@@ -839,6 +793,78 @@ class AttendanceService {
             error.fraud_reason = fraudReason;
             throw error;
         };
+
+        if (zalo_location_token) {
+            const { verifyZaloLocationToken, isLocationTokenReplayed } = require('../utils/zaloAdapter');
+            const cleanLocToken = String(zalo_location_token).trim();
+            const locTokenHash = `LOC_TOKEN_${crypto.createHash('sha256').update(cleanLocToken).digest('hex').slice(0, 50)}`;
+
+            const existingReplayRows = await query(
+                'SELECT key_hash FROM idempotency_keys WHERE key_hash = ? AND created_at >= NOW() - INTERVAL 15 MINUTE LIMIT 1',
+                [locTokenHash]
+            ).catch(() => []);
+
+            if (isLocationTokenReplayed(cleanLocToken) || (existingReplayRows && existingReplayRows.length > 0)) {
+                await triggerCriticalFraud(
+                    'LOCATION_TOKEN_REPLAY',
+                    'Phát hiện tái sử dụng mã định vị Zalo đã sử dụng trước đó (Location Token Replay)'
+                );
+            }
+
+            let locResult = null;
+            try {
+                locResult = await verifyZaloLocationToken({
+                    locationToken: cleanLocToken,
+                    userAccessToken: zalo_access_token || ''
+                });
+            } catch (zaloErr) {
+                console.warn('[AttendanceService] Giải mã location_token Zalo thất bại, fallback sang GPS/Wi-Fi:', zaloErr?.message || zaloErr);
+            }
+
+            if (locResult && locResult.verified && locResult.lat !== undefined && locResult.lng !== undefined) {
+                finalLat = locResult.lat;
+                finalLng = locResult.lng;
+                if (Number.isFinite(Number(finalLat)) && Number.isFinite(Number(finalLng))) {
+                    numLat = Number(finalLat);
+                    numLng = Number(finalLng);
+                }
+                location_source = 'token';
+                is_low_trust = 0;
+                await query(
+                    `INSERT INTO idempotency_keys (key_hash, actor_id, endpoint, response_status, response_body)
+                     VALUES (?, ?, 'LOC_TOKEN_REPLAY_GUARD', 200, NULL)
+                     ON DUPLICATE KEY UPDATE created_at = NOW(), actor_id = VALUES(actor_id)`,
+                    [locTokenHash, ma_nv]
+                ).catch(() => {});
+            } else {
+                // Fallback an toàn đối với token hết hạn chưa từng dùng để không làm gián đoạn chấm công thực tế
+                location_source = 'raw';
+                is_low_trust = 1;
+            }
+        }
+
+        const hasRawCoords = finalLat !== null && finalLat !== undefined && finalLat !== '' &&
+            finalLng !== null && finalLng !== undefined && finalLng !== '';
+
+        if (!hasRawCoords && !matchedWifiIp) {
+            const error = new Error('Không thể xác định tọa độ GPS hiện tại. Vui lòng bật GPS trên điện thoại hoặc kết nối Wi-Fi Công ty và thử lại!');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        if (hasRawCoords) {
+            numLat = Number(finalLat);
+            numLng = Number(finalLng);
+            if (isNaN(numLat) || isNaN(numLng) || numLat < -90 || numLat > 90 || numLng < -180 || numLng > 180) {
+                if (!matchedWifiIp) {
+                    const error = new Error('Tọa độ GPS ngoài phạm vi hợp lệ (Vĩ độ: [-90, 90], Kinh độ: [-180, 180])!');
+                    error.statusCode = 400;
+                    throw error;
+                }
+                numLat = null;
+                numLng = null;
+            }
+        }
 
         // 3.1 Kiểm tra cờ Fake GPS trực tiếp hoặc độ chính xác giả mạo
         if (is_fake_gps === true || is_fake_gps === 'true' || (gps_accuracy !== null && Number(gps_accuracy) < 0)) {
@@ -1106,13 +1132,19 @@ class AttendanceService {
                         ? Math.max(0, Number(cs.free_late_occurrences))
                         : 3;
 
+                    const freeExemptsHalfday = Boolean(
+                        cs.free_late_exempts_halfday === true ||
+                        cs.free_late_exempts_halfday === 1 ||
+                        String(cs.free_late_exempts_halfday) === '1'
+                    );
+
                     if (policyType === 'DEDUCT_WORKDAY' && late_minutes > maxLateHalfDay) {
                         const priorLateRows = await txQuery(
                             'SELECT COUNT(*) as cnt FROM attendance_logs WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ? AND record_date != ? AND late_minutes > 0',
                             [ma_nv, currentMonth, currentYear, dateStr]
                         );
                         const priorLateCnt = Number(priorLateRows?.[0]?.cnt || 0);
-                        if (priorLateCnt >= freeLateCount) {
+                        if (!freeExemptsHalfday || priorLateCnt >= freeLateCount) {
                             newStatus = '0.5';
                             halfDayNote = ` • Trừ nửa công (trễ > ${maxLateHalfDay}p)`;
                         }

@@ -1,6 +1,25 @@
 const { query } = require('../config/db');
 const { invalidatePermissionCache, logAuditEvent } = require('../middlewares/authMiddleware');
 
+const ENFORCED_ACCOUNTANT_KEYS = [
+    'attendance_view_all',
+    'attendance_edit',
+    'attendance_lock',
+    'leave_view_all',
+    'leave_approve',
+    'employee_view',
+    'employee_create',
+    'employee_edit',
+    'employee_delete',
+    'employee_status_manage',
+    'shift_manage',
+    'payroll_view_all',
+    'payroll_calculate',
+    'payroll_approve',
+    'payroll_payment_status_manage',
+    'payroll_export'
+];
+
 class PermissionService {
     async getAccountantPermissions() {
         const sql = `
@@ -30,14 +49,35 @@ class PermissionService {
         const updaterId = current_user ? (current_user.username || current_user.ma_nv || 'admin') : 'admin';
 
         // Xử lý cả dạng Object { [key]: boolean } lẫn Array [ { permission_key, is_enabled } ]
-        let entries = [];
+        let rawEntries = [];
         if (Array.isArray(updatedPermissions)) {
-            entries = updatedPermissions.map(p => [p.permission_key, Boolean(p.is_enabled)]);
+            rawEntries = updatedPermissions.map(p => [p.permission_key, Boolean(p.is_enabled)]);
         } else {
-            entries = Object.entries(updatedPermissions).map(([k, v]) => [k, Boolean(v)]);
+            rawEntries = Object.entries(updatedPermissions).map(([k, v]) => [k, Boolean(v)]);
         }
 
-        for (const [key, enabled] of entries) {
+        // Đồng bộ các khóa phụ cùng nghiệp vụ trong DB với 16 khóa thực thi chuẩn
+        const inputMap = {};
+        for (const [k, v] of rawEntries) {
+            if (k) inputMap[k] = v;
+        }
+        if (inputMap.leave_approve !== undefined) {
+            if (inputMap.attendance_request_approve === undefined) inputMap.attendance_request_approve = inputMap.leave_approve;
+            if (inputMap.leave_reject === undefined) inputMap.leave_reject = inputMap.leave_approve;
+            if (inputMap.request_manage === undefined) inputMap.request_manage = inputMap.leave_approve;
+        }
+        if (inputMap.leave_view_all !== undefined && inputMap.request_view_all === undefined) {
+            inputMap.request_view_all = inputMap.leave_view_all;
+        }
+        if (inputMap.payroll_export !== undefined && inputMap.report_export === undefined) {
+            inputMap.report_export = inputMap.payroll_export;
+        }
+        if (inputMap.attendance_view_all !== undefined) {
+            if (inputMap.attendance_summarize === undefined) inputMap.attendance_summarize = inputMap.attendance_view_all;
+            if (inputMap.report_view === undefined) inputMap.report_view = inputMap.attendance_view_all;
+        }
+
+        for (const [key, enabled] of Object.entries(inputMap)) {
             if (beforeMap[key] !== undefined && beforeMap[key] !== enabled) {
                 changes[key] = { from: beforeMap[key], to: enabled };
                 await query(
@@ -339,3 +379,4 @@ class PermissionService {
 }
 
 module.exports = new PermissionService();
+module.exports.ENFORCED_ACCOUNTANT_KEYS = ENFORCED_ACCOUNTANT_KEYS;

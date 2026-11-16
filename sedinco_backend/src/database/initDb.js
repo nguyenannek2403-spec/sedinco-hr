@@ -382,6 +382,10 @@ async function initDatabase() {
         await query("ALTER TABLE company_settings ADD COLUMN late_penalty_per_minute DECIMAL(15,2) NULL").catch(() => {});
         await query("ALTER TABLE company_settings ADD COLUMN late_penalty_amount DECIMAL(15,2) NULL").catch(() => {});
         await query("ALTER TABLE company_settings ADD COLUMN max_late_minutes_for_half_day INT DEFAULT 60").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN probation_allowance_full TINYINT(1) DEFAULT 1").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN ot_calculation_mode VARCHAR(30) DEFAULT 'APPROVED_OR_AUTO'").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN free_late_exempts_halfday TINYINT(1) DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN negative_salary_policy VARCHAR(30) DEFAULT 'CLAMP_ZERO'").catch(() => {});
 
         // V12 MISA Parity & Comprehensive Requests: Department, Explanation Times/Evidence, Proxy Check-in
         await query("ALTER TABLE employees ADD COLUMN department VARCHAR(100) NULL DEFAULT 'Khối Công trình'").catch(() => {});

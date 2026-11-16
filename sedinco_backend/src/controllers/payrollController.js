@@ -201,6 +201,16 @@ class PayrollController {
             next(err);
         }
     }
+
+    async getBackupSnapshot(req, res, next) {
+        try {
+            const { month, year } = req.query;
+            const snapshot = await payrollService.getBackupSnapshot(month, year, req.user);
+            return res.json({ success: true, data: snapshot });
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 module.exports = new PayrollController();

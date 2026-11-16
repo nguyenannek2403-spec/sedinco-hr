@@ -17,10 +17,14 @@ const DEFAULT_COMPANY_SETTINGS = {
     max_late_minutes_for_half_day: 60,
     standard_work_days: 26,
     probation_salary_percent: 85,
+    probation_allowance_full: 1,
     ot_rate_weekday: 1.5,
     ot_rate_weekend: 2.0,
     ot_rate_holiday: 3.0,
     custom_ot_hourly_rate: 0,
+    ot_calculation_mode: 'APPROVED_OR_AUTO',
+    free_late_exempts_halfday: 0,
+    negative_salary_policy: 'CLAMP_ZERO',
     insurance_rate: 10.5,
     log_retention_days: 30,
     office_ip_whitelist: '',
@@ -120,6 +124,15 @@ class CompanyService {
             ? Number(row.penalty_fixed_block)
             : DEFAULT_COMPANY_SETTINGS.penalty_fixed_block;
 
+        const validOtModes = ['APPROVED_OR_AUTO', 'REQUIRE_APPROVAL', 'AUTO_ACTUAL'];
+        const normalizedOtMode = validOtModes.includes(String(row.ot_calculation_mode || '').trim().toUpperCase())
+            ? String(row.ot_calculation_mode).trim().toUpperCase()
+            : DEFAULT_COMPANY_SETTINGS.ot_calculation_mode;
+        const validNegPolicies = ['CLAMP_ZERO', 'SHOW_NEGATIVE'];
+        const normalizedNegPolicy = validNegPolicies.includes(String(row.negative_salary_policy || '').trim().toUpperCase())
+            ? String(row.negative_salary_policy).trim().toUpperCase()
+            : DEFAULT_COMPANY_SETTINGS.negative_salary_policy;
+
         return {
             ...DEFAULT_COMPANY_SETTINGS,
             ...row,
@@ -145,10 +158,16 @@ class CompanyService {
                 : DEFAULT_COMPANY_SETTINGS.max_late_minutes_for_half_day,
             standard_work_days: Number(row.standard_work_days) || DEFAULT_COMPANY_SETTINGS.standard_work_days,
             probation_salary_percent: Number(row.probation_salary_percent) || DEFAULT_COMPANY_SETTINGS.probation_salary_percent,
+            probation_allowance_full: (row.probation_allowance_full === undefined || row.probation_allowance_full === null)
+                ? DEFAULT_COMPANY_SETTINGS.probation_allowance_full
+                : (Number(row.probation_allowance_full) ? 1 : 0),
             ot_rate_weekday: Number(row.ot_rate_weekday) || DEFAULT_COMPANY_SETTINGS.ot_rate_weekday,
             ot_rate_weekend: Number(row.ot_rate_weekend) || DEFAULT_COMPANY_SETTINGS.ot_rate_weekend,
             ot_rate_holiday: Number(row.ot_rate_holiday) || DEFAULT_COMPANY_SETTINGS.ot_rate_holiday,
             custom_ot_hourly_rate: Number(row.custom_ot_hourly_rate) || 0,
+            ot_calculation_mode: normalizedOtMode,
+            free_late_exempts_halfday: Number(row.free_late_exempts_halfday) ? 1 : 0,
+            negative_salary_policy: normalizedNegPolicy,
             insurance_rate: row.insurance_rate !== undefined && row.insurance_rate !== null ? Number(row.insurance_rate) : DEFAULT_COMPANY_SETTINGS.insurance_rate,
             log_retention_days: Number(row.log_retention_days) || DEFAULT_COMPANY_SETTINGS.log_retention_days,
             allowed_locations,
@@ -209,10 +228,33 @@ class CompanyService {
         const max_late_minutes_for_half_day = Math.max(1, Math.round(toFiniteNumber(payload.max_late_minutes_for_half_day, toFiniteNumber(current.max_late_minutes_for_half_day, 60))));
         const standard_work_days = Math.max(1, toFiniteNumber(payload.standard_work_days, toFiniteNumber(current.standard_work_days, 26)));
         const probation_salary_percent = Math.min(100, Math.max(0, toFiniteNumber(payload.probation_salary_percent, toFiniteNumber(current.probation_salary_percent, 85))));
+        const toBoolInt = (val, fallback) => {
+            if (val === undefined || val === null || val === '') return fallback;
+            if (val === true || val === 1 || String(val) === '1' || String(val).toLowerCase() === 'true') return 1;
+            return 0;
+        };
+        const probation_allowance_full = toBoolInt(
+            payload.probation_allowance_full,
+            current.probation_allowance_full !== undefined ? (Number(current.probation_allowance_full) ? 1 : 0) : 1
+        );
         const ot_rate_weekday = Math.max(0, toFiniteNumber(payload.ot_rate_weekday, toFiniteNumber(current.ot_rate_weekday, 1.5)));
         const ot_rate_weekend = Math.max(0, toFiniteNumber(payload.ot_rate_weekend, toFiniteNumber(current.ot_rate_weekend, 2.0)));
         const ot_rate_holiday = Math.max(0, toFiniteNumber(payload.ot_rate_holiday, toFiniteNumber(current.ot_rate_holiday, 3.0)));
         const custom_ot_hourly_rate = Math.max(0, toFiniteNumber(payload.custom_ot_hourly_rate, toFiniteNumber(current.custom_ot_hourly_rate, 0)));
+        const validOtModes = ['APPROVED_OR_AUTO', 'REQUIRE_APPROVAL', 'AUTO_ACTUAL'];
+        const rawOtModeInput = payload.ot_calculation_mode !== undefined
+            ? String(payload.ot_calculation_mode || '').trim().toUpperCase()
+            : String(current.ot_calculation_mode || 'APPROVED_OR_AUTO').toUpperCase();
+        const ot_calculation_mode = validOtModes.includes(rawOtModeInput) ? rawOtModeInput : 'APPROVED_OR_AUTO';
+        const free_late_exempts_halfday = toBoolInt(
+            payload.free_late_exempts_halfday,
+            current.free_late_exempts_halfday ? 1 : 0
+        );
+        const validNegPolicies = ['CLAMP_ZERO', 'SHOW_NEGATIVE'];
+        const rawNegPolicyInput = payload.negative_salary_policy !== undefined
+            ? String(payload.negative_salary_policy || '').trim().toUpperCase()
+            : String(current.negative_salary_policy || 'CLAMP_ZERO').toUpperCase();
+        const negative_salary_policy = validNegPolicies.includes(rawNegPolicyInput) ? rawNegPolicyInput : 'CLAMP_ZERO';
         const insurance_rate = Math.max(0, toFiniteNumber(payload.insurance_rate, toFiniteNumber(current.insurance_rate, 10.5)));
         const log_retention_days = Math.max(1, Math.round(toFiniteNumber(payload.log_retention_days, toFiniteNumber(current.log_retention_days, 30))));
 
@@ -231,8 +273,9 @@ class CompanyService {
             work_start, work_end, lunch_start, lunch_end,
             grace_period_minutes, penalty_per_minute, penalty_fixed_block, penalty_salary_percent,
             late_policy_type, free_late_occurrences, late_penalty_per_minute, late_penalty_amount, max_late_minutes_for_half_day,
-            standard_work_days, probation_salary_percent,
+            standard_work_days, probation_salary_percent, probation_allowance_full,
             ot_rate_weekday, ot_rate_weekend, ot_rate_holiday, custom_ot_hourly_rate,
+            ot_calculation_mode, free_late_exempts_halfday, negative_salary_policy,
             insurance_rate, log_retention_days,
             latitude, longitude, radius_meters,
             allowedLocationsJson, office_ip_whitelist
@@ -246,8 +289,9 @@ class CompanyService {
                     work_start=?, work_end=?, lunch_start=?, lunch_end=?,
                     grace_period_minutes=?, penalty_per_minute=?, penalty_fixed_block=?, penalty_salary_percent=?,
                     late_policy_type=?, free_late_occurrences=?, late_penalty_per_minute=?, late_penalty_amount=?, max_late_minutes_for_half_day=?,
-                    standard_work_days=?, probation_salary_percent=?,
+                    standard_work_days=?, probation_salary_percent=?, probation_allowance_full=?,
                     ot_rate_weekday=?, ot_rate_weekend=?, ot_rate_holiday=?, custom_ot_hourly_rate=?,
+                    ot_calculation_mode=?, free_late_exempts_halfday=?, negative_salary_policy=?,
                     insurance_rate=?, log_retention_days=?,
                     latitude=?, longitude=?, radius_meters=?,
                     allowed_locations=?, office_ip_whitelist=?
@@ -261,12 +305,13 @@ class CompanyService {
                     work_start, work_end, lunch_start, lunch_end,
                     grace_period_minutes, penalty_per_minute, penalty_fixed_block, penalty_salary_percent,
                     late_policy_type, free_late_occurrences, late_penalty_per_minute, late_penalty_amount, max_late_minutes_for_half_day,
-                    standard_work_days, probation_salary_percent,
+                    standard_work_days, probation_salary_percent, probation_allowance_full,
                     ot_rate_weekday, ot_rate_weekend, ot_rate_holiday, custom_ot_hourly_rate,
+                    ot_calculation_mode, free_late_exempts_halfday, negative_salary_policy,
                     insurance_rate, log_retention_days,
                     latitude, longitude, radius_meters,
                     allowed_locations, office_ip_whitelist
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 params
             );
         }
@@ -350,10 +395,14 @@ class CompanyService {
             max_late_minutes_for_half_day: conf.max_late_minutes_for_half_day !== undefined ? Number(conf.max_late_minutes_for_half_day) : 60,
             standard_work_days: conf.standard_work_days || 26,
             probation_salary_percent: conf.probation_salary_percent || 85,
+            probation_allowance_full: conf.probation_allowance_full !== undefined ? Number(conf.probation_allowance_full) : 1,
             ot_rate_weekday: conf.ot_rate_weekday || 1.5,
             ot_rate_weekend: conf.ot_rate_weekend || 2.0,
             ot_rate_holiday: conf.ot_rate_holiday || 3.0,
             custom_ot_hourly_rate: conf.custom_ot_hourly_rate || 0,
+            ot_calculation_mode: conf.ot_calculation_mode || 'APPROVED_OR_AUTO',
+            free_late_exempts_halfday: conf.free_late_exempts_halfday !== undefined ? Number(conf.free_late_exempts_halfday) : 0,
+            negative_salary_policy: conf.negative_salary_policy || 'CLAMP_ZERO',
             insurance_rate: conf.insurance_rate !== undefined ? Number(conf.insurance_rate) : 10.5,
             log_retention_days: conf.log_retention_days || 30
         };

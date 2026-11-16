@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  ArrowLeft,
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Clock,
   AlertCircle,
   RefreshCw,
   FilePlus2,
@@ -13,8 +11,8 @@ import {
 } from "lucide-react";
 import { safeGet } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
-import useLockBodyScroll from "../../hooks/useLockBodyScroll";
 import { getAttendanceStatusInfo } from "../../utils/viLabels";
+import { AppButton, AppModal, StatusBadge, SkeletonList } from "../../components/ui";
 
 const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 
@@ -122,8 +120,6 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
 
   const [selectedDayDetail, setSelectedDayDetail] = useState(null);
   const [correctionModalDate, setCorrectionModalDate] = useState(null);
-
-  useLockBodyScroll(Boolean(selectedDayDetail));
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
@@ -286,15 +282,15 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
             <Calendar className="w-4 h-4 text-blue-400 shrink-0" />
             <span>Chạm vào từng ô ngày để xem &amp; bù công</span>
           </h3>
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            tone="dark"
+            icon={RefreshCw}
+            loading={loading}
             onClick={fetchHistory}
-            disabled={loading}
             aria-label="Làm mới lịch công"
-            className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-300 font-bold flex items-center justify-center shrink-0 cursor-pointer"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
+            className="min-w-[44px] px-3"
+          />
         </div>
 
         {/* Chú thích màu + Ký hiệu Heatmap (hỗ trợ người lớn tuổi & mù màu) */}
@@ -315,23 +311,20 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
 
         {/* Lưới Ngày */}
         {loading ? (
-          <div className="py-12 text-center text-slate-300 text-xs flex flex-col items-center gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-blue-400" />
-            <span>Đang tải Heatmap tháng...</span>
-          </div>
+          <SkeletonList rows={3} dark label="Đang tải Heatmap tháng..." />
         ) : error ? (
           <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
-            <button
-              type="button"
+            <AppButton
+              variant="danger"
               onClick={fetchHistory}
-              className="min-h-[44px] px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold shrink-0"
+              className="text-xs px-3 py-1.5 shrink-0"
             >
               Thử lại
-            </button>
+            </AppButton>
           </div>
         ) : (
           <div className="grid grid-cols-7 gap-1.5">
@@ -383,7 +376,7 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                   key={iso || idx}
                   type="button"
                   onClick={() => setSelectedDayDetail({ isoDate: iso, dayNum: iso.slice(-2), log: day, style })}
-                  className="w-full text-left p-3.5 flex items-start justify-between gap-3 hover:bg-slate-800/80 transition cursor-pointer"
+                  className="perf-list-item w-full text-left p-3.5 flex items-start justify-between gap-3 hover:bg-slate-800/80 transition cursor-pointer"
                 >
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -429,9 +422,7 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                       </div>
                     )}
                   </div>
-                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-lg border shrink-0 whitespace-nowrap ${style.cellClass}`}>
-                    {statusInfo.shortLabel}
-                  </span>
+                  <StatusBadge type="attendance" status={day.status} />
                 </button>
               );
             })}
@@ -440,112 +431,88 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
       )}
 
       {/* MODAL CHI TIẾT 1 NGÀY + NÚT BỔ SUNG CÔNG 1 CHẠM */}
-      {selectedDayDetail && (
-        <div
-          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
-          style={{
-            paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
-            paddingBottom: "env(safe-area-inset-bottom, 0px)"
-          }}
-          onTouchMove={(e) => {
-            if (e.target === e.currentTarget) e.preventDefault();
-          }}
-          onClick={() => setSelectedDayDetail(null)}
-        >
-          <div
-            className="bg-slate-900 border-2 border-slate-700 rounded-t-3xl sm:rounded-3xl w-full max-w-sm max-h-[88vh] flex flex-col overflow-hidden shadow-2xl animate-sheet-up"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-4 py-3.5 flex items-center gap-3 border-b border-slate-800 shrink-0">
-              <button
-                type="button"
-                onClick={() => setSelectedDayDetail(null)}
-                className="min-h-[44px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition active:scale-[0.98]"
+      <AppModal
+        open={Boolean(selectedDayDetail)}
+        onClose={() => setSelectedDayDetail(null)}
+        theme="dark"
+        title={selectedDayDetail?.isoDate || ""}
+        subtitle="Chi tiết công ngày"
+        maxWidthClass="max-w-sm"
+        footer={
+          <div className="space-y-2">
+            {selectedDayDetail && !selectedDayDetail.isFuture && (
+              <AppButton
+                variant="warning"
+                fullWidth
+                icon={FilePlus2}
+                onClick={() => {
+                  const iso = selectedDayDetail.isoDate;
+                  const existingLog = selectedDayDetail.log;
+                  setSelectedDayDetail(null);
+                  setCorrectionModalDate({ iso, log: existingLog });
+                }}
               >
-                <ArrowLeft size={16} />
-                <span>Trở về</span>
-              </button>
-              <div className="min-w-0 flex-1">
-                <span className="text-xs font-semibold text-blue-400 block">Chi tiết công ngày</span>
-                <h3 className="text-base font-bold text-white leading-snug">{selectedDayDetail.isoDate}</h3>
-              </div>
-            </div>
-
-            <div
-              className="modal-scroll-area flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-4"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
+                Gửi đơn bổ sung công cho ngày này
+              </AppButton>
+            )}
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              fullWidth
+              onClick={() => setSelectedDayDetail(null)}
             >
-              <div className="space-y-2.5 text-xs">
-                <div className={`p-3 rounded-2xl border font-bold text-center text-sm ${selectedDayDetail.style.cellClass}`}>
-                  {selectedDayDetail.style.badgeText}
-                </div>
+              Đóng / Quay lại
+            </AppButton>
+          </div>
+        }
+      >
+        {selectedDayDetail && (
+          <div className="p-5 space-y-3 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950 p-3 rounded-2xl border border-slate-800">
+              <span className="text-slate-300 font-semibold">{selectedDayDetail.style.badgeText}</span>
+              <StatusBadge type="attendance" status={selectedDayDetail.log?.status || selectedDayDetail.style.shortCode || "0"} />
+            </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-                    <span className="text-xs text-slate-400 block mb-0.5">Giờ vào ca</span>
-                    <span className="text-base font-bold text-white font-mono">
-                      {selectedDayDetail.log?.check_in_time ? String(selectedDayDetail.log.check_in_time).slice(0, 5) : "--:--"}
-                    </span>
-                  </div>
-                  <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-                    <span className="text-xs text-slate-400 block mb-0.5">Giờ ra ca</span>
-                    <span className="text-base font-bold text-white font-mono">
-                      {selectedDayDetail.log?.check_out_time ? String(selectedDayDetail.log.check_out_time).slice(0, 5) : "--:--"}
-                    </span>
-                  </div>
-                </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-xs text-slate-400 block mb-0.5">Giờ vào ca</span>
+                <span className="text-base font-bold text-white font-mono">
+                  {selectedDayDetail.log?.check_in_time ? String(selectedDayDetail.log.check_in_time).slice(0, 5) : "--:--"}
+                </span>
+              </div>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <span className="text-xs text-slate-400 block mb-0.5">Giờ ra ca</span>
+                <span className="text-base font-bold text-white font-mono">
+                  {selectedDayDetail.log?.check_out_time ? String(selectedDayDetail.log.check_out_time).slice(0, 5) : "--:--"}
+                </span>
+              </div>
+            </div>
 
-                {selectedDayDetail.log?.location_name && (
-                  <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-2 text-slate-300">
-                    <MapPin size={15} className="text-blue-400 shrink-0" />
-                    <span className="break-words">{selectedDayDetail.log.location_name}</span>
-                  </div>
-                )}
+            {selectedDayDetail.log?.location_name && (
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-2 text-slate-300">
+                <MapPin size={15} className="text-blue-400 shrink-0" />
+                <span className="break-words">{selectedDayDetail.log.location_name}</span>
+              </div>
+            )}
 
-                {selectedDayDetail.log?.proxy_by && (
-                  <div className="bg-blue-950/40 p-3 rounded-2xl border border-blue-500/30 text-blue-200 space-y-0.5">
-                    <strong className="block text-xs">Chấm công hộ bởi {selectedDayDetail.log.proxy_by}</strong>
-                    {selectedDayDetail.log.proxy_note && (
-                      <span className="text-xs block">{selectedDayDetail.log.proxy_note}</span>
-                    )}
-                  </div>
-                )}
-
-                {selectedDayDetail.log?.field_note && (
-                  <div className="bg-amber-950/40 p-3 rounded-2xl border border-amber-500/30 text-amber-200">
-                    <strong className="block text-xs mb-0.5">Ghi chú công trình:</strong>
-                    <span>{selectedDayDetail.log.field_note}</span>
-                  </div>
+            {selectedDayDetail.log?.proxy_by && (
+              <div className="bg-blue-950/40 p-3 rounded-2xl border border-blue-500/30 text-blue-200 space-y-0.5">
+                <strong className="block text-xs">Chấm công hộ bởi {selectedDayDetail.log.proxy_by}</strong>
+                {selectedDayDetail.log.proxy_note && (
+                  <span className="text-xs block">{selectedDayDetail.log.proxy_note}</span>
                 )}
               </div>
+            )}
 
-              {!selectedDayDetail.isFuture && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const iso = selectedDayDetail.isoDate;
-                    const existingLog = selectedDayDetail.log;
-                    setSelectedDayDetail(null);
-                    setCorrectionModalDate({ iso, log: existingLog });
-                  }}
-                  className="w-full min-h-[46px] py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer transition active:scale-[0.98]"
-                >
-                  <FilePlus2 size={16} />
-                  <span>Gửi đơn bổ sung công cho ngày này</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setSelectedDayDetail(null)}
-                className="w-full min-h-[46px] py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-2xl font-semibold text-sm cursor-pointer transition active:scale-[0.98]"
-              >
-                Đóng / Quay lại
-              </button>
-            </div>
+            {selectedDayDetail.log?.field_note && (
+              <div className="bg-amber-950/40 p-3 rounded-2xl border border-amber-500/30 text-amber-200">
+                <strong className="block text-xs mb-0.5">Ghi chú công trình:</strong>
+                <span>{selectedDayDetail.log.field_note}</span>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </AppModal>
 
       {/* MODAL BỔ SUNG CÔNG TỰ ĐỘNG ĐIỀN NGÀY TỪ HEATMAP */}
       {correctionModalDate && (

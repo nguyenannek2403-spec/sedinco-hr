@@ -147,6 +147,11 @@ async function verifyZaloAccessToken(accessToken) {
 
 const verifyZaloUserToken = verifyZaloAccessToken;
 
+function isLocationTokenReplayed(token) {
+    if (!token || typeof token !== 'string') return false;
+    return usedLocationTokens.has(token);
+}
+
 function resetMockZaloTokens() {
     usedLocationTokens.clear();
 }
@@ -155,5 +160,6 @@ module.exports = {
     verifyZaloLocationToken,
     verifyZaloAccessToken,
     verifyZaloUserToken,
+    isLocationTokenReplayed,
     resetMockZaloTokens
 };

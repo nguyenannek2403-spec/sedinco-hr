@@ -55,6 +55,7 @@ export default function PayrollGridTable({
   const [calculating, setCalculating] = useState(false);
   const [approving, setApproving] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectError, setRejectError] = useState("");
@@ -348,6 +349,28 @@ export default function PayrollGridTable({
     document.body.removeChild(link);
   };
 
+  const handleDownloadBackupSnapshot = async () => {
+    setBackingUp(true);
+    try {
+      const res = await safeGet("/payroll/backup-snapshot", { month, year }, { cancelPrevious: false });
+      const snapshot = res?.data || res;
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Sedinco_Backup_Thang_${month}_${year}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (notify) notify(`Đã sao lưu dữ liệu Tháng ${month}/${year} thành công!`, "success");
+    } catch (err) {
+      if (notify) notify(err?.message || "Không thể sao lưu dữ liệu tháng lúc này!", "error");
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
   return (
     <div className="space-y-5 pb-28">
       
@@ -570,16 +593,28 @@ export default function PayrollGridTable({
               </AppButton>
             )}
 
-            {/* Nút Xuất CSV */}
+            {/* Nút Xuất CSV & Sao lưu dữ liệu tháng */}
             {canExportPayroll && (
-              <AppButton
-                variant="success"
-                icon={Download}
-                onClick={handleExportCSV}
-                className="text-xs sm:text-sm px-3.5 py-2"
-              >
-                Xuất CSV
-              </AppButton>
+              <>
+                <AppButton
+                  variant="success"
+                  icon={Download}
+                  onClick={handleExportCSV}
+                  className="text-xs sm:text-sm px-3.5 py-2"
+                >
+                  Xuất CSV
+                </AppButton>
+                <AppButton
+                  variant="secondary"
+                  icon={Download}
+                  loading={backingUp}
+                  loadingText="Đang sao lưu..."
+                  onClick={handleDownloadBackupSnapshot}
+                  className="text-xs sm:text-sm px-3.5 py-2"
+                >
+                  Sao lưu dữ liệu tháng
+                </AppButton>
+              </>
             )}
 
             {/* Nút Làm Mới */}
@@ -601,23 +636,23 @@ export default function PayrollGridTable({
         {payrollError && (
           <div className="mx-4 mt-4 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-xl text-rose-800 text-xs sm:text-sm font-bold flex items-center justify-between gap-2">
             <span>{payrollError}</span>
-            <button
-              type="button"
+            <AppButton
+              variant="danger"
               onClick={fetchPayrollFromApi}
-              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0"
+              className="text-xs px-3.5 py-2 shrink-0"
             >
               Thử lại
-            </button>
+            </AppButton>
           </div>
         )}
 
-        {/* Cảnh báo Thực lĩnh âm nếu có (Chờ Kế toán trưởng phê duyệt quy tắc) */}
+        {/* Thông báo khi kỳ lương bật hiển thị số dư thực lĩnh âm */}
         {filteredList.some(item => Number(item.netSalary) < 0) && (
           <div className="mb-4 p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-amber-900 text-xs flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertTriangle size={18} className="text-amber-600 shrink-0" />
               <div>
-                <strong>Lưu ý nghiệp vụ tiền lương:</strong> Phát hiện nhân viên có thực lĩnh âm (do 0 ngày công nhưng vẫn phát sinh khấu trừ bảo hiểm). Cần Kế toán trưởng kiểm tra quy tắc khấu trừ.
+                <strong>Lưu ý đối soát thực lĩnh âm:</strong> Phát hiện nhân viên có số dư thực lĩnh âm trong kỳ (tổng khấu trừ bảo hiểm / tạm ứng vượt thu nhập). Vui lòng đối chiếu trước khi chốt chi trả.
               </div>
             </div>
           </div>

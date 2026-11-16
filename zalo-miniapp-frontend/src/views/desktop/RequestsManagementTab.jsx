@@ -15,20 +15,7 @@ import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { getRequestTypeLabel, getCorrectionModeLabel } from "../../utils/viLabels";
-
-const getStatusBadge = (status) => {
-  const s = String(status).toUpperCase();
-  if (s === "APPROVED") {
-    return { bg: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: CheckCircle2, text: "Đã duyệt" };
-  }
-  if (s === "REJECTED") {
-    return { bg: "bg-rose-500/15 text-rose-400 border-rose-500/30", icon: XCircle, text: "Từ chối" };
-  }
-  if (s === "CANCELLED") {
-    return { bg: "bg-slate-700/50 text-slate-400 border-slate-600/50", icon: XCircle, text: "Đã hủy" };
-  }
-  return { bg: "bg-amber-500/15 text-amber-400 border-amber-500/30", icon: Clock, text: "Chờ duyệt" };
-};
+import { AppButton, StatusBadge, SkeletonList, EmptyState } from "../../components/ui";
 
 export default function RequestsManagementTab({
   currentUser,
@@ -38,20 +25,9 @@ export default function RequestsManagementTab({
 }) {
   const effectiveRole = activeRole || currentUser?.role || "admin";
   const canApproveRequest = useCallback(
-    (req) => {
+    () => {
       if (effectiveRole !== "accountant") return effectiveRole === "admin";
-      const t = String(req?.request_type || req?.type || "").toUpperCase();
-      if (
-        t.includes("ATTEND") ||
-        t.includes("CHECK") ||
-        t.includes("COMPENS") ||
-        t.includes("LATE") ||
-        t.includes("FORGOT") ||
-        t === "OT"
-      ) {
-        return dynamicPerms?.attendance_request_approve === true;
-      }
-      return dynamicPerms?.leave_approve === true;
+      return Boolean(dynamicPerms?.leave_approve || dynamicPerms?.attendance_request_approve);
     },
     [effectiveRole, dynamicPerms]
   );
@@ -245,32 +221,30 @@ export default function RequestsManagementTab({
             ))}
           </div>
 
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            tone="dark"
+            icon={RefreshCw}
+            loading={loading}
             onClick={fetchRequests}
-            disabled={loading}
-            className="min-h-[44px] min-w-[44px] px-3 bg-slate-700/60 hover:bg-slate-700 text-slate-200 rounded-xl transition-colors flex items-center justify-center gap-1.5 text-xs font-medium whitespace-nowrap"
+            className="min-w-[44px] px-3 py-2 text-xs"
             title="Làm mới"
             aria-label="Làm mới danh sách đơn"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-blue-400" : ""}`} />
             <span className="sm:hidden">Tải lại</span>
-          </button>
+          </AppButton>
 
           {eligiblePendingIds.length > 0 && (
-            <button
-              type="button"
-              disabled={batchApproving}
+            <AppButton
+              variant="success"
+              icon={CheckCircle2}
+              loading={batchApproving}
+              loadingText="Đang duyệt hàng loạt..."
               onClick={handleBatchApprove}
-              className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/25 cursor-pointer whitespace-nowrap disabled:opacity-50"
+              className="w-full sm:w-auto text-xs font-bold shadow-lg shadow-emerald-600/25"
             >
-              {batchApproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              <span>
-                {batchApproving
-                  ? "Đang duyệt hàng loạt..."
-                  : `Duyệt nhanh (${eligiblePendingIds.length} đơn)`}
-              </span>
-            </button>
+              Duyệt nhanh ({eligiblePendingIds.length} đơn)
+            </AppButton>
           )}
         </div>
       </div>
@@ -278,31 +252,38 @@ export default function RequestsManagementTab({
       {/* Table Data */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl shadow-xl overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-blue-400" />
-            Đang tải dữ liệu đơn từ...
+          <div className="p-4">
+            <SkeletonList rows={4} dark label="Đang tải dữ liệu đơn từ..." />
           </div>
         ) : error ? (
-          <div className="p-6 text-center text-rose-400 text-xs flex items-center justify-center gap-2">
-            <AlertCircle className="w-5 h-5" />
-            {error}
+          <div className="p-6 text-center text-rose-300 text-xs flex flex-col items-center justify-center gap-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <AppButton variant="danger" onClick={fetchRequests} className="text-xs px-4 py-2">
+              Thử lại
+            </AppButton>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 text-xs">
-            Không tìm thấy đơn từ nào khớp với bộ lọc.
+          <div className="p-4">
+            <EmptyState
+              dark
+              icon={FileText}
+              title="Không tìm thấy đơn từ nào khớp với bộ lọc."
+            />
           </div>
         ) : (
           <>
             {/* Mobile Card View (Tối ưu cho màn hình điện thoại 360px - 430px trên Zalo Mini App) */}
             <div className="md:hidden divide-y divide-slate-700/60">
               {filtered.map((req) => {
-                const badge = getStatusBadge(req.status);
                 const isPending = String(req.status).toUpperCase() === "PENDING";
                 const isOwner = req.ma_nv === currentUser?.ma_nv;
                 const isOperating = actionLoadingId === req.id;
 
                 return (
-                  <div key={req.id} className="p-4 space-y-3">
+                  <div key={req.id} className="perf-list-item p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <span className="font-semibold text-base text-white block break-words leading-snug">
@@ -330,10 +311,7 @@ export default function RequestsManagementTab({
                           </div>
                         )}
                       </div>
-                      <span className={`px-2.5 py-1 text-xs font-medium rounded-lg border inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${badge.bg}`}>
-                        <badge.icon className="w-3 h-3" />
-                        {badge.text}
-                      </span>
+                      <StatusBadge type="request" status={req.status} dark />
                     </div>
 
                     <div className="text-sm text-slate-200 bg-slate-900/60 p-3 rounded-xl border border-slate-700/60 break-words leading-relaxed">
@@ -357,28 +335,32 @@ export default function RequestsManagementTab({
                         </div>
                       ) : !canApproveRequest(req) ? (
                         <div className="text-xs text-slate-400 italic font-medium leading-snug">
-                          (Chế độ chỉ xem — Chưa được cấp quyền phê duyệt loại đơn này)
+                          (Chế độ chỉ xem — Chưa được cấp quyền phê duyệt đơn từ)
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 gap-2.5 pt-1">
-                          <button
-                            type="button"
+                          <AppButton
+                            variant="success"
+                            icon={CheckCircle2}
+                            loading={isOperating}
+                            disabled={actionLoadingId !== null && !isOperating}
+                            loadingText="Đang xử lý..."
                             onClick={() => handleAction(req.id, "approved", req.ma_nv)}
-                            disabled={isOperating || actionLoadingId !== null}
-                            className="min-h-[44px] py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+                            className="text-xs"
                           >
-                            {isOperating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                            <span>{isOperating ? "Đang xử lý..." : "Phê Duyệt"}</span>
-                          </button>
-                          <button
-                            type="button"
+                            Phê duyệt
+                          </AppButton>
+                          <AppButton
+                            variant="danger"
+                            icon={XCircle}
+                            loading={isOperating}
+                            disabled={actionLoadingId !== null && !isOperating}
+                            loadingText="Đang xử lý..."
                             onClick={() => handleAction(req.id, "rejected", req.ma_nv)}
-                            disabled={isOperating || actionLoadingId !== null}
-                            className="min-h-[44px] py-2.5 px-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+                            className="text-xs"
                           >
-                            {isOperating ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                            <span>{isOperating ? "Đang xử lý..." : "Từ Chối"}</span>
-                          </button>
+                            Từ chối
+                          </AppButton>
                         </div>
                       )
                     )}
@@ -402,13 +384,12 @@ export default function RequestsManagementTab({
               </thead>
               <tbody className="divide-y divide-slate-700/50 text-slate-300">
                 {filtered.map(req => {
-                  const badge = getStatusBadge(req.status);
                   const isPending = String(req.status).toUpperCase() === "PENDING";
                   const isOwner = req.ma_nv === currentUser?.ma_nv;
                   const isOperating = actionLoadingId === req.id;
 
                   return (
-                    <tr key={req.id} className="hover:bg-slate-700/30 transition-colors">
+                    <tr key={req.id} className="perf-list-item hover:bg-slate-700/30 transition-colors">
                       <td className="p-3.5 pl-5">
                         <div className="font-bold text-white">{req.ho_ten || req.ma_nv}</div>
                         <div className="text-xs text-slate-400 font-mono">{req.ma_nv}</div>
@@ -444,10 +425,7 @@ export default function RequestsManagementTab({
                         )}
                       </td>
                       <td className="p-3.5">
-                        <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border inline-flex items-center gap-1 ${badge.bg}`}>
-                          <badge.icon className="w-3 h-3" />
-                          {badge.text}
-                        </span>
+                        <StatusBadge type="request" status={req.status} dark />
                       </td>
                       <td className="p-3.5 text-right pr-5">
                         {isPending ? (
@@ -461,22 +439,26 @@ export default function RequestsManagementTab({
                             </span>
                           ) : (
                             <div className="flex items-center justify-end gap-2">
-                              <button
+                              <AppButton
+                                variant="success"
+                                icon={CheckCircle2}
+                                loading={isOperating}
+                                disabled={actionLoadingId !== null && !isOperating}
                                 onClick={() => handleAction(req.id, "approved", req.ma_nv)}
-                                disabled={isOperating}
-                                className="min-h-[44px] px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors flex items-center gap-1 shadow-md shadow-emerald-600/20 disabled:opacity-50"
+                                className="px-3.5 py-2 text-xs"
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
                                 Duyệt
-                              </button>
-                              <button
+                              </AppButton>
+                              <AppButton
+                                variant="danger"
+                                icon={XCircle}
+                                loading={isOperating}
+                                disabled={actionLoadingId !== null && !isOperating}
                                 onClick={() => handleAction(req.id, "rejected", req.ma_nv)}
-                                disabled={isOperating}
-                                className="min-h-[44px] px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg transition-colors flex items-center gap-1 shadow-md shadow-rose-600/20 disabled:opacity-50"
+                                className="px-3.5 py-2 text-xs"
                               >
-                                <XCircle className="w-3.5 h-3.5" />
                                 Từ chối
-                              </button>
+                              </AppButton>
                             </div>
                           )
                         ) : (

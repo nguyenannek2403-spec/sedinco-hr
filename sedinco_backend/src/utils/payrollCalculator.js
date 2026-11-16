@@ -75,6 +75,23 @@ function calculateEmployeeSalary({
         1,
         Math.round(Number(companySettings.max_late_minutes_for_half_day ?? 60) || 60)
     );
+    const rawProbAllow = companySettings.probation_allowance_full;
+    const probationAllowanceFull = (rawProbAllow === undefined || rawProbAllow === null)
+        ? true
+        : !(rawProbAllow === false || rawProbAllow === 0 || String(rawProbAllow) === '0' || String(rawProbAllow).toLowerCase() === 'false');
+    const validOtModes = ['APPROVED_OR_AUTO', 'REQUIRE_APPROVAL', 'AUTO_ACTUAL'];
+    const rawOtMode = String(companySettings.ot_calculation_mode || 'APPROVED_OR_AUTO').trim().toUpperCase();
+    const otCalculationMode = validOtModes.includes(rawOtMode) ? rawOtMode : 'APPROVED_OR_AUTO';
+    const rawFreeExemptsHalfDay = companySettings.free_late_exempts_halfday;
+    const freeLateExemptsHalfday = Boolean(
+        rawFreeExemptsHalfDay === true ||
+        rawFreeExemptsHalfDay === 1 ||
+        String(rawFreeExemptsHalfDay) === '1' ||
+        String(rawFreeExemptsHalfDay).toLowerCase() === 'true'
+    );
+    const validNegPolicies = ['CLAMP_ZERO', 'SHOW_NEGATIVE'];
+    const rawNegPolicy = String(companySettings.negative_salary_policy || 'CLAMP_ZERO').trim().toUpperCase();
+    const negativeSalaryPolicy = validNegPolicies.includes(rawNegPolicy) ? rawNegPolicy : 'CLAMP_ZERO';
     let billableLateMinutes = 0;
     let billableLateOccurrences = 0;
 
@@ -87,10 +104,13 @@ function calculateEmployeeSalary({
         if (lateMins > 0) {
             totalLateMinutes += lateMins;
             lateOccurrences += 1;
-            if (lateOccurrences > freeLateOccurrences) {
+            const withinFreeQuota = lateOccurrences <= freeLateOccurrences;
+            if (!withinFreeQuota) {
                 billableLateOccurrences += 1;
                 billableLateMinutes += lateMins;
-                if (latePolicyType === 'DEDUCT_WORKDAY' && lateMins > maxLateHalfDay) {
+            }
+            if (latePolicyType === 'DEDUCT_WORKDAY' && lateMins > maxLateHalfDay) {
+                if (!withinFreeQuota || !freeLateExemptsHalfday) {
                     isExcessiveLateHalfDay = true;
                 }
             }
@@ -128,19 +148,27 @@ function calculateEmployeeSalary({
             let heSo = isHoliday ? otHoliday : (isSunday ? otWeekend : otWeekday);
             let soGioOT = Number(log.ot_hours) > 0 ? Number(log.ot_hours) : ((isHoliday || isSunday) ? 8 : 4);
 
-            // Kiểm soát OT duyệt trước (Anti-OT Fraud): Nếu có đơn duyệt trước hoặc giờ OT đã ghi nhận trực tiếp từ Check-out
-            if (Array.isArray(otRegistrations) && otRegistrations.length > 0) {
-                const reg = otRegistrations.find(r => {
+            // Kiểm soát OT theo chính sách công ty: APPROVED_OR_AUTO | REQUIRE_APPROVAL | AUTO_ACTUAL
+            const matchedReg = Array.isArray(otRegistrations)
+                ? otRegistrations.find(r => {
                     const rDate = new Date(r.work_date);
                     rDate.setHours(0, 0, 0, 0);
                     return rDate.getTime() === logDate.getTime() && r.status === 'approved';
-                });
-                if (reg) {
-                    soGioOT = Math.min(soGioOT, Number(reg.expected_hours));
+                })
+                : null;
+
+            if (otCalculationMode === 'REQUIRE_APPROVAL') {
+                soGioOT = matchedReg ? Math.min(soGioOT, Number(matchedReg.expected_hours)) : 0;
+            } else if (otCalculationMode === 'APPROVED_OR_AUTO') {
+                if (matchedReg) {
+                    soGioOT = Math.min(soGioOT, Number(matchedReg.expected_hours));
                 }
             }
 
-            tienOt += (luong1Gio * soGioOT * heSo);
+            const otBaseHourly = (!probationAllowanceFull && isProbation && customOtHourly <= 0)
+                ? (luong1Gio * probationRatio)
+                : luong1Gio;
+            tienOt += (otBaseHourly * soGioOT * heSo);
         }
     });
 
@@ -153,11 +181,12 @@ function calculateEmployeeSalary({
 
     const actualWorkDays = congThuViec + congChinhThuc;
     const effectiveDays = (congThuViec * probationRatio) + congChinhThuc;
+    const allowanceWorkDays = probationAllowanceFull ? actualWorkDays : effectiveDays;
     const salaryByWork = (luongCb / congChuan) * effectiveDays;
-    const allowanceByWork = (tongPhuCapCoDinh / congChuan) * actualWorkDays;
+    const allowanceByWork = (tongPhuCapCoDinh / congChuan) * allowanceWorkDays;
 
-    // Chi tiết từng khoản phụ cấp thực nhận theo tỷ lệ ngày công thực tế
-    const workRatio = congChuan > 0 ? (actualWorkDays / congChuan) : 0;
+    // Chi tiết từng khoản phụ cấp thực nhận theo tỷ lệ ngày công
+    const workRatio = congChuan > 0 ? (allowanceWorkDays / congChuan) : 0;
     const allowances_breakdown = {
         an_trua: Math.round((Number(allowances.an_trua) || 0) * workRatio),
         xang_xe: Math.round((Number(allowances.xang_xe) || 0) * workRatio),
@@ -179,16 +208,23 @@ function calculateEmployeeSalary({
         latePenaltyAmount = Math.round(billableLateOccurrences * perOccurrenceAmount);
     }
 
-    // Nếu nhân viên không đi làm ngày nào (0 ngày công), không trích trừ BHXH và chỉ tính các khoản thưởng/trừ phát sinh (không âm)
+    // Nếu nhân viên không đi làm ngày nào (0 ngày công), không trích trừ BHXH và chỉ tính các khoản thưởng/trừ phát sinh
     let baoHiem = 0;
-    let netSalary = 0;
+    let rawNetSalary = 0;
     if (actualWorkDays === 0) {
         baoHiem = 0;
-        netSalary = Math.max(0, Math.round(grossSalary + cleanBonus - cleanPenalty - latePenaltyAmount - cleanAdvance));
+        rawNetSalary = Math.round(grossSalary + cleanBonus - cleanPenalty - latePenaltyAmount - cleanAdvance);
     } else {
         baoHiem = (has_insurance !== false && has_insurance !== 0) ? (luongCb * insuranceRatio) : 0;
-        netSalary = Math.max(0, Math.round(grossSalary - baoHiem + cleanBonus - cleanPenalty - latePenaltyAmount - cleanAdvance));
+        rawNetSalary = Math.round(grossSalary - baoHiem + cleanBonus - cleanPenalty - latePenaltyAmount - cleanAdvance);
     }
+
+    const netSalary = negativeSalaryPolicy === 'SHOW_NEGATIVE'
+        ? rawNetSalary
+        : Math.max(0, rawNetSalary);
+    const carryOverDebt = (negativeSalaryPolicy === 'CLAMP_ZERO' && rawNetSalary < 0)
+        ? Math.abs(rawNetSalary)
+        : 0;
 
     return {
         baseSalary: luongCb,
@@ -213,7 +249,14 @@ function calculateEmployeeSalary({
         advanceDeduction: cleanAdvance,
         totalInsurance: Math.round(baoHiem),
         grossSalary: Math.round(grossSalary),
+        rawNetSalary,
         netSalary,
+        carryOverDebt,
+        carry_over_debt: carryOverDebt,
+        probationAllowanceFull,
+        otCalculationMode,
+        freeLateExemptsHalfday,
+        negativeSalaryPolicy,
         warning
     };
 }

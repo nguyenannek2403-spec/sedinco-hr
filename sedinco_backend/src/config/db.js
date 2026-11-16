@@ -10,7 +10,9 @@ const dbConfig = {
     database: env.DB_NAME,
     connectTimeout: 10000,
     waitForConnections: true,
-    connectionLimit: 10,
+    connectionLimit: Math.max(10, parseInt(process.env.DB_POOL_LIMIT, 10) || 20),
+    maxIdle: 10,
+    idleTimeout: 60000,
     queueLimit: 0,
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
@@ -38,6 +40,19 @@ if (process.env.NODE_ENV === 'test' || env.NODE_ENV === 'test') {
 }
 
 const pool = mysql.createPool(dbConfig);
+if (pool._removeIdleTimeoutConnectionsTimer && typeof pool._removeIdleTimeoutConnectionsTimer.unref === 'function') {
+    pool._removeIdleTimeoutConnectionsTimer.unref();
+}
+if (typeof pool._removeIdleTimeoutConnections === 'function') {
+    const origRemoveIdle = pool._removeIdleTimeoutConnections.bind(pool);
+    pool._removeIdleTimeoutConnections = function (...args) {
+        const res = origRemoveIdle(...args);
+        if (this._removeIdleTimeoutConnectionsTimer && typeof this._removeIdleTimeoutConnectionsTimer.unref === 'function') {
+            this._removeIdleTimeoutConnectionsTimer.unref();
+        }
+        return res;
+    };
+}
 
 // Ép múi giờ '+07:00' ngay khi tạo kết nối MySQL để đồng bộ hoàn toàn với giờ Việt Nam (Asia/Ho_Chi_Minh)
 pool.on('connection', (connection) => {

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Gift, Plus, Trash2, Calendar, RefreshCw, AlertCircle, X, ArrowLeft } from "lucide-react";
+import { Gift, Plus, Trash2, Calendar, RefreshCw, AlertCircle } from "lucide-react";
 import { safeGet, safePost, safeDelete } from "../../utils/api";
 import ConfirmDialog from "../../components/ConfirmDialog";
-import { useLockBodyScroll } from "../../hooks/useLockBodyScroll";
+import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "../../components/ui";
 
-export default function HolidaysTab({ currentUser, showToast }) {
+export default function HolidaysTab({ showToast }) {
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -20,8 +20,6 @@ export default function HolidaysTab({ currentUser, showToast }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const addInFlightRef = useRef(false);
   const deleteInFlightRef = useRef(false);
-
-  useLockBodyScroll(isAddOpen);
 
   const fetchHolidays = useCallback(async () => {
     setLoading(true);
@@ -115,44 +113,53 @@ export default function HolidaysTab({ currentUser, showToast }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
+          <AppButton
+            variant="danger"
+            icon={Plus}
             onClick={() => setIsAddOpen(true)}
-            className="min-h-[44px] px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            className="text-xs shadow-lg shadow-rose-600/30"
           >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span>Thêm ngày lễ</span>
-          </button>
-          <button
-            type="button"
+            Thêm ngày lễ
+          </AppButton>
+          <AppButton
+            variant="secondary"
+            tone="dark"
+            icon={RefreshCw}
+            loading={loading}
             onClick={fetchHolidays}
-            disabled={loading}
             aria-label="Làm mới"
-            className="min-h-[44px] min-w-[44px] p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors flex items-center justify-center shrink-0"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-rose-400" : ""}`} />
-          </button>
+            className="min-w-[44px] px-3"
+          />
         </div>
       </div>
 
       {/* List */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl shadow-xl overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-rose-400" />
-            Đang tải dữ liệu ngày lễ...
+          <div className="p-4">
+            <SkeletonList rows={3} dark label="Đang tải dữ liệu ngày lễ..." />
           </div>
         ) : error ? (
-          <div className="p-6 text-center text-rose-400 text-xs flex items-center justify-center gap-2">
-            <AlertCircle className="w-5 h-5" />
-            {error}
+          <div className="p-6 text-center text-rose-300 text-xs flex flex-col items-center justify-center gap-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              <span>{error}</span>
+            </div>
+            <AppButton variant="danger" onClick={fetchHolidays} className="text-xs px-4 py-2">
+              Thử lại
+            </AppButton>
           </div>
         ) : holidays.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 text-xs">
-            Chưa có ngày lễ nào được thiết lập.
+          <div className="p-4">
+            <EmptyState
+              dark
+              icon={Gift}
+              title="Chưa có ngày lễ nào được thiết lập."
+              description="Bấm 'Thêm ngày lễ' để khai báo ngày nghỉ lễ hưởng nguyên lương và nhân hệ số tăng ca."
+            />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto touch-scroll-x">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-900/80 border-b border-slate-700/80 text-slate-300 font-semibold">
                 <tr>
@@ -164,8 +171,8 @@ export default function HolidaysTab({ currentUser, showToast }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50 text-slate-300">
-                {holidays.map(h => (
-                  <tr key={h.id} className="hover:bg-slate-700/30 transition-colors">
+                {holidays.map((h) => (
+                  <tr key={h.id} className="perf-list-item hover:bg-slate-700/30 transition-colors">
                     <td className="p-3.5 pl-5 font-semibold text-white flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-rose-400 shrink-0" />
                       <span>{h.holiday_name || h.name}</span>
@@ -173,20 +180,22 @@ export default function HolidaysTab({ currentUser, showToast }) {
                     <td className="p-3.5 font-mono text-slate-300 whitespace-nowrap">{h.start_date}</td>
                     <td className="p-3.5 font-mono text-slate-300 whitespace-nowrap">{h.end_date}</td>
                     <td className="p-3.5 whitespace-nowrap">
-                      <span className="px-2.5 py-0.5 bg-rose-500/15 border border-rose-500/30 text-rose-400 font-semibold rounded-md text-xs whitespace-nowrap">
-                        x{h.multiplier || 3.0}
-                      </span>
+                      <StatusBadge
+                        type="attendance"
+                        status="L"
+                        labelOverride={`Nghỉ lễ x${h.multiplier || 3.0}`}
+                      />
                     </td>
                     <td className="p-3.5 text-right pr-5 whitespace-nowrap">
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="ghost"
+                        tone="dark"
+                        icon={Trash2}
                         onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
-                        className="min-h-[44px] min-w-[44px] p-2 text-rose-400 hover:bg-rose-500/15 rounded-lg transition-colors inline-flex items-center justify-center"
+                        className="min-w-[44px] px-2.5 text-rose-400 hover:bg-rose-500/15"
                         title="Xóa"
                         aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      />
                     </td>
                   </tr>
                 ))}
@@ -210,100 +219,74 @@ export default function HolidaysTab({ currentUser, showToast }) {
       />
 
       {/* Modal Add Holiday */}
-      {isAddOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
-          onClick={(e) => { if (e.target === e.currentTarget) setIsAddOpen(false); }}
-        >
-          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-sm max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-sheet-up">
-            <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-slate-700/80 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsAddOpen(false)}
-                className="inline-flex items-center gap-1.5 min-h-[44px] px-2.5 py-2 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-slate-100 text-sm font-semibold active:scale-95 transition-all shrink-0"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Trở về</span>
-              </button>
-              <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-1.5 truncate">
-                <Gift className="w-4 h-4 text-rose-400 shrink-0" />
-                <span className="truncate">Thêm dịp nghỉ lễ</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsAddOpen(false)}
-                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
-                aria-label="Đóng"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              id="add-holiday-form"
-              onSubmit={handleAddHoliday}
-              className="modal-scroll-area flex-1 min-h-0 p-5 space-y-3"
+      <AppModal
+        open={isAddOpen}
+        onClose={() => !isSubmitting && setIsAddOpen(false)}
+        disableClose={isSubmitting}
+        theme="dark"
+        title="Thêm dịp nghỉ lễ"
+        subtitle="Thiết lập ngày lễ hưởng nguyên lương (3.0x khi OT)"
+        icon={<Gift className="w-5 h-5 text-rose-400" />}
+        maxWidthClass="max-w-sm"
+        footer={
+          <div className="flex gap-2.5">
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              disabled={isSubmitting}
+              onClick={() => setIsAddOpen(false)}
+              className="flex-1"
             >
-              <div>
-                <label className="block text-sm font-semibold text-slate-200 mb-1.5">Tên dịp lễ</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ví dụ: Tết Dương Lịch"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
-                />
-              </div>
-
-              <div className="space-y-2.5 pt-1">
-                <div className="flex items-center justify-between gap-3 bg-slate-900/90 border border-slate-700 rounded-xl px-3.5 py-2.5">
-                  <label className="text-sm font-semibold text-slate-200 shrink-0">Từ ngày</label>
-                  <input
-                    type="date"
-                    required
-                    value={form.start_date}
-                    onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                    className="w-36 sm:w-40 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3 bg-slate-900/90 border border-slate-700 rounded-xl px-3.5 py-2.5">
-                  <label className="text-sm font-semibold text-slate-200 shrink-0">Đến ngày</label>
-                  <input
-                    type="date"
-                    required
-                    value={form.end_date}
-                    onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                    className="w-36 sm:w-40 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  />
-                </div>
-              </div>
-            </form>
-
-            <div
-              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0 flex gap-2.5"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+              Đóng / Quay lại
+            </AppButton>
+            <AppButton
+              type="submit"
+              form="add-holiday-form"
+              variant="danger"
+              loading={isSubmitting}
+              loadingText="Đang lưu..."
+              className="flex-1"
             >
-              <button
-                type="button"
-                onClick={() => setIsAddOpen(false)}
-                className="flex-1 min-h-[46px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-100 text-base font-semibold rounded-xl transition-colors"
-              >
-                Đóng / Quay lại
-              </button>
-              <button
-                type="submit"
-                form="add-holiday-form"
-                disabled={isSubmitting}
-                className="flex-1 min-h-[46px] py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-base font-semibold rounded-xl shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50"
-              >
-                {isSubmitting ? "Đang lưu..." : "Lưu ngày lễ"}
-              </button>
-            </div>
+              Lưu ngày lễ
+            </AppButton>
           </div>
-        </div>
-      )}
+        }
+      >
+        <form id="add-holiday-form" onSubmit={handleAddHoliday} className="p-5 space-y-3">
+          <div>
+            <label className="block text-sm font-semibold text-slate-200 mb-1.5">Tên dịp lễ</label>
+            <input
+              type="text"
+              required
+              placeholder="Ví dụ: Tết Dương Lịch"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+            />
+          </div>
+
+          <div className="divide-y divide-slate-800 border border-slate-700 rounded-2xl bg-slate-900/90 overflow-hidden">
+            <FormRow dark label="Từ ngày">
+              <input
+                type="date"
+                required
+                value={form.start_date}
+                onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                className="w-36 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </FormRow>
+            <FormRow dark label="Đến ngày">
+              <input
+                type="date"
+                required
+                value={form.end_date}
+                onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                className="w-36 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </FormRow>
+          </div>
+        </form>
+      </AppModal>
     </div>
   );
 }

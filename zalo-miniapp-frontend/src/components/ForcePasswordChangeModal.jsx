@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Modal, Box, Text, Input, Button } from 'zmp-ui';
-import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, Eye, EyeOff } from 'lucide-react';
 import { safePost } from '../utils/api';
-import useLockBodyScroll from '../hooks/useLockBodyScroll';
+import { AppButton, AppModal } from './ui';
 
 /**
  * ForcePasswordChangeModal (G3 Security Hardening)
@@ -11,7 +10,6 @@ import useLockBodyScroll from '../hooks/useLockBodyScroll';
 export default function ForcePasswordChangeModal({
     visible,
     maNv,
-    token,
     canClose = false,
     onClose,
     showToast,
@@ -20,11 +18,10 @@ export default function ForcePasswordChangeModal({
     const [oldPassword, setOldPassword] = useState('123456');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPasswords, setShowPasswords] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const submitInFlightRef = useRef(false);
-
-    useLockBodyScroll(Boolean(visible));
 
     const handleSafeClose = () => {
         if (!canClose || submitInFlightRef.current) return;
@@ -34,7 +31,8 @@ export default function ForcePasswordChangeModal({
         if (onClose) onClose();
     };
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (e) => {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
         if (submitInFlightRef.current) return;
         setError('');
         if (!oldPassword) {
@@ -82,104 +80,106 @@ export default function ForcePasswordChangeModal({
         }
     };
 
+    const inputType = showPasswords ? 'text' : 'password';
+
     return (
-        <Modal
-            visible={visible}
-            title=""
-            maskClosable={canClose}
+        <AppModal
+            open={Boolean(visible)}
             onClose={handleSafeClose}
-            actions={[]}
-        >
-            <Box className="p-4 text-center relative">
-                {canClose && (
-                    <div className="flex items-center justify-start mb-2">
-                        <button
-                            type="button"
+            closeOnBackdrop={Boolean(canClose)}
+            disableClose={!canClose || loading}
+            showCloseX={Boolean(canClose)}
+            title={canClose ? 'Đổi Mật Khẩu Tài Khoản' : 'Bắt Buộc Đổi Mật Khẩu'}
+            subtitle={`Tài khoản ${maNv || ''}`}
+            maxWidthClass="max-w-md"
+            footer={
+                <div className="flex flex-col gap-2">
+                    <AppButton
+                        type="submit"
+                        form="force-password-change-form"
+                        variant="primary"
+                        fullWidth
+                        loading={loading}
+                        loadingText="Đang cập nhật mật khẩu..."
+                    >
+                        {canClose ? 'Lưu Mật Khẩu Mới' : 'Lưu Mật Khẩu & Bắt Đầu Sử Dụng'}
+                    </AppButton>
+                    {canClose && (
+                        <AppButton
+                            variant="secondary"
+                            fullWidth
+                            disabled={loading}
                             onClick={handleSafeClose}
-                            className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition active:scale-[0.98]"
                         >
-                            <ArrowLeft size={16} />
-                            <span>Trở về</span>
-                        </button>
+                            Đóng / Quay lại
+                        </AppButton>
+                    )}
+                </div>
+            }
+        >
+            <form id="force-password-change-form" onSubmit={handleSubmit} className="p-5 space-y-4">
+                <div className="flex flex-col items-center text-center space-y-2">
+                    <div
+                        className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                            canClose ? 'bg-blue-50 text-blue-700' : 'bg-rose-50 text-rose-600'
+                        }`}
+                    >
+                        <ShieldAlert size={30} />
                     </div>
-                )}
-
-                <Box className="flex justify-center mb-3">
-                    <div style={{
-                        background: canClose ? '#EFF6FF' : '#FEF2F2',
-                        padding: '16px',
-                        borderRadius: '50%',
-                        display: 'inline-flex',
-                        color: canClose ? '#1D4ED8' : '#DC2626'
-                    }}>
-                        <ShieldAlert size={36} />
-                    </div>
-                </Box>
-
-                <Text className="font-bold text-lg text-slate-800 mb-1">
-                    {canClose ? 'Đổi Mật Khẩu Tài Khoản' : 'Bắt Buộc Đổi Mật Khẩu'}
-                </Text>
-                <Text className="text-sm text-slate-500 mb-4 leading-relaxed">
-                    {canClose
-                        ? <>Thiết lập mật khẩu mới cho tài khoản <strong>{maNv}</strong> để bảo vệ thông tin công &amp; lương.</>
-                        : <>Tài khoản <strong>{maNv}</strong> đang sử dụng mật khẩu mặc định ban đầu. Để đảm bảo an toàn thông tin cá nhân và tiền lương, bạn vui lòng thiết lập mật khẩu mới trước khi tiếp tục.</>
-                    }
-                </Text>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                        {canClose
+                            ? <>Thiết lập mật khẩu mới cho tài khoản <strong>{maNv}</strong> để bảo vệ thông tin công &amp; lương.</>
+                            : <>Tài khoản <strong>{maNv}</strong> đang dùng mật khẩu mặc định. Vui lòng thiết lập mật khẩu mới trước khi tiếp tục.</>}
+                    </p>
+                </div>
 
                 {error && (
-                    <Box className="mb-3 p-2 bg-red-50 text-red-700 text-xs rounded border border-red-200 text-left">
+                    <div className="p-3 bg-rose-50 text-rose-800 text-xs font-semibold rounded-xl border border-rose-200">
                         {error}
-                    </Box>
+                    </div>
                 )}
 
-                <Box className="text-left space-y-3">
+                <div className="space-y-3">
                     <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">Mật khẩu hiện tại</label>
-                        <Input.Password
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Mật khẩu hiện tại</label>
+                        <input
+                            type={inputType}
                             value={oldPassword}
                             onChange={(e) => setOldPassword(e.target.value)}
                             placeholder="Nhập mật khẩu cũ (mặc định 123456)"
+                            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-base text-slate-900 focus:outline-none focus:border-blue-600"
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">Mật khẩu mới (≥ 6 ký tự)</label>
-                        <Input.Password
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Mật khẩu mới (tối thiểu 6 ký tự)</label>
+                        <input
+                            type={inputType}
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             placeholder="Thiết lập mật khẩu mới an toàn"
+                            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-base text-slate-900 focus:outline-none focus:border-blue-600"
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">Xác nhận mật khẩu mới</label>
-                        <Input.Password
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Xác nhận mật khẩu mới</label>
+                        <input
+                            type={inputType}
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             placeholder="Nhập lại mật khẩu mới"
+                            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-base text-slate-900 focus:outline-none focus:border-blue-600"
                         />
                     </div>
-                </Box>
-
-                <Box className="mt-5 flex flex-col gap-2">
-                    <Button
-                        fullWidth
-                        loading={loading}
-                        onClick={handleSubmit}
-                        style={{ background: '#1E3A8A' }}
+                    <button
+                        type="button"
+                        onClick={() => setShowPasswords((v) => !v)}
+                        className="min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
                     >
-                        {canClose ? 'Lưu Mật Khẩu Mới' : 'Lưu Mật Khẩu & Bắt Đầu Sử Dụng'}
-                    </Button>
-                    {canClose && (
-                        <button
-                            type="button"
-                            disabled={loading}
-                            onClick={handleSafeClose}
-                            className="w-full min-h-[46px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50"
-                        >
-                            Đóng / Quay lại
-                        </button>
-                    )}
-                </Box>
-            </Box>
-        </Modal>
+                        {showPasswords ? <EyeOff size={15} /> : <Eye size={15} />}
+                        <span>{showPasswords ? 'Ẩn mật khẩu' : 'Hiện mật khẩu để kiểm tra'}</span>
+                    </button>
+                </div>
+            </form>
+        </AppModal>
     );
 }

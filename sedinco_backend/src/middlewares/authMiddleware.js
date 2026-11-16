@@ -162,22 +162,24 @@ async function getAccountantPermissions(forceRefresh = false) {
         cacheTime = now;
         return map;
     } catch (err) {
-        // Cấu hình mặc định an toàn nếu DB chưa sẵn sàng
+        // Cấu hình mặc định an toàn nếu DB chưa sẵn sàng (16 quyền thực thi chuẩn)
         return {
             attendance_view_all: true,
-            attendance_summarize: true,
             attendance_edit: false,
             attendance_lock: false,
             leave_view_all: true,
             leave_approve: false,
-            attendance_request_approve: false,
+            employee_view: true,
+            employee_create: false,
+            employee_edit: false,
+            employee_delete: false,
+            employee_status_manage: false,
+            shift_manage: false,
             payroll_view_all: true,
             payroll_calculate: true,
-            payroll_export: true,
             payroll_approve: false,
-            employee_view: true,
-            employee_edit: false,
-            report_view: true
+            payroll_payment_status_manage: false,
+            payroll_export: true
         };
     }
 }

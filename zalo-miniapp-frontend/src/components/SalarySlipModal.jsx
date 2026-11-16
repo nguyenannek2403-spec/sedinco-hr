@@ -222,6 +222,9 @@ export default function SalarySlipModal({
       ["Phạt / Khấu trừ khác", -Number(item.penaltyAmount || 0)],
       ["Trừ tạm ứng lương", -Number(item.advanceDeduction || 0)],
       ["THỰC LĨNH (NET)", Number(item.netSalary || 0)],
+      ...(Number(item.carryOverDebt || item.carry_over_debt || 0) > 0
+        ? [["Khoản nợ chuyển kỳ lương sau", Number(item.carryOverDebt || item.carry_over_debt || 0)]]
+        : []),
       ["Trạng thái xác nhận", confirmStatus]
     ];
 
@@ -499,10 +502,20 @@ export default function SalarySlipModal({
                 <span className="text-emerald-900">
                   Thực lĩnh cuối cùng (NET)
                 </span>
-                <span className="text-emerald-700 font-mono text-base">
+                <span className={`font-mono text-base ${Number(item.netSalary) < 0 ? "text-rose-700" : "text-emerald-700"}`}>
                   {formatCurrency(item.netSalary)}
                 </span>
               </div>
+              {Number(item.carryOverDebt || item.carry_over_debt || 0) > 0 && (
+                <div className="px-3.5 py-2.5 flex justify-between items-center gap-2 bg-amber-50 border-t border-amber-200 text-amber-900 text-xs sm:text-sm">
+                  <span className="font-semibold">
+                    Khoản khấu trừ còn dư (Chuyển kỳ sau)
+                  </span>
+                  <span className="font-mono font-bold text-amber-800 shrink-0">
+                    {formatCurrency(item.carryOverDebt || item.carry_over_debt)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

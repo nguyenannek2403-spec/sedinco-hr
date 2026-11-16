@@ -27,8 +27,9 @@ router.post('/approve', authenticateToken, requirePermission('payroll_approve'),
 router.post('/save', authenticateToken, requirePermission('payroll_approve'), (req, res, next) => payrollController.approvePayroll(req, res, next));
 router.post('/reject', authenticateToken, requirePermission('payroll_approve'), (req, res, next) => payrollController.rejectPayroll(req, res, next));
 
-// 5. Xuất bảng lương CSV (Endpoint 22 trong DOCS/PROJECT.MD)
+// 5. Xuất bảng lương CSV & Sao lưu dữ liệu tháng JSON (Yêu cầu permission: payroll_export)
 router.get('/export', authenticateToken, requirePermission('payroll_export'), (req, res, next) => payrollController.exportPayroll(req, res, next));
+router.get('/backup-snapshot', authenticateToken, requirePermission('payroll_export'), (req, res, next) => payrollController.getBackupSnapshot(req, res, next));
 
 // 6. Cập nhật trạng thái chi trả lương (Yêu cầu permission: payroll_payment_status_manage)
 router.put('/payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), (req, res, next) => payrollController.updatePaymentStatus(req, res, next));
