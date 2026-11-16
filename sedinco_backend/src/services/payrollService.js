@@ -2,6 +2,15 @@ const { query, withTransaction } = require('../config/db');
 const { calculateEmployeeSalary } = require('../utils/payrollCalculator');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
 
+function getMonthDateBounds(month, year) {
+    const mm = String(month).padStart(2, '0');
+    const startDateStr = `${year}-${mm}-01`;
+    const nextM = month === 12 ? 1 : month + 1;
+    const nextY = month === 12 ? year + 1 : year;
+    const endDateStr = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+    return { startDateStr, endDateStr };
+}
+
 class PayrollService {
     async calculateMonthlyPayroll(month, year, pagination = {}) {
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
@@ -34,15 +43,19 @@ class PayrollService {
         const holidays = await query('SELECT start_date, end_date FROM public_holidays');
         const safeHolidays = holidays || [];
 
+        const { startDateStr, endDateStr } = getMonthDateBounds(m, y);
+        const maNvs = emps.map((e) => e.ma_nv);
+        const placeholders = maNvs.map(() => '?').join(',');
+
         const logs = await query(
-            'SELECT employee_id, record_date, status, ot_hours, late_minutes, early_leave_minutes, work_hours, DAYOFWEEK(record_date) as dow FROM attendance_logs WHERE MONTH(record_date) = ? AND YEAR(record_date) = ?',
-            [m, y]
+            `SELECT employee_id, record_date, status, ot_hours, late_minutes, early_leave_minutes, work_hours, DAYOFWEEK(record_date) as dow FROM attendance_logs WHERE employee_id IN (${placeholders}) AND record_date >= ? AND record_date < ?`,
+            [...maNvs, startDateStr, endDateStr]
         );
         const safeLogs = logs || [];
 
         const otRegs = await query(
-            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE MONTH(work_date) = ? AND YEAR(work_date) = ? AND status = ?',
-            [m, y, 'approved']
+            `SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE employee_id IN (${placeholders}) AND work_date >= ? AND work_date < ? AND status = ?`,
+            [...maNvs, startDateStr, endDateStr, 'approved']
         );
         const safeOtRegs = otRegs || [];
 
@@ -152,15 +165,17 @@ class PayrollService {
         const holidays = await query('SELECT start_date, end_date FROM public_holidays');
         const safeHolidays = holidays || [];
 
+        const { startDateStr, endDateStr } = getMonthDateBounds(m, y);
+
         const logs = await query(
-            'SELECT employee_id, DATE_FORMAT(record_date, "%Y-%m-%d") as record_date_iso, record_date, status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours, location_name, work_location_type, DAYOFWEEK(record_date) as dow FROM attendance_logs WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ? ORDER BY record_date ASC',
-            [ma_nv, m, y]
+            'SELECT employee_id, DATE_FORMAT(record_date, "%Y-%m-%d") as record_date_iso, record_date, status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours, location_name, work_location_type, DAYOFWEEK(record_date) as dow FROM attendance_logs WHERE employee_id = ? AND record_date >= ? AND record_date < ? ORDER BY record_date ASC',
+            [ma_nv, startDateStr, endDateStr]
         );
         const safeLogs = logs || [];
 
         const otRegs = await query(
-            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE employee_id = ? AND MONTH(work_date) = ? AND YEAR(work_date) = ? AND status = ?',
-            [ma_nv, m, y, 'approved']
+            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE employee_id = ? AND work_date >= ? AND work_date < ? AND status = ?',
+            [ma_nv, startDateStr, endDateStr, 'approved']
         );
         const safeOtRegs = otRegs || [];
 
@@ -321,6 +336,25 @@ class PayrollService {
     }
 
     async resolveSalaryDispute({ ma_nv, month, year, admin_response, new_status = 'CONFIRMED', current_user = null }) {
+        const cleanMaNv = String(ma_nv || '').trim();
+        if (current_user && current_user.ma_nv && current_user.ma_nv === cleanMaNv) {
+            const error = new Error('Theo quy định kiểm soát nội bộ, bạn không thể tự xử lý khiếu nại lương của chính mình!');
+            error.statusCode = 403;
+            throw error;
+        }
+        const cleanStatus = String(new_status || '').trim().toUpperCase();
+        if (!['PENDING', 'CONFIRMED', 'DISPUTED'].includes(cleanStatus)) {
+            const error = new Error('Trạng thái xác nhận lương không hợp lệ!');
+            error.statusCode = 400;
+            throw error;
+        }
+        const empRows = await query('SELECT ma_nv FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+        if (!empRows || empRows.length === 0) {
+            const error = new Error(`Không tìm thấy nhân viên ${ma_nv}!`);
+            error.statusCode = 404;
+            throw error;
+        }
+
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
         const y = parseInt(year, 10) || new Date().getFullYear();
 
@@ -330,14 +364,14 @@ class PayrollService {
             ON DUPLICATE KEY UPDATE
                 salary_confirm_status = VALUES(salary_confirm_status),
                 admin_response = VALUES(admin_response)
-        `, [ma_nv, m, y, new_status, admin_response || 'Đã kiểm tra và xử lý điều chỉnh lương.']);
+        `, [ma_nv, m, y, cleanStatus, admin_response || 'Đã kiểm tra và xử lý điều chỉnh lương.']);
 
         await logAuditEvent({
             actor_id: current_user ? (current_user.ma_nv || current_user.username) : 'admin',
             actor_role: current_user ? current_user.role : 'admin',
             action: 'RESOLVE_SALARY_DISPUTE',
             resource: 'payroll',
-            details: { target_ma_nv: ma_nv, month: m, year: y, new_status, admin_response }
+            details: { target_ma_nv: ma_nv, month: m, year: y, new_status: cleanStatus, admin_response }
         });
 
         return {
@@ -349,17 +383,86 @@ class PayrollService {
     async approvePayroll(month, year, user) {
         const m = parseInt(month, 10);
         const y = parseInt(year, 10);
+        if (!Number.isInteger(m) || m < 1 || m > 12 || !Number.isInteger(y) || y < 2000 || y > 2200) {
+            const err = new Error('Tháng hoặc năm kỳ lương không hợp lệ!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const actorId = user?.ma_nv || user?.username || user?.id || 'admin';
+
+        const periodRow = await withTransaction(async (txQuery) => {
+            await txQuery(`
+                INSERT INTO payroll_periods (month, year, status, payment_status, approved_by, approved_at, rejected_by, rejected_reason, rejected_at)
+                VALUES (?, ?, 'APPROVED', 'UNPAID', ?, NOW(), NULL, NULL, NULL)
+                ON DUPLICATE KEY UPDATE
+                    status = 'APPROVED',
+                    approved_by = VALUES(approved_by),
+                    approved_at = NOW(),
+                    rejected_by = NULL,
+                    rejected_reason = NULL,
+                    rejected_at = NULL
+            `, [m, y, actorId]);
+            const rows = await txQuery('SELECT * FROM payroll_periods WHERE month = ? AND year = ? LIMIT 1', [m, y]);
+            return rows && rows[0] ? rows[0] : null;
+        });
+
         await logAuditEvent({
-            actor_id: user.ma_nv || user.username || user.id,
-            actor_role: user.role,
+            actor_id: actorId,
+            actor_role: user?.role || 'admin',
             action: 'APPROVE_PAYROLL',
             resource: 'payroll',
-            details: { month: m, year: y }
+            details: { month: m, year: y, status: 'APPROVED' }
         });
-        return { success: true, message: `Phê duyệt bảng lương tháng ${m}/${y} thành công!` };
+        return { success: true, message: `Phê duyệt bảng lương tháng ${m}/${y} thành công!`, data: periodRow };
     }
 
-    async adjustSalary({ ma_nv, month, year, bonus_amount = 0, penalty_amount = 0, advance_deduction = 0, adjustment_note = '', current_user = null }) {
+    async rejectPayroll(month, year, reason, user) {
+        const m = parseInt(month, 10);
+        const y = parseInt(year, 10);
+        if (!Number.isInteger(m) || m < 1 || m > 12 || !Number.isInteger(y) || y < 2000 || y > 2200) {
+            const err = new Error('Tháng hoặc năm kỳ lương không hợp lệ!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const cleanReason = String(reason || '').trim();
+        if (!cleanReason) {
+            const err = new Error('Vui lòng nhập lý do trả lại bảng lương cho Kế toán!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const actorId = user?.ma_nv || user?.username || user?.id || 'admin';
+
+        const periodRow = await withTransaction(async (txQuery) => {
+            const existing = await txQuery('SELECT * FROM payroll_periods WHERE month = ? AND year = ? FOR UPDATE', [m, y]);
+            if (existing && existing[0] && existing[0].payment_status === 'PAID') {
+                const err = new Error(`Kỳ lương tháng ${m}/${y} đã xác nhận chi trả, không thể trả lại!`);
+                err.statusCode = 400;
+                throw err;
+            }
+            await txQuery(`
+                INSERT INTO payroll_periods (month, year, status, payment_status, rejected_by, rejected_reason, rejected_at)
+                VALUES (?, ?, 'REJECTED', 'UNPAID', ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE
+                    status = 'REJECTED',
+                    rejected_by = VALUES(rejected_by),
+                    rejected_reason = VALUES(rejected_reason),
+                    rejected_at = NOW()
+            `, [m, y, actorId, cleanReason]);
+            const rows = await txQuery('SELECT * FROM payroll_periods WHERE month = ? AND year = ? LIMIT 1', [m, y]);
+            return rows && rows[0] ? rows[0] : null;
+        });
+
+        await logAuditEvent({
+            actor_id: actorId,
+            actor_role: user?.role || 'admin',
+            action: 'REJECT_PAYROLL',
+            resource: 'payroll',
+            details: { month: m, year: y, status: 'REJECTED', reason: cleanReason }
+        });
+        return { success: true, message: `Đã trả lại bảng lương tháng ${m}/${y} cho Kế toán chỉnh sửa!`, data: periodRow };
+    }
+
+    async adjustSalary({ ma_nv, month, year, bonus_amount, penalty_amount, advance_deduction, adjustment_note, current_user = null }) {
         if (!ma_nv) {
             const err = new Error('Thiếu mã nhân viên cần điều chỉnh lương!');
             err.statusCode = 400;
@@ -383,6 +486,11 @@ class PayrollService {
             throw err;
         }
 
+        const hasBonus = bonus_amount !== undefined ? 1 : 0;
+        const hasPenalty = penalty_amount !== undefined ? 1 : 0;
+        const hasAdvance = advance_deduction !== undefined ? 1 : 0;
+        const hasNote = adjustment_note !== undefined ? 1 : 0;
+
         const cleanBonus = Math.max(0, Math.round(Number(bonus_amount) || 0));
         const cleanPenalty = Math.max(0, Math.round(Number(penalty_amount) || 0));
         const cleanAdvance = Math.max(0, Math.round(Number(advance_deduction) || 0));
@@ -391,15 +499,24 @@ class PayrollService {
         const csRows = await query('SELECT standard_work_days FROM company_settings LIMIT 1').catch(() => []);
         const stdDays = (csRows && csRows[0] && Number(csRows[0].standard_work_days)) || 26;
 
+        // Bảo toàn các khoản điều chỉnh/tạm ứng đã duyệt trước đó nếu client chỉ gửi cập nhật một phần
         await query(`
             INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, bonus_amount, penalty_amount, advance_deduction, adjustment_note)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
-                bonus_amount = VALUES(bonus_amount),
-                penalty_amount = VALUES(penalty_amount),
-                advance_deduction = VALUES(advance_deduction),
-                adjustment_note = VALUES(adjustment_note)
-        `, [ma_nv, m, y, stdDays, cleanBonus, cleanPenalty, cleanAdvance, cleanNote]);
+                bonus_amount = IF(?, ?, COALESCE(bonus_amount, 0)),
+                penalty_amount = IF(?, ?, COALESCE(penalty_amount, 0)),
+                advance_deduction = IF(?, ?, COALESCE(advance_deduction, 0)),
+                adjustment_note = IF(?, ?, adjustment_note)
+        `, [
+            ma_nv, m, y, stdDays, cleanBonus, cleanPenalty, cleanAdvance, cleanNote,
+            hasBonus, cleanBonus,
+            hasPenalty, cleanPenalty,
+            hasAdvance, cleanAdvance,
+            hasNote, cleanNote
+        ]);
+
+        const updatedSlip = await this.getMyPayroll(ma_nv, m, y);
 
         await logAuditEvent({
             actor_id: current_user ? (current_user.ma_nv || current_user.username) : 'admin',
@@ -410,14 +527,13 @@ class PayrollService {
                 target_ma_nv: ma_nv,
                 month: m,
                 year: y,
-                bonus_amount: cleanBonus,
-                penalty_amount: cleanPenalty,
-                advance_deduction: cleanAdvance,
-                adjustment_note: cleanNote
+                bonus_amount: updatedSlip ? updatedSlip.bonusAmount : cleanBonus,
+                penalty_amount: updatedSlip ? updatedSlip.penaltyAmount : cleanPenalty,
+                advance_deduction: updatedSlip ? updatedSlip.advanceDeduction : cleanAdvance,
+                adjustment_note: updatedSlip ? updatedSlip.adjustment_note : cleanNote
             }
         });
 
-        const updatedSlip = await this.getMyPayroll(ma_nv, m, y);
         return {
             success: true,
             message: `Đã lưu điều chỉnh lương cho ${ma_nv} (Tháng ${m}/${y})!`,
@@ -428,14 +544,78 @@ class PayrollService {
     async updatePaymentStatus(month, year, status, user) {
         const m = parseInt(month, 10);
         const y = parseInt(year, 10);
+        if (!Number.isInteger(m) || m < 1 || m > 12 || !Number.isInteger(y) || y < 2000 || y > 2200) {
+            const err = new Error('Tháng hoặc năm kỳ lương không hợp lệ!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const cleanStatus = String(status || 'PAID').trim().toUpperCase();
+        if (!['PAID', 'UNPAID'].includes(cleanStatus)) {
+            const err = new Error('Trạng thái chi trả lương phải là PAID hoặc UNPAID!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const actorId = user?.ma_nv || user?.username || user?.id || 'admin';
+
+        const periodRow = await withTransaction(async (txQuery) => {
+            const existing = await txQuery('SELECT * FROM payroll_periods WHERE month = ? AND year = ? FOR UPDATE', [m, y]);
+            if (cleanStatus === 'PAID' && (!existing || !existing[0] || existing[0].status !== 'APPROVED')) {
+                const err = new Error(`Vui lòng phê duyệt bảng lương tháng ${m}/${y} trước khi xác nhận đã chi trả!`);
+                err.statusCode = 400;
+                throw err;
+            }
+            const nextStatus = existing && existing[0] ? existing[0].status : 'DRAFT';
+            await txQuery(`
+                INSERT INTO payroll_periods (month, year, status, payment_status, paid_by, paid_at)
+                VALUES (?, ?, ?, ?, ?, ${cleanStatus === 'PAID' ? 'NOW()' : 'NULL'})
+                ON DUPLICATE KEY UPDATE
+                    payment_status = VALUES(payment_status),
+                    paid_by = ${cleanStatus === 'PAID' ? 'VALUES(paid_by)' : 'NULL'},
+                    paid_at = ${cleanStatus === 'PAID' ? 'NOW()' : 'NULL'}
+            `, [m, y, nextStatus, cleanStatus, cleanStatus === 'PAID' ? actorId : null]);
+            const rows = await txQuery('SELECT * FROM payroll_periods WHERE month = ? AND year = ? LIMIT 1', [m, y]);
+            return rows && rows[0] ? rows[0] : null;
+        });
+
         await logAuditEvent({
-            actor_id: user.ma_nv || user.username || user.id,
-            actor_role: user.role,
+            actor_id: actorId,
+            actor_role: user?.role || 'admin',
             action: 'UPDATE_PAYMENT_STATUS',
             resource: 'payroll',
-            details: { month: m, year: y, status }
+            details: { month: m, year: y, payment_status: cleanStatus }
         });
-        return { success: true, message: `Cập nhật trạng thái chi trả lương tháng ${m}/${y} thành công!` };
+        return {
+            success: true,
+            message: cleanStatus === 'PAID'
+                ? `Đã xác nhận chi trả lương tháng ${m}/${y} thành công!`
+                : `Đã chuyển trạng thái chi trả lương tháng ${m}/${y} về chưa thanh toán!`,
+            data: periodRow
+        };
+    }
+
+    async getPayrollStatusList({ month = null, year = null } = {}) {
+        const conditions = [];
+        const params = [];
+        if (month !== null && month !== undefined && month !== '') {
+            const m = parseInt(month, 10);
+            if (Number.isInteger(m)) {
+                conditions.push('month = ?');
+                params.push(m);
+            }
+        }
+        if (year !== null && year !== undefined && year !== '') {
+            const y = parseInt(year, 10);
+            if (Number.isInteger(y)) {
+                conditions.push('year = ?');
+                params.push(y);
+            }
+        }
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const rows = await query(
+            `SELECT id, month, year, status, payment_status, approved_by, approved_at, rejected_by, rejected_reason, rejected_at, paid_by, paid_at, updated_at FROM payroll_periods ${whereClause} ORDER BY year DESC, month DESC`,
+            params
+        );
+        return rows || [];
     }
 }
 

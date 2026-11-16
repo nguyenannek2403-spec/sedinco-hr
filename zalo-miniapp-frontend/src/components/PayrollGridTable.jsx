@@ -3,7 +3,6 @@ import {
   DollarSign,
   Search,
   Download,
-  Printer,
   FileText,
   Users,
   Award,
@@ -15,15 +14,14 @@ import {
   AlertTriangle,
   Calculator,
   CheckCircle2,
-  Loader2,
   SlidersHorizontal,
-  X,
-  ArrowLeft
+  Undo2,
+  Wallet
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
-import { safeGet, safePost, sanitizeFormula, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
+import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState } from "./ui";
+import { safeGet, safePost, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { useDebouncedValue } from "../hooks/useDebounce";
-import { useLockBodyScroll } from "../hooks/useLockBodyScroll";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
 
 export default function PayrollGridTable({
@@ -36,23 +34,33 @@ export default function PayrollGridTable({
   showToast,
   onShowToast,
   activeRole,
-  userRole
+  userRole,
+  dynamicPerms = {}
 }) {
   const effectiveRole = activeRole || userRole || "admin";
   const isAccountant = effectiveRole === "accountant";
   const isAdmin = effectiveRole === "admin";
+  const canCalculatePayroll = isAccountant && dynamicPerms?.payroll_calculate !== false;
+  const canExportPayroll = isAdmin || dynamicPerms?.payroll_export !== false;
+  const canApprovePayroll = isAdmin || dynamicPerms?.payroll_approve === true;
+  const canManagePayment = isAdmin || dynamicPerms?.payroll_payment_status_manage === true;
   const notify = showToast || onShowToast;
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [selectedDepartment, setSelectedDepartment] = useState("ALL");
   const [selectedSlipItem, setSelectedSlipItem] = useState(null);
   const [internalPayroll, setInternalPayroll] = useState([]);
+  const [periodStatus, setPeriodStatus] = useState(null);
   const [loadingPayroll, setLoadingPayroll] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [approving, setApproving] = useState(false);
-  const calcInFlightRef = useRef(false);
-  const approveInFlightRef = useRef(false);
+  const [paying, setPaying] = useState(false);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectError, setRejectError] = useState("");
+  const [rejecting, setRejecting] = useState(false);
   const adjInFlightRef = useRef(false);
+  const rejectInFlightRef = useRef(false);
 
   // Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2)
   const [adjustItem, setAdjustItem] = useState(null);
@@ -66,9 +74,20 @@ export default function PayrollGridTable({
   const [adjError, setAdjError] = useState("");
   const [payrollError, setPayrollError] = useState("");
 
-  useLockBodyScroll(Boolean(adjustItem));
+  const fetchPeriodStatus = useCallback(async () => {
+    try {
+      const stRes = await safeGet("/payroll/status-list", { month, year }, { cancelPrevious: false }).catch(() => null);
+      if (stRes?.success && Array.isArray(stRes.data)) {
+        const matched = stRes.data.find((r) => Number(r.month) === Number(month) && Number(r.year) === Number(year));
+        setPeriodStatus(matched || { month, year, status: "DRAFT", payment_status: "UNPAID" });
+      }
+    } catch {
+      // Bỏ qua nếu role không được phép đọc status-list
+    }
+  }, [month, year]);
 
   const fetchPayrollFromApi = useCallback(async () => {
+    fetchPeriodStatus();
     if (Array.isArray(payrollData)) return;
     setLoadingPayroll(true);
     setPayrollError("");
@@ -91,15 +110,13 @@ export default function PayrollGridTable({
     } finally {
       setLoadingPayroll(false);
     }
-  }, [payrollData, month, year]);
+  }, [payrollData, month, year, fetchPeriodStatus]);
 
   useEffect(() => {
     fetchPayrollFromApi();
   }, [fetchPayrollFromApi]);
 
   const handleCalculatePayroll = async () => {
-    if (calcInFlightRef.current) return;
-    calcInFlightRef.current = true;
     setCalculating(true);
     try {
       const res = await safePost("/payroll/calculate", { month, year }, {
@@ -114,28 +131,77 @@ export default function PayrollGridTable({
     } catch (err) {
       if (notify) notify(err.message || "Lỗi tính toán bảng lương.", "error");
     } finally {
-      calcInFlightRef.current = false;
       setCalculating(false);
     }
   };
 
   const handleApprovePayroll = async () => {
-    if (approveInFlightRef.current) return;
-    approveInFlightRef.current = true;
     setApproving(true);
     try {
       const res = await safePost("/payroll/approve", { month, year }, {
         idempotencyKey: generateIdempotencyKey("pay_approve")
       });
       if (res?.success) {
+        if (res.data) setPeriodStatus(res.data);
         if (notify) notify(`Đã duyệt và phát hành Phiếu Lương tháng ${month}/${year} cho toàn bộ nhân viên!`, "success");
         await fetchPayrollFromApi();
       }
     } catch (err) {
       if (notify) notify(err.message || "Không thể duyệt bảng lương.", "error");
     } finally {
-      approveInFlightRef.current = false;
       setApproving(false);
+    }
+  };
+
+  const handleSubmitRejectPayroll = async (e) => {
+    e.preventDefault();
+    if (rejectInFlightRef.current) return;
+    const cleanReason = String(rejectReason || "").trim();
+    if (!cleanReason) {
+      setRejectError("Vui lòng nhập lý do cần Kế toán chỉnh sửa lại.");
+      return;
+    }
+    rejectInFlightRef.current = true;
+    setRejecting(true);
+    setRejectError("");
+    try {
+      const res = await safePost("/payroll/reject", { month, year, reason: cleanReason }, {
+        idempotencyKey: generateIdempotencyKey("pay_reject")
+      });
+      if (res?.success) {
+        if (res.data) setPeriodStatus(res.data);
+        setRejectModalOpen(false);
+        setRejectReason("");
+        if (notify) notify(res.message || `Đã trả lại bảng lương tháng ${month}/${year} cho Kế toán!`, "warning");
+        await fetchPayrollFromApi();
+      } else {
+        setRejectError(res?.message || "Không thể trả lại bảng lương.");
+      }
+    } catch (err) {
+      setRejectError(err.message || "Lỗi kết nối máy chủ.");
+    } finally {
+      rejectInFlightRef.current = false;
+      setRejecting(false);
+    }
+  };
+
+  const handleConfirmPaid = async () => {
+    setPaying(true);
+    try {
+      const res = await safePost("/payroll/payment-status", { month, year, status: "PAID" }, {
+        idempotencyKey: generateIdempotencyKey("pay_paid")
+      });
+      if (res?.success) {
+        if (res.data) setPeriodStatus(res.data);
+        if (notify) notify(res.message || `Đã xác nhận chi trả lương tháng ${month}/${year}!`, "success");
+        await fetchPayrollFromApi();
+      } else {
+        if (notify) notify(res?.message || "Không thể cập nhật trạng thái chi trả.", "error");
+      }
+    } catch (err) {
+      if (notify) notify(err.message || "Không thể xác nhận chi trả lương.", "error");
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -359,16 +425,30 @@ export default function PayrollGridTable({
         
         {/* Header Tác Vụ */}
         <div className="p-4 sm:p-5 border-b-2 border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               <DollarSign className="text-emerald-600 shrink-0" size={22} />
               <h3 className="font-bold text-lg leading-snug text-slate-900">
                 Bảng thanh toán tiền lương &amp; phụ cấp
               </h3>
+              {periodStatus && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <StatusBadge type="payroll_period" status={periodStatus.status || "DRAFT"} />
+                  {(periodStatus.status === "APPROVED" || periodStatus.payment_status === "PAID") && (
+                    <StatusBadge type="payment" status={periodStatus.payment_status || "UNPAID"} />
+                  )}
+                </div>
+              )}
             </div>
-            <p className="text-sm text-slate-600 leading-relaxed mt-1">
+            <p className="text-sm text-slate-600 leading-relaxed">
               Tự động tính công chuẩn, tăng ca, thưởng/phạt/tạm ứng và BHXH
             </p>
+            {periodStatus?.status === "REJECTED" && periodStatus?.rejected_reason && (
+              <div className="inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5 text-rose-600" />
+                <span>Lý do trả lại chỉnh sửa: {periodStatus.rejected_reason}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -401,7 +481,7 @@ export default function PayrollGridTable({
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="min-h-[42px] px-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 shadow-sm text-slate-800"
+              className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 shadow-sm text-slate-800"
             >
               <option value="ALL">🏢 Tất cả bộ phận</option>
               {availableDepartments.map((dept) => (
@@ -419,21 +499,23 @@ export default function PayrollGridTable({
                 placeholder="Tìm nhân sự, chức vụ, mã NV..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full min-h-[42px] pl-9 pr-3 py-2 text-sm bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 shadow-sm"
+                className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 shadow-sm"
               />
             </div>
 
             {/* Nút Tính Lương Tự Động (Nghiệp vụ riêng của Kế toán) */}
-            {isAccountant && (
-              <button
-                type="button"
+            {canCalculatePayroll && (
+              <AppButton
+                variant="primary"
+                icon={Calculator}
+                loading={calculating}
+                disabled={isLoading}
+                loadingText="Đang tính..."
                 onClick={handleCalculatePayroll}
-                disabled={calculating || isLoading}
-                className="min-h-[42px] flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                className="text-xs sm:text-sm px-3.5 py-2"
               >
-                {calculating ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
-                <span>{calculating ? "Đang tính..." : "Tính lương"}</span>
-              </button>
+                Tính lương
+              </AppButton>
             )}
 
             {isAdmin && (
@@ -443,39 +525,76 @@ export default function PayrollGridTable({
             )}
 
             {/* Nút Duyệt & Phát Hành Phiếu Lương */}
-            <button
-              type="button"
-              onClick={handleApprovePayroll}
-              disabled={approving || isLoading}
-              className="min-h-[42px] flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl border-2 border-indigo-700 shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
-            >
-              {approving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-              <span>{approving ? "Đang lưu..." : "Chốt & Phát hành"}</span>
-            </button>
+            {canApprovePayroll && (
+              <AppButton
+                variant="primary"
+                icon={CheckCircle2}
+                loading={approving}
+                disabled={isLoading}
+                loadingText="Đang lưu..."
+                onClick={handleApprovePayroll}
+                className="bg-indigo-600 hover:bg-indigo-700 border-indigo-700 text-xs sm:text-sm px-3.5 py-2"
+              >
+                Chốt &amp; Phát hành
+              </AppButton>
+            )}
+
+            {/* Nút Trả lại Kế toán (kèm lý do) dành cho Admin / người có quyền duyệt */}
+            {(isAdmin || canApprovePayroll) && periodStatus?.payment_status !== "PAID" && (
+              <AppButton
+                variant="danger"
+                icon={Undo2}
+                disabled={isLoading}
+                onClick={() => {
+                  setRejectError("");
+                  setRejectModalOpen(true);
+                }}
+                className="text-xs sm:text-sm px-3.5 py-2"
+              >
+                Trả lại Kế toán
+              </AppButton>
+            )}
+
+            {/* Nút Xác nhận Đã Chi Trả Lương */}
+            {canManagePayment && periodStatus?.status === "APPROVED" && periodStatus?.payment_status !== "PAID" && (
+              <AppButton
+                variant="success"
+                icon={Wallet}
+                loading={paying}
+                disabled={isLoading}
+                loadingText="Đang xác nhận..."
+                onClick={handleConfirmPaid}
+                className="text-xs sm:text-sm px-3.5 py-2"
+              >
+                Xác nhận Đã Chi Trả Lương
+              </AppButton>
+            )}
 
             {/* Nút Xuất CSV */}
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className="min-h-[42px] flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl border-2 border-emerald-700 shadow-sm cursor-pointer whitespace-nowrap"
-            >
-              <Download size={16} />
-              <span>Xuất CSV</span>
-            </button>
+            {canExportPayroll && (
+              <AppButton
+                variant="success"
+                icon={Download}
+                onClick={handleExportCSV}
+                className="text-xs sm:text-sm px-3.5 py-2"
+              >
+                Xuất CSV
+              </AppButton>
+            )}
 
             {/* Nút Làm Mới */}
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              icon={RefreshCw}
+              loading={isLoading}
               onClick={() => {
                 fetchPayrollFromApi();
                 if (onRefresh) onRefresh();
               }}
               aria-label="Làm mới bảng lương"
-              className="min-w-[44px] min-h-[44px] p-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer flex items-center justify-center"
+              className="min-w-[44px] px-3 py-2"
               title="Làm mới bảng lương"
-            >
-              <RefreshCw size={16} className={isLoading ? "animate-spin text-emerald-600" : ""} />
-            </button>
+            />
           </div>
         </div>
 
@@ -492,13 +611,13 @@ export default function PayrollGridTable({
           </div>
         )}
 
-        {/* Cảnh báo Thực lĩnh âm nếu có (Sổ lỗi P1: Chờ Kế toán trưởng phê duyệt quy tắc) */}
+        {/* Cảnh báo Thực lĩnh âm nếu có (Chờ Kế toán trưởng phê duyệt quy tắc) */}
         {filteredList.some(item => Number(item.netSalary) < 0) && (
           <div className="mb-4 p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-amber-900 text-xs flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertTriangle size={18} className="text-amber-600 shrink-0" />
               <div>
-                <strong>Cảnh báo nghiệp vụ (Sổ lỗi P1):</strong> Phát hiện nhân viên có thực lĩnh âm (do 0 ngày công nhưng vẫn trừ BHXH). Đang chờ Kế toán trưởng phê duyệt quy tắc khấu trừ.
+                <strong>Lưu ý nghiệp vụ tiền lương:</strong> Phát hiện nhân viên có thực lĩnh âm (do 0 ngày công nhưng vẫn phát sinh khấu trừ bảo hiểm). Cần Kế toán trưởng kiểm tra quy tắc khấu trừ.
               </div>
             </div>
           </div>
@@ -507,14 +626,12 @@ export default function PayrollGridTable({
         {/* Mobile Cards View (Tối ưu cho Zalo Mini App < 768px) */}
         <div className="md:hidden divide-y divide-slate-200">
           {isLoading ? (
-            <div className="py-12 text-center text-slate-500">
-              <RefreshCw size={24} className="mx-auto mb-2 animate-spin text-emerald-600" />
-              <p className="text-sm font-medium">Đang tải bảng lương...</p>
+            <div className="p-4">
+              <SkeletonList rows={3} label="Đang tải bảng lương..." />
             </div>
           ) : filteredList.length === 0 ? (
-            <div className="py-12 text-center text-slate-500">
-              <FileText size={30} className="mx-auto mb-2 text-slate-400" />
-              <p className="text-sm font-medium">Không có dữ liệu tiền lương tháng {month}/{year}.</p>
+            <div className="p-4">
+              <EmptyState icon={FileText} title={`Không có dữ liệu tiền lương tháng ${month}/${year}.`} />
             </div>
           ) : (
             filteredList.map((item, idx) => {
@@ -526,7 +643,7 @@ export default function PayrollGridTable({
               return (
                 <div
                   key={empId || idx}
-                  className={`p-4 space-y-3 ${confirmStatus === "DISPUTED" ? "bg-rose-50" : "bg-white"}`}
+                  className={`perf-list-item p-4 space-y-3 ${confirmStatus === "DISPUTED" ? "bg-rose-50" : "bg-white"}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -563,25 +680,25 @@ export default function PayrollGridTable({
                     </div>
                   )}
 
-                  <div className={`grid ${isAccountant ? "grid-cols-2" : "grid-cols-1"} gap-2 pt-1`}>
-                    {isAccountant && (
-                      <button
-                        type="button"
+                  <div className={`grid ${canCalculatePayroll ? "grid-cols-2" : "grid-cols-1"} gap-2 pt-1`}>
+                    {canCalculatePayroll && (
+                      <AppButton
+                        variant="ghost"
+                        icon={SlidersHorizontal}
                         onClick={() => handleOpenAdjustmentModal(item)}
-                        className="min-h-[44px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                        className="bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 text-xs"
                       >
-                        <SlidersHorizontal size={14} className="shrink-0" />
-                        <span>Thưởng / Phạt / Ứng</span>
-                      </button>
+                        Thưởng / Phạt / Ứng
+                      </AppButton>
                     )}
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="secondary"
+                      icon={Eye}
                       onClick={() => setSelectedSlipItem(item)}
-                      className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                      className="text-xs"
                     >
-                      <Eye size={14} className="shrink-0" />
-                      <span>{confirmStatus === "DISPUTED" ? "Xem khiếu nại" : "Chi tiết"}</span>
-                    </button>
+                      {confirmStatus === "DISPUTED" ? "Xem khiếu nại" : "Chi tiết"}
+                    </AppButton>
                   </div>
                 </div>
               );
@@ -701,11 +818,11 @@ export default function PayrollGridTable({
                       </td>
                       <td className="p-3.5 text-center pr-5 whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
-                          {isAccountant && (
+                          {canCalculatePayroll && (
                             <button
                               type="button"
                               onClick={() => handleOpenAdjustmentModal(item)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold border border-amber-300 transition-all cursor-pointer whitespace-nowrap"
+                              className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold border border-amber-300 transition-all cursor-pointer whitespace-nowrap"
                               title="Thưởng / Phạt / Tạm ứng"
                             >
                               <SlidersHorizontal size={14} />
@@ -715,7 +832,7 @@ export default function PayrollGridTable({
                           <button
                             type="button"
                             onClick={() => setSelectedSlipItem(item)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-900 text-xs font-semibold border border-slate-300 hover:border-emerald-600 transition-all cursor-pointer whitespace-nowrap"
+                            className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-900 text-xs font-semibold border border-slate-300 hover:border-emerald-600 transition-all cursor-pointer whitespace-nowrap"
                           >
                             <Eye size={14} />
                             <span>Chi tiết</span>
@@ -772,124 +889,152 @@ export default function PayrollGridTable({
       </div>
 
       {/* Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2) */}
-      {adjustItem && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
-          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
-          onClick={(e) => { if (e.target === e.currentTarget && !adjSaving) setAdjustItem(null); }}
-        >
-          <div className="flex flex-col w-full max-w-md max-h-[90vh] bg-white border-2 border-slate-200 rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl text-slate-800 animate-sheet-up">
-            <div className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-3 border-b border-slate-100 shrink-0">
-              <button
-                type="button"
-                disabled={adjSaving}
-                onClick={() => setAdjustItem(null)}
-                className="inline-flex items-center gap-1 min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold shrink-0"
-              >
-                <ArrowLeft size={16} />
-                <span>Trở về</span>
-              </button>
-              <div className="min-w-0 flex-1 text-center">
-                <h4 className="text-sm sm:text-base font-bold text-slate-900 truncate">Điều chỉnh thưởng / phạt</h4>
-                <p className="text-xs text-slate-500 truncate">
-                  {adjustItem.ho_ten} ({adjustItem.ma_nv || adjustItem.id_nhan_vien}) • Tháng {month}/{year}
-                </p>
+      <AppModal
+        open={Boolean(adjustItem)}
+        onClose={() => !adjSaving && setAdjustItem(null)}
+        disableClose={adjSaving}
+        title="Điều chỉnh thưởng / phạt"
+        subtitle={adjustItem ? `${adjustItem.ho_ten} (${adjustItem.ma_nv || adjustItem.id_nhan_vien}) • Tháng ${month}/${year}` : ""}
+        maxWidthClass="max-w-md"
+        footer={
+          <div className="flex gap-2.5">
+            <AppButton
+              variant="secondary"
+              disabled={adjSaving}
+              onClick={() => setAdjustItem(null)}
+              className="flex-1"
+            >
+              Đóng / Quay lại
+            </AppButton>
+            <AppButton
+              type="submit"
+              form="payroll-adjust-form"
+              variant="primary"
+              loading={adjSaving}
+              loadingText="Đang lưu..."
+              className="flex-1"
+            >
+              Lưu điều chỉnh
+            </AppButton>
+          </div>
+        }
+      >
+        {adjustItem && (
+          <form
+            id="payroll-adjust-form"
+            onSubmit={handleSaveAdjustment}
+            className="p-4 space-y-4"
+          >
+            {adjError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
+                {adjError}
               </div>
-              <button
-                type="button"
-                onClick={() => !adjSaving && setAdjustItem(null)}
-                aria-label="Đóng"
-                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer shrink-0"
-              >
-                <X size={18} />
-              </button>
+            )}
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Tiền thưởng thêm (VNĐ)</label>
+              <input
+                type="number"
+                min={0}
+                step={50000}
+                value={adjForm.bonus_amount}
+                onChange={(e) => setAdjForm((f) => ({ ...f, bonus_amount: Number(e.target.value) || 0 }))}
+                className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-emerald-700 focus:outline-none focus:border-emerald-600"
+              />
             </div>
 
-            <form
-              id="payroll-adjust-form"
-              onSubmit={handleSaveAdjustment}
-              className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-4 space-y-4"
-              style={{ WebkitOverflowScrolling: "touch" }}
-            >
-              {adjError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
-                  {adjError}
-                </div>
-              )}
-
+            <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Tiền thưởng thêm (VNĐ)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Khấu trừ phạt (VNĐ)</label>
                 <input
                   type="number"
                   min={0}
                   step={50000}
-                  value={adjForm.bonus_amount}
-                  onChange={(e) => setAdjForm((f) => ({ ...f, bonus_amount: Number(e.target.value) || 0 }))}
-                  className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-emerald-700 focus:outline-none focus:border-emerald-600"
+                  value={adjForm.penalty_amount}
+                  onChange={(e) => setAdjForm((f) => ({ ...f, penalty_amount: Number(e.target.value) || 0 }))}
+                  className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-rose-700 focus:outline-none focus:border-rose-500"
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Khấu trừ phạt (VNĐ)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={50000}
-                    value={adjForm.penalty_amount}
-                    onChange={(e) => setAdjForm((f) => ({ ...f, penalty_amount: Number(e.target.value) || 0 }))}
-                    className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-rose-700 focus:outline-none focus:border-rose-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Tạm ứng đã trừ (VNĐ)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={50000}
-                    value={adjForm.advance_deduction}
-                    onChange={(e) => setAdjForm((f) => ({ ...f, advance_deduction: Number(e.target.value) || 0 }))}
-                    className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-amber-800 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Ghi chú điều chỉnh (hiển thị trên phiếu lương)</label>
-                <textarea
-                  rows={2}
-                  value={adjForm.adjustment_note}
-                  onChange={(e) => setAdjForm((f) => ({ ...f, adjustment_note: e.target.value }))}
-                  placeholder="Ví dụ: Thưởng hoàn thành vượt tiến độ công trình..."
-                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-600 leading-relaxed"
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Tạm ứng đã trừ (VNĐ)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={50000}
+                  value={adjForm.advance_deduction}
+                  onChange={(e) => setAdjForm((f) => ({ ...f, advance_deduction: Number(e.target.value) || 0 }))}
+                  className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-amber-800 focus:outline-none focus:border-amber-500"
                 />
               </div>
-            </form>
-
-            <div
-              className="px-4 py-3 border-t border-slate-200 bg-white flex gap-2.5 shrink-0"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
-            >
-              <button
-                type="button"
-                onClick={() => setAdjustItem(null)}
-                disabled={adjSaving}
-                className="flex-1 min-h-[46px] py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl border border-slate-300 cursor-pointer"
-              >
-                Đóng / Quay lại
-              </button>
-              <button
-                type="submit"
-                form="payroll-adjust-form"
-                disabled={adjSaving}
-                className="flex-1 min-h-[46px] py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow cursor-pointer disabled:opacity-50"
-              >
-                {adjSaving ? "Đang lưu..." : "Lưu điều chỉnh"}
-              </button>
             </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Ghi chú điều chỉnh (hiển thị trên phiếu lương)</label>
+              <textarea
+                rows={2}
+                value={adjForm.adjustment_note}
+                onChange={(e) => setAdjForm((f) => ({ ...f, adjustment_note: e.target.value }))}
+                placeholder="Ví dụ: Thưởng hoàn thành vượt tiến độ công trình..."
+                className="w-full px-3 py-2 border-2 border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-600 leading-relaxed"
+              />
+            </div>
+          </form>
+        )}
+      </AppModal>
+
+      {/* Modal Trả lại bảng lương cho Kế toán kèm lý do */}
+      <AppModal
+        open={rejectModalOpen}
+        onClose={() => !rejecting && setRejectModalOpen(false)}
+        disableClose={rejecting}
+        title="Trả lại bảng lương cho Kế toán"
+        subtitle={`Kỳ lương Tháng ${month}/${year}`}
+        maxWidthClass="max-w-md"
+        footer={
+          <div className="flex gap-2.5">
+            <AppButton
+              variant="secondary"
+              disabled={rejecting}
+              onClick={() => setRejectModalOpen(false)}
+              className="flex-1"
+            >
+              Đóng / Quay lại
+            </AppButton>
+            <AppButton
+              type="submit"
+              form="payroll-reject-form"
+              variant="danger"
+              icon={Undo2}
+              loading={rejecting}
+              loadingText="Đang trả lại..."
+              className="flex-1"
+            >
+              Xác nhận trả lại
+            </AppButton>
           </div>
-        </div>
-      )}
+        }
+      >
+        <form id="payroll-reject-form" onSubmit={handleSubmitRejectPayroll} className="p-4 space-y-3">
+          {rejectError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
+              {rejectError}
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Lý do cần Kế toán rà soát, chỉnh sửa lại <span className="text-rose-600">*</span>
+            </label>
+            <textarea
+              rows={3}
+              required
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Ví dụ: Kiểm tra lại số giờ tăng ca công trình A của NV003..."
+              className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-rose-500 leading-relaxed"
+            />
+          </div>
+        </form>
+      </AppModal>
 
       {/* Modal Phiếu Lương Chi Tiết */}
       {selectedSlipItem && (
@@ -897,7 +1042,7 @@ export default function PayrollGridTable({
           payrollItem={selectedSlipItem}
           month={month}
           year={year}
-          isAdminOrAccountant={true}
+          isAdminOrAccountant={isAdmin || isAccountant}
           showToast={notify}
           onStatusUpdated={() => fetchPayrollFromApi()}
           onClose={() => setSelectedSlipItem(null)}

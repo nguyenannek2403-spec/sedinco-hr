@@ -18,13 +18,22 @@ import { getAttendanceStatusInfo } from "../../utils/viLabels";
 
 const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 
-function getHeatmapCellStyle(log, dayNum, isFuture) {
+function getHeatmapCellStyle(log, dayNum, isFuture, isSunday = false) {
   if (isFuture) {
     return {
       cellClass: "bg-slate-900/40 border-slate-800/60 text-slate-400",
       dotClass: "bg-slate-600",
       shortCode: "",
       badgeText: "Chưa tới",
+      needsCorrection: false
+    };
+  }
+  if (!log && isSunday) {
+    return {
+      cellClass: "bg-slate-900/50 border-slate-800/70 text-slate-300",
+      dotClass: "bg-slate-500",
+      shortCode: "CN",
+      badgeText: "Cuối tuần",
       needsCorrection: false
     };
   }
@@ -182,7 +191,7 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
       const log = mapByDate[isoDate] || null;
       const isFuture = isoDate > todayIso;
       const isSunday = new Date(year, month - 1, d).getDay() === 0;
-      const style = getHeatmapCellStyle(log, d, isFuture || (isSunday && !log));
+      const style = getHeatmapCellStyle(log, d, isFuture, isSunday);
       cells.push({
         empty: false,
         key: isoDate,

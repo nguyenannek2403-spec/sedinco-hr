@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --zalo-safe-top: env(safe-area-inset-top, 0px);
+  --zalo-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --zalo-capsule-width: 96px;
+
+  --brand-primary: #2563eb;
+  --brand-primary-hover: #1d4ed8;
+  --brand-success: #059669;
+  --brand-danger: #e11d48;
+  --brand-warning: #d97706;
+  --surface-card: #ffffff;
+  --surface-muted: #f8fafc;
+
+  --space-card: 16px;
+  --space-row: 12px;
+  --radius-control: 12px;
+}
+
 html,
 body {
   overflow-x: hidden;
@@ -14,7 +32,7 @@ body {
 
 button,
 [role="button"] {
-  transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease, background-color 150ms ease;
+  transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease;
 }
 
 button:not(:disabled):active,
@@ -27,8 +45,8 @@ button:not(:disabled):active,
 }
 
 .section-container {
-  padding: 16px;
-  background: #ffffff;
+  padding: var(--space-card);
+  background: var(--surface-card);
   border-radius: 8px;
   margin-bottom: 24px;
 }
@@ -39,15 +57,15 @@ button:not(:disabled):active,
 
 /* Zalo Mini App Safe Area & Capsule Clearance (88px x 44px top-right) */
 .zmp-safe-top {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+  padding-top: calc(var(--zalo-safe-top) + 12px);
 }
 
 .zmp-capsule-clearance {
-  padding-right: 96px;
+  padding-right: var(--zalo-capsule-width);
 }
 
 .zmp-safe-bottom {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  padding-bottom: calc(var(--zalo-safe-bottom) + 8px);
 }
 
 /* Smooth Mobile Horizontal Table Scroll */
@@ -62,7 +80,13 @@ button:not(:disabled):active,
   min-height: 44px;
 }
 
-/* Custom Animations */
+/* 60fps Virtualized List Item Rendering */
+.perf-list-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 92px;
+}
+
+/* GPU-only Animations (transform & opacity) */
 @keyframes spin-slow {
   from {
     transform: rotate(0deg);
@@ -76,7 +100,6 @@ button:not(:disabled):active,
   animation: spin-slow 8s linear infinite;
 }
 
-/* Mượt mà hóa hiệu ứng mở Modal / Bottom Sheet trên Mobile */
 @keyframes sheet-up {
   from {
     opacity: 0;
@@ -119,7 +142,7 @@ select {
   box-sizing: border-box !important;
   -webkit-appearance: none;
   appearance: none;
-  font-size: max(16px, 1rem); /* WCAG 1.4.4 scalable + prevents iOS WebView auto-zoom */ /* Ngăn iOS tự zoom màn hình khi chạm vào ô nhập liệu */
+  font-size: max(16px, 1rem); /* WCAG 1.4.4 scalable + prevents iOS WebView auto-zoom */
 }
 
 input[type="time"],

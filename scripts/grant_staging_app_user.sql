@@ -33,6 +33,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`employees`              TO
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`idempotency_keys`       TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`login_rate_limits`      TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`ot_registrations`       TO '${APP_USER}'@'${APP_HOST}';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`payroll_periods`        TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`period_locks`           TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`public_holidays`        TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`requests`               TO '${APP_USER}'@'${APP_HOST}';

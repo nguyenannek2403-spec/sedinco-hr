@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { safeGet, safePost, safePut } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
+import { AppButton, FormRow, SkeletonList, EmptyState } from "../../components/ui";
 
 export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }) {
   const [logs, setLogs] = useState([]);
@@ -353,13 +354,13 @@ const formatDetails = (rawDetails, action = "") => {
               Nhật ký hoạt động & Kiểm tra chấm công
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Ghi vết thời gian thực theo từng mã nhân viên • Tự động dọn dẹp bảo vệ dung lượng TiDB Cloud
+              Ghi vết thời gian thực theo từng mã nhân viên • Tự động dọn dẹp dữ liệu định kỳ
             </p>
           </div>
 
-          {/* Chu kỳ tự động xóa log quá hạn */}
+          {/* Chu kỳ tự động xóa nhật ký quá hạn */}
           <div className="flex flex-wrap items-center gap-2 bg-slate-900/90 border border-slate-700 p-2 rounded-xl">
-            <span className="text-[11px] font-bold text-slate-300 pl-1">Tự xóa sau:</span>
+            <span className="text-xs font-bold text-slate-300 pl-1">Tự xóa sau:</span>
             <select
               value={retentionDays}
               onChange={(e) => {
@@ -367,23 +368,24 @@ const formatDetails = (rawDetails, action = "") => {
                 setRetentionDays(val);
                 handleRunCleanup(val);
               }}
-              className="bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-black text-amber-300"
+              className="min-h-[44px] bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-xs font-black text-amber-300"
             >
               <option value={15}>15 ngày</option>
               <option value={30}>30 ngày</option>
               <option value={60}>60 ngày</option>
               <option value={90}>90 ngày</option>
             </select>
-            <button
-              type="button"
+            <AppButton
+              variant="danger"
+              icon={Trash2}
+              loading={cleaning}
+              loadingText="Đang dọn..."
               onClick={() => handleRunCleanup(retentionDays)}
-              disabled={cleaning}
-              className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition"
-              title="Dọn dẹp ngay các log cũ (Trừ log đã ghim 📌 hoặc nhân viên bật Giữ toàn bộ lịch sử 🔒)"
+              className="text-xs px-3 py-2"
+              title="Dọn dẹp ngay các nhật ký cũ (Trừ mục đã ghim 📌 hoặc nhân viên bật Giữ toàn bộ lịch sử 🔒)"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>{cleaning ? "Đang dọn..." : "Dọn Log Quá Hạn"}</span>
-            </button>
+              Dọn nhật ký cũ
+            </AppButton>
           </div>
         </div>
 
@@ -418,25 +420,23 @@ const formatDetails = (rawDetails, action = "") => {
           </select>
 
           {/* Từ ngày - Đến ngày (Bố cục ngang gọn trên Mobile) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5">
-              <span className="text-xs font-semibold text-slate-300 shrink-0">Từ ngày</span>
+          <div className="divide-y divide-slate-800 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
+            <FormRow dark label="Từ ngày" className="py-1.5 px-3">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="w-36 sm:w-40 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-white text-center"
               />
-            </div>
-            <div className="flex items-center justify-between gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5">
-              <span className="text-xs font-semibold text-slate-300 shrink-0">Đến ngày</span>
+            </FormRow>
+            <FormRow dark label="Đến ngày" className="py-1.5 px-3">
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="w-36 sm:w-40 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-white text-center"
               />
-            </div>
+            </FormRow>
           </div>
 
           {/* Ô tìm kiếm từ khóa */}
@@ -465,15 +465,16 @@ const formatDetails = (rawDetails, action = "") => {
               <Pin className="w-3.5 h-3.5" />
               <span>Đã ghim</span>
             </button>
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              icon={RefreshCw}
+              loading={loading}
               onClick={fetchLogs}
-              disabled={loading}
-              className="p-2 bg-slate-900 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl transition-colors"
+              aria-label="Tải lại nhật ký"
+              className="min-w-[44px] px-3 py-2"
               title="Tải lại nhật ký"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-emerald-400" : ""}`} />
-            </button>
+            />
           </div>
         </div>
 
@@ -484,14 +485,14 @@ const formatDetails = (rawDetails, action = "") => {
               <span className="font-black text-white">
                 Nhân sự đang chọn: {selectedEmpObj.ho_ten} ({selectedEmpObj.ma_nv})
               </span>
-              <span className="block text-[11px] text-indigo-200">
+              <span className="block text-xs text-indigo-200 mt-0.5">
                 Khi bật giữ lịch sử, toàn bộ hoạt động của nhân viên này sẽ được miễn trừ khỏi tiến trình tự động xóa định kỳ.
               </span>
             </div>
             <button
               type="button"
               onClick={() => handleToggleKeepEmployeeLogs(selectedEmpObj.ma_nv, selectedEmpObj.keep_logs)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black border flex items-center gap-1.5 transition ${
+              className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-black border flex items-center gap-1.5 transition ${
                 selectedEmpObj.keep_logs
                   ? "bg-emerald-600 text-white border-emerald-400 shadow-md"
                   : "bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700"
@@ -511,9 +512,8 @@ const formatDetails = (rawDetails, action = "") => {
       {/* Bảng Danh Sách Nhật Ký Kiểm Toán & Cảnh Báo Đỏ */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl shadow-xl overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
-            Đang tải dữ liệu giám sát hoạt động...
+          <div className="p-4">
+            <SkeletonList rows={4} dark label="Đang tải dữ liệu giám sát hoạt động..." />
           </div>
         ) : error ? (
           <div className="p-6 text-center text-rose-400 text-xs flex items-center justify-center gap-2">
@@ -521,8 +521,8 @@ const formatDetails = (rawDetails, action = "") => {
             {error}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 text-xs">
-            Không có bản ghi hoạt động nào khớp với bộ lọc hiện tại.
+          <div className="p-4">
+            <EmptyState dark icon={ShieldCheck} title="Không có bản ghi hoạt động nào khớp với bộ lọc hiện tại." />
           </div>
         ) : (
           <div className="overflow-x-auto touch-scroll-x">
@@ -546,7 +546,7 @@ const formatDetails = (rawDetails, action = "") => {
                   return (
                     <tr
                       key={log.id || idx}
-                      className={`transition-colors ${
+                      className={`perf-list-item transition-colors ${
                         isFraud
                           ? "bg-rose-950/50 hover:bg-rose-900/40"
                           : isPinned
@@ -554,7 +554,7 @@ const formatDetails = (rawDetails, action = "") => {
                           : "hover:bg-slate-700/30"
                       }`}
                     >
-                      <td className="p-3.5 pl-4 font-mono text-[11px] text-slate-300 whitespace-nowrap">
+                      <td className="p-3.5 pl-4 font-mono text-xs text-slate-300 whitespace-nowrap">
                         {formatAuditDateTime(log.created_at)}
                       </td>
 
@@ -563,10 +563,10 @@ const formatDetails = (rawDetails, action = "") => {
                           <UserCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                           <span>{log.ho_ten || log.actor_id || "Hệ thống"}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
+                        <div className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
                           <span>Mã: {log.actor_id || "HT"}</span>
                           {isKeepEmp && (
-                            <span className="px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 rounded font-sans font-bold">
+                            <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded font-sans font-bold">
                               🔒 Giữ LS
                             </span>
                           )}
@@ -575,7 +575,7 @@ const formatDetails = (rawDetails, action = "") => {
 
                       <td className="p-3.5">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-black text-[11px] border ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-black text-xs border ${
                             isFraud
                               ? "bg-rose-600 text-white border-rose-400 shadow-sm"
                               : log.action?.includes("DISPUTED")
@@ -598,14 +598,14 @@ const formatDetails = (rawDetails, action = "") => {
                           <button
                             type="button"
                             onClick={() => handleTogglePin(log)}
-                            className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border flex items-center gap-1 transition ${
+                            className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition ${
                               isPinned
                                 ? "bg-amber-500 text-slate-950 border-amber-300 font-black"
                                 : "bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-700"
                             }`}
                             title="📌 Ghim giữ lại lịch sử này vĩnh viễn"
                           >
-                            <Pin className="w-3 h-3" />
+                            <Pin className="w-3.5 h-3.5" />
                             <span>{isPinned ? "Đã ghim" : "Ghim"}</span>
                           </button>
 
@@ -614,14 +614,14 @@ const formatDetails = (rawDetails, action = "") => {
                             <button
                               type="button"
                               onClick={() => handleToggleKeepEmployeeLogs(log.actor_id, isKeepEmp)}
-                              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border flex items-center gap-1 transition ${
+                              className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition ${
                                 isKeepEmp
                                   ? "bg-indigo-600 text-white border-indigo-400"
                                   : "bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-700"
                               }`}
                               title="🔒 Giữ toàn bộ lịch sử của nhân viên này"
                             >
-                              <Lock className="w-3 h-3" />
+                              <Lock className="w-3.5 h-3.5" />
                               <span className="hidden sm:inline">{isKeepEmp ? "Giữ NV" : "Lưu NV"}</span>
                             </button>
                           )}
@@ -631,7 +631,7 @@ const formatDetails = (rawDetails, action = "") => {
                             <button
                               type="button"
                               onClick={() => handleToggleLockAccount(log.actor_id, isEmpLocked)}
-                              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black border flex items-center gap-1 transition ${
+                              className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-black border flex items-center gap-1 transition ${
                                 isEmpLocked
                                   ? "bg-slate-700 text-emerald-300 border-emerald-500/40"
                                   : "bg-rose-600 hover:bg-rose-500 text-white border-rose-400"

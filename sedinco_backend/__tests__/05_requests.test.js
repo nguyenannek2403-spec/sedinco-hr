@@ -12,7 +12,8 @@ const {
     cleanupQaData,
     snapshotSettings,
     restoreSettings,
-    query
+    query,
+    closeTestRuntime
 } = require('./_helpers');
 
 let srv;
@@ -46,9 +47,13 @@ test.before(async () => {
 });
 
 test.after(async () => {
-    await restoreSettings(snap);
-    await cleanupQaData('QA_', 2099);
-    if (srv) await srv.close();
+    try {
+        await restoreSettings(snap);
+        await cleanupQaData('QA_', 2099);
+    } finally {
+        if (srv) await srv.close();
+        await closeTestRuntime();
+    }
 });
 
 test('REQ-01: Leave balance tracking, duplicate-date conflict (409), 3/month comp limit & Paid leave (P) sync', async () => {

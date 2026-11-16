@@ -34,8 +34,15 @@ function getOrCreateDeviceId() {
 async function resolveZaloAndDeviceIdentity() {
   const device_id = getOrCreateDeviceId();
   let zalo_user_id = "";
+  let zalo_access_token = "";
   try {
-    const uInfo = await zmpAdapter.getUserInfo();
+    const [uInfo, tok] = await Promise.all([
+      zmpAdapter.getUserInfo().catch(() => null),
+      zmpAdapter.getAccessToken({ silent: true }).catch(() => "")
+    ]);
+    if (tok) {
+      zalo_access_token = String(tok);
+    }
     if (uInfo?.id) {
       zalo_user_id = String(uInfo.id);
       localStorage.setItem("sedinco_zalo_uid", zalo_user_id);
@@ -48,7 +55,7 @@ async function resolveZaloAndDeviceIdentity() {
       zalo_user_id = `ZALO_${device_id}`;
     }
   }
-  return { zalo_user_id, device_id };
+  return { zalo_user_id, zalo_access_token, device_id };
 }
 
 export function useAuth() {
@@ -78,7 +85,7 @@ export function useAuth() {
   });
 
   const [activeRole, setActiveRole] = useState(() => {
-    return currentUser?.role || ROLES.EMPLOYEE;
+    return currentUser?.role || ROLES.WORKER;
   });
 
   const [mustChangePassword, setMustChangePassword] = useState(() => {
@@ -97,7 +104,7 @@ export function useAuth() {
     setIsLoggingIn(true);
 
     try {
-      const { zalo_user_id, device_id } = await resolveZaloAndDeviceIdentity();
+      const { zalo_user_id, zalo_access_token, device_id } = await resolveZaloAndDeviceIdentity();
       let meta = null;
       try {
         meta = JSON.parse(localStorage.getItem(STORAGE_ZALO_LINK_META) || "null");
@@ -105,6 +112,8 @@ export function useAuth() {
 
       const res = await safePost("/auth/zalo-auto-login", {
         zalo_user_id,
+        zalo_access_token: zalo_access_token || undefined,
+        zalo_token: zalo_access_token || undefined,
         device_id,
         ma_nv: meta?.ma_nv || undefined
       });
@@ -140,6 +149,7 @@ export function useAuth() {
           dien_thoai: rawUser.dien_thoai || "0905123456",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
           role: resolvedRole,
+          dynamic_permissions: rawUser.dynamic_permissions || {},
           must_change_password: Boolean(rawUser.must_change_password),
           token: validToken
         };
@@ -192,7 +202,7 @@ export function useAuth() {
           const session = await resolveSession();
           if (isMounted && session?.isLinked && session?.user) {
             const user = session.user;
-            const role = user.role || ROLES.EMPLOYEE;
+            const role = user.role || ROLES.WORKER;
             setCurrentUser(user);
             setActiveRole(role);
             setMustChangePassword(Boolean(user.must_change_password));
@@ -221,7 +231,7 @@ export function useAuth() {
     localStorage.removeItem(STORAGE_TOKEN_KEY);
     sessionStorage.setItem("sedinco_manual_logout", "1");
     setCurrentUser(null);
-    setActiveRole(ROLES.EMPLOYEE);
+    setActiveRole(ROLES.WORKER);
     setMustChangePassword(false);
     return reasonMsg;
   }, []);
@@ -238,7 +248,7 @@ export function useAuth() {
       setAuthToken("");
       setCurrentUser(null);
       setLinkedZaloMeta(null);
-      setActiveRole(ROLES.EMPLOYEE);
+      setActiveRole(ROLES.WORKER);
       setMustChangePassword(false);
       setLoginError("");
     } catch (e) {
@@ -271,7 +281,7 @@ export function useAuth() {
     setIsLoggingIn(true);
 
     try {
-      const { zalo_user_id, device_id } = await resolveZaloAndDeviceIdentity();
+      const { zalo_user_id, zalo_access_token, device_id } = await resolveZaloAndDeviceIdentity();
 
       // 1. Kiểm tra tài khoản local cache cấp phát
       const storedAccounts = JSON.parse(localStorage.getItem(STORAGE_ACCOUNTS_KEY) || "{}");
@@ -283,7 +293,7 @@ export function useAuth() {
           throw new Error(msg);
         }
         if (acc.password === p) {
-          const resolvedRole = acc.role || ROLES.EMPLOYEE;
+          const resolvedRole = acc.role || ROLES.WORKER;
           const mockToken = `local_token_${Date.now()}`;
           setAuthToken(mockToken);
           localStorage.setItem(STORAGE_TOKEN_KEY, mockToken);
@@ -319,6 +329,8 @@ export function useAuth() {
         username: u,
         password: p,
         zalo_user_id,
+        zalo_access_token: zalo_access_token || undefined,
+        zalo_token: zalo_access_token || undefined,
         device_id
       }).catch((err) => err?.data || (err?.message ? { success: false, message: err.message } : null));
 
@@ -364,6 +376,7 @@ export function useAuth() {
           dien_thoai: rawUser.dien_thoai || "0905123456",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
           role: resolvedRole,
+          dynamic_permissions: rawUser.dynamic_permissions || {},
           must_change_password: Boolean(rawUser.must_change_password),
           token: validToken
         };

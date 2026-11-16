@@ -91,7 +91,7 @@ class EmployeeController {
 
     async bindZalo(req, res, next) {
         try {
-            const { zalo_token } = req.body;
+            const zalo_token = req.body?.zalo_token || req.body?.zalo_access_token || req.headers['x-zalo-access-token'];
             const ma_nv = req.user ? req.user.ma_nv : null;
             if (!ma_nv) {
                 return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });

@@ -391,21 +391,33 @@ class AttendanceService {
             }
         }
 
-        // 3. Kiểm tra xem nhân viên có đang bị TẠM KHÓA tài khoản không
+        // 3. Kiểm tra xem nhân viên có tồn tại / đang bị TẠM KHÓA tài khoản không
         if (ma_nv) {
             const empCheck = await query('SELECT is_locked, status FROM employees WHERE ma_nv = ?', [ma_nv]);
-            if (empCheck && empCheck.length > 0) {
-                const emp = empCheck[0];
-                if (emp.status === 'inactive' || emp.is_locked === 1 || emp.is_locked === true) {
-                    const error = new Error(`Tài khoản nhân viên ${ma_nv} đang bị TẠM KHÓA. Không thể thực hiện chấm công!`);
-                    error.statusCode = 403;
-                    throw error;
-                }
+            if (!empCheck || empCheck.length === 0) {
+                const error = new Error(`Không tìm thấy nhân viên ${ma_nv}!`);
+                error.statusCode = 404;
+                throw error;
+            }
+            const emp = empCheck[0];
+            if (emp.status === 'inactive' || emp.is_locked === 1 || emp.is_locked === true) {
+                const error = new Error(`Tài khoản nhân viên ${ma_nv} đang bị TẠM KHÓA. Không thể thực hiện chấm công!`);
+                error.statusCode = 403;
+                throw error;
             }
         }
 
         if (isDelete) {
             await query('DELETE FROM attendance_logs WHERE employee_id=? AND record_date=?', [ma_nv, dateStr]);
+            if (current_user) {
+                await logAuditEvent({
+                    actor_id: current_user.ma_nv || current_user.username || 'unknown',
+                    actor_role: current_user.role || 'unknown',
+                    action: 'DELETE_ATTENDANCE',
+                    resource: 'attendance',
+                    details: { ma_nv, record_date: dateStr }
+                });
+            }
             return { success: true };
         }
 
@@ -893,18 +905,20 @@ class AttendanceService {
             }
         }
 
-        if (current_user.role === 'worker' && deviceStr) {
+        if (current_user.role === 'worker') {
             const bindingMode = emp.device_binding_mode || 'recording';
-            if (!emp.bound_device_id) {
-                await query('UPDATE employees SET bound_device_id = ? WHERE ma_nv = ?', [deviceStr, ma_nv]);
-                emp.bound_device_id = deviceStr;
-            } else if (emp.bound_device_id !== deviceStr) {
-                if (bindingMode === 'enforced') {
-                    await triggerCriticalFraud(
-                        'UNREGISTERED_DEVICE',
-                        `Thiết bị lạ chưa được cấp phép (${deviceStr}) khác với thiết bị đã đăng ký (${emp.bound_device_id})`
-                    );
-                } else {
+            if (bindingMode === 'enforced' && emp.bound_device_id && (!deviceStr || emp.bound_device_id !== deviceStr)) {
+                await triggerCriticalFraud(
+                    'UNREGISTERED_DEVICE',
+                    deviceStr
+                        ? `Thiết bị lạ chưa được cấp phép (${deviceStr}) khác với thiết bị đã đăng ký (${emp.bound_device_id})`
+                        : `Thiếu định danh thiết bị ở chế độ bắt buộc khớp với thiết bị đã đăng ký (${emp.bound_device_id})`
+                );
+            } else if (deviceStr) {
+                if (!emp.bound_device_id) {
+                    await query('UPDATE employees SET bound_device_id = ? WHERE ma_nv = ?', [deviceStr, ma_nv]);
+                    emp.bound_device_id = deviceStr;
+                } else if (emp.bound_device_id !== deviceStr) {
                     is_suspicious = true;
                     suspicious_reason = `Phát hiện chấm công từ thiết bị lạ (${deviceStr}) khác với thiết bị đã đăng ký (${emp.bound_device_id})`;
                 }
@@ -968,8 +982,7 @@ class AttendanceService {
         }
 
         // 6. Kiểm tra kỳ công có bị khóa sổ không
-        const currentMonth = today.getMonth() + 1;
-        const currentYear = today.getFullYear();
+        const [currentYear, currentMonth] = dateStr.split('-').map(Number);
         const isLocked = await this.isPeriodLocked(currentMonth, currentYear);
         if (isLocked) {
             const error = new Error(`Kỳ công Tháng ${currentMonth}/${currentYear} đã bị KHÓA SỔ. Không thể chấm công!`);
@@ -1174,14 +1187,25 @@ class AttendanceService {
                 const rawWorkedMins = Math.max(0, currentMins - effectiveIn - lunchOverlap);
                 work_hours = Number((rawWorkedMins / 60).toFixed(2));
 
+                const policyTypeOut = String(cs.late_policy_type || 'PER_MINUTE').toUpperCase();
+                const maxLateHalfDayOut = Math.max(1, Number(cs.max_late_minutes_for_half_day ?? 60) || 60);
+                const wasDeductedHalfDayCheckIn = policyTypeOut === 'DEDUCT_WORKDAY'
+                    && existingLog.status === '0.5'
+                    && (Number(existingLog.late_minutes) || 0) > maxLateHalfDayOut;
+
                 if (currentMins < effectiveWorkEndMins) {
                     early_leave_minutes = effectiveWorkEndMins - currentMins;
-                    newStatus = work_hours > 0 && work_hours <= 4.5 ? '0.5' : (ot_hours > 0 ? '1/OT' : '1');
-                    shiftEvaluation = `Về sớm ${early_leave_minutes} phút • Tổng ${work_hours}h làm việc`;
+                    newStatus = (work_hours <= 4.5 || wasDeductedHalfDayCheckIn) ? '0.5' : (ot_hours > 0 ? '1/OT' : '1');
+                    shiftEvaluation = `Về sớm ${early_leave_minutes} phút • Tổng ${work_hours}h làm việc${wasDeductedHalfDayCheckIn ? ' (Giữ 0.5 công do đi trễ vượt ngưỡng)' : ''}`;
                 } else {
                     early_leave_minutes = 0;
                     const extraMins = currentMins - effectiveWorkEndMins;
-                    if (extraMins >= 30) {
+                    if (wasDeductedHalfDayCheckIn || work_hours <= 4.5) {
+                        newStatus = '0.5';
+                        shiftEvaluation = wasDeductedHalfDayCheckIn
+                            ? `Tổng ${work_hours}h làm việc (Giữ 0.5 công do đi trễ vượt ngưỡng)`
+                            : `Tổng ${work_hours}h làm việc (< 4.5h — ghi nhận 0.5 công)`;
+                    } else if (extraMins >= 30) {
                         const autoOt = Number((extraMins / 60).toFixed(2));
                         ot_hours = Math.max(ot_hours, autoOt);
                         newStatus = '1/OT';

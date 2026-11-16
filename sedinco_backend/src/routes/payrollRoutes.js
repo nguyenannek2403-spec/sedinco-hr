@@ -22,19 +22,19 @@ router.post('/calculate', authenticateToken, requirePermission('payroll_calculat
 router.get('/calculate', authenticateToken, requirePermission('payroll_calculate'), (req, res, next) => payrollController.calculatePayroll(req, res, next));
 router.post('/adjustments', authenticateToken, requirePermission('payroll_calculate'), idempotencyMiddleware(), (req, res, next) => payrollController.adjustSalary(req, res, next));
 
-// 4. Phê duyệt bảng lương chính thức (Yêu cầu permission: payroll_approve)
+// 4. Phê duyệt / Trả lại bảng lương chính thức (Yêu cầu permission: payroll_approve)
 router.post('/approve', authenticateToken, requirePermission('payroll_approve'), (req, res, next) => payrollController.approvePayroll(req, res, next));
 router.post('/save', authenticateToken, requirePermission('payroll_approve'), (req, res, next) => payrollController.approvePayroll(req, res, next));
+router.post('/reject', authenticateToken, requirePermission('payroll_approve'), (req, res, next) => payrollController.rejectPayroll(req, res, next));
 
 // 5. Xuất bảng lương CSV (Endpoint 22 trong DOCS/PROJECT.MD)
 router.get('/export', authenticateToken, requirePermission('payroll_export'), (req, res, next) => payrollController.exportPayroll(req, res, next));
 
 // 6. Cập nhật trạng thái chi trả lương (Yêu cầu permission: payroll_payment_status_manage)
 router.put('/payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), (req, res, next) => payrollController.updatePaymentStatus(req, res, next));
+router.post('/payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), (req, res, next) => payrollController.updatePaymentStatus(req, res, next));
 
-// 7. Danh sách trạng thái chi trả (Yêu cầu permission: payroll_view_all)
-router.get('/status-list', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => {
-    return res.json({ success: true, data: [] });
-});
+// 7. Danh sách trạng thái kỳ lương & chi trả (Yêu cầu permission: payroll_view_all)
+router.get('/status-list', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => payrollController.getPayrollStatusList(req, res, next));
 
 module.exports = router;

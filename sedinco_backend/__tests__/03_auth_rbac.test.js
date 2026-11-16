@@ -13,7 +13,8 @@ const {
     cleanupQaData,
     snapshotSettings,
     restoreSettings,
-    query
+    query,
+    closeTestRuntime
 } = require('./_helpers');
 
 let srv;
@@ -50,9 +51,13 @@ test.before(async () => {
 });
 
 test.after(async () => {
-    await restoreSettings(snap);
-    await cleanupQaData('QA_', 2099);
-    if (srv) await srv.close();
+    try {
+        await restoreSettings(snap);
+        await cleanupQaData('QA_', 2099);
+    } finally {
+        if (srv) await srv.close();
+        await closeTestRuntime();
+    }
 });
 
 test('AUTH-01: Reject unauthenticated, malformed, alg=none, expired, and tampered JWTs', async () => {
@@ -98,7 +103,12 @@ test('AUTH-03: Zalo bind-zalo + zalo-auto-login roundtrip must succeed end-to-en
     assert.equal(bindRes.status, 200, `bind-zalo failed: ${bindRes.raw}`);
 
     const autoRes = await apiRequest(baseUrl, 'POST', '/api/auth/zalo-auto-login', {
-        body: { zalo_user_id: 'qa_bind_01', ma_nv: 'QA_WKR_1', device_id: 'QA_DEV_01' }
+        body: {
+            zalo_access_token: 'mock_zalo_user_qa_bind_01',
+            zalo_user_id: 'qa_bind_01',
+            ma_nv: 'QA_WKR_1',
+            device_id: 'QA_DEV_01'
+        }
     });
     assert.equal(autoRes.status, 200, `zalo-auto-login must recognize bound Zalo ID (got ${autoRes.status}: ${autoRes.raw})`);
     assert.ok(autoRes.json?.data?.token);

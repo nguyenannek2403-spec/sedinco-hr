@@ -39,6 +39,7 @@ async function initDatabase() {
         await query("ALTER TABLE employees ADD COLUMN device_binding_mode VARCHAR(20) DEFAULT 'recording'").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN pending_device_id VARCHAR(100) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN device_change_reason TEXT NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN token_version INT NOT NULL DEFAULT 1").catch(() => {});
         
         // Migrate dữ liệu role ban đầu từ chức danh (CHỈ thực hiện một lần khi role chưa được thiết lập)
         await query(`
@@ -192,6 +193,7 @@ async function initDatabase() {
         )`);
         await query("ALTER TABLE admins MODIFY COLUMN password VARCHAR(255) NOT NULL").catch(() => {});
         await query("ALTER TABLE admins ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE").catch(() => {});
+        await query("ALTER TABLE admins ADD COLUMN token_version INT NOT NULL DEFAULT 1").catch(() => {});
         if (process.env.NODE_ENV === 'test') {
             const adminCount = await query('SELECT COUNT(*) as cnt FROM admins');
             if (adminCount && adminCount[0].cnt === 0) {
@@ -389,6 +391,24 @@ async function initDatabase() {
         await query("ALTER TABLE requests ADD COLUMN evidence_image MEDIUMTEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN proxy_by VARCHAR(50) NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN proxy_note VARCHAR(255) NULL").catch(() => {});
+
+        // V13 Production Release: Bảng lưu bền vững Trạng thái Kỳ lương & Chi trả lương (payroll_periods)
+        await query(`CREATE TABLE IF NOT EXISTS payroll_periods (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            month INT NOT NULL,
+            year INT NOT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+            payment_status VARCHAR(30) NOT NULL DEFAULT 'UNPAID',
+            approved_by VARCHAR(50) NULL,
+            approved_at DATETIME NULL,
+            rejected_by VARCHAR(50) NULL,
+            rejected_reason TEXT NULL,
+            rejected_at DATETIME NULL,
+            paid_by VARCHAR(50) NULL,
+            paid_at DATETIME NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_payroll_period (month, year)
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
 
         // Khởi tạo Điểm 1 mặc định trong allowed_locations từ latitude/longitude hiện tại nếu chưa có
         const csRows = await query("SELECT id, latitude, longitude, radius_meters, allowed_locations FROM company_settings LIMIT 1").catch(() => []);

@@ -104,13 +104,14 @@ export default function AccountantPermissionView({ showToast }) {
       Object.keys(updated).forEach(k => {
         updated[k] = false;
       });
-      // Áp dụng 13 quyền chuẩn mặc định
+      // Áp dụng bộ quyền chuẩn mặc định
       Object.entries(DEFAULT_PRESETS).forEach(([k, v]) => {
         updated[k] = v;
       });
       return updated;
     });
-    const infoMsg = "Đã nạp bộ 13 quyền Kế toán mặc định (Chưa lưu vào DB. Nhấn 'Lưu phân quyền' để áp dụng).";
+    const presetCount = Object.keys(DEFAULT_PRESETS).length;
+    const infoMsg = `Đã nạp bộ ${presetCount} quyền Kế toán mặc định (Chưa lưu vào DB. Nhấn 'Lưu phân quyền' để áp dụng).`;
     setMessage({ type: "info", text: infoMsg });
     if (showToast) showToast(infoMsg, "info");
   };
@@ -171,7 +172,7 @@ export default function AccountantPermissionView({ showToast }) {
             type="button"
             onClick={handleApplyPreset}
             disabled={saving || loading}
-            className="min-h-[42px] px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-xl border border-slate-700 transition flex items-center gap-2 shadow-sm disabled:opacity-50 whitespace-nowrap"
+            className="min-h-[44px] px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-xl border border-slate-700 transition flex items-center gap-2 shadow-sm disabled:opacity-50 whitespace-nowrap"
           >
             <RotateCcw className="w-4 h-4 shrink-0" />
             <span>Cấu hình mặc định</span>
@@ -180,7 +181,7 @@ export default function AccountantPermissionView({ showToast }) {
             type="button"
             onClick={handleSave}
             disabled={saving || loading}
-            className="min-h-[42px] px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center gap-2 disabled:opacity-50 whitespace-nowrap"
+            className="min-h-[44px] px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center gap-2 disabled:opacity-50 whitespace-nowrap"
           >
             <Save className="w-4 h-4 shrink-0" />
             <span>{saving ? "Đang lưu..." : "Lưu phân quyền"}</span>

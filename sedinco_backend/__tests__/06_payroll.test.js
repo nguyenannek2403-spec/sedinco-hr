@@ -13,7 +13,8 @@ const {
     cleanupQaData,
     snapshotSettings,
     restoreSettings,
-    query
+    query,
+    closeTestRuntime
 } = require('./_helpers');
 
 let srv;
@@ -51,9 +52,13 @@ test.before(async () => {
 });
 
 test.after(async () => {
-    await restoreSettings(snap);
-    await cleanupQaData('QA_', 2099);
-    if (srv) await srv.close();
+    try {
+        await restoreSettings(snap);
+        await cleanupQaData('QA_', 2099);
+    } finally {
+        if (srv) await srv.close();
+        await closeTestRuntime();
+    }
 });
 
 test('PAY-01: Paid Annual Leave (P) & Public Holiday (L) credit 1.0 workday in payrollCalculator', () => {

@@ -261,10 +261,10 @@ export const safeGet = async (endpoint, params = {}, options = {}) => {
       signal: controller.signal,
       ...options
     });
-    activeRequests.delete(key);
+    if (activeRequests.get(key) === controller) activeRequests.delete(key);
     return res.data;
   } catch (err) {
-    activeRequests.delete(key);
+    if (activeRequests.get(key) === controller) activeRequests.delete(key);
     throw err;
   }
 };

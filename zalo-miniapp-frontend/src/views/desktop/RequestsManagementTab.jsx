@@ -30,7 +30,31 @@ const getStatusBadge = (status) => {
   return { bg: "bg-amber-500/15 text-amber-400 border-amber-500/30", icon: Clock, text: "Chờ duyệt" };
 };
 
-export default function RequestsManagementTab({ currentUser, showToast }) {
+export default function RequestsManagementTab({
+  currentUser,
+  showToast,
+  activeRole,
+  dynamicPerms = {}
+}) {
+  const effectiveRole = activeRole || currentUser?.role || "admin";
+  const canApproveRequest = useCallback(
+    (req) => {
+      if (effectiveRole !== "accountant") return effectiveRole === "admin";
+      const t = String(req?.request_type || req?.type || "").toUpperCase();
+      if (
+        t.includes("ATTEND") ||
+        t.includes("CHECK") ||
+        t.includes("COMPENS") ||
+        t.includes("LATE") ||
+        t.includes("FORGOT") ||
+        t === "OT"
+      ) {
+        return dynamicPerms?.attendance_request_approve === true;
+      }
+      return dynamicPerms?.leave_approve === true;
+    },
+    [effectiveRole, dynamicPerms]
+  );
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -121,7 +145,12 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
   };
 
   const eligiblePendingIds = requests
-    .filter((r) => String(r.status).toUpperCase() === "PENDING" && r.ma_nv !== currentUser?.ma_nv)
+    .filter(
+      (r) =>
+        String(r.status).toUpperCase() === "PENDING" &&
+        r.ma_nv !== currentUser?.ma_nv &&
+        canApproveRequest(r)
+    )
     .map((r) => r.id);
 
   const handleBatchApprove = () => {
@@ -194,7 +223,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm mã NV, họ tên..."
-              className="w-full sm:w-48 bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full sm:w-48 min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -205,7 +234,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                 key={st}
                 type="button"
                 onClick={() => setFilterStatus(st)}
-                className={`px-3 py-1.5 font-medium rounded-lg whitespace-nowrap shrink-0 transition-all ${
+                className={`min-h-[44px] px-3 py-2 font-medium rounded-lg whitespace-nowrap shrink-0 transition-all ${
                   filterStatus === st
                     ? "bg-blue-600 text-white shadow-sm"
                     : "text-slate-400 hover:text-white"
@@ -220,8 +249,9 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
             type="button"
             onClick={fetchRequests}
             disabled={loading}
-            className="min-h-[42px] px-3 bg-slate-700/60 hover:bg-slate-700 text-slate-200 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-medium whitespace-nowrap"
+            className="min-h-[44px] min-w-[44px] px-3 bg-slate-700/60 hover:bg-slate-700 text-slate-200 rounded-xl transition-colors flex items-center justify-center gap-1.5 text-xs font-medium whitespace-nowrap"
             title="Làm mới"
+            aria-label="Làm mới danh sách đơn"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-blue-400" : ""}`} />
             <span className="sm:hidden">Tải lại</span>
@@ -232,7 +262,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
               type="button"
               disabled={batchApproving}
               onClick={handleBatchApprove}
-              className="w-full sm:w-auto min-h-[42px] px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/25 cursor-pointer whitespace-nowrap disabled:opacity-50"
+              className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/25 cursor-pointer whitespace-nowrap disabled:opacity-50"
             >
               {batchApproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
               <span>
@@ -325,6 +355,10 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                         <div className="text-xs text-amber-400 italic font-semibold leading-snug">
                           (Đơn của bạn — Cần quản lý khác xét duyệt)
                         </div>
+                      ) : !canApproveRequest(req) ? (
+                        <div className="text-xs text-slate-400 italic font-medium leading-snug">
+                          (Chế độ chỉ xem — Chưa được cấp quyền phê duyệt loại đơn này)
+                        </div>
                       ) : (
                         <div className="grid grid-cols-2 gap-2.5 pt-1">
                           <button
@@ -377,7 +411,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                     <tr key={req.id} className="hover:bg-slate-700/30 transition-colors">
                       <td className="p-3.5 pl-5">
                         <div className="font-bold text-white">{req.ho_ten || req.ma_nv}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{req.ma_nv}</div>
+                        <div className="text-xs text-slate-400 font-mono">{req.ma_nv}</div>
                       </td>
                       <td className="p-3.5 font-semibold text-slate-200">
                         <div>{getRequestTypeLabel(req.request_type || req.type)}</div>
@@ -421,12 +455,16 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                             <span className="text-xs text-amber-400 italic font-semibold">
                               (Đơn của bạn — Cần quản lý khác duyệt)
                             </span>
+                          ) : !canApproveRequest(req) ? (
+                            <span className="text-xs text-slate-400 italic font-medium">
+                              (Chỉ xem — Chưa cấp quyền duyệt)
+                            </span>
                           ) : (
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => handleAction(req.id, "approved", req.ma_nv)}
                                 disabled={isOperating}
-                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors flex items-center gap-1 shadow-md shadow-emerald-600/20 disabled:opacity-50"
+                                className="min-h-[44px] px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors flex items-center gap-1 shadow-md shadow-emerald-600/20 disabled:opacity-50"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 Duyệt
@@ -434,7 +472,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                               <button
                                 onClick={() => handleAction(req.id, "rejected", req.ma_nv)}
                                 disabled={isOperating}
-                                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg transition-colors flex items-center gap-1 shadow-md shadow-rose-600/20 disabled:opacity-50"
+                                className="min-h-[44px] px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg transition-colors flex items-center gap-1 shadow-md shadow-rose-600/20 disabled:opacity-50"
                               >
                                 <XCircle className="w-3.5 h-3.5" />
                                 Từ chối
@@ -442,7 +480,7 @@ export default function RequestsManagementTab({ currentUser, showToast }) {
                             </div>
                           )
                         ) : (
-                          <span className="text-slate-500 text-[11px]">Đã xử lý</span>
+                          <span className="text-slate-400 text-xs">Đã xử lý</span>
                         )}
                       </td>
                     </tr>

@@ -35,11 +35,18 @@ export const realSdkAdapter = {
     }
   },
 
-  async getAccessToken() {
+  async getAccessToken({ silent = false } = {}) {
     try {
-      const token = await zmpGetAccessToken({});
+      if (typeof zmpGetAccessToken !== "function") {
+        return "";
+      }
+      const res = await zmpGetAccessToken({});
+      const token = typeof res === "string" ? res : (res?.accessToken || res?.token || "");
       return token || "";
     } catch (err) {
+      if (silent) {
+        return "";
+      }
       console.warn("[RealSDK] getAccessToken error:", err);
       throw {
         code: "AUTH_TOKEN_FAILED",

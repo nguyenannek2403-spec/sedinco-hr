@@ -1,6 +1,16 @@
 const { query, withTransaction } = require('../config/db');
 const attendanceService = require('./attendanceService');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
+const { getVietnamDateString } = require('../utils/timeHelper');
+
+function extractIsoDateStr(val) {
+    if (!val) return null;
+    if (typeof val === 'string') {
+        const m = val.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1];
+    }
+    return getVietnamDateString(new Date(val));
+}
 
 function classifyRequestCategory(requestType) {
     const t = String(requestType || '').trim().toLowerCase();
@@ -379,7 +389,16 @@ class RequestService {
                     SELECT COUNT(*) as cnt 
                     FROM requests 
                     WHERE employee_id = ? 
-                      AND (LOWER(request_type) LIKE '%cập nhật công%' OR LOWER(request_type) LIKE '%quên chấm công%' OR LOWER(request_type) LIKE '%bổ sung%')
+                      AND (
+                        LOWER(request_type) LIKE '%cập nhật công%'
+                        OR LOWER(request_type) LIKE '%quên chấm công%'
+                        OR LOWER(request_type) LIKE '%bổ sung%'
+                        OR LOWER(request_type) LIKE '%giờ ra%'
+                        OR LOWER(request_type) = 'ct'
+                        OR LOWER(request_type) LIKE '%forgot_checkin%'
+                        OR LOWER(request_type) LIKE '%late_early%'
+                        OR LOWER(request_type) LIKE '%compensation%'
+                      )
                       AND MONTH(request_date) = ? AND YEAR(request_date) = ?
                       AND status != 'cancelled'
                 `, [targetId, Number(mStr), Number(yStr)]);
@@ -472,11 +491,8 @@ class RequestService {
                 throw error;
             }
 
-            const dateObj = new Date(row.request_date);
-            const year = dateObj.getFullYear();
-            const month = dateObj.getMonth() + 1;
-            const day = dateObj.getDate();
-            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dateStr = extractIsoDateStr(row.request_date);
+            const [year, month, day] = dateStr.split('-').map(Number);
 
             // 3. Kiểm tra xem kỳ công của ngày này có bị khóa sổ không
             const lockRows = await txQuery(
@@ -613,14 +629,18 @@ class RequestService {
                     }
                 }
             } else if (normalizedStatus === 'rejected') {
-                if (!isSalaryAdvance) {
+                const reqCat = classifyRequestCategory(row.request_type);
+                if (!isSalaryAdvance && reqCat === 'LEAVE') {
                     const isHalfDay = type.includes('nửa ngày') || type.includes('0.5') || type.includes('buổi');
                     const absentStatus = isHalfDay ? '0.5' : 'V';
                     await txQuery(
                         `INSERT INTO attendance_logs (employee_id, record_date, status)
                          VALUES (?, ?, ?)
-                         ON DUPLICATE KEY UPDATE status = ?`,
-                        [row.employee_id, dateStr, absentStatus, absentStatus]
+                         ON DUPLICATE KEY UPDATE status = CASE
+                            WHEN check_in_time IS NOT NULL OR status IN ('1', '1/OT', 'OT', 'P', 'L') THEN status
+                            ELSE VALUES(status)
+                         END`,
+                        [row.employee_id, dateStr, absentStatus]
                     );
                 }
             }
@@ -815,9 +835,8 @@ class RequestService {
             }
 
             if (row.work_date) {
-                const dObj = new Date(row.work_date);
-                const m = dObj.getMonth() + 1;
-                const y = dObj.getFullYear();
+                const wdStr = extractIsoDateStr(row.work_date);
+                const [y, m] = wdStr.split('-').map(Number);
                 const lockRows = await txQuery('SELECT is_locked FROM period_locks WHERE month = ? AND year = ? LIMIT 1', [m, y]);
                 if (lockRows && lockRows.length > 0 && Boolean(lockRows[0].is_locked)) {
                     const error = new Error(`Kỳ công Tháng ${m}/${y} đã bị KHÓA SỔ. Không thể duyệt đơn OT!`);
@@ -838,8 +857,7 @@ class RequestService {
             }
 
             if (normalizedStatus === 'approved' && row.work_date) {
-                const dObj = new Date(row.work_date);
-                const dateStr = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+                const dateStr = extractIsoDateStr(row.work_date);
                 const logRes = await txQuery('SELECT status FROM attendance_logs WHERE employee_id = ? AND record_date = ? FOR UPDATE', [row.employee_id, dateStr]);
                 let newStatus = 'OT';
                 if (logRes && logRes.length > 0 && logRes[0].status === '1') {

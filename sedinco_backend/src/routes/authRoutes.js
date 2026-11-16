@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { authenticateToken, requireAuth } = require('../middlewares/authMiddleware');
+const { authenticateToken, requireAuth, requireRole } = require('../middlewares/authMiddleware');
 
-// Public & Protected registration
+// Public & Protected auth endpoints
 router.post('/login', (req, res, next) => authController.login(req, res, next));
 router.post('/auth/zalo-auto-login', (req, res, next) => authController.zaloAutoLogin(req, res, next));
 router.post('/zalo-auto-login', (req, res, next) => authController.zaloAutoLogin(req, res, next));
 router.post('/admin/login', (req, res, next) => authController.adminLogin(req, res, next));
-router.post('/admin/register', authenticateToken, (req, res, next) => authController.adminRegister(req, res, next));
+router.post('/admin/register', authenticateToken, requireAuth, requireRole('admin'), (req, res, next) => authController.adminRegister(req, res, next));
 
 // Protected endpoints
 router.get('/me', authenticateToken, requireAuth, (req, res, next) => authController.getProfile(req, res, next));

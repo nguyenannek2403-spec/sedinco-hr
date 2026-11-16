@@ -32,7 +32,7 @@ export default function DesktopHeader({
   const fraudCount = Number(alertsSummary?.fraud_count) || 0;
   const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
   const deviceCount = Number(alertsSummary?.pending_device_count) || 0;
-  const totalRedAlerts = fraudCount + disputedCount + deviceCount;
+  const totalRedAlerts = disputedCount + (activeRole === ROLES.ADMIN ? fraudCount + deviceCount : 0);
 
   const getTabTitle = () => {
     switch (currentTab) {
@@ -76,7 +76,8 @@ export default function DesktopHeader({
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            className="lg:hidden min-w-[40px] min-h-[40px] p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center shrink-0"
+            className="lg:hidden min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center shrink-0"
+            aria-label="Mở danh mục quản trị"
             title="Mở danh mục quản trị"
           >
             <Menu size={18} />
@@ -268,7 +269,7 @@ export default function DesktopHeader({
                       <span className="text-xs font-black text-indigo-300">
                         📱 {deviceCount} Yêu cầu đổi thiết bị chờ duyệt
                       </span>
-                      <span className="text-[10px] font-bold text-indigo-200 underline">Xét duyệt</span>
+                      <span className="text-xs font-bold text-indigo-200 underline">Xét duyệt</span>
                     </div>
                   </button>
                 )}

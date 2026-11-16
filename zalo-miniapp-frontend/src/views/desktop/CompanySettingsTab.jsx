@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Clock,
   MapPin,
@@ -13,10 +13,10 @@ import {
   ChevronUp,
   CheckCircle2,
   AlertCircle,
-  Loader2,
   Building2,
 } from "lucide-react";
 import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
+import { AppButton, FormRow, SkeletonList } from "../../components/ui";
 
 const toNum = (val, fallback) => {
   if (val === "" || val === null || val === undefined) return fallback;
@@ -69,9 +69,6 @@ export default function CompanySettingsTab({ showToast }) {
   const [saving, setSaving] = useState(false);
   const [savingWifi, setSavingWifi] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const savingRef = useRef(false);
-  const savingWifiRef = useRef(false);
-  const resettingRef = useRef(false);
   const [detectingLocIdx, setDetectingLocIdx] = useState(null);
   const [statusBanner, setStatusBanner] = useState(null);
   const [openSections, setOpenSections] = useState({
@@ -241,8 +238,6 @@ export default function CompanySettingsTab({ showToast }) {
   };
 
   const handleSaveWifiIp = async () => {
-    if (savingWifiRef.current) return;
-    savingWifiRef.current = true;
     setSavingWifi(true);
     try {
       const res = await safePost("/company/save-wifi-ip", {}, {
@@ -255,14 +250,11 @@ export default function CompanySettingsTab({ showToast }) {
     } catch (err) {
       notify(err?.message || "Không thể lưu mạng Wi-Fi hiện tại", "error");
     } finally {
-      savingWifiRef.current = false;
       setSavingWifi(false);
     }
   };
 
   const handleSave = async () => {
-    if (savingRef.current) return;
-    savingRef.current = true;
     setSaving(true);
     try {
       const cleanedLocations = (config.allowed_locations || []).map((loc, idx) => ({
@@ -326,14 +318,11 @@ export default function CompanySettingsTab({ showToast }) {
     } catch (err) {
       notify(err?.message || "Lỗi khi lưu cấu hình. Vui lòng thử lại!", "error");
     } finally {
-      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const handleResetDefaults = async () => {
-    if (resettingRef.current) return;
-    resettingRef.current = true;
     setResetting(true);
     try {
       const res = await safePost("/company/reset-defaults", {}, {
@@ -353,16 +342,14 @@ export default function CompanySettingsTab({ showToast }) {
     } catch (err) {
       notify(err?.message || "Không thể khôi phục mặc định", "error");
     } finally {
-      resettingRef.current = false;
       setResetting(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-slate-500">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-3" />
-        <p className="text-sm font-medium">Đang tải cài đặt công ty...</p>
+      <div className="max-w-3xl mx-auto py-4">
+        <SkeletonList rows={4} label="Đang tải cài đặt công ty..." />
       </div>
     );
   }
@@ -440,50 +427,38 @@ export default function CompanySettingsTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl bg-slate-50/70 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 px-3.5 py-3">
-            <label className="text-sm font-semibold text-slate-700 leading-snug">
-              Giờ bắt đầu làm việc
-            </label>
+          <FormRow label="Giờ bắt đầu làm việc">
             <input
               type="time"
               value={config.work_start || "08:00"}
               onChange={(e) => updateField("work_start", e.target.value)}
-              className="w-32 sm:w-36 shrink-0 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-32 sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
-          </div>
-          <div className="flex items-center justify-between gap-3 px-3.5 py-3">
-            <label className="text-sm font-semibold text-slate-700 leading-snug">
-              Giờ tan ca
-            </label>
+          </FormRow>
+          <FormRow label="Giờ tan ca">
             <input
               type="time"
               value={config.work_end || "17:30"}
               onChange={(e) => updateField("work_end", e.target.value)}
-              className="w-32 sm:w-36 shrink-0 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-32 sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
-          </div>
-          <div className="flex items-center justify-between gap-3 px-3.5 py-3">
-            <label className="text-sm font-semibold text-slate-700 leading-snug">
-              Bắt đầu nghỉ trưa
-            </label>
+          </FormRow>
+          <FormRow label="Bắt đầu nghỉ trưa">
             <input
               type="time"
               value={config.lunch_start || "12:00"}
               onChange={(e) => updateField("lunch_start", e.target.value)}
-              className="w-32 sm:w-36 shrink-0 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-32 sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
-          </div>
-          <div className="flex items-center justify-between gap-3 px-3.5 py-3">
-            <label className="text-sm font-semibold text-slate-700 leading-snug">
-              Kết thúc nghỉ trưa
-            </label>
+          </FormRow>
+          <FormRow label="Kết thúc nghỉ trưa">
             <input
               type="time"
               value={config.lunch_end || "13:30"}
               onChange={(e) => updateField("lunch_end", e.target.value)}
-              className="w-32 sm:w-36 shrink-0 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-32 sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
-          </div>
+          </FormRow>
         </div>
 
         <div>
@@ -497,7 +472,7 @@ export default function CompanySettingsTab({ showToast }) {
             onChange={(e) => updateField("grace_period_minutes", e.target.value)}
             className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
           />
-          <p className="text-[11px] text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Ví dụ: nhập 15 nghĩa là nhân viên vào trễ trong vòng 15 phút đầu vẫn được tính đúng giờ.
           </p>
         </div>
@@ -565,28 +540,24 @@ export default function CompanySettingsTab({ showToast }) {
                   Địa điểm #{idx + 1}
                 </span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="success"
+                    icon={Navigation}
+                    loading={detectingLocIdx === idx}
                     onClick={() => handleUseCurrentGps(idx)}
-                    disabled={detectingLocIdx === idx}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold active:scale-95 disabled:opacity-60 min-h-[36px]"
+                    className="text-xs px-3 py-2"
                   >
-                    {detectingLocIdx === idx ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Navigation className="w-3.5 h-3.5" />
-                    )}
                     Lấy vị trí tôi đang đứng
-                  </button>
+                  </AppButton>
                   {(config.allowed_locations || []).length > 1 && (
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="ghost"
                       onClick={() => handleRemoveLocation(idx)}
-                      className="w-9 h-9 rounded-lg border border-red-200 bg-white text-red-600 flex items-center justify-center hover:bg-red-50"
+                      className="min-w-[44px] min-h-[44px] px-2.5 border border-red-200 bg-white text-red-600 hover:bg-red-50"
                       aria-label="Xóa địa điểm"
                     >
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </AppButton>
                   )}
                 </div>
               </div>
@@ -599,13 +570,13 @@ export default function CompanySettingsTab({ showToast }) {
                   type="text"
                   value={loc.name || ""}
                   onChange={(e) => handleLocationChange(idx, "name", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 focus:border-blue-500 focus:outline-none"
+                  className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
                     Vĩ độ
                   </label>
                   <input
@@ -613,11 +584,11 @@ export default function CompanySettingsTab({ showToast }) {
                     step="any"
                     value={loc.lat ?? ""}
                     onChange={(e) => handleLocationChange(idx, "lat", e.target.value)}
-                    className="w-full h-10 px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none"
+                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
                     Kinh độ
                   </label>
                   <input
@@ -625,11 +596,11 @@ export default function CompanySettingsTab({ showToast }) {
                     step="any"
                     value={loc.lng ?? ""}
                     onChange={(e) => handleLocationChange(idx, "lng", e.target.value)}
-                    className="w-full h-10 px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none"
+                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
                     Bán kính (mét)
                   </label>
                   <input
@@ -637,21 +608,22 @@ export default function CompanySettingsTab({ showToast }) {
                     min="20"
                     value={loc.radius ?? 300}
                     onChange={(e) => handleLocationChange(idx, "radius", e.target.value)}
-                    className="w-full h-10 px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
             </div>
           ))}
 
-          <button
-            type="button"
+          <AppButton
+            variant="ghost"
+            fullWidth
+            icon={Plus}
             onClick={handleAddLocation}
-            className="w-full h-11 rounded-xl border border-dashed border-emerald-400 bg-emerald-50/50 text-emerald-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-emerald-50"
+            className="border border-dashed border-emerald-400 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-50"
           >
-            <Plus className="w-4 h-4" />
             Thêm chi nhánh / công trình mới
-          </button>
+          </AppButton>
         </div>
 
         <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
@@ -660,15 +632,15 @@ export default function CompanySettingsTab({ showToast }) {
               <Wifi className="w-4 h-4" />
               <span>Chấm công nhanh bằng Wi-Fi công ty</span>
             </div>
-            <button
-              type="button"
+            <AppButton
+              variant="primary"
+              icon={Wifi}
+              loading={savingWifi}
               onClick={handleSaveWifiIp}
-              disabled={savingWifi}
-              className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold flex items-center gap-1.5 min-h-[36px] disabled:opacity-60"
+              className="text-xs px-3 py-2"
             >
-              {savingWifi ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5" />}
               Lưu Wi-Fi đang kết nối
-            </button>
+            </AppButton>
           </div>
           <p className="text-xs text-slate-600">
             Địa chỉ mạng hiện tại của bạn:{" "}
@@ -683,7 +655,7 @@ export default function CompanySettingsTab({ showToast }) {
               value={config.office_ip_whitelist || ""}
               onChange={(e) => updateField("office_ip_whitelist", e.target.value)}
               placeholder="Bấm nút Lưu Wi-Fi đang kết nối để tự điền"
-              className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+              className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
             />
           </div>
         </div>
@@ -751,7 +723,7 @@ export default function CompanySettingsTab({ showToast }) {
               onChange={(e) => updateField("custom_ot_hourly_rate", e.target.value)}
               className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
             />
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Nhập 0 nếu tính theo hệ số bên dưới.
             </p>
           </div>
@@ -759,7 +731,7 @@ export default function CompanySettingsTab({ showToast }) {
 
         <div className="grid grid-cols-3 gap-2.5">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
               Hệ số ngày thường
             </label>
             <input
@@ -768,11 +740,11 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.1"
               value={config.ot_rate_weekday ?? 1.5}
               onChange={(e) => updateField("ot_rate_weekday", e.target.value)}
-              className="w-full h-10 px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
               Hệ số cuối tuần
             </label>
             <input
@@ -781,11 +753,11 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.1"
               value={config.ot_rate_weekend ?? 2.0}
               onChange={(e) => updateField("ot_rate_weekend", e.target.value)}
-              className="w-full h-10 px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
               Hệ số ngày lễ
             </label>
             <input
@@ -794,7 +766,7 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.1"
               value={config.ot_rate_holiday ?? 3.0}
               onChange={(e) => updateField("ot_rate_holiday", e.target.value)}
-              className="w-full h-10 px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
             />
           </div>
         </div>
@@ -906,25 +878,28 @@ export default function CompanySettingsTab({ showToast }) {
         className="sticky bottom-0 z-20 bg-white/95 backdrop-blur border-t border-slate-200 -mx-2 px-3 py-3 rounded-t-2xl shadow-lg flex items-center justify-between gap-3"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
       >
-        <button
-          type="button"
+        <AppButton
+          variant="secondary"
+          icon={RotateCcw}
+          loading={resetting}
+          disabled={saving}
           onClick={handleResetDefaults}
-          disabled={resetting || saving}
-          className="h-11 px-4 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-slate-50 active:scale-95 disabled:opacity-60"
+          className="text-xs sm:text-sm"
         >
-          {resetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
           Khôi phục mặc định
-        </button>
+        </AppButton>
 
-        <button
-          type="button"
+        <AppButton
+          variant="primary"
+          icon={Save}
+          loading={saving}
+          disabled={resetting}
+          loadingText="Đang lưu..."
           onClick={handleSave}
-          disabled={saving || resetting}
-          className="flex-1 sm:flex-none h-11 px-6 rounded-xl bg-blue-600 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-blue-700 active:scale-95 disabled:opacity-60"
+          className="flex-1 sm:flex-none px-6"
         >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Lưu cấu hình
-        </button>
+        </AppButton>
       </div>
     </div>
   );

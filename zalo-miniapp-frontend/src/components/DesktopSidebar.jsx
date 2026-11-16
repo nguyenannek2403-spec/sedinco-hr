@@ -24,6 +24,7 @@ import CompanyLogo from "./CompanyLogo";
 export default function DesktopSidebar({
   currentUser,
   activeRole,
+  dynamicPerms = {},
   onRoleSwitch,
   currentTab,
   setCurrentTab,
@@ -87,26 +88,35 @@ export default function DesktopSidebar({
     }
 
     if (activeRole === ROLES.ACCOUNTANT) {
-      return [
-        { id: "matrix", label: "Bảng Công Kỳ Lương", shortLabel: "Bảng công", icon: Calendar, badge: "Chốt sổ" },
-        {
+      const items = [];
+      if (dynamicPerms.attendance_view_all !== false) {
+        items.push({ id: "matrix", label: "Bảng Công Kỳ Lương", shortLabel: "Bảng công", icon: Calendar, badge: "Chốt sổ" });
+      }
+      if (dynamicPerms.payroll_view_all !== false) {
+        items.push({
           id: "payroll",
           label: "Tính Lương & Điều Chỉnh",
           shortLabel: "Tính lương",
           icon: DollarSign,
           badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
           badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
-        },
-        {
+        });
+      }
+      if (dynamicPerms.leave_view_all !== false) {
+        items.push({
           id: "requests",
           label: "Đơn Từ & Tạm Ứng",
           shortLabel: "Đơn từ",
           icon: FileText,
           badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
           badgeColor: "bg-rose-500 text-white"
-        },
-        { id: "profile", label: "Hồ Sơ Kế Toán", shortLabel: "Hồ sơ", icon: User }
-      ];
+        });
+      }
+      if (dynamicPerms.employee_view === true) {
+        items.push({ id: "management", label: "Hồ Sơ Nhân Sự", shortLabel: "Nhân sự", icon: Users });
+      }
+      items.push({ id: "profile", label: "Hồ Sơ Kế Toán", shortLabel: "Hồ sơ", icon: User });
+      return items;
     }
 
     // Role Công Nhân / Nhân Viên (Worker / Employee)
@@ -168,7 +178,7 @@ export default function DesktopSidebar({
               onRoleSwitch(ROLES.WORKER);
               if (onCloseMobileMenu) onCloseMobileMenu();
             }}
-            className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+            className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
           >
             <Smartphone size={14} />
             <span>Chuyển sang Giao diện Chấm công Cá nhân</span>

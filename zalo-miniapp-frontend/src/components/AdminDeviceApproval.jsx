@@ -119,7 +119,7 @@ export default function AdminDeviceApproval({ currentUser, showToast, onChanged 
             type="button"
             disabled={loading}
             onClick={fetchPendingRequests}
-            className="min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50"
+            className="min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50"
           >
             <RefreshCw size={14} className={loading ? "animate-spin text-blue-600" : ""} />
             <span>Làm mới</span>

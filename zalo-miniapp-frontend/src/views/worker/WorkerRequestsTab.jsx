@@ -2,11 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   FileText,
   AlertCircle,
-  CheckCircle2,
   Clock,
-  XCircle,
   Trash2,
-  RefreshCw,
   Wallet,
   CalendarCheck,
   Calendar,
@@ -15,26 +12,11 @@ import {
 import { safeGet, safePut } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { AppButton, StatusBadge, SkeletonList, EmptyState } from "../../components/ui";
 import {
   getRequestTypeLabel,
-  getCorrectionModeLabel,
-  getRequestStatusInfo
+  getCorrectionModeLabel
 } from "../../utils/viLabels";
-
-const getStatusBadge = (status) => {
-  const s = String(status).toUpperCase();
-  const info = getRequestStatusInfo(status);
-  if (s === "APPROVED") {
-    return { bg: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", icon: CheckCircle2, text: info.label };
-  }
-  if (s === "REJECTED") {
-    return { bg: "bg-rose-500/15 text-rose-300 border-rose-500/30", icon: XCircle, text: info.label };
-  }
-  if (s === "CANCELLED") {
-    return { bg: "bg-slate-700/50 text-slate-300 border-slate-600/50", icon: XCircle, text: info.label };
-  }
-  return { bg: "bg-amber-500/15 text-amber-300 border-amber-500/30", icon: Clock, text: info.label };
-};
 
 const REQUEST_HUB_CARDS = [
   {
@@ -230,30 +212,27 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
       {/* Requests List */}
       <div className="space-y-3">
         {loading ? (
-          <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-blue-400" />
-            Đang tải danh sách đơn từ...
-          </div>
+          <SkeletonList rows={3} dark label="Đang tải danh sách đơn từ..." />
         ) : error ? (
           <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             {error}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-12 bg-slate-800/40 border border-slate-700/50 rounded-2xl text-center text-slate-500 text-xs p-6">
-            <FileText className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-            Chưa có đơn từ nào trong danh mục này.
-          </div>
+          <EmptyState
+            dark
+            icon={FileText}
+            title="Chưa có đơn từ nào trong danh mục này."
+            description="Chọn một trong bốn thẻ phía trên để gửi đơn mới."
+          />
         ) : (
           filtered.map((req) => {
-            const badge = getStatusBadge(req.status);
-            const StatusIcon = badge.icon;
             const isPending = String(req.status).toUpperCase() === "PENDING";
 
             return (
               <div
                 key={req.id}
-                className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4 shadow-lg space-y-2.5 transition-all"
+                className="perf-list-item bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4 shadow-lg space-y-2.5 transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -287,10 +266,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                     )}
                   </div>
 
-                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-lg border flex items-center gap-1 whitespace-nowrap shrink-0 ${badge.bg}`}>
-                    <StatusIcon className="w-3.5 h-3.5 shrink-0" />
-                    <span>{badge.text}</span>
-                  </span>
+                  <StatusBadge type="request" status={req.status} dark />
                 </div>
 
                 {req.reason && (
@@ -312,14 +288,15 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                 <div className="flex items-center justify-between pt-1 text-xs text-slate-400">
                   <span>Mã đơn: #{req.id}</span>
                   {isPending && (
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="ghost"
+                      tone="dark"
+                      icon={Trash2}
                       onClick={() => handleCancelRequest(req.id)}
-                      className="min-h-[44px] px-3 py-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg font-semibold flex items-center gap-1 whitespace-nowrap cursor-pointer"
+                      className="text-rose-400 hover:bg-rose-500/10 border-rose-500/20 px-3 py-1.5 text-xs"
                     >
-                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                      <span>Hủy đơn</span>
-                    </button>
+                      Hủy đơn
+                    </AppButton>
                   )}
                 </div>
               </div>

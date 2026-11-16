@@ -118,7 +118,7 @@ export default function HolidaysTab({ currentUser, showToast }) {
           <button
             type="button"
             onClick={() => setIsAddOpen(true)}
-            className="min-h-[42px] px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            className="min-h-[44px] px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
             <Plus className="w-4 h-4 shrink-0" />
             <span>Thêm ngày lễ</span>
@@ -128,7 +128,7 @@ export default function HolidaysTab({ currentUser, showToast }) {
             onClick={fetchHolidays}
             disabled={loading}
             aria-label="Làm mới"
-            className="min-h-[42px] min-w-[42px] p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors flex items-center justify-center shrink-0"
+            className="min-h-[44px] min-w-[44px] p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors flex items-center justify-center shrink-0"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-rose-400" : ""}`} />
           </button>
@@ -181,8 +181,9 @@ export default function HolidaysTab({ currentUser, showToast }) {
                       <button
                         type="button"
                         onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
-                        className="min-h-[38px] min-w-[38px] p-2 text-rose-400 hover:bg-rose-500/15 rounded-lg transition-colors inline-flex items-center justify-center"
+                        className="min-h-[44px] min-w-[44px] p-2 text-rose-400 hover:bg-rose-500/15 rounded-lg transition-colors inline-flex items-center justify-center"
                         title="Xóa"
+                        aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -200,7 +201,7 @@ export default function HolidaysTab({ currentUser, showToast }) {
         title="Xác nhận xóa ngày lễ"
         message={`Bạn có chắc chắn muốn xóa ngày lễ "${confirmDelete.name}" khỏi danh mục lịch nghỉ lễ?`}
         confirmLabel="Xóa ngày lễ"
-        danger={true}
+        variant="danger"
         loading={isDeleting}
         onCancel={() => {
           if (!isDeleting) setConfirmDelete({ open: false, id: null, name: "" });
@@ -232,7 +233,7 @@ export default function HolidaysTab({ currentUser, showToast }) {
               <button
                 type="button"
                 onClick={() => setIsAddOpen(false)}
-                className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
+                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
                 aria-label="Đóng"
               >
                 <X className="w-5 h-5" />

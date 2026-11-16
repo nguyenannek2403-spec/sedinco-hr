@@ -105,11 +105,31 @@ class PayrollController {
         }
     }
 
+    async rejectPayroll(req, res, next) {
+        try {
+            const { month, year, reason, rejected_reason } = req.body;
+            const result = await payrollService.rejectPayroll(month, year, reason || rejected_reason, req.user);
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async updatePaymentStatus(req, res, next) {
         try {
-            const { month, year, status } = req.body;
-            const result = await payrollService.updatePaymentStatus(month, year, status, req.user);
+            const { month, year, status, payment_status } = req.body;
+            const result = await payrollService.updatePaymentStatus(month, year, payment_status || status || 'PAID', req.user);
             return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getPayrollStatusList(req, res, next) {
+        try {
+            const { month, year } = req.query;
+            const data = await payrollService.getPayrollStatusList({ month, year });
+            return res.json({ success: true, data });
         } catch (err) {
             next(err);
         }

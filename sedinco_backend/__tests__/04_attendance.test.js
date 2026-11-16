@@ -13,7 +13,8 @@ const {
     cleanupQaData,
     snapshotSettings,
     restoreSettings,
-    query
+    query,
+    closeTestRuntime
 } = require('./_helpers');
 const { verifyZaloLocationToken, verifyZaloUserToken, resetMockZaloTokens } = require('../src/utils/zaloAdapter');
 
@@ -47,9 +48,13 @@ test.before(async () => {
 });
 
 test.after(async () => {
-    await restoreSettings(snap);
-    await cleanupQaData('QA_', 2099);
-    if (srv) await srv.close();
+    try {
+        await restoreSettings(snap);
+        await cleanupQaData('QA_', 2099);
+    } finally {
+        if (srv) await srv.close();
+        await closeTestRuntime();
+    }
 });
 
 test('ATT-01: GPS Geofence check-in inside radius + out-of-range flagged + field work raw fallback', async () => {

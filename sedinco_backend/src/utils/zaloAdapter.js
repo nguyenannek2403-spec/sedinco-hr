@@ -1,10 +1,10 @@
 /**
  * Adapter tích hợp Zalo Open API
- * [CHƯA XÁC MINH: Cần cấu hình Zalo App Secret thật để gọi Zalo Open API production]
- * Gắn nhãn bắt buộc: "mock Zalo" khi chạy trên môi trường test/local
+ * Xác thực access token thật trực tiếp với Zalo Graph API v2.0 (chỉ cho phép mock token khi NODE_ENV === 'test').
  */
 
 const usedLocationTokens = new Set();
+const ZALO_GRAPH_TIMEOUT_MS = 8000;
 
 async function verifyZaloLocationToken(optionsOrToken) {
     let token = '';
@@ -21,17 +21,16 @@ async function verifyZaloLocationToken(optionsOrToken) {
 
     if (!token || typeof token !== 'string') return null;
 
-    // [mock Zalo & Web Fallback] Hỗ trợ token mô phỏng CHỈ trong môi trường dev/test (Chặn tuyệt đối trên production)
+    // Chỉ cho phép token mô phỏng khi chạy automated test (NODE_ENV === 'test')
     if (
-        process.env.NODE_ENV !== 'production' &&
+        process.env.NODE_ENV === 'test' &&
         (token.startsWith('mock_zalo_loc_') || token.startsWith('mock_loc_token_') || token.startsWith('web_gps_'))
     ) {
         if (token === 'mock_zalo_loc_expired') {
-            return null; // Giả lập token hết hạn (> 2 phút)
+            return null;
         }
-        // Kiểm tra tính chất dùng 1 lần (Single-use token)
         if (usedLocationTokens.has(token)) {
-            return null; // Đã sử dụng trước đó -> từ chối
+            return null;
         }
         usedLocationTokens.add(token);
 
@@ -44,31 +43,33 @@ async function verifyZaloLocationToken(optionsOrToken) {
         };
     }
 
-    // Single-use check cho token thật
+    if (token.startsWith('mock_zalo_loc_') || token.startsWith('mock_loc_token_') || token.startsWith('web_gps_')) {
+        return null;
+    }
+
     if (usedLocationTokens.has(token)) {
         return null;
     }
 
-    // Gọi Graph API Zalo: GET https://graph.zalo.me/v2.0/me/info
-    // Header: access_token, code (location token), secret_key
     if (!userAccessToken || !secretKey) {
-        // [CHƯA XÁC MINH: Cần access_token và secret_key Zalo thật để gọi production]
         return null;
     }
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ZALO_GRAPH_TIMEOUT_MS);
     try {
-        const fetch = globalThis.fetch || require('node-fetch');
-        const res = await fetch('https://graph.zalo.me/v2.0/me/info', {
+        const fetchFn = globalThis.fetch || require('node-fetch');
+        const res = await fetchFn('https://graph.zalo.me/v2.0/me/info', {
             method: 'GET',
             headers: {
-                'access_token': userAccessToken,
-                'code': token,
-                'secret_key': secretKey
-            }
+                access_token: userAccessToken,
+                code: token,
+                secret_key: secretKey
+            },
+            signal: controller.signal
         });
         const data = await res.json();
         if (data && data.error === 0 && data.data) {
-            // Kiểm tra timestamp không quá 2 phút (120,000 ms)
             const tokenTime = data.data.time || data.data.timestamp;
             if (tokenTime && (Date.now() - Number(tokenTime) > 120000)) {
                 return null;
@@ -84,26 +85,67 @@ async function verifyZaloLocationToken(optionsOrToken) {
         }
     } catch (err) {
         console.error('[ZaloAdapter] Lỗi xác thực token vị trí:', err.message);
+    } finally {
+        clearTimeout(timer);
     }
     return null;
 }
 
-async function verifyZaloUserToken(accessToken) {
+/**
+ * Xác thực Zalo Access Token trực tiếp với máy chủ Zalo Open API (graph.zalo.me/v2.0/me).
+ * Chỉ cho phép mock token tiền tố 'mock_zalo_user_' trong môi trường NODE_ENV === 'test'.
+ */
+async function verifyZaloAccessToken(accessToken) {
     if (!accessToken || typeof accessToken !== 'string') return null;
+    const cleanToken = accessToken.trim();
+    if (!cleanToken) return null;
 
-    // [mock Zalo] Hỗ trợ access token mô phỏng CHỈ trong dev/test (Chặn trên production)
-    if (process.env.NODE_ENV !== 'production' && accessToken.startsWith('mock_zalo_user_')) {
-        const id = accessToken.slice('mock_zalo_user_'.length);
+    if (cleanToken.startsWith('mock_zalo_user_')) {
+        if (process.env.NODE_ENV !== 'test') {
+            return null;
+        }
+        const id = cleanToken.slice('mock_zalo_user_'.length) || 'mock_zalo_user_default';
         return {
-            zaloId: id || 'mock_zalo_user_default',
+            id,
+            zaloId: id,
             name: 'Người dùng Zalo Thử Nghiệm',
             provider: 'mock Zalo'
         };
     }
 
-    // TODO [CHƯA XÁC MINH]: Gọi Graph API Zalo xác thực người dùng thật
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ZALO_GRAPH_TIMEOUT_MS);
+    try {
+        const fetchFn = globalThis.fetch || require('node-fetch');
+        const res = await fetchFn('https://graph.zalo.me/v2.0/me?fields=id,name,picture', {
+            method: 'GET',
+            headers: {
+                access_token: cleanToken
+            },
+            signal: controller.signal
+        });
+        if (!res || !res.ok) return null;
+        const data = await res.json();
+        if (data && data.id && (!data.error || data.error === 0)) {
+            const verifiedId = String(data.id).trim();
+            if (!verifiedId) return null;
+            return {
+                id: verifiedId,
+                zaloId: verifiedId,
+                name: data.name || 'Người dùng Zalo',
+                provider: 'Zalo Graph API',
+                data
+            };
+        }
+    } catch (err) {
+        console.error('[ZaloAdapter] Lỗi xác thực Zalo access token:', err.message);
+    } finally {
+        clearTimeout(timer);
+    }
     return null;
 }
+
+const verifyZaloUserToken = verifyZaloAccessToken;
 
 function resetMockZaloTokens() {
     usedLocationTokens.clear();
@@ -111,7 +153,7 @@ function resetMockZaloTokens() {
 
 module.exports = {
     verifyZaloLocationToken,
+    verifyZaloAccessToken,
     verifyZaloUserToken,
     resetMockZaloTokens
 };
-

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
-import { captureDirectCameraPhoto } from "../utils/imageHelper";
+import { captureDirectCameraPhoto, compressAndResizeImage } from "../utils/imageHelper";
 import useLockBodyScroll from "../hooks/useLockBodyScroll";
 
 export const FEATURE_BIOMETRIC_ENABLED = false;
@@ -125,6 +125,7 @@ export default function OneTouchCheckIn({
   const isLockedRef = useRef(false);
   const timeoutIdRef = useRef(null);
   const lastIdempotencyKeyRef = useRef("");
+  const cameraFileInputRef = useRef(null);
 
   const evaluateFriendlyLocation = useCallback((compData) => {
     if (!compData) return;
@@ -247,17 +248,50 @@ export default function OneTouchCheckIn({
     };
   }, []);
 
+  const handleFallbackFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const rawDataUrl = ev.target?.result;
+        if (!rawDataUrl) return;
+        const compressed = await compressAndResizeImage(rawDataUrl, 480, 480, 0.6);
+        setCapturedPhoto(compressed);
+        setErrorMessage("");
+        setErrorDetails("");
+        setStatusMessage("Đã chụp ảnh hiện trường! Chạm nút CHẤM CÔNG bên trên để hoàn tất.");
+      } catch {
+        setErrorMessage("Không thể xử lý ảnh vừa chụp. Vui lòng thử lại!");
+      }
+    };
+    reader.onerror = () => {
+      setErrorMessage("Không thể đọc tệp ảnh từ máy ảnh. Vui lòng thử lại!");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   const handleCaptureSelfie = async () => {
     try {
       const res = await captureDirectCameraPhoto();
       if (res?.success && res?.photoUrl) {
         setCapturedPhoto(res.photoUrl);
         setErrorMessage("");
-        setStatusMessage("Đã chụp & nén ảnh hiện trường (< 50KB). Chạm nút CHẤM CÔNG để hoàn tất!");
+        setErrorDetails("");
+        setStatusMessage("Đã chụp ảnh hiện trường! Chạm nút CHẤM CÔNG để hoàn tất.");
       } else {
-        setErrorMessage(res?.message || "Không thể mở máy ảnh. Vui lòng kiểm tra quyền Camera và thử lại!");
+        const msg = res?.error || res?.message || "Không thể mở máy ảnh trực tiếp.";
+        if (cameraFileInputRef.current) {
+          setStatusMessage("Đang mở máy ảnh thiết bị để chụp ảnh hiện trường...");
+          cameraFileInputRef.current.click();
+        }
+        setErrorMessage(msg);
       }
     } catch (err) {
+      if (cameraFileInputRef.current) {
+        cameraFileInputRef.current.click();
+      }
       setErrorMessage(err?.message || "Lỗi chụp ảnh hiện trường. Vui lòng thử lại!");
     }
   };
@@ -266,7 +300,7 @@ export default function OneTouchCheckIn({
     if (isFieldWorkMode) {
       if (!capturedPhoto) {
         setStage(STAGES.ERROR);
-        setErrorMessage("Chế độ Đi Công Trình yêu cầu BẮT BUỘC chụp ảnh hiện trường thực tế (< 50KB) trước khi chấm công!");
+        setErrorMessage("Chế độ Đi Công Trình yêu cầu BẮT BUỘC chụp ảnh hiện trường thực tế trước khi chấm công!");
         return;
       }
       if (!fieldNote.trim() || fieldNote.trim().length < 5) {
@@ -851,8 +885,16 @@ export default function OneTouchCheckIn({
         </button>
       </div>
 
-      {/* Nút chụp ảnh Selfie / Hiện trường (< 50KB) */}
+      {/* Nút chụp ảnh Selfie / Hiện trường */}
       <div className="w-full max-w-sm">
+        <input
+          ref={cameraFileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFallbackFileChange}
+          className="hidden"
+        />
         <button
           type="button"
           onClick={handleCaptureSelfie}
@@ -862,10 +904,10 @@ export default function OneTouchCheckIn({
           <Camera size={16} className="text-emerald-400 shrink-0" />
           <span>
             {capturedPhoto
-              ? "✅ Đã đính kèm ảnh hiện trường (< 50KB)"
+              ? "✅ Đã đính kèm ảnh hiện trường"
               : isFieldWorkMode
               ? "📸 Chụp ảnh Công trình / Khách hàng (Bắt buộc)"
-              : "Chụp ảnh Selfie xác thực (< 50KB)"}
+              : "Chụp ảnh Selfie xác thực"}
           </span>
         </button>
       </div>
@@ -890,6 +932,13 @@ export default function OneTouchCheckIn({
           )}
           <span>{statusMessage}</span>
         </div>
+
+        {errorMessage && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
+          <div className="p-3 rounded-2xl bg-rose-50 border-2 border-rose-300 text-left flex items-start gap-2.5">
+            <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+            <p className="font-bold text-xs text-rose-900">{errorMessage}</p>
+          </div>
+        )}
 
         {stage === STAGES.ERROR && (
           <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-left space-y-3">

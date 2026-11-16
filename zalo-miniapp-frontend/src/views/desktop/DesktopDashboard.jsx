@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import DesktopSidebar from "../../components/DesktopSidebar";
 import DesktopHeader from "../../components/DesktopHeader";
 import RequestsManagementTab from "./RequestsManagementTab";
@@ -27,8 +27,10 @@ export default function DesktopDashboard({
   onChangePasswordRequest
 }) {
   const [currentTab, setCurrentTab] = useState(() => {
-    return getDefaultTabForRole(activeRole || currentUser?.role);
+    const r = activeRole || currentUser?.role;
+    return getDefaultTabForRole(r, currentUser?.dynamic_permissions || {});
   });
+  const [liveDynamicPerms, setLiveDynamicPerms] = useState(null);
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -61,16 +63,41 @@ export default function DesktopDashboard({
   }, []);
 
   const resolvedRole = activeRole || currentUser?.role;
-  const dynamicPerms = currentUser?.dynamic_permissions || {};
-  const effectiveTab = isTabAllowedForRole(currentTab, resolvedRole, dynamicPerms)
-    ? currentTab
-    : getDefaultTabForRole(resolvedRole);
+  const effectiveDynamicPerms = useMemo(() => ({
+    ...(currentUser?.dynamic_permissions || {}),
+    ...(liveDynamicPerms || {})
+  }), [currentUser?.dynamic_permissions, liveDynamicPerms]);
 
   useEffect(() => {
-    if (!isTabAllowedForRole(currentTab, resolvedRole, dynamicPerms)) {
-      setCurrentTab(getDefaultTabForRole(resolvedRole));
+    if (resolvedRole !== "accountant") return undefined;
+    let active = true;
+    safeGet("/settings/accountant-permissions")
+      .then((res) => {
+        if (!active || !res?.success) return;
+        const raw = res.data;
+        if (Array.isArray(raw)) {
+          const map = {};
+          for (const row of raw) {
+            if (row?.permission_key) map[row.permission_key] = Boolean(row.is_enabled);
+          }
+          setLiveDynamicPerms(map);
+        } else if (raw && typeof raw === "object") {
+          setLiveDynamicPerms(raw);
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [resolvedRole, refreshTick]);
+
+  const effectiveTab = isTabAllowedForRole(currentTab, resolvedRole, effectiveDynamicPerms)
+    ? currentTab
+    : getDefaultTabForRole(resolvedRole, effectiveDynamicPerms);
+
+  useEffect(() => {
+    if (!isTabAllowedForRole(currentTab, resolvedRole, effectiveDynamicPerms)) {
+      setCurrentTab(getDefaultTabForRole(resolvedRole, effectiveDynamicPerms));
     }
-  }, [currentTab, resolvedRole, dynamicPerms]);
+  }, [currentTab, resolvedRole, effectiveDynamicPerms]);
 
   useEffect(() => {
     fetchAlertsSummary();
@@ -87,15 +114,16 @@ export default function DesktopDashboard({
       <DesktopSidebar
         currentTab={effectiveTab}
         setCurrentTab={(tabId) => {
-          if (!isTabAllowedForRole(tabId, resolvedRole, dynamicPerms)) return;
+          if (!isTabAllowedForRole(tabId, resolvedRole, effectiveDynamicPerms)) return;
           setCurrentTab(tabId);
         }}
         onSelectTab={(tabId) => {
-          if (!isTabAllowedForRole(tabId, resolvedRole, dynamicPerms)) return;
+          if (!isTabAllowedForRole(tabId, resolvedRole, effectiveDynamicPerms)) return;
           setCurrentTab(tabId);
           setIsMobileMenuOpen(false);
         }}
         activeRole={resolvedRole}
+        dynamicPerms={effectiveDynamicPerms}
         onRoleSwitch={onRoleSwitch}
         currentUser={currentUser}
         onLogout={onLogout}
@@ -113,10 +141,11 @@ export default function DesktopDashboard({
         <DesktopHeader
           currentUser={currentUser}
           activeRole={resolvedRole}
+          dynamicPerms={effectiveDynamicPerms}
           onRoleSwitch={onRoleSwitch}
           currentTab={effectiveTab}
           setCurrentTab={(tabId) => {
-            if (!isTabAllowedForRole(tabId, resolvedRole, dynamicPerms)) return;
+            if (!isTabAllowedForRole(tabId, resolvedRole, effectiveDynamicPerms)) return;
             setCurrentTab(tabId);
           }}
           onLogout={onLogout}
@@ -204,6 +233,7 @@ export default function DesktopDashboard({
                 currentUser={currentUser}
                 activeRole={resolvedRole}
                 userRole={resolvedRole}
+                dynamicPerms={effectiveDynamicPerms}
                 month={selectedMonth}
                 year={selectedYear}
                 onMonthChange={handleMonthChange}
@@ -219,6 +249,7 @@ export default function DesktopDashboard({
                 currentUser={currentUser}
                 activeRole={resolvedRole}
                 userRole={resolvedRole}
+                dynamicPerms={effectiveDynamicPerms}
                 month={selectedMonth}
                 year={selectedYear}
                 onMonthChange={handleMonthChange}
@@ -232,6 +263,7 @@ export default function DesktopDashboard({
               <RequestsManagementTab
                 key={`requests-${refreshTick}`}
                 currentUser={currentUser}
+                dynamicPerms={effectiveDynamicPerms}
                 showToast={showToast}
               />
             )}
@@ -241,6 +273,7 @@ export default function DesktopDashboard({
               <EmployeeManagementTab
                 key={`management-${refreshTick}-${effectiveTab}`}
                 currentUser={currentUser}
+                dynamicPerms={effectiveDynamicPerms}
                 showToast={showToast}
                 initialSubTab={effectiveTab === "devices" ? "devices" : "list"}
                 pendingDeviceCount={alertsSummary?.pending_device_count || 0}
@@ -303,6 +336,7 @@ export default function DesktopDashboard({
         headcount={alertsSummary?.headcount_today}
         loading={alertsLoading}
         currentUser={currentUser}
+        dynamicPerms={effectiveDynamicPerms}
         showToast={showToast}
         onRefresh={() => {
           setRefreshTick((t) => t + 1);

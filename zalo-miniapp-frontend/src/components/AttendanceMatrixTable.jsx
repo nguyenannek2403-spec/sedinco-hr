@@ -48,6 +48,7 @@ export default function AttendanceMatrixTable({
   onRefresh,
   userRole = "admin",
   activeRole,
+  dynamicPerms = {},
   isLocked: propIsLocked,
   onShowToast,
   showToast,
@@ -126,8 +127,15 @@ export default function AttendanceMatrixTable({
 
   const isLocked = propIsLocked !== undefined ? propIsLocked : internalLocked;
 
-  // Tách quyền: Chỉ HR và Admin được sửa công khi kỳ CHƯA bị chốt
-  const canEdit = !isLocked && (effectiveRole === ROLES.HR || effectiveRole === ROLES.ADMIN);
+  // Tách quyền: Admin luôn được sửa; Kế toán chỉ được sửa khi được cấp quyền attendance_edit (và kỳ chưa chốt)
+  const canEdit =
+    !isLocked &&
+    (effectiveRole === ROLES.ADMIN ||
+      (effectiveRole === ROLES.ACCOUNTANT && dynamicPerms?.attendance_edit === true));
+  const canLockPeriod =
+    hasPermission(effectiveRole, "canLockPeriod") &&
+    (effectiveRole !== ROLES.ACCOUNTANT || dynamicPerms?.attendance_lock === true);
+  const canUnlockPeriod = hasPermission(effectiveRole, "canUnlockPeriod");
 
   // Số ngày trong tháng
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -216,13 +224,12 @@ export default function AttendanceMatrixTable({
       }
       return;
     }
-    if (effectiveRole === ROLES.ACCOUNTANT) {
-      if (notify) {
-        notify("Tách quyền: Kế toán chỉ có quyền xem và chốt sổ, không được sửa dữ liệu công.", "warning");
+    if (!canEdit) {
+      if (effectiveRole === ROLES.ACCOUNTANT && notify) {
+        notify("Tách quyền: Kế toán chỉ có quyền xem công (chưa được cấp quyền sửa công).", "warning");
       }
       return;
     }
-    if (!canEdit) return;
     const currentVal = (emp.days && emp.days[dayIndex]) || "";
     setEditingCell({
       emp,
@@ -288,7 +295,7 @@ export default function AttendanceMatrixTable({
     const headers = ["Mã NV", "Họ và Tên", ...dayNumbers.map(d => `Ngày ${d}`), "Đủ công (1)", "Nửa công (0.5)", "Phép (P)", "Tăng ca (OT)"];
     const rows = filteredData.map(item => {
       const days = item.days || [];
-      const count1 = days.filter(d => d === "1").length;
+      const count1 = days.filter(d => d === "1" || d === "1/OT").length;
       const countHalf = days.filter(d => d === "0.5").length;
       const countP = days.filter(d => d === "P").length;
       const countOT = days.filter(d => String(d).includes("OT")).length;
@@ -334,23 +341,25 @@ export default function AttendanceMatrixTable({
         {/* Thanh tác vụ: Tháng/Năm, Tìm kiếm & Nút hành động */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Bộ chọn tháng/năm */}
-          <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl px-2.5 py-1.5 shadow-sm">
+          <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl px-1.5 py-0.5 shadow-sm">
             <button
               type="button"
               onClick={() => onMonthChange(month > 1 ? month - 1 : 12, month > 1 ? year : year - 1)}
-              className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer border border-transparent hover:border-slate-300"
+              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer border border-transparent hover:border-slate-300 flex items-center justify-center"
               title="Tháng trước"
+              aria-label="Tháng trước"
             >
               <ChevronLeft size={20} />
             </button>
-            <span className="font-black text-sm px-3 text-slate-900">
+            <span className="font-black text-sm px-2.5 text-slate-900">
               Tháng {month}/{year}
             </span>
             <button
               type="button"
               onClick={() => onMonthChange(month < 12 ? month + 1 : 1, month < 12 ? year : year + 1)}
-              className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer border border-transparent hover:border-slate-300"
+              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer border border-transparent hover:border-slate-300 flex items-center justify-center"
               title="Tháng sau"
+              aria-label="Tháng sau"
             >
               <ChevronRight size={20} />
             </button>
@@ -360,7 +369,7 @@ export default function AttendanceMatrixTable({
           <select
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[42px] px-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 shadow-sm text-slate-800"
+            className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 shadow-sm text-slate-800"
           >
             <option value="ALL">🏢 Tất cả bộ phận</option>
             {availableDepartments.map((dept) => (
@@ -378,16 +387,16 @@ export default function AttendanceMatrixTable({
               placeholder="Tìm theo tên hoặc mã NV..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full min-h-[42px] pl-9 pr-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 shadow-sm"
+              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 shadow-sm"
             />
           </div>
 
           {/* Nút Chấm công hộ / Điểm danh nhanh */}
-          {(effectiveRole === ROLES.ADMIN || effectiveRole === ROLES.ACCOUNTANT) && !isLocked && (
+          {canEdit && (
             <button
               type="button"
               onClick={handleOpenProxyModal}
-              className="min-h-[42px] flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-3.5 py-2 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer whitespace-nowrap"
+              className="min-h-[44px] flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-3.5 py-2 rounded-xl border-2 border-blue-700 shadow-sm cursor-pointer whitespace-nowrap"
             >
               <UserCheck size={16} className="shrink-0" />
               <span>Chấm công hộ</span>
@@ -398,7 +407,7 @@ export default function AttendanceMatrixTable({
           <button
             type="button"
             onClick={handleExportCSV}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black px-4 py-2.5 rounded-xl border-2 border-emerald-700 shadow-sm cursor-pointer"
+            className="min-h-[44px] flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black px-4 py-2 rounded-xl border-2 border-emerald-700 shadow-sm cursor-pointer"
           >
             <Download size={16} />
             <span>Xuất CSV</span>
@@ -413,16 +422,17 @@ export default function AttendanceMatrixTable({
             }}
             className="min-w-[44px] min-h-[44px] p-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border-2 border-slate-300 shadow-sm cursor-pointer flex items-center justify-center"
             title="Làm mới dữ liệu"
+            aria-label="Làm mới dữ liệu"
           >
             <RefreshCw size={16} className={loadingMatrix ? "animate-spin text-blue-600" : ""} />
           </button>
 
-          {/* Nút Chốt Công Kỳ Lương (Kế toán & Quản trị) */}
-          {hasPermission(effectiveRole, "canLockPeriod") && !isLocked && (
+          {/* Nút Chốt Công Kỳ Lương (Kế toán được phân quyền & Quản trị) */}
+          {canLockPeriod && !isLocked && (
             <button
               type="button"
               onClick={() => setShowLockModal(true)}
-              className="min-h-[42px] flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-4 py-2 rounded-xl border-2 border-rose-700 shadow-sm cursor-pointer whitespace-nowrap"
+              className="min-h-[44px] flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-4 py-2 rounded-xl border-2 border-rose-700 shadow-sm cursor-pointer whitespace-nowrap"
             >
               <Lock size={16} className="shrink-0" />
               <span>Chốt kỳ công</span>
@@ -430,19 +440,19 @@ export default function AttendanceMatrixTable({
           )}
 
           {/* Nút Mở Lại Kỳ Công Đã Chốt (Chỉ Quản Trị) */}
-          {hasPermission(effectiveRole, "canUnlockPeriod") && isLocked && (
+          {canUnlockPeriod && isLocked && (
             <button
               type="button"
               onClick={() => setShowLockModal(true)}
-              className="min-h-[42px] flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-xl border-2 border-amber-700 shadow-sm cursor-pointer whitespace-nowrap"
+              className="min-h-[44px] flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-xl border-2 border-amber-700 shadow-sm cursor-pointer whitespace-nowrap"
             >
               <Unlock size={16} className="shrink-0" />
               <span>Mở lại kỳ đã chốt</span>
             </button>
           )}
 
-          {isLocked && !hasPermission(effectiveRole, "canUnlockPeriod") && (
-            <div className="min-h-[42px] flex items-center gap-2 bg-slate-200 text-slate-800 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-400 whitespace-nowrap">
+          {isLocked && !canUnlockPeriod && (
+            <div className="min-h-[44px] flex items-center gap-2 bg-slate-200 text-slate-800 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-400 whitespace-nowrap">
               <Lock size={16} className="text-slate-600 shrink-0" />
               <span>Đã khóa sổ</span>
             </div>
@@ -457,7 +467,7 @@ export default function AttendanceMatrixTable({
             <Lock size={18} className="text-amber-700 shrink-0" />
             <span>Kỳ công Tháng {month}/{year} đã được Kế toán chốt sổ. Toàn bộ bảng công ở chế độ CHỈ ĐỌC.</span>
           </div>
-          {hasPermission(userRole, "canUnlockPeriod") && (
+          {canUnlockPeriod && (
             <span className="text-xs text-amber-800 italic underline">Quản trị viên có thể mở khóa khi cần thiết</span>
           )}
         </div>
@@ -562,31 +572,31 @@ export default function AttendanceMatrixTable({
                           {emp.ho_ten}
                         </div>
                         <div className="text-xs text-blue-700 font-bold">
-                          Mã NV: {emp.ma_nv} {emp.bo_phan ? `• ${emp.bo_phan}` : ""}
+                          Mã NV: {emp.ma_nv} {(emp.department || emp.bo_phan) ? `• ${emp.department || emp.bo_phan}` : ""}
                         </div>
                       </div>
                     </div>
                     <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 shrink-0">
-                      31 ngày
+                      {daysInMonth} ngày
                       <ChevronRight size={16} />
                     </span>
                   </div>
 
                   <div className="grid grid-cols-4 gap-2">
                     <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-2 py-1.5 text-center">
-                      <div className="text-[10px] font-bold text-emerald-700">Tổng công</div>
+                      <div className="text-xs font-bold text-emerald-700">Tổng công</div>
                       <div className="text-sm font-black text-emerald-900">{totalWorkDays}</div>
                     </div>
                     <div className="rounded-xl bg-amber-50 border border-amber-200 px-2 py-1.5 text-center">
-                      <div className="text-[10px] font-bold text-amber-700">Nghỉ phép</div>
+                      <div className="text-xs font-bold text-amber-700">Nghỉ phép</div>
                       <div className="text-sm font-black text-amber-900">{countP}</div>
                     </div>
                     <div className="rounded-xl bg-indigo-50 border border-indigo-200 px-2 py-1.5 text-center">
-                      <div className="text-[10px] font-bold text-indigo-700">Tăng ca</div>
+                      <div className="text-xs font-bold text-indigo-700">Tăng ca</div>
                       <div className="text-sm font-black text-indigo-900">{countOT}</div>
                     </div>
                     <div className="rounded-xl bg-slate-100 border border-slate-200 px-2 py-1.5 text-center">
-                      <div className="text-[10px] font-bold text-slate-600">Không phép</div>
+                      <div className="text-xs font-bold text-slate-600">Không phép</div>
                       <div className="text-sm font-black text-slate-800">{countKP}</div>
                     </div>
                   </div>
@@ -617,7 +627,7 @@ export default function AttendanceMatrixTable({
                     }`}
                   >
                     <div className="text-sm font-black">{d}</div>
-                    <span className="text-[10px] font-bold text-slate-500 block">
+                    <span className="text-xs font-bold text-slate-500 block">
                       {isSunday ? "CN" : `T${dayOfWeek + 1}`}
                     </span>
                   </th>
@@ -647,7 +657,7 @@ export default function AttendanceMatrixTable({
             ) : (
               filteredData.map((emp, empIdx) => {
                 const days = emp.days || [];
-                const count1 = days.filter(d => d === "1").length;
+                const count1 = days.filter(d => d === "1" || d === "1/OT").length;
                 const countHalf = days.filter(d => d === "0.5").length;
                 const countP = days.filter(d => d === "P").length;
                 const countOT = days.filter(d => String(d).includes("OT")).length;
@@ -730,7 +740,7 @@ export default function AttendanceMatrixTable({
                 <button
                   type="button"
                   onClick={() => setDetailEmpCode(null)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold min-h-[40px] shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold min-h-[44px] shrink-0"
                 >
                   <ArrowLeft size={16} />
                   <span>Trở về</span>
@@ -744,7 +754,7 @@ export default function AttendanceMatrixTable({
                 <button
                   type="button"
                   onClick={() => setDetailEmpCode(null)}
-                  className="hidden sm:flex w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 items-center justify-center text-slate-700"
+                  className="hidden sm:flex min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 items-center justify-center text-slate-700"
                   aria-label="Đóng"
                 >
                   <X size={20} />
@@ -777,11 +787,11 @@ export default function AttendanceMatrixTable({
                             : "bg-white border-slate-200 hover:border-blue-400"
                         }`}
                       >
-                        <div className="text-[10px] font-bold text-slate-500">
+                        <div className="text-xs font-bold text-slate-500">
                           {d} ({isSunday ? "CN" : `T${dayOfWeek + 1}`})
                         </div>
                         <div
-                          className={`w-full py-1 rounded-lg text-[11px] font-black text-center ${badgeClass}`}
+                          className={`w-full py-1 rounded-lg text-xs font-black text-center ${badgeClass}`}
                         >
                           {val || "·"}
                         </div>
@@ -820,7 +830,7 @@ export default function AttendanceMatrixTable({
               <button
                 type="button"
                 onClick={() => setEditingCell(null)}
-                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold min-h-[40px]"
+                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold min-h-[44px]"
               >
                 <ArrowLeft size={16} />
                 <span>Trở về</span>
@@ -836,7 +846,7 @@ export default function AttendanceMatrixTable({
               <button
                 type="button"
                 onClick={() => setEditingCell(null)}
-                className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-slate-800 rounded-xl border border-slate-200 shrink-0"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-500 hover:text-slate-800 rounded-xl border border-slate-200 shrink-0"
                 aria-label="Đóng"
               >
                 <X size={20} />
@@ -961,7 +971,7 @@ export default function AttendanceMatrixTable({
                 type="button"
                 disabled={proxySaving}
                 onClick={() => setShowProxyModal(false)}
-                className="inline-flex items-center gap-1 min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold shrink-0"
+                className="inline-flex items-center gap-1 min-h-[44px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold shrink-0"
               >
                 <ArrowLeft size={16} />
                 <span>Trở về</span>
@@ -971,7 +981,7 @@ export default function AttendanceMatrixTable({
                 type="button"
                 disabled={proxySaving}
                 onClick={() => setShowProxyModal(false)}
-                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0"
+                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0"
                 aria-label="Đóng"
               >
                 <X size={20} />

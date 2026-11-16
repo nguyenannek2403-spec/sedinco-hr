@@ -138,61 +138,57 @@ class EmployeeService {
             status, is_locked, custom_start_time, custom_end_time
         } = data;
 
-        const cleanCustomStart = custom_start_time !== undefined ? normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng') : null;
-        const cleanCustomEnd = custom_end_time !== undefined ? normalizeOptionalTime(custom_end_time, 'Giờ tan ca riêng') : null;
+        const setClauses = [];
+        const values = [];
+        const addField = (col, val) => {
+            setClauses.push(`${col}=?`);
+            values.push(val);
+        };
 
-        const updateStatus = status !== undefined;
-        const updateLocked = is_locked !== undefined;
-        const updateRole = (current_user && current_user.role === 'admin') && role !== undefined && ['worker', 'accountant', 'admin'].includes(role);
-        const updateCustomStart = custom_start_time !== undefined;
-        const updateCustomEnd = custom_end_time !== undefined;
-        const updateDepartment = department !== undefined;
+        if (ho_ten !== undefined) addField('ho_ten', ho_ten);
+        if (ngay_sinh !== undefined) addField('ngay_sinh', ngay_sinh || null);
+        if (dien_thoai !== undefined) addField('dien_thoai', dien_thoai || '');
+        if (email !== undefined) addField('email', email || '');
+        if (chuc_danh !== undefined) addField('chuc_danh', chuc_danh || '');
+        if (ngay_bat_dau_lam !== undefined) addField('ngay_bat_dau_lam', ngay_bat_dau_lam || null);
+        if (ngay_chinh_thuc !== undefined) addField('ngay_chinh_thuc', ngay_chinh_thuc || null);
+        if (luong_cb !== undefined) addField('luong_cb', luong_cb || 0);
+        if (phu_cap_an_trua !== undefined) addField('phu_cap_an_trua', phu_cap_an_trua || 0);
+        if (phu_cap_xang_xe !== undefined) addField('phu_cap_xang_xe', phu_cap_xang_xe || 0);
+        if (phu_cap_nha_o !== undefined) addField('phu_cap_nha_o', phu_cap_nha_o || 0);
+        if (thuong_htcv !== undefined) addField('thuong_htcv', thuong_htcv || 0);
+        if (phu_cap_trach_nhiem !== undefined) addField('phu_cap_trach_nhiem', phu_cap_trach_nhiem || 0);
+        if (phu_cap_tiep_khach !== undefined) addField('phu_cap_tiep_khach', phu_cap_tiep_khach || 0);
+        if (has_insurance !== undefined) addField('has_insurance', has_insurance ? 1 : 0);
 
-        let sql = `
-            UPDATE employees SET 
-                ho_ten=?, ngay_sinh=?, dien_thoai=?, email=?, chuc_danh=?, 
-                ngay_bat_dau_lam=?, ngay_chinh_thuc=?, luong_cb=?, 
-                phu_cap_an_trua=?, phu_cap_xang_xe=?, phu_cap_nha_o=?, 
-                thuong_htcv=?, phu_cap_trach_nhiem=?, phu_cap_tiep_khach=?, has_insurance=?
-        `;
-        const values = [
-            ho_ten, ngay_sinh || null, dien_thoai || '', email || '', chuc_danh || '',
-            ngay_bat_dau_lam || null, ngay_chinh_thuc || null, luong_cb || 0,
-            phu_cap_an_trua || 0, phu_cap_xang_xe || 0, phu_cap_nha_o || 0,
-            thuong_htcv || 0, phu_cap_trach_nhiem || 0, phu_cap_tiep_khach || 0,
-            has_insurance ? 1 : 0
-        ];
+        if (department !== undefined) {
+            addField('department', department && String(department).trim() ? String(department).trim().slice(0, 100) : 'Khối Công trình');
+        }
+        if ((current_user && current_user.role === 'admin') && role !== undefined && ['worker', 'accountant', 'admin'].includes(role)) {
+            addField('role', role);
+        }
+        if (status !== undefined) addField('status', status);
+        if (is_locked !== undefined) addField('is_locked', is_locked ? 1 : 0);
+        if (custom_start_time !== undefined) addField('custom_start_time', normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng'));
+        if (custom_end_time !== undefined) addField('custom_end_time', normalizeOptionalTime(custom_end_time, 'Giờ tan ca riêng'));
 
-        if (updateDepartment) {
-            sql += `, department=?`;
-            values.push(department && String(department).trim() ? String(department).trim().slice(0, 100) : 'Khối Công trình');
-        }
-
-        if (updateRole) {
-            sql += `, role=?`;
-            values.push(role);
-        }
-        if (updateStatus) {
-            sql += `, status=?`;
-            values.push(status);
-        }
-        if (updateLocked) {
-            sql += `, is_locked=?`;
-            values.push(is_locked ? 1 : 0);
-        }
-        if (updateCustomStart) {
-            sql += `, custom_start_time=?`;
-            values.push(cleanCustomStart);
-        }
-        if (updateCustomEnd) {
-            sql += `, custom_end_time=?`;
-            values.push(cleanCustomEnd);
+        if (setClauses.length === 0) {
+            const existsRows = await query('SELECT ma_nv FROM employees WHERE ma_nv = ? LIMIT 1', [id]);
+            if (!existsRows || existsRows.length === 0) {
+                const err = new Error('Không tìm thấy nhân viên!');
+                err.statusCode = 404;
+                throw err;
+            }
+            return { success: true };
         }
 
-        sql += ` WHERE ma_nv=?`;
         values.push(id);
-
-        await query(sql, values);
+        const updRes = await query(`UPDATE employees SET ${setClauses.join(', ')} WHERE ma_nv=?`, values);
+        if (!updRes || updRes.affectedRows === 0) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
         invalidateUserCache(id);
 
         if (current_user) {
@@ -212,7 +208,15 @@ class EmployeeService {
         const isBlocked = status === 'inactive' || status === 'locked' || is_locked === 1 || is_locked === true;
         const newStatus = status ? status : (isBlocked ? 'inactive' : 'active');
         const newLocked = is_locked !== undefined ? (is_locked ? 1 : 0) : (isBlocked ? 1 : 0);
-        await query('UPDATE employees SET status = ?, is_locked = ? WHERE ma_nv = ?', [newStatus, newLocked, ma_nv]);
+        const updRes = await query(
+            'UPDATE employees SET status = ?, is_locked = ?, token_version = COALESCE(token_version, 1) + 1 WHERE ma_nv = ?',
+            [newStatus, newLocked, ma_nv]
+        );
+        if (!updRes || updRes.affectedRows === 0) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
         invalidateUserCache(ma_nv);
 
         if (current_user) {
@@ -228,12 +232,24 @@ class EmployeeService {
         return { success: true };
     }
 
+    async toggleEmployeeLock(ma_nv, payload = {}, current_user = null) {
+        return this.updateEmployeeStatus(ma_nv, payload, current_user);
+    }
+
     async updateEmployeeRole(ma_nv, role, current_user = null) {
         const validRole = ['worker', 'accountant', 'admin'].includes(role) 
             ? role 
             : (role === 'employee' ? 'worker' : 'worker');
 
-        await query('UPDATE employees SET role = ? WHERE ma_nv = ?', [validRole, ma_nv]);
+        const updRes = await query(
+            'UPDATE employees SET role = ?, token_version = COALESCE(token_version, 1) + 1 WHERE ma_nv = ?',
+            [validRole, ma_nv]
+        );
+        if (!updRes || updRes.affectedRows === 0) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
         invalidateUserCache(ma_nv);
 
         if (current_user) {
@@ -315,7 +331,13 @@ class EmployeeService {
     }
 
     async deleteEmployee(id, current_user = null) {
-        await query('DELETE FROM employees WHERE ma_nv=?', [id]);
+        const delRes = await query('DELETE FROM employees WHERE ma_nv=?', [id]);
+        if (!delRes || delRes.affectedRows === 0) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
+        invalidateUserCache(id);
 
         if (current_user) {
             await logAuditEvent({
@@ -392,17 +414,17 @@ class EmployeeService {
      * Liên kết tài khoản Zalo thông qua Access Token được Server xác minh với Zalo
      */
     async bindZalo(ma_nv, zalo_token, current_user = null) {
-        if (!zalo_token || typeof zalo_token !== 'string') {
-            const error = new Error('Thiếu Zalo access token để xác thực với máy chủ Zalo!');
-            error.statusCode = 400;
+        if (!zalo_token || typeof zalo_token !== 'string' || !zalo_token.trim()) {
+            const error = new Error('Phiên xác thực Zalo không hợp lệ hoặc đã hết hạn, vui lòng mở lại ứng dụng từ Zalo');
+            error.statusCode = 401;
             throw error;
         }
 
         // Server-side verification với Zalo Open API
         const verified = await verifyZaloUserToken(zalo_token);
         if (!verified || !verified.zaloId) {
-            const error = new Error('Zalo access token không hợp lệ hoặc đã hết hạn!');
-            error.statusCode = 400;
+            const error = new Error('Phiên xác thực Zalo không hợp lệ hoặc đã hết hạn, vui lòng mở lại ứng dụng từ Zalo');
+            error.statusCode = 401;
             throw error;
         }
 
@@ -607,10 +629,13 @@ class EmployeeService {
             };
         }
 
-        // Thực thi cập nhật thực tế
+        // Thực thi cập nhật thực tế & tăng token_version để thu hồi JWT cũ
         const idPlaceholders = targetIds.map(() => '?').join(', ');
-        const updateSql = `UPDATE employees SET must_change_password = 1 WHERE ma_nv IN (${idPlaceholders})`;
+        const updateSql = `UPDATE employees SET must_change_password = 1, token_version = COALESCE(token_version, 1) + 1 WHERE ma_nv IN (${idPlaceholders})`;
         await query(updateSql, targetIds);
+        for (const tid of targetIds) {
+            invalidateUserCache(tid);
+        }
 
         // Ghi nhận Audit Log
         await logAuditEvent({

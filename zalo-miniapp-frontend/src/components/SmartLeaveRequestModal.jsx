@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
 import {
-  ArrowLeft,
   FileText,
   AlertCircle,
   Gift,
@@ -13,8 +12,8 @@ import {
 } from "lucide-react";
 import { safePost, generateIdempotencyKey } from "../utils/api";
 import { analyzeLeaveRequest, formatDateKey } from "../utils/holidayUtils";
-import useLockBodyScroll from "../hooks/useLockBodyScroll";
 import { CORRECTION_MODES, getRequestTypeLabel } from "../utils/viLabels";
+import { AppButton, AppModal, FormRow } from "./ui";
 
 const LEAVE_TYPES = [
   { id: "P", label: "Nghỉ phép năm (Hưởng nguyên lương)" },
@@ -83,8 +82,6 @@ export default function SmartLeaveRequestModal({
   onRequestCreated,
   onRequestSubmitted
 }) {
-  useLockBodyScroll(true);
-
   const defaultDate = initialDate || formatDateKey(new Date());
   const resolvedInitial =
     initialMode === "ATTENDANCE_COMPENSATION"
@@ -259,65 +256,74 @@ export default function SmartLeaveRequestModal({
     }
   };
 
-  return (
+  const submitVariant = isSalaryAdvance ? "success" : isCompensation ? "warning" : "primary";
+  const modalTitle = isSalaryAdvance
+    ? "Đề nghị xin ứng lương"
+    : isCompensation
+      ? "Giải trình Bổ sung công"
+      : "Tạo đơn xin phép / tăng ca";
+  const modalSubtitle = isSalaryAdvance
+    ? "Khấu trừ tự động vào kỳ lương tháng"
+    : isCompensation
+      ? "Quên chấm vào/ra hoặc đổi ca làm việc"
+      : "Hệ thống tự động đối soát lịch nghỉ lễ";
+  const modalIcon = (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-fade-in"
-      style={{
-        paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)"
-      }}
-      onTouchMove={(e) => {
-        if (e.target === e.currentTarget) e.preventDefault();
-      }}
-      onClick={onClose}
+      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border shrink-0 ${
+        isSalaryAdvance
+          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+          : isCompensation
+            ? "bg-amber-50 text-amber-700 border-amber-200"
+            : "bg-blue-50 text-blue-700 border-blue-200"
+      }`}
     >
-      <div
-        className="flex flex-col w-full max-w-lg max-h-[90vh] bg-white rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl text-slate-800 border-2 border-slate-300 animate-sheet-up"
-        onClick={(e) => e.stopPropagation()}
-      >
-        
-        {/* Header Modal: Trở về nằm góc trái tránh nút Zalo Capsule */}
-        <div className="px-4 py-3.5 border-b border-slate-200 flex items-center gap-3 bg-white shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[40px] px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition active:scale-[0.98]"
-          >
-            <ArrowLeft size={16} />
-            <span>Trở về</span>
-          </button>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border shrink-0 ${
-            isSalaryAdvance
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-              : isCompensation
-                ? "bg-amber-50 text-amber-700 border-amber-200"
-                : "bg-blue-50 text-blue-700 border-blue-200"
-          }`}>
-            {isSalaryAdvance ? <Wallet size={20} /> : isCompensation ? <Clock size={20} /> : <FileText size={20} />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-bold text-base leading-snug text-slate-900 break-words">
-              {isSalaryAdvance
-                ? "Đề nghị xin ứng lương"
-                : isCompensation
-                  ? "Giải trình Bổ sung công"
-                  : "Tạo đơn xin phép / tăng ca"}
-            </h3>
-            <p className="text-xs text-slate-500 font-medium leading-snug">
-              {isSalaryAdvance
-                ? "Khấu trừ tự động vào kỳ lương tháng"
-                : isCompensation
-                  ? "Quên chấm vào/ra hoặc đổi ca làm việc"
-                  : "Hệ thống tự động đối soát lịch nghỉ lễ"}
-            </p>
-          </div>
-        </div>
+      {isSalaryAdvance ? <Wallet size={20} /> : isCompensation ? <Clock size={20} /> : <FileText size={20} />}
+    </div>
+  );
 
+  return (
+    <AppModal
+      isOpen
+      onClose={onClose}
+      disableClose={isSubmitting}
+      showCloseX={false}
+      title={modalTitle}
+      subtitle={modalSubtitle}
+      icon={modalIcon}
+      maxWidthClass="max-w-lg"
+      footer={
+        <div className="flex gap-2.5">
+          <AppButton
+            variant="secondary"
+            disabled={isSubmitting}
+            onClick={onClose}
+            className="flex-1"
+          >
+            Đóng / Quay lại
+          </AppButton>
+          <AppButton
+            type="submit"
+            form="smart-leave-request-form"
+            variant={submitVariant}
+            icon={Send}
+            loading={isSubmitting}
+            loadingText="Đang gửi đơn..."
+            className="flex-1"
+          >
+            {isSalaryAdvance
+              ? "Gửi đơn ứng lương"
+              : isCompensation
+                ? "Gửi giải trình công"
+                : "Nộp đơn xét duyệt"}
+          </AppButton>
+        </div>
+      }
+    >
         {/* Nội dung Form có thể cuộn mượt trên mọi thiết bị */}
         <form
           id="smart-leave-request-form"
           onSubmit={handleSubmit}
-          className="modal-scroll-area flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-4 space-y-4"
+          className="p-4 space-y-4"
         >
           {errorMessage && (
             <div className="p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-semibold flex items-start gap-2.5 leading-relaxed">
@@ -383,32 +389,34 @@ export default function SmartLeaveRequestModal({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200">
-                <label className="text-sm font-semibold text-slate-800">Ngày đề nghị</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-emerald-600"
-                  required
-                />
+              <div className="bg-slate-50 rounded-xl border border-slate-200">
+                <FormRow label="Ngày đề nghị">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-emerald-600"
+                    required
+                  />
+                </FormRow>
               </div>
             </div>
           ) : isCompensation ? (
             <div className="space-y-4">
               {/* Chọn Ngày giải trình */}
-              <div className="flex items-center justify-between gap-3 bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200">
-                <label className="text-sm font-semibold text-slate-800">Ngày bổ sung công</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setEndDate(e.target.value);
-                  }}
-                  className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-amber-600"
-                  required
-                />
+              <div className="bg-slate-50 rounded-xl border border-slate-200">
+                <FormRow label="Ngày bổ sung công">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setEndDate(e.target.value);
+                    }}
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-amber-600"
+                    required
+                  />
+                </FormRow>
               </div>
 
               {/* 4 Nút chọn phạm vi giải trình */}
@@ -442,30 +450,28 @@ export default function SmartLeaveRequestModal({
               </div>
 
               {/* Giờ vào / Giờ ra thực tế dạng dòng ngang iOS */}
-              <div className="space-y-2.5">
+              <div className="divide-y divide-slate-200 bg-slate-50 rounded-xl border border-slate-200">
                 {needsCheckIn && (
-                  <div className="flex items-center justify-between gap-3 bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200">
-                    <label className="text-sm font-semibold text-slate-800">Giờ vào thực tế</label>
+                  <FormRow label="Giờ vào thực tế">
                     <input
                       type="time"
                       value={checkInTime}
                       onChange={(e) => setCheckInTime(e.target.value)}
-                      className="w-32 sm:w-36 min-h-[40px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-bold focus:outline-none focus:border-amber-600"
+                      className="w-32 sm:w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-bold focus:outline-none focus:border-amber-600"
                       required
                     />
-                  </div>
+                  </FormRow>
                 )}
                 {needsCheckOut && (
-                  <div className="flex items-center justify-between gap-3 bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200">
-                    <label className="text-sm font-semibold text-slate-800">Giờ ra thực tế</label>
+                  <FormRow label="Giờ ra thực tế">
                     <input
                       type="time"
                       value={checkOutTime}
                       onChange={(e) => setCheckOutTime(e.target.value)}
-                      className="w-32 sm:w-36 min-h-[40px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-bold focus:outline-none focus:border-amber-600"
+                      className="w-32 sm:w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-bold focus:outline-none focus:border-amber-600"
                       required
                     />
-                  </div>
+                  </FormRow>
                 )}
               </div>
 
@@ -509,9 +515,8 @@ export default function SmartLeaveRequestModal({
           ) : (
             <>
               {/* Chọn Khoảng ngày nghỉ dạng hàng ngang iOS gọn gàng */}
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between gap-3 bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200">
-                  <label className="text-sm font-semibold text-slate-800">Từ ngày</label>
+              <div className="divide-y divide-slate-200 bg-slate-50 rounded-xl border border-slate-200">
+                <FormRow label="Từ ngày">
                   <input
                     type="date"
                     value={startDate}
@@ -520,21 +525,20 @@ export default function SmartLeaveRequestModal({
                       setStartDate(nextStart);
                       if (endDate < nextStart) setEndDate(nextStart);
                     }}
-                    className="w-36 min-h-[40px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-blue-600"
                     required
                   />
-                </div>
-                <div className="flex items-center justify-between gap-3 bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200">
-                  <label className="text-sm font-semibold text-slate-800">Đến ngày</label>
+                </FormRow>
+                <FormRow label="Đến ngày">
                   <input
                     type="date"
                     value={endDate}
                     min={startDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-36 min-h-[40px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-blue-600"
                     required
                   />
-                </div>
+                </FormRow>
               </div>
 
               {/* BANNER THÔNG MINH: TỰ LOẠI TRỪ NGÀY LỄ */}
@@ -640,48 +644,6 @@ export default function SmartLeaveRequestModal({
             />
           </div>
         </form>
-
-        {/* Footer nút gửi đơn cố định dưới đáy sheet */}
-        <div
-          className="px-4 py-3 border-t border-slate-200 bg-white flex gap-2.5 shrink-0"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 min-h-[46px] py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm border-2 border-slate-300 cursor-pointer whitespace-nowrap transition active:scale-[0.98]"
-          >
-            Đóng / Quay lại
-          </button>
-          <button
-            type="submit"
-            form="smart-leave-request-form"
-            disabled={isSubmitting || isSubmittingRef.current}
-            className={`flex-1 min-h-[46px] py-2.5 px-4 rounded-xl text-white font-semibold text-sm border-2 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 whitespace-nowrap transition active:scale-[0.98] ${
-              isSalaryAdvance
-                ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-700"
-                : isCompensation
-                  ? "bg-amber-600 hover:bg-amber-700 border-amber-700"
-                  : "bg-blue-600 hover:bg-blue-700 border-blue-700"
-            }`}
-          >
-            {isSubmitting ? (
-              <span>Đang gửi đơn...</span>
-            ) : (
-              <>
-                <Send size={16} className="shrink-0" />
-                <span>
-                  {isSalaryAdvance
-                    ? "Gửi đơn ứng lương"
-                    : isCompensation
-                      ? "Gửi giải trình công"
-                      : "Nộp đơn xét duyệt"}
-                </span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+    </AppModal>
   );
 }

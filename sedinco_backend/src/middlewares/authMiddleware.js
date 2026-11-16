@@ -42,7 +42,7 @@ async function verifyUserStatusInDb(user) {
     try {
         const { query } = require('../config/db');
         if (user.role === 'worker' || user.role === 'accountant' || user.ma_nv) {
-            const rows = await query('SELECT ma_nv, role, status, is_locked FROM employees WHERE ma_nv = ? LIMIT 1', [user.ma_nv || user.id]);
+            const rows = await query('SELECT ma_nv, role, status, is_locked, COALESCE(token_version, 1) AS token_version FROM employees WHERE ma_nv = ? LIMIT 1', [user.ma_nv || user.id]);
             if (!rows || rows.length === 0) {
                 const data = { notFound: true };
                 userStatusCache.set(String(identifier), { time: now, data });
@@ -51,18 +51,23 @@ async function verifyUserStatusInDb(user) {
             const emp = rows[0];
             const data = {
                 isLocked: Boolean(emp.is_locked === 1 || emp.status === 'inactive' || emp.status === 'locked'),
-                role: emp.role || resolveUserRole(emp)
+                role: emp.role || resolveUserRole(emp),
+                tokenVersion: Number(emp.token_version || 1)
             };
             userStatusCache.set(String(identifier), { time: now, data });
             return data;
         } else if (user.role === 'admin' || user.username) {
-            const rows = await query('SELECT id, username FROM admins WHERE username = ? OR id = ? LIMIT 1', [user.username || user.id, user.id || 0]);
+            const rows = await query('SELECT id, username, COALESCE(token_version, 1) AS token_version FROM admins WHERE username = ? OR id = ? LIMIT 1', [user.username || user.id, user.id || 0]);
             if (!rows || rows.length === 0) {
                 const data = { notFound: true };
                 userStatusCache.set(String(identifier), { time: now, data });
                 return data;
             }
-            const data = { isLocked: false, role: 'admin' };
+            const data = {
+                isLocked: false,
+                role: 'admin',
+                tokenVersion: Number(rows[0].token_version || 1)
+            };
             userStatusCache.set(String(identifier), { time: now, data });
             return data;
         }
@@ -211,6 +216,16 @@ async function authenticateToken(req, res, next) {
                     return res.status(403).json({
                         success: false,
                         message: 'Vai trò tài khoản của bạn đã thay đổi. Vui lòng đăng nhập lại!'
+                    });
+                }
+                if (Number(user.token_version || 1) !== Number(dbCheck.tokenVersion || 1)) {
+                    if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+                        req.app.setCorsHeadersIfAllowed(req, res);
+                    }
+                    return res.status(401).json({
+                        success: false,
+                        code: 'TOKEN_REVOKED',
+                        message: 'Phiên đăng nhập đã hết hiệu lực do thay đổi bảo mật, vui lòng đăng nhập lại'
                     });
                 }
             }

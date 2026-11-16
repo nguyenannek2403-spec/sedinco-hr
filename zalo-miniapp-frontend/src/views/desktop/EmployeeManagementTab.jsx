@@ -8,11 +8,8 @@ import {
   Unlock,
   Key,
   AlertCircle,
-  CheckCircle2,
   Clock,
   Copy,
-  X,
-  ArrowLeft,
   Building2,
   Edit3,
   Smartphone
@@ -21,9 +18,16 @@ import { safeGet, safePost, safePut, generateIdempotencyKey } from "../../utils/
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS, getShiftLabel } from "../../utils/viLabels";
 import { ROLE_LABELS } from "../../constants/roles";
-import { useLockBodyScroll } from "../../hooks/useLockBodyScroll";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import AdminDeviceApproval from "../../components/AdminDeviceApproval";
+import {
+  AppButton,
+  AppModal,
+  FormRow,
+  StatusBadge,
+  SkeletonList,
+  EmptyState
+} from "../../components/ui";
 
 const SHIFT_OPTIONS = [
   { value: "FULL_DAY", label: "Ca hành chính (08:00–17:30)" },
@@ -37,8 +41,13 @@ export default function EmployeeManagementTab({
   showToast,
   initialSubTab = "list",
   pendingDeviceCount = 0,
-  onRefreshAlerts
+  onRefreshAlerts,
+  activeRole,
+  dynamicPerms = {}
 }) {
+  const effectiveRole = activeRole || currentUser?.role || "admin";
+  const isAdmin = effectiveRole === "admin";
+  const canEditEmployees = isAdmin || dynamicPerms?.employee_edit === true;
   const [subTab, setSubTab] = useState(initialSubTab);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -93,8 +102,6 @@ export default function EmployeeManagementTab({
   const shiftInFlightRef = useRef(false);
   const [updatingShiftMaNv, setUpdatingShiftMaNv] = useState(null);
   const [createdCreds, setCreatedCreds] = useState(null);
-
-  useLockBodyScroll(Boolean(isAddModalOpen || editingScheduleEmp || createdCreds || detailEmp));
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
@@ -475,7 +482,7 @@ export default function EmployeeManagementTab({
   return (
     <div className="space-y-4 pb-28">
       {/* Sub-tabs: Danh sách nhân sự vs Phê duyệt đổi thiết bị */}
-      {currentUser?.role === "admin" && (
+      {isAdmin && (
         <div className="flex flex-wrap items-center gap-2 bg-slate-800/80 border border-slate-700/70 rounded-2xl p-2 shadow-lg">
           <button
             type="button"
@@ -509,7 +516,7 @@ export default function EmployeeManagementTab({
         </div>
       )}
 
-      {subTab === "devices" && currentUser?.role === "admin" ? (
+      {subTab === "devices" && isAdmin ? (
         <AdminDeviceApproval
           currentUser={currentUser}
           showToast={showToast}
@@ -558,46 +565,50 @@ export default function EmployeeManagementTab({
             />
           </div>
 
-          <button
-            type="button"
-            onClick={handleBatchForcePassword}
-            className="min-h-[42px] px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-            title="Bắt buộc đổi mật khẩu đợt tới"
-          >
-            <Key className="w-3.5 h-3.5 shrink-0" />
-            <span>Yêu cầu đổi MK</span>
-          </button>
+          {isAdmin && (
+            <AppButton
+              variant="ghost"
+              tone="dark"
+              icon={Key}
+              onClick={handleBatchForcePassword}
+              className="bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-400 text-xs px-3 py-2"
+              title="Bắt buộc đổi mật khẩu đợt tới"
+            >
+              Yêu cầu đổi MK
+            </AppButton>
+          )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setFormError("");
-              setIsAddModalOpen(true);
-            }}
-            className="min-h-[42px] px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span>Thêm nhân viên</span>
-          </button>
+          {canEditEmployees && (
+            <AppButton
+              variant="primary"
+              icon={Plus}
+              onClick={() => {
+                setFormError("");
+                setIsAddModalOpen(true);
+              }}
+              className="text-xs px-3.5 py-2 shadow-lg shadow-blue-600/30"
+            >
+              Thêm nhân viên
+            </AppButton>
+          )}
 
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            tone="dark"
+            icon={RefreshCw}
+            loading={loading}
             onClick={fetchEmployees}
-            disabled={loading}
             aria-label="Làm mới"
-            className="min-h-[42px] min-w-[42px] p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors flex items-center justify-center cursor-pointer"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-blue-400" : ""}`} />
-          </button>
+            className="min-w-[44px] px-3 py-2"
+          />
         </div>
       </div>
 
       {/* Table Employees */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl shadow-xl overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-blue-400" />
-            Đang tải danh sách nhân sự...
+          <div className="p-4">
+            <SkeletonList rows={4} dark label="Đang tải danh sách nhân sự..." />
           </div>
         ) : error ? (
           <div className="p-6 text-center text-rose-400 text-xs flex items-center justify-center gap-2">
@@ -605,8 +616,8 @@ export default function EmployeeManagementTab({
             {error}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 text-xs">
-            Không tìm thấy nhân viên nào khớp với bộ lọc.
+          <div className="p-4">
+            <EmptyState dark icon={Users} title="Không tìm thấy nhân viên nào khớp với bộ lọc." />
           </div>
         ) : (
           <>
@@ -615,7 +626,7 @@ export default function EmployeeManagementTab({
               {filtered.map((emp) => {
                 const isLocked = Boolean(emp.is_locked || emp.status === "inactive");
                 return (
-                  <div key={emp.id || emp.ma_nv} className="p-4 space-y-2.5">
+                  <div key={emp.id || emp.ma_nv} className="perf-list-item p-4 space-y-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <span className="font-bold text-base text-white block break-words leading-snug">{emp.ho_ten}</span>
@@ -627,17 +638,7 @@ export default function EmployeeManagementTab({
                           <span>{emp.department || "Khối Công trình"}</span>
                         </span>
                       </div>
-                      {isLocked ? (
-                        <span className="px-2.5 py-1 text-xs font-semibold rounded-lg border bg-rose-500/15 text-rose-400 border-rose-500/30 inline-flex items-center gap-1 whitespace-nowrap shrink-0">
-                          <Lock className="w-3 h-3" />
-                          <span>Đã khóa</span>
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 text-xs font-semibold rounded-lg border bg-emerald-500/15 text-emerald-400 border-emerald-500/30 inline-flex items-center gap-1 whitespace-nowrap shrink-0">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>Hoạt động</span>
-                        </span>
-                      )}
+                      <StatusBadge type="employee" status={isLocked ? "locked" : "active"} dark />
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-sm">
@@ -648,27 +649,33 @@ export default function EmployeeManagementTab({
                         <button
                           type="button"
                           onClick={() => handleOpenDetailModal(emp)}
-                          className="min-h-[40px] px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-200 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                          className="min-h-[44px] px-3 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-200 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
-                          <span>Thông tin / Sửa</span>
+                          <span>{canEditEmployees ? "Thông tin / Sửa" : "Xem hồ sơ"}</span>
                         </button>
-                        <select
-                          value={emp.role || "worker"}
-                          onChange={(e) => handleChangeRole(emp, e.target.value)}
-                          disabled={emp.role === "admin"}
-                          className="min-h-[40px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-semibold disabled:opacity-50"
-                        >
-                          <option value="worker">Nhân viên</option>
-                          <option value="accountant">Kế toán</option>
-                          {emp.role === "admin" && <option value="admin">Quản trị viên</option>}
-                        </select>
-                        {emp.role !== "admin" && (
+                        {isAdmin ? (
+                          <select
+                            value={emp.role || "worker"}
+                            onChange={(e) => handleChangeRole(emp, e.target.value)}
+                            disabled={emp.role === "admin"}
+                            className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-semibold disabled:opacity-50"
+                          >
+                            <option value="worker">Nhân viên</option>
+                            <option value="accountant">Kế toán</option>
+                            {emp.role === "admin" && <option value="admin">Quản trị viên</option>}
+                          </select>
+                        ) : (
+                          <span className="min-h-[44px] inline-flex items-center bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-slate-200 font-semibold">
+                            {ROLE_LABELS[emp.role] || "Nhân viên"}
+                          </span>
+                        )}
+                        {isAdmin && emp.role !== "admin" && (
                           <button
                             type="button"
                             onClick={() => handleToggleLock(emp)}
                             aria-label={isLocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}
-                            className={`min-w-[40px] min-h-[38px] p-2 rounded-xl border flex items-center justify-center cursor-pointer ${
+                            className={`min-w-[44px] min-h-[44px] p-2 rounded-xl border flex items-center justify-center cursor-pointer ${
                               isLocked
                                 ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
                                 : "bg-rose-500/15 border-rose-500/30 text-rose-400"
@@ -684,9 +691,9 @@ export default function EmployeeManagementTab({
                       <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                       <select
                         value={emp.shift_type || "FULL_DAY"}
-                        disabled={updatingShiftMaNv === emp.ma_nv}
+                        disabled={!canEditEmployees || updatingShiftMaNv === emp.ma_nv}
                         onChange={(e) => handleChangeShift(emp, e.target.value)}
-                        className="flex-1 min-w-[140px] min-h-[38px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-indigo-200 font-medium disabled:opacity-50"
+                        className="flex-1 min-w-[140px] min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-indigo-200 font-medium disabled:opacity-60"
                       >
                         {SHIFT_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>
@@ -694,19 +701,27 @@ export default function EmployeeManagementTab({
                           </option>
                         ))}
                       </select>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenCustomSchedule(emp)}
-                        className={`min-h-[38px] px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition-colors cursor-pointer shrink-0 ${
-                          emp.custom_start_time && emp.custom_end_time
-                            ? "bg-amber-500/20 border-amber-500/40 text-amber-200 hover:bg-amber-500/30"
-                            : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-700"
-                        }`}
-                      >
-                        {emp.custom_start_time && emp.custom_end_time
-                          ? `Giờ riêng: ${emp.custom_start_time}–${emp.custom_end_time}`
-                          : "Giờ riêng"}
-                      </button>
+                      {canEditEmployees ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCustomSchedule(emp)}
+                          className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+                            emp.custom_start_time && emp.custom_end_time
+                              ? "bg-amber-500/20 border-amber-500/40 text-amber-200 hover:bg-amber-500/30"
+                              : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-700"
+                          }`}
+                        >
+                          {emp.custom_start_time && emp.custom_end_time
+                            ? `Giờ riêng: ${emp.custom_start_time}–${emp.custom_end_time}`
+                            : "Giờ riêng"}
+                        </button>
+                      ) : (
+                        emp.custom_start_time && emp.custom_end_time && (
+                          <span className="min-h-[44px] px-3 py-2 rounded-xl border bg-amber-500/20 border-amber-500/40 text-amber-200 text-xs font-bold inline-flex items-center shrink-0">
+                            Giờ riêng: {emp.custom_start_time}–{emp.custom_end_time}
+                          </span>
+                        )
+                      )}
                     </div>
                   </div>
                 );
@@ -732,34 +747,40 @@ export default function EmployeeManagementTab({
                   const isLocked = Boolean(emp.is_locked || emp.status === "inactive");
 
                   return (
-                    <tr key={emp.id || emp.ma_nv} className="hover:bg-slate-700/30 transition-colors">
+                    <tr key={emp.id || emp.ma_nv} className="perf-list-item hover:bg-slate-700/30 transition-colors">
                       <td className="p-3.5 pl-5">
                         <div className="font-semibold text-white">{emp.ho_ten}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">{emp.ma_nv}</div>
+                        <div className="text-xs text-slate-400 font-mono">{emp.ma_nv}</div>
                       </td>
                       <td className="p-3.5 font-medium text-slate-200">
                         <div>{emp.chuc_danh || "Nhân viên"}</div>
-                        <div className="text-[11px] text-cyan-300 font-normal mt-0.5">{emp.department || "Khối Công trình"}</div>
+                        <div className="text-xs text-cyan-300 font-normal mt-0.5">{emp.department || "Khối Công trình"}</div>
                       </td>
                       <td className="p-3.5">
-                        <select
-                          value={emp.role || "worker"}
-                          onChange={(e) => handleChangeRole(emp, e.target.value)}
-                          disabled={emp.role === "admin"}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                        >
-                          <option value="worker">Nhân viên</option>
-                          <option value="accountant">Kế toán</option>
-                          {emp.role === "admin" && <option value="admin">Quản trị viên</option>}
-                        </select>
+                        {isAdmin ? (
+                          <select
+                            value={emp.role || "worker"}
+                            onChange={(e) => handleChangeRole(emp, e.target.value)}
+                            disabled={emp.role === "admin"}
+                            className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                          >
+                            <option value="worker">Nhân viên</option>
+                            <option value="accountant">Kế toán</option>
+                            {emp.role === "admin" && <option value="admin">Quản trị viên</option>}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-slate-200 font-medium">
+                            {ROLE_LABELS[emp.role] || "Nhân viên"}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3.5">
                         <div className="flex flex-col items-start gap-1.5">
                           <select
                             value={emp.shift_type || "FULL_DAY"}
-                            disabled={updatingShiftMaNv === emp.ma_nv}
+                            disabled={!canEditEmployees || updatingShiftMaNv === emp.ma_nv}
                             onChange={(e) => handleChangeShift(emp, e.target.value)}
-                            className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-indigo-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                            className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-indigo-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
                           >
                             {SHIFT_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>
@@ -767,64 +788,63 @@ export default function EmployeeManagementTab({
                               </option>
                             ))}
                           </select>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenCustomSchedule(emp)}
-                            className={`px-2 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
-                              emp.custom_start_time && emp.custom_end_time
-                                ? "bg-amber-500/20 border-amber-500/40 text-amber-200 hover:bg-amber-500/30"
-                                : "bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700"
-                            }`}
-                          >
-                            {emp.custom_start_time && emp.custom_end_time
-                              ? `Giờ riêng: ${emp.custom_start_time}–${emp.custom_end_time}`
-                              : "Cài giờ riêng"}
-                          </button>
+                          {canEditEmployees ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCustomSchedule(emp)}
+                              className={`min-h-[44px] px-2.5 py-2 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${
+                                emp.custom_start_time && emp.custom_end_time
+                                  ? "bg-amber-500/20 border-amber-500/40 text-amber-200 hover:bg-amber-500/30"
+                                  : "bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700"
+                              }`}
+                            >
+                              {emp.custom_start_time && emp.custom_end_time
+                                ? `Giờ riêng: ${emp.custom_start_time}–${emp.custom_end_time}`
+                                : "Cài giờ riêng"}
+                            </button>
+                          ) : (
+                            emp.custom_start_time && emp.custom_end_time && (
+                              <span className="px-2.5 py-1 rounded-lg border bg-amber-500/20 border-amber-500/40 text-amber-200 text-xs font-semibold">
+                                Giờ riêng: {emp.custom_start_time}–{emp.custom_end_time}
+                              </span>
+                            )
+                          )}
                         </div>
                       </td>
                       <td className="p-3.5 text-slate-300 font-mono font-medium whitespace-nowrap">
                         {Number(emp.luong_cb || 0).toLocaleString("vi-VN")} đ
                       </td>
                       <td className="p-3.5 whitespace-nowrap">
-                        {isLocked ? (
-                          <span className="px-2.5 py-1 text-xs font-semibold rounded-lg border bg-rose-500/15 text-rose-400 border-rose-500/30 inline-flex items-center gap-1">
-                            <Lock className="w-3 h-3" />
-                            <span>Đã khóa</span>
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 text-xs font-semibold rounded-lg border bg-emerald-500/15 text-emerald-400 border-emerald-500/30 inline-flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>Hoạt động</span>
-                          </span>
-                        )}
+                        <StatusBadge type="employee" status={isLocked ? "locked" : "active"} dark />
                       </td>
                       <td className="p-3.5 text-right pr-5 whitespace-nowrap">
                         <div className="inline-flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenDetailModal(emp)}
-                            className="px-2.5 py-1.5 rounded-lg border border-blue-500/40 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
+                            className="min-h-[44px] px-3 py-2 rounded-lg border border-blue-500/40 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
                             title="Xem & Sửa hồ sơ"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
-                            <span>Hồ sơ</span>
+                            <span>{canEditEmployees ? "Hồ sơ" : "Xem"}</span>
                           </button>
-                          {emp.role !== "admin" ? (
+                          {isAdmin && emp.role !== "admin" ? (
                             <button
                               type="button"
                               onClick={() => handleToggleLock(emp)}
-                              className={`p-2 rounded-lg border transition-colors cursor-pointer ${
+                              className={`min-w-[44px] min-h-[44px] p-2 rounded-lg border transition-colors cursor-pointer flex items-center justify-center ${
                                 isLocked
                                   ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25"
                                   : "bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25"
                               }`}
                               title={isLocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}
+                              aria-label={isLocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}
                             >
                               {isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                             </button>
-                          ) : (
-                            <span className="text-slate-500 text-xs italic">Bảo vệ</span>
-                          )}
+                          ) : emp.role === "admin" ? (
+                            <span className="text-slate-400 text-xs italic">Bảo vệ</span>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -844,7 +864,7 @@ export default function EmployeeManagementTab({
         title={confirmAction.title}
         message={confirmAction.message}
         confirmLabel={confirmAction.confirmLabel}
-        danger={confirmAction.danger}
+        variant={confirmAction.danger ? "danger" : "primary"}
         loading={confirmLoading}
         onCancel={() => {
           if (!confirmLoading) {
@@ -861,103 +881,76 @@ export default function EmployeeManagementTab({
         onConfirm={executeConfirmedAction}
       />
 
-      {createdCreds && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
-          onClick={(e) => { if (e.target === e.currentTarget) setCreatedCreds(null); }}
-        >
-          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-sm max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-sheet-up">
-            <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-slate-700/80 shrink-0">
-              <button
-                type="button"
-                onClick={() => setCreatedCreds(null)}
-                className="inline-flex items-center gap-1 min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-semibold shrink-0"
+      <AppModal
+        open={Boolean(createdCreds)}
+        onClose={() => setCreatedCreds(null)}
+        theme="dark"
+        maxWidthClass="max-w-sm"
+        title="Tài khoản mới tạo"
+        closeLabel="Đóng / Quay lại"
+      >
+        {createdCreds && (
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-slate-200 leading-relaxed">
+              Đã tạo tài khoản cho <strong>{createdCreds.ho_ten}</strong> ({createdCreds.ma_nv}). Vui lòng gửi mật khẩu tạm thời bên dưới cho nhân viên:
+            </p>
+            <div className="p-3 bg-slate-950 border border-slate-700 rounded-xl flex items-center justify-between gap-2">
+              <code className="text-base font-mono font-bold text-emerald-400 break-all">{createdCreds.password}</code>
+              <AppButton
+                variant="secondary"
+                tone="dark"
+                icon={Copy}
+                onClick={() => {
+                  navigator.clipboard?.writeText(createdCreds.password);
+                  if (showToast) showToast("Đã sao chép mật khẩu tạm thời!", "success");
+                }}
+                className="text-xs px-3 py-1.5"
               >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Trở về</span>
-              </button>
-              <h3 className="text-sm sm:text-base font-bold text-white truncate">Tài khoản mới tạo</h3>
-              <button
-                type="button"
-                onClick={() => setCreatedCreds(null)}
-                className="w-9 h-9 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
-                aria-label="Đóng"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="modal-scroll-area flex-1 min-h-0 p-5 space-y-4">
-              <p className="text-sm text-slate-200 leading-relaxed">
-                Đã tạo tài khoản cho <strong>{createdCreds.ho_ten}</strong> ({createdCreds.ma_nv}). Vui lòng gửi mật khẩu tạm thời bên dưới cho nhân viên:
-              </p>
-              <div className="p-3 bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-between gap-2">
-                <code className="text-base font-mono font-bold text-emerald-400 break-all">{createdCreds.password}</code>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(createdCreds.password);
-                    if (showToast) showToast("Đã sao chép mật khẩu tạm thời!", "success");
-                  }}
-                  className="min-h-[40px] px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Sao chép</span>
-                </button>
-              </div>
-            </div>
-            <div
-              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
-            >
-              <button
-                type="button"
-                onClick={() => setCreatedCreds(null)}
-                className="w-full min-h-[46px] py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-base font-semibold rounded-xl cursor-pointer"
-              >
-                Đóng / Quay lại
-              </button>
+                Sao chép
+              </AppButton>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </AppModal>
 
       {/* Modal Thêm Nhân Sự Mới */}
-      {isAddModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
-          onClick={(e) => { if (e.target === e.currentTarget) setIsAddModalOpen(false); }}
-        >
-          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-sheet-up">
-            <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-slate-700/80 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="inline-flex items-center gap-1 min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-semibold shrink-0"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Trở về</span>
-              </button>
-              <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-1.5 truncate">
-                <Plus className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="truncate">Thêm nhân viên mới</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
-                aria-label="Đóng"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              id="add-employee-form"
-              onSubmit={handleAddEmployee}
-              className="modal-scroll-area flex-1 min-h-0 p-5 space-y-3"
+      <AppModal
+        open={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        disableClose={isSubmitting}
+        theme="dark"
+        maxWidthClass="max-w-md"
+        title="Thêm nhân viên mới"
+        icon={<Plus className="w-4 h-4 text-blue-400 shrink-0" />}
+        footer={
+          <div className="flex gap-2.5">
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              disabled={isSubmitting}
+              onClick={() => setIsAddModalOpen(false)}
+              className="flex-1"
             >
+              Đóng / Quay lại
+            </AppButton>
+            <AppButton
+              type="submit"
+              form="add-employee-form"
+              variant="primary"
+              loading={isSubmitting}
+              loadingText="Đang lưu..."
+              className="flex-1 shadow-lg shadow-blue-600/30"
+            >
+              Lưu nhân viên
+            </AppButton>
+          </div>
+        }
+      >
+        <form
+          id="add-employee-form"
+          onSubmit={handleAddEmployee}
+          className="p-5 space-y-3"
+        >
               {formError && (
                 <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-sm leading-snug">
                   {formError}
@@ -972,7 +965,7 @@ export default function EmployeeManagementTab({
                     value={form.ma_nv}
                     onChange={(e) => setForm({ ...form, ma_nv: e.target.value.toUpperCase() })}
                     placeholder="VD: NV025"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -983,7 +976,7 @@ export default function EmployeeManagementTab({
                     value={form.ho_ten}
                     onChange={(e) => setForm({ ...form, ho_ten: e.target.value })}
                     placeholder="Nguyễn Văn A"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -997,7 +990,7 @@ export default function EmployeeManagementTab({
                     value={form.chuc_danh}
                     onChange={(e) => setForm({ ...form, chuc_danh: e.target.value })}
                     placeholder="Kỹ thuật / Nhân viên kho"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -1005,7 +998,7 @@ export default function EmployeeManagementTab({
                   <select
                     value={form.department || "Khối Công trình"}
                     onChange={(e) => setForm({ ...form, department: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {DEPARTMENT_OPTIONS.map((dept) => (
                       <option key={dept} value={dept}>
@@ -1022,7 +1015,7 @@ export default function EmployeeManagementTab({
                   <select
                     value={form.role}
                     onChange={(e) => setForm({ ...form, role: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="worker">Nhân viên</option>
                     <option value="accountant">Kế toán</option>
@@ -1037,7 +1030,7 @@ export default function EmployeeManagementTab({
                     step={100000}
                     value={form.luong_cb}
                     onChange={(e) => setForm({ ...form, luong_cb: Number(e.target.value) })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -1047,7 +1040,7 @@ export default function EmployeeManagementTab({
                 <select
                   value={form.shift_type || "FULL_DAY"}
                   onChange={(e) => setForm({ ...form, shift_type: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {SHIFT_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -1057,212 +1050,163 @@ export default function EmployeeManagementTab({
                 </select>
               </div>
 
-              <div className="divide-y divide-slate-700/80 border border-slate-700 rounded-xl bg-slate-900/90 overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
-                  <label className="text-sm font-semibold text-slate-200">Giờ vào riêng (tùy chọn)</label>
+              <div className="divide-y divide-slate-800 border border-slate-700 rounded-xl bg-slate-950/70 overflow-hidden">
+                <FormRow dark label="Giờ vào riêng (tùy chọn)">
                   <input
                     type="time"
                     value={form.custom_start_time || ""}
                     onChange={(e) => setForm({ ...form, custom_start_time: e.target.value })}
-                    className="w-32 sm:w-36 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-32 sm:w-36 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
-                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
-                  <label className="text-sm font-semibold text-slate-200">Giờ tan riêng (tùy chọn)</label>
+                </FormRow>
+                <FormRow dark label="Giờ tan riêng (tùy chọn)">
                   <input
                     type="time"
                     value={form.custom_end_time || ""}
                     onChange={(e) => setForm({ ...form, custom_end_time: e.target.value })}
-                    className="w-32 sm:w-36 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-32 sm:w-36 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </FormRow>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed">
                 Bỏ trống 2 ô giờ riêng nếu nhân viên áp dụng giờ chuẩn của Ca làm việc / Công ty.
               </p>
-            </form>
-
-            <div
-              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0 flex gap-2.5"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
-            >
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="flex-1 min-h-[46px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-100 text-base font-semibold rounded-xl transition-colors cursor-pointer"
-              >
-                Đóng / Quay lại
-              </button>
-              <button
-                type="submit"
-                form="add-employee-form"
-                disabled={isSubmitting}
-                className="flex-1 min-h-[46px] py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-base font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {isSubmitting ? "Đang lưu..." : "Lưu nhân viên"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        </form>
+      </AppModal>
 
       {/* Modal Cài Giờ Làm Việc Riêng Từng Nhân Sự */}
-      {editingScheduleEmp && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
-          onClick={(e) => { if (e.target === e.currentTarget) setEditingScheduleEmp(null); }}
-        >
-          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-sheet-up">
-            <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-slate-700/80 shrink-0">
-              <button
-                type="button"
-                onClick={() => setEditingScheduleEmp(null)}
-                className="inline-flex items-center gap-1 min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-semibold shrink-0"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Trở về</span>
-              </button>
-              <div className="min-w-0 flex-1 text-center">
-                <h3 className="text-sm sm:text-base font-bold text-white flex items-center justify-center gap-1.5 truncate">
-                  <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="truncate">Giờ làm việc riêng</span>
-                </h3>
-                <p className="text-xs text-slate-300 font-semibold truncate">
-                  {editingScheduleEmp.ho_ten} ({editingScheduleEmp.ma_nv})
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingScheduleEmp(null)}
-                className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
-                aria-label="Đóng"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              id="custom-schedule-form"
-              onSubmit={(e) => handleSaveCustomSchedule(e, false)}
-              className="modal-scroll-area flex-1 min-h-0 p-5 space-y-4"
+      <AppModal
+        open={Boolean(editingScheduleEmp)}
+        onClose={() => !savingSchedule && setEditingScheduleEmp(null)}
+        disableClose={savingSchedule}
+        theme="dark"
+        maxWidthClass="max-w-md"
+        title="Giờ làm việc riêng"
+        subtitle={editingScheduleEmp ? `${editingScheduleEmp.ho_ten} (${editingScheduleEmp.ma_nv})` : ""}
+        icon={<Clock className="w-4 h-4 text-amber-400 shrink-0" />}
+        footer={
+          <div className="flex flex-wrap gap-2">
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              disabled={savingSchedule}
+              onClick={() => handleSaveCustomSchedule(null, true)}
+              className="text-amber-200 border-slate-600 bg-slate-950 hover:bg-slate-800"
             >
-              <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-700 text-sm text-slate-200 leading-relaxed">
-                Khung giờ riêng sẽ được ưu tiên hơn giờ ca mặc định (<strong className="text-indigo-300">{getShiftLabel(editingScheduleEmp.shift_type || "FULL_DAY")}</strong>) khi chấm công vào/ra và tính đi muộn.
-              </div>
-
-              <div className="divide-y divide-slate-700/80 border border-slate-700 rounded-xl bg-slate-900/90 overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-3.5 py-3">
-                  <label className="text-sm font-semibold text-slate-200">Giờ vào ca riêng</label>
-                  <input
-                    type="time"
-                    value={scheduleForm.custom_start_time || ""}
-                    onChange={(e) =>
-                      setScheduleForm((prev) => ({ ...prev, custom_start_time: e.target.value }))
-                    }
-                    className="w-32 sm:w-36 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3 px-3.5 py-3">
-                  <label className="text-sm font-semibold text-slate-200">Giờ tan ca riêng</label>
-                  <input
-                    type="time"
-                    value={scheduleForm.custom_end_time || ""}
-                    onChange={(e) =>
-                      setScheduleForm((prev) => ({ ...prev, custom_end_time: e.target.value }))
-                    }
-                    className="w-32 sm:w-36 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Ví dụ: nhân viên bộ phận hỗ trợ làm <strong>09:00 – 18:00</strong> sẽ được tính đúng giờ nếu chấm vào trước hoặc đúng 09:00. Bấm <strong>"Dùng giờ chuẩn"</strong> để xóa giờ riêng.
-              </p>
-            </form>
-
-            <div
-              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0 flex flex-wrap gap-2"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
+              Dùng giờ chuẩn
+            </AppButton>
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              disabled={savingSchedule}
+              onClick={() => setEditingScheduleEmp(null)}
+              className="flex-1"
             >
-              <button
-                type="button"
-                disabled={savingSchedule}
-                onClick={() => handleSaveCustomSchedule(null, true)}
-                className="min-h-[46px] px-3.5 py-2.5 bg-slate-900 hover:bg-slate-700 border border-slate-600 text-amber-200 text-sm font-bold rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                Dùng giờ chuẩn
-              </button>
-              <button
-                type="button"
-                disabled={savingSchedule}
-                onClick={() => setEditingScheduleEmp(null)}
-                className="flex-1 min-h-[46px] py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                Đóng / Quay lại
-              </button>
-              <button
-                type="submit"
-                form="custom-schedule-form"
-                disabled={savingSchedule}
-                className="flex-1 min-h-[46px] py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-sm font-black rounded-xl shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {savingSchedule ? "Đang lưu..." : "Lưu giờ riêng"}
-              </button>
-            </div>
+              Đóng / Quay lại
+            </AppButton>
+            <AppButton
+              type="submit"
+              form="custom-schedule-form"
+              variant="warning"
+              loading={savingSchedule}
+              loadingText="Đang lưu..."
+              className="flex-1 font-bold"
+            >
+              Lưu giờ riêng
+            </AppButton>
           </div>
-        </div>
-      )}
+        }
+      >
+        {editingScheduleEmp && (
+          <form
+            id="custom-schedule-form"
+            onSubmit={(e) => handleSaveCustomSchedule(e, false)}
+            className="p-5 space-y-4"
+          >
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-slate-200 leading-relaxed">
+              Khung giờ riêng sẽ được ưu tiên hơn giờ ca mặc định (<strong className="text-indigo-300">{getShiftLabel(editingScheduleEmp.shift_type || "FULL_DAY")}</strong>) khi chấm công vào/ra và tính đi muộn.
+            </div>
+
+            <div className="divide-y divide-slate-800 border border-slate-700 rounded-xl bg-slate-950/70 overflow-hidden">
+              <FormRow dark label="Giờ vào ca riêng">
+                <input
+                  type="time"
+                  value={scheduleForm.custom_start_time || ""}
+                  onChange={(e) =>
+                    setScheduleForm((prev) => ({ ...prev, custom_start_time: e.target.value }))
+                  }
+                  className="w-32 sm:w-36 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </FormRow>
+              <FormRow dark label="Giờ tan ca riêng">
+                <input
+                  type="time"
+                  value={scheduleForm.custom_end_time || ""}
+                  onChange={(e) =>
+                    setScheduleForm((prev) => ({ ...prev, custom_end_time: e.target.value }))
+                  }
+                  className="w-32 sm:w-36 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </FormRow>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Ví dụ: nhân viên bộ phận hỗ trợ làm <strong>09:00 – 18:00</strong> sẽ được tính đúng giờ nếu chấm vào trước hoặc đúng 09:00. Bấm <strong>"Dùng giờ chuẩn"</strong> để xóa giờ riêng.
+            </p>
+          </form>
+        )}
+      </AppModal>
 
       {/* Modal Xem / Chỉnh sửa Chi tiết Hồ sơ Nhân viên */}
-      {detailEmp && detailForm && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !savingDetail) {
-              setDetailEmp(null);
-              setDetailForm(null);
-            }
-          }}
-        >
-          <div className="bg-slate-800 border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[92vh] shadow-2xl flex flex-col overflow-hidden animate-sheet-up">
-            <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-slate-700/80 shrink-0">
-              <button
-                type="button"
-                disabled={savingDetail}
-                onClick={() => {
-                  setDetailEmp(null);
-                  setDetailForm(null);
-                }}
-                className="inline-flex items-center gap-1.5 min-h-[44px] px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold shrink-0"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Trở về</span>
-              </button>
-              <div className="min-w-0 flex-1 text-center">
-                <h3 className="text-sm sm:text-base font-bold text-white truncate">Thông tin nhân viên</h3>
-                <p className="text-xs text-blue-300 font-semibold truncate">{detailEmp.ma_nv}</p>
-              </div>
-              <button
-                type="button"
-                disabled={savingDetail}
-                onClick={() => {
-                  setDetailEmp(null);
-                  setDetailForm(null);
-                }}
-                className="w-10 h-10 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center shrink-0"
-                aria-label="Đóng"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              id="edit-employee-detail-form"
-              onSubmit={handleSaveDetailModal}
-              className="modal-scroll-area flex-1 min-h-0 p-5 space-y-3.5"
+      <AppModal
+        open={Boolean(detailEmp && detailForm)}
+        onClose={() => {
+          if (!savingDetail) {
+            setDetailEmp(null);
+            setDetailForm(null);
+          }
+        }}
+        disableClose={savingDetail}
+        theme="dark"
+        maxWidthClass="max-w-lg"
+        maxHeightClass="max-h-[92vh]"
+        title="Thông tin nhân viên"
+        subtitle={detailEmp ? detailEmp.ma_nv : ""}
+        footer={
+          <div className="flex gap-2.5">
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              disabled={savingDetail}
+              onClick={() => {
+                setDetailEmp(null);
+                setDetailForm(null);
+              }}
+              className="flex-1"
             >
+              Đóng / Quay lại
+            </AppButton>
+            {canEditEmployees && (
+              <AppButton
+                type="submit"
+                form="edit-employee-detail-form"
+                variant="primary"
+                loading={savingDetail}
+                loadingText="Đang lưu..."
+                className="flex-1 shadow-lg shadow-blue-600/30"
+              >
+                Lưu thay đổi
+              </AppButton>
+            )}
+          </div>
+        }
+      >
+        {detailEmp && detailForm && (
+          <form
+            id="edit-employee-detail-form"
+            onSubmit={handleSaveDetailModal}
+            className="p-5 space-y-3.5"
+          >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-slate-200 mb-1">Họ và tên</label>
@@ -1271,7 +1215,7 @@ export default function EmployeeManagementTab({
                     required
                     value={detailForm.ho_ten}
                     onChange={(e) => setDetailForm((p) => ({ ...p, ho_ten: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
                   />
                 </div>
                 <div>
@@ -1280,7 +1224,7 @@ export default function EmployeeManagementTab({
                     type="text"
                     value={detailForm.chuc_danh}
                     onChange={(e) => setDetailForm((p) => ({ ...p, chuc_danh: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
                   />
                 </div>
               </div>
@@ -1290,7 +1234,7 @@ export default function EmployeeManagementTab({
                 <select
                   value={detailForm.department}
                   onChange={(e) => setDetailForm((p) => ({ ...p, department: e.target.value }))}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
                 >
                   {availableDepartments.map((dept) => (
                     <option key={dept} value={dept}>
@@ -1308,7 +1252,7 @@ export default function EmployeeManagementTab({
                     value={detailForm.dien_thoai}
                     onChange={(e) => setDetailForm((p) => ({ ...p, dien_thoai: e.target.value }))}
                     placeholder="09xx..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
                   />
                 </div>
                 <div>
@@ -1318,7 +1262,7 @@ export default function EmployeeManagementTab({
                     value={detailForm.email}
                     onChange={(e) => setDetailForm((p) => ({ ...p, email: e.target.value }))}
                     placeholder="email@congty.vn"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white"
                   />
                 </div>
               </div>
@@ -1332,7 +1276,7 @@ export default function EmployeeManagementTab({
                     step={100000}
                     value={detailForm.luong_cb}
                     onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Number(e.target.value) || 0 }))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-emerald-300"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-emerald-300"
                   />
                 </div>
                 <div>
@@ -1343,7 +1287,7 @@ export default function EmployeeManagementTab({
                     step={50000}
                     value={detailForm.phu_cap_an_trua}
                     onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Number(e.target.value) || 0 }))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-white"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-white"
                   />
                 </div>
               </div>
@@ -1357,7 +1301,7 @@ export default function EmployeeManagementTab({
                     step={50000}
                     value={detailForm.phu_cap_xang_xe}
                     onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Number(e.target.value) || 0 }))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-white"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-white"
                   />
                 </div>
                 <div>
@@ -1368,12 +1312,12 @@ export default function EmployeeManagementTab({
                     step={50000}
                     value={detailForm.phu_cap_nha_o}
                     onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Number(e.target.value) || 0 }))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-white"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-white"
                   />
                 </div>
               </div>
 
-              <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 border border-slate-700 cursor-pointer">
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-950/70 border border-slate-700 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={Boolean(detailForm.has_insurance)}
@@ -1385,55 +1329,27 @@ export default function EmployeeManagementTab({
                 </span>
               </label>
 
-              <div className="divide-y divide-slate-700/80 border border-slate-700 rounded-xl bg-slate-900/90 overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
-                  <label className="text-sm font-semibold text-slate-200">Giờ vào ca riêng</label>
+              <div className="divide-y divide-slate-800 border border-slate-700 rounded-xl bg-slate-950/70 overflow-hidden">
+                <FormRow dark label="Giờ vào ca riêng">
                   <input
                     type="time"
                     value={detailForm.custom_start_time || ""}
                     onChange={(e) => setDetailForm((p) => ({ ...p, custom_start_time: e.target.value }))}
-                    className="w-32 sm:w-36 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center"
+                    className="w-32 sm:w-36 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center"
                   />
-                </div>
-                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
-                  <label className="text-sm font-semibold text-slate-200">Giờ tan ca riêng</label>
+                </FormRow>
+                <FormRow dark label="Giờ tan ca riêng">
                   <input
                     type="time"
                     value={detailForm.custom_end_time || ""}
                     onChange={(e) => setDetailForm((p) => ({ ...p, custom_end_time: e.target.value }))}
-                    className="w-32 sm:w-36 shrink-0 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center"
+                    className="w-32 sm:w-36 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center"
                   />
-                </div>
+                </FormRow>
               </div>
-            </form>
-
-            <div
-              className="px-5 py-3.5 border-t border-slate-700/80 bg-slate-800 shrink-0 flex gap-2.5"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
-            >
-              <button
-                type="button"
-                disabled={savingDetail}
-                onClick={() => {
-                  setDetailEmp(null);
-                  setDetailForm(null);
-                }}
-                className="flex-1 min-h-[46px] py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-base font-semibold rounded-xl transition-colors cursor-pointer"
-              >
-                Đóng / Quay lại
-              </button>
-              <button
-                type="submit"
-                form="edit-employee-detail-form"
-                disabled={savingDetail}
-                className="flex-1 min-h-[46px] py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {savingDetail ? "Đang lưu..." : "Lưu thay đổi"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </form>
+        )}
+      </AppModal>
     </div>
   );
 }

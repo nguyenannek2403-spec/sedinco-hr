@@ -122,13 +122,14 @@ class DiagnosticsController {
         try {
             // Xác thực token qua Zalo Graph API
             const result = await verifyZaloUserToken(access_token);
+            const isValid = Boolean(result && (result.valid || result.zaloId || result.id));
             return res.json({
-                success: result.valid,
+                success: isValid,
                 masked_token: maskedToken,
                 token_length: access_token.length,
-                zalo_response: result.data || null,
-                raw_status: result.status || (result.valid ? 200 : 400),
-                raw_error: result.error || null,
+                zalo_response: result?.data || (result ? { id: result.id || result.zaloId, name: result.name, provider: result.provider } : null),
+                raw_status: result?.status || (isValid ? 200 : 400),
+                raw_error: result?.error || null,
                 timestamp: new Date().toISOString()
             });
         } catch (err) {

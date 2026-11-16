@@ -25,7 +25,12 @@ async function startTestServer() {
             resolve({
                 server,
                 baseUrl: `http://127.0.0.1:${addr.port}`,
-                close: () => new Promise((resClose) => server.close(() => resClose()))
+                close: () => new Promise((resClose) => {
+                    if (typeof server.closeAllConnections === 'function') {
+                        server.closeAllConnections();
+                    }
+                    server.close(() => resClose());
+                })
             });
         });
     });
@@ -119,9 +124,10 @@ async function cleanupQaData(prefix = 'QA_', testYear = 2099) {
     await query('DELETE FROM requests WHERE employee_id LIKE ? OR YEAR(request_date) = ?', [likePattern, testYear]).catch(() => {});
     await query('DELETE FROM ot_registrations WHERE employee_id LIKE ? OR YEAR(work_date) = ?', [likePattern, testYear]).catch(() => {});
     await query('DELETE FROM period_locks WHERE year = ?', [testYear]).catch(() => {});
+    await query('DELETE FROM payroll_periods WHERE year = ? OR year >= 2090', [testYear]).catch(() => {});
     await query('DELETE FROM public_holidays WHERE holiday_name LIKE ?', [likePattern]).catch(() => {});
-    await query('DELETE FROM audit_logs WHERE actor_id LIKE ? OR details LIKE ?', [likePattern, `%${prefix}%`]).catch(() => {});
-    await query('DELETE FROM login_rate_limits WHERE identifier LIKE ? OR key_name LIKE ?', [likePattern, `%${prefix}%`]).catch(() => {});
+    await query('DELETE FROM audit_logs WHERE actor_id LIKE ? OR details LIKE ? OR actor_id IN (?, ?, ?, ?)', [likePattern, `%${prefix}%`, "' OR '1'='1' -- ", "' OR '1'='1", "admin'--", '" UNION SELECT 1,2--']).catch(() => {});
+    await query('DELETE FROM login_rate_limits WHERE identifier LIKE ? OR key_name LIKE ? OR identifier IN (?, ?, ?, ?)', [likePattern, `%${prefix}%`, "' OR '1'='1' -- ", "' OR '1'='1", "admin'--", '" UNION SELECT 1,2--']).catch(() => {});
     await query('DELETE FROM idempotency_keys WHERE actor_id LIKE ?', [likePattern]).catch(() => {});
     await query('DELETE FROM employees WHERE ma_nv LIKE ?', [likePattern]).catch(() => {});
     await query('DELETE FROM admins WHERE username LIKE ?', [likePattern]).catch(() => {});
@@ -219,6 +225,112 @@ function listExpressRoutes(appInstance) {
     return routes;
 }
 
+/**
+ * Drain DB pool & worker threads cleanly so node --test exits with code 0 without --test-force-exit.
+ */
+async function closeTestRuntime() {
+    const { bcryptWorkerPool } = require('../src/utils/bcryptWorkerPool');
+    await new Promise((resolve) => {
+        try {
+            pool.end(() => resolve());
+        } catch {
+            resolve();
+        }
+    });
+    try { await bcryptWorkerPool.terminate(); } catch { /* ignore worker pool exit */ }
+}
+
+/**
+ * Ownership tracker keyed by unique test_run_id so every synthetic fixture is deleted without wildcard wiping.
+ */
+function createTestRunTracker(prefix = 'QR') {
+    const test_run_id = `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const maNvs = new Set();
+    const requestIds = new Set();
+    const otIds = new Set();
+    const holidayIds = new Set();
+    const holidayNames = new Set();
+    const periodLocks = [];
+    const adminUsernames = new Set();
+
+    return {
+        test_run_id,
+        makeMaNv(suffix) {
+            const id = `${test_run_id}_${suffix}`.slice(0, 32);
+            maNvs.add(id);
+            return id;
+        },
+        trackEmployee(ma_nv) {
+            if (ma_nv) maNvs.add(ma_nv);
+            return ma_nv;
+        },
+        trackRequest(id) {
+            if (id) requestIds.add(Number(id));
+            return id;
+        },
+        trackOt(id) {
+            if (id) otIds.add(Number(id));
+            return id;
+        },
+        trackHoliday({ id, holiday_name } = {}) {
+            if (id) holidayIds.add(Number(id));
+            if (holiday_name) holidayNames.add(holiday_name);
+        },
+        trackPeriodLock(month, year) {
+            periodLocks.push({ month: Number(month), year: Number(year) });
+        },
+        trackAdmin(username) {
+            if (username) adminUsernames.add(username);
+            return username;
+        },
+        async cleanup() {
+            const idsReq = [...requestIds].filter((n) => Number.isFinite(n));
+            if (idsReq.length > 0) {
+                const ph = idsReq.map(() => '?').join(',');
+                await query(`DELETE FROM requests WHERE id IN (${ph})`, idsReq).catch(() => {});
+            }
+            const idsOt = [...otIds].filter((n) => Number.isFinite(n));
+            if (idsOt.length > 0) {
+                const ph = idsOt.map(() => '?').join(',');
+                await query(`DELETE FROM ot_registrations WHERE id IN (${ph})`, idsOt).catch(() => {});
+            }
+            const idsHol = [...holidayIds].filter((n) => Number.isFinite(n));
+            if (idsHol.length > 0) {
+                const ph = idsHol.map(() => '?').join(',');
+                await query(`DELETE FROM public_holidays WHERE id IN (${ph})`, idsHol).catch(() => {});
+            }
+            const namesHol = [...holidayNames];
+            if (namesHol.length > 0) {
+                const ph = namesHol.map(() => '?').join(',');
+                await query(`DELETE FROM public_holidays WHERE holiday_name IN (${ph})`, namesHol).catch(() => {});
+            }
+            for (const lk of periodLocks) {
+                await query('DELETE FROM period_locks WHERE month = ? AND year = ?', [lk.month, lk.year]).catch(() => {});
+            }
+            await query('DELETE FROM payroll_periods WHERE year >= 2090').catch(() => {});
+            const empList = [...maNvs];
+            if (empList.length > 0) {
+                const ph = empList.map(() => '?').join(',');
+                await query(`DELETE FROM attendance_logs WHERE employee_id IN (${ph})`, empList).catch(() => {});
+                await query(`DELETE FROM attendance WHERE ma_nv IN (${ph})`, empList).catch(() => {});
+                await query(`DELETE FROM requests WHERE employee_id IN (${ph})`, empList).catch(() => {});
+                await query(`DELETE FROM ot_registrations WHERE employee_id IN (${ph})`, empList).catch(() => {});
+                await query(`DELETE FROM idempotency_keys WHERE actor_id IN (${ph})`, empList).catch(() => {});
+                await query(`DELETE FROM login_rate_limits WHERE identifier IN (${ph})`, empList).catch(() => {});
+                await query(`DELETE FROM audit_logs WHERE actor_id IN (${ph})`, empList).catch(() => {});
+                await query(`DELETE FROM employees WHERE ma_nv IN (${ph})`, empList).catch(() => {});
+            }
+            const admList = [...adminUsernames];
+            if (admList.length > 0) {
+                const ph = admList.map(() => '?').join(',');
+                await query(`DELETE FROM login_rate_limits WHERE identifier IN (${ph})`, admList).catch(() => {});
+                await query(`DELETE FROM audit_logs WHERE actor_id IN (${ph})`, admList).catch(() => {});
+                await query(`DELETE FROM admins WHERE username IN (${ph})`, admList).catch(() => {});
+            }
+        }
+    };
+}
+
 module.exports = {
     app,
     query,
@@ -230,5 +342,7 @@ module.exports = {
     cleanupQaData,
     snapshotSettings,
     restoreSettings,
-    listExpressRoutes
+    listExpressRoutes,
+    closeTestRuntime,
+    createTestRunTracker
 };

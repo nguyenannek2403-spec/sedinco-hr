@@ -51,8 +51,6 @@ class BcryptWorkerPool {
 
         try {
             const worker = new Worker(WORKER_SCRIPT);
-            // unref để không ngăn process exit tự nhiên trong test runner
-            worker.unref();
 
             const workerObj = { id: index, worker };
             this.workers[index] = workerObj;
@@ -72,6 +70,9 @@ class BcryptWorkerPool {
                     this._spawnWorker(index);
                 }
             });
+
+            // unref SAU khi đăng ký listener vì .on('message') tự ref lại MessagePort trên Node 26
+            worker.unref();
 
             // Nếu đang có việc trong hàng đợi, xử lý ngay
             this._dispatchNext();
@@ -219,15 +220,19 @@ class BcryptWorkerPool {
         this.activeTasks.clear();
         this.queue.length = 0;
 
+        const exits = [];
         for (const w of this.workers) {
             if (w && w.worker) {
                 try {
-                    w.worker.terminate();
+                    if (typeof w.worker.unref === 'function') w.worker.unref();
+                    if (typeof w.worker.removeAllListeners === 'function') w.worker.removeAllListeners();
+                    exits.push(Promise.resolve(w.worker.terminate()).catch(() => {}));
                 } catch (e) {}
             }
         }
         this.workers = [];
         this.freeWorkers = [];
+        return Promise.all(exits).then(() => {});
     }
 
     getStats() {

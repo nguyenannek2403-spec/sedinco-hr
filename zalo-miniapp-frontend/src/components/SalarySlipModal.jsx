@@ -1,6 +1,5 @@
 import React, { useState, useRef } from "react";
 import {
-  ArrowLeft,
   Printer,
   Download,
   Share2,
@@ -10,13 +9,11 @@ import {
   Video,
   Send,
   ShieldCheck,
-  Loader2,
   Calendar
 } from "lucide-react";
 import { safePost, sanitizeFormula, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { compressAndResizeImage } from "../utils/imageHelper";
-import useLockBodyScroll from "../hooks/useLockBodyScroll";
-import { getAttendanceStatusInfo } from "../utils/viLabels";
+import { AppButton, AppModal, StatusBadge } from "./ui";
 
 /**
  * SalarySlipModal V5/V12
@@ -35,27 +32,27 @@ export default function SalarySlipModal({
   onClose
 }) {
   const item = payrollItem || employee;
-  useLockBodyScroll(Boolean(item));
-  if (!item) return null;
 
-  const thang = month || item.thang || new Date().getMonth() + 1;
-  const nam = year || item.nam || new Date().getFullYear();
-  const maNv = item.ma_nv || item.id_nhan_vien || "NV";
+  const thang = month || item?.thang || new Date().getMonth() + 1;
+  const nam = year || item?.nam || new Date().getFullYear();
+  const maNv = item?.ma_nv || item?.id_nhan_vien || "NV";
 
-  const [confirmStatus, setConfirmStatus] = useState(item.salary_confirm_status || "PENDING");
+  const [confirmStatus, setConfirmStatus] = useState(item?.salary_confirm_status || "PENDING");
   const [showDisputeForm, setShowDisputeForm] = useState(false);
-  const [disputeReason, setDisputeReason] = useState(item.dispute_reason || "");
-  const [evidenceMedia, setEvidenceMedia] = useState(item.dispute_evidence_media || "");
+  const [disputeReason, setDisputeReason] = useState(item?.dispute_reason || "");
+  const [evidenceMedia, setEvidenceMedia] = useState(item?.dispute_evidence_media || "");
   const [mediaNotice, setMediaNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   // Phản hồi của Admin/Kế toán
-  const [adminResponse, setAdminResponse] = useState(item.admin_response || "");
+  const [adminResponse, setAdminResponse] = useState(item?.admin_response || "");
   const [resolving, setResolving] = useState(false);
 
   const fileInputRef = useRef(null);
   const submittingRef = useRef(false);
   const resolvingRef = useRef(false);
+
+  if (!item) return null;
 
   const notify = (msg, type = "info") => {
     if (showToast) showToast(msg, type);
@@ -263,73 +260,47 @@ export default function SalarySlipModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 print:p-0 print:bg-white animate-fade-in"
-      style={{
-        paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)"
-      }}
-      onTouchMove={(e) => {
-        if (e.target === e.currentTarget) e.preventDefault();
-      }}
-      onClick={onClose}
-    >
-      <div
-        className="bg-white w-full sm:max-w-2xl rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col animate-sheet-up print:shadow-none print:border-none print:max-w-full print:max-h-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Top Action Bar: Trở về ở góc trái để tránh cụm nút Zalo top-right */}
-        <div className="bg-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-2 shrink-0 print:hidden">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition active:scale-[0.98]"
-            >
-              <ArrowLeft size={15} />
-              <span>Trở về</span>
-            </button>
-            <div className="min-w-0">
-              <h3 className="font-bold text-xs sm:text-sm tracking-wide leading-snug break-words">
-                Phiếu lương T{thang}/{nam} — {maNv}
-              </h3>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleExportSingleSlipExcel}
-              className="min-h-[44px] px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-              title="Tải phiếu lương Excel/CSV"
-            >
-              <Download size={14} />
-              <span>Excel</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleShareZalo}
-              className="min-h-[44px] px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-              title="Chia sẻ qua Zalo"
-            >
-              <Share2 size={14} />
-              <span>Zalo</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="hidden sm:flex min-h-[44px] px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold items-center gap-1.5 transition cursor-pointer"
-            >
-              <Printer size={14} />
-              <span>In</span>
-            </button>
-          </div>
+    <AppModal
+      open={Boolean(item)}
+      onClose={onClose}
+      disableClose={submitting || resolving}
+      showCloseX={false}
+      maxWidthClass="sm:max-w-2xl"
+      maxHeightClass="max-h-[92vh]"
+      title={`Phiếu lương T${thang}/${nam} — ${maNv}`}
+      headerExtra={
+        <div className="flex items-center gap-1.5 print:hidden">
+          <AppButton
+            variant="success"
+            icon={Download}
+            onClick={handleExportSingleSlipExcel}
+            className="min-h-[44px] px-3 py-2 text-xs font-bold"
+            title="Tải phiếu lương Excel/CSV"
+          >
+            Excel
+          </AppButton>
+          <AppButton
+            variant="primary"
+            icon={Share2}
+            onClick={handleShareZalo}
+            className="min-h-[44px] px-3 py-2 text-xs font-bold"
+            title="Chia sẻ qua Zalo"
+          >
+            Zalo
+          </AppButton>
+          <AppButton
+            variant="secondary"
+            icon={Printer}
+            onClick={() => window.print()}
+            className="hidden sm:inline-flex min-h-[44px] px-3 py-2 text-xs font-bold"
+          >
+            In
+          </AppButton>
         </div>
-
+      }
+    >
         {/* Nội dung Phiếu Lương */}
-        <div
-          className="modal-scroll-area p-4 sm:p-6 space-y-4 text-slate-800 overflow-y-auto overscroll-contain touch-pan-y flex-1"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
-        >
+        <div className="p-4 sm:p-6 space-y-4 text-slate-800">
           {/* Quốc hiệu & Tiêu đề công ty */}
           <div className="border-b-2 border-slate-800 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>
@@ -395,7 +366,7 @@ export default function SalarySlipModal({
 
           {/* Bảng chi tiết thu nhập */}
           <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="bg-slate-100 px-3.5 py-2 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider border-b border-slate-200 flex justify-between">
+            <div className="bg-slate-100 px-3.5 py-2 text-xs font-extrabold text-slate-600 uppercase tracking-wider border-b border-slate-200 flex justify-between">
               <span>Khoản Mục Thu Nhập & Phụ Cấp</span>
               <span>Số Tiền (VNĐ)</span>
             </div>
@@ -548,11 +519,10 @@ export default function SalarySlipModal({
               <div className="divide-y divide-slate-100 text-xs">
                 {item.daily_logs.map((log, idx) => {
                   const dateStr = log.record_date_iso || String(log.record_date || "").slice(0, 10);
-                  const statusInfo = getAttendanceStatusInfo(log.status);
                   const otH = Number(log.ot_hours) || 0;
                   const lateM = Number(log.late_minutes) || 0;
                   return (
-                    <div key={`${dateStr}-${idx}`} className="px-3.5 py-2.5 flex items-start justify-between gap-2">
+                    <div key={`${dateStr}-${idx}`} className="perf-list-item px-3.5 py-2.5 flex items-start justify-between gap-2">
                       <div className="min-w-0 space-y-0.5">
                         <div className="font-mono font-bold text-slate-800">{dateStr}</div>
                         <div className="text-slate-500 flex flex-wrap items-center gap-2">
@@ -575,12 +545,7 @@ export default function SalarySlipModal({
                         )}
                       </div>
                       <div className="text-right shrink-0">
-                        <span className={`inline-block px-2 py-0.5 rounded-md border text-xs font-semibold ${statusInfo.badgeClass}`}>
-                          {statusInfo.shortLabel}
-                        </span>
-                        <div className="text-xs font-bold text-slate-700 mt-0.5">
-                          {statusInfo.creditText}
-                        </div>
+                        <StatusBadge type="attendance" status={log.status} />
                       </div>
                     </div>
                   );
@@ -648,24 +613,25 @@ export default function SalarySlipModal({
                     className="w-full p-2.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-600"
                   />
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={resolving}
+                    <AppButton
+                      variant="success"
+                      icon={ShieldCheck}
+                      loading={resolving}
+                      loadingText="Đang xử lý..."
                       onClick={() => handleResolveDispute("CONFIRMED")}
-                      className="min-h-[44px] px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="text-xs font-bold"
                     >
-                      {resolving ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-                      <span>{resolving ? "Đang xử lý..." : "Đã điều chỉnh & Chốt lại"}</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={resolving}
+                      Đã điều chỉnh &amp; Chốt lại
+                    </AppButton>
+                    <AppButton
+                      variant="secondary"
+                      icon={Send}
+                      loading={resolving}
                       onClick={() => handleResolveDispute("DISPUTED")}
-                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="bg-slate-800 hover:bg-slate-900 text-white border-slate-900 text-xs font-bold"
                     >
-                      {resolving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                      <span>Gửi phản hồi (Giữ trạng thái)</span>
-                    </button>
+                      Gửi phản hồi (Giữ trạng thái)
+                    </AppButton>
                   </div>
                 </div>
               )}
@@ -679,7 +645,7 @@ export default function SalarySlipModal({
                 <span className="text-xs font-black text-slate-800 uppercase">
                   Xác Nhận Phiếu Lương Của Bạn
                 </span>
-                <span className="text-[11px] font-bold text-slate-500">
+                <span className="text-xs font-bold text-slate-500">
                   {confirmStatus === "CONFIRMED"
                     ? "Đã đồng ý"
                     : confirmStatus === "DISPUTED"
@@ -689,35 +655,32 @@ export default function SalarySlipModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  disabled={submitting || confirmStatus === "CONFIRMED"}
+                <AppButton
+                  variant="success"
+                  icon={CheckCircle2}
+                  loading={submitting}
+                  disabled={confirmStatus === "CONFIRMED"}
+                  loadingText="Đang xác nhận..."
                   onClick={handleConfirmSalary}
-                  className={`py-3 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
+                  className={
                     confirmStatus === "CONFIRMED"
-                      ? "bg-emerald-100 text-emerald-800 border-2 border-emerald-300"
-                      : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-md"
-                  }`}
+                      ? "!bg-emerald-100 !text-emerald-800 !border-emerald-300"
+                      : ""
+                  }
                 >
-                  {submitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                  <span>
-                    {submitting
-                      ? "Đang xác nhận..."
-                      : confirmStatus === "CONFIRMED"
-                      ? "✅ Đã Xác Nhận Đúng Lương"
-                      : "✅ Xác Nhận Đúng Lương"}
-                  </span>
-                </button>
+                  {confirmStatus === "CONFIRMED"
+                    ? "✅ Đã Xác Nhận Đúng Lương"
+                    : "✅ Xác Nhận Đúng Lương"}
+                </AppButton>
 
-                <button
-                  type="button"
+                <AppButton
+                  variant="warning"
+                  icon={AlertTriangle}
                   disabled={submitting}
                   onClick={() => setShowDisputeForm((v) => !v)}
-                  className="py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
                 >
-                  <AlertTriangle size={16} />
-                  <span>⚠️ Báo Cáo Sai Lương</span>
-                </button>
+                  ⚠️ Báo Cáo Sai Lương
+                </AppButton>
               </div>
 
               {/* Form Báo cáo sai lương đính kèm Ảnh nén (<50KB) / Video ngắn (<800KB) */}
@@ -767,14 +730,16 @@ export default function SalarySlipModal({
                     )}
                   </div>
 
-                  <button
+                  <AppButton
                     type="submit"
-                    disabled={submitting}
-                    className="w-full min-h-[46px] py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-50"
+                    variant="danger"
+                    icon={Send}
+                    fullWidth
+                    loading={submitting}
+                    loadingText="Đang gửi báo cáo..."
                   >
-                    {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                    <span>{submitting ? "Đang gửi báo cáo..." : "Gửi Báo Cáo Tới Kế Toán & Admin"}</span>
-                  </button>
+                    Gửi Báo Cáo Tới Kế Toán &amp; Admin
+                  </AppButton>
                 </form>
               )}
             </div>
@@ -802,21 +767,6 @@ export default function SalarySlipModal({
             </div>
           </div>
         </div>
-
-        {/* Nút đóng lớn ở đáy Modal */}
-        <div
-          className="px-4 py-3 border-t border-slate-200 bg-slate-50 shrink-0 print:hidden"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full py-3 min-h-[46px] bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-semibold transition active:scale-[0.98] cursor-pointer"
-          >
-            Đóng / Quay lại
-          </button>
-        </div>
-      </div>
-    </div>
+    </AppModal>
   );
 }

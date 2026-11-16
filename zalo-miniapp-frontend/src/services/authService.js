@@ -12,8 +12,8 @@ const SESSION_STORAGE_KEY = "sedinco_auth_session";
 
 // Danh sách mã demo mẫu phục vụ thử nghiệm F1
 const MOCK_LINK_CODES = {
-  "SED-NV01": { ma_nv: "NV001", ho_ten: "Nguyễn Văn An", chuc_danh: "Kỹ sư công trường", role: ROLES.EMPLOYEE },
-  "SED-HR02": { ma_nv: "NV005", ho_ten: "Trần Thị Mai", chuc_danh: "Chuyên viên Nhân sự", role: ROLES.HR },
+  "SED-NV01": { ma_nv: "NV001", ho_ten: "Nguyễn Văn An", chuc_danh: "Kỹ sư công trường", role: ROLES.WORKER },
+  "SED-HR02": { ma_nv: "NV005", ho_ten: "Trần Thị Mai", chuc_danh: "Chuyên viên Nhân sự", role: ROLES.ACCOUNTANT },
   "SED-KT03": { ma_nv: "NV002", ho_ten: "Lê Thị Bích", chuc_danh: "Kế toán tiền lương", role: ROLES.ACCOUNTANT },
   "SED-AD04": { ma_nv: "ADMIN", ho_ten: "Ban Giám Đốc", chuc_danh: "Giám Đốc Điều Hành", role: ROLES.ADMIN }
 };
@@ -47,7 +47,7 @@ export const resolveSession = async () => {
           return {
             isDetermined: true,
             isLinked: true,
-            role: parsed.role || ROLES.EMPLOYEE,
+            role: parsed.role || ROLES.WORKER,
             employee: parsed,
             token: parsed.token
           };
@@ -94,8 +94,13 @@ export const previewLinkCode = async (code) => {
  */
 export const confirmLinkAccount = async (code, zaloAccessToken) => {
   const cleanCode = String(code).trim().toUpperCase();
-  if (zaloAccessToken) {
-    const res = await safePost("/employees/bind-zalo", { zalo_token: zaloAccessToken }, {
+  const resolvedZaloToken =
+    zaloAccessToken || (await zmpAdapter.getAccessToken({ silent: true }).catch(() => ""));
+  if (resolvedZaloToken) {
+    const res = await safePost("/employees/bind-zalo", {
+      zalo_token: resolvedZaloToken,
+      zalo_access_token: resolvedZaloToken
+    }, {
       idempotencyKey: generateIdempotencyKey("link")
     });
     if (res?.success) {
@@ -133,15 +138,15 @@ export const loginWithCredentials = async (maNv, password) => {
   const payload = res?.data || res;
   const user = payload?.user || (payload?.ma_nv ? payload : null);
   if (user) {
-    // Chuẩn hóa role từ chức danh hoặc role trả về
-    let role = ROLES.EMPLOYEE;
+    // Chuẩn hóa role từ chức danh hoặc role trả về (Hệ thống 3 vai trò: admin, accountant, worker)
+    let role = ROLES.WORKER;
     const cd = (user.chuc_danh || "").toLowerCase();
     if (cd.includes("giám đốc") || cd.includes("admin") || user.role === "admin") {
       role = ROLES.ADMIN;
     } else if (cd.includes("kế toán") || user.role === "accountant") {
       role = ROLES.ACCOUNTANT;
-    } else if (cd.includes("nhân sự") || cd.includes("hr") || user.role === "hr") {
-      role = ROLES.HR;
+    } else if (user.role === "worker") {
+      role = ROLES.WORKER;
     }
 
     const sessionData = { ...user, role, token: payload.token || "" };

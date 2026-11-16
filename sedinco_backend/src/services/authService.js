@@ -3,8 +3,11 @@ const {
     sanitizeUserResponse, 
     resolveUserRole, 
     generateToken, 
-    logAuditEvent 
+    logAuditEvent,
+    getAccountantPermissions,
+    invalidateUserCache
 } = require('../middlewares/authMiddleware');
+const { verifyZaloAccessToken } = require('../utils/zaloAdapter');
 const { 
     hashPassword, 
     comparePassword, 
@@ -216,30 +219,24 @@ async function resetRateLimitState() {
 }
 
 class AuthService {
-    async employeeLogin(ma_nv, password, ip_address = '', { zalo_user_id = null, device_id = null } = {}) {
-        if (!ma_nv || !password) {
-            return { success: false, statusCode: 400, message: GENERIC_LOGIN_ERROR };
-        }
-
-        const normalizedIp = normalizeClientIp(ip_address);
-        const compositeKey = `composite:${ma_nv}:${normalizedIp}`;
-        const acctKey = `account:${ma_nv}`;
+    async _checkLoginRateLimits(identifier, normalizedIp, actorRole = 'unknown', { skipDelay = false } = {}) {
+        const compositeKey = `composite:${identifier}:${normalizedIp}`;
+        const acctKey = `account:${identifier}`;
         const ipKey = `ip:${normalizedIp}`;
 
         // 1. Kiểm tra khóa Composite (TÀI KHOẢN, IP) — Chống DoS Lockout & Chống Brute-force tại IP NAT
-        const isKnownIpEarly = await isKnownLegitIp(ma_nv, normalizedIp);
         const acctCheck = await checkRateLimitDb(compositeKey, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
         if (acctCheck.blocked) {
             await logAuditEvent({
-                actor_id: ma_nv,
-                actor_role: 'unknown',
+                actor_id: identifier,
+                actor_role: actorRole,
                 action: 'LOGIN_RATE_LIMITED',
                 resource: 'auth',
                 details: { reason: 'account_ip_locked', remain_seconds: acctCheck.remainSec, ip: normalizedIp },
                 ip_address: normalizedIp
             });
-            return { 
-                success: false, 
+            return {
+                success: false,
                 statusCode: 429,
                 message: `Tài khoản đã bị tạm khóa đăng nhập do nhập sai quá ${ACCOUNT_MAX_ATTEMPTS} lần. Vui lòng thử lại sau ${acctCheck.remainSec} giây!`
             };
@@ -249,40 +246,60 @@ class AuthService {
         if (normalizedIp && normalizedIp !== 'unknown') {
             const ipCheck = await checkRateLimitDb(ipKey, IP_MAX_ATTEMPTS, IP_LOCKOUT_SEC);
             if (ipCheck.blocked) {
-                return { 
-                    success: false, 
+                return {
+                    success: false,
                     statusCode: 429,
                     message: `Quá nhiều yêu cầu đăng nhập từ địa chỉ IP này. Vui lòng thử lại sau ${ipCheck.remainSec} giây!`
                 };
             }
         }
 
-        // 3. Kiểm tra IP quen thuộc (Known Legit IP đã từng đăng nhập thành công)
-        const isKnownIp = await isKnownLegitIp(ma_nv, normalizedIp);
-
-        // 4. Kiểm tra bảo vệ toàn cục tài khoản (Tấn công Brute-force phân tán nhiều IP)
+        // 3. Kiểm tra IP quen thuộc & bảo vệ toàn cục tài khoản (Tấn công phân tán nhiều IP)
+        const isKnownIp = await isKnownLegitIp(identifier, normalizedIp);
         const globalAcctCheck = await checkRateLimitDb(acctKey, ACCOUNT_GLOBAL_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
-
-        // NGUYÊN TẮC CHỐNG DOS (G6 / G6.1):
-        // Khi tài khoản đang bị tấn công dồn dập (>= global threshold):
-        // Áp dụng độ trễ điều tiết (throttle delay) đối với IP lạ để triệt tiêu năng lực brute-force.
-        // Tuyệt đối KHÔNG khóa cứng từ chối trước mật khẩu ĐÚNG, tránh kẻ xấu khóa hộ tài khoản công nhân.
         const isUnderAttack = globalAcctCheck.blocked || globalAcctCheck.count >= ACCOUNT_SOFT_LOCK_THRESHOLD;
         if (isUnderAttack) {
-            const delayMs = process.env.NODE_ENV === 'test' 
-                ? (isKnownIp ? 0 : 5) 
-                : (isKnownIp ? 0 : Math.min(2000, 500 + (globalAcctCheck.count - ACCOUNT_SOFT_LOCK_THRESHOLD) * 100));
+            const delayMs = skipDelay
+                ? 0
+                : (process.env.NODE_ENV === 'test'
+                    ? (isKnownIp ? 0 : 5)
+                    : (isKnownIp ? 0 : Math.min(2000, 500 + (globalAcctCheck.count - ACCOUNT_SOFT_LOCK_THRESHOLD) * 100)));
             if (delayMs > 0) {
                 await new Promise(resolve => setTimeout(resolve, delayMs));
             }
             await logAuditEvent({
-                actor_id: ma_nv,
-                actor_role: 'unknown',
+                actor_id: identifier,
+                actor_role: actorRole,
                 action: 'ACCOUNT_UNDER_DISTRIBUTED_ATTACK',
                 resource: 'auth',
                 details: { total_attempts: globalAcctCheck.count, delay_ms: delayMs, ip: normalizedIp, is_known_ip: isKnownIp },
                 ip_address: normalizedIp
             });
+        }
+        return null;
+    }
+
+    async _recordLoginFailure(identifier, normalizedIp) {
+        const compositeKey = `composite:${identifier}:${normalizedIp}`;
+        const acctKey = `account:${identifier}`;
+        const ipKey = `ip:${normalizedIp}`;
+        await recordFailedAttemptDb(compositeKey, 'composite', `${identifier}:${normalizedIp}`, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
+        await recordFailedAttemptDb(acctKey, 'account', identifier, ACCOUNT_GLOBAL_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
+        if (normalizedIp && normalizedIp !== 'unknown') {
+            await recordFailedAttemptDb(ipKey, 'ip', normalizedIp, IP_MAX_ATTEMPTS, IP_LOCKOUT_SEC);
+        }
+    }
+
+    async employeeLogin(ma_nv, password, ip_address = '', { zalo_user_id = null, zalo_access_token = null, zalo_token = null, device_id = null } = {}) {
+        if (!ma_nv || !password) {
+            return { success: false, statusCode: 400, message: GENERIC_LOGIN_ERROR };
+        }
+
+        const normalizedIp = normalizeClientIp(ip_address);
+        const compositeKey = `composite:${ma_nv}:${normalizedIp}`;
+        const rateLimitBlocked = await this._checkLoginRateLimits(ma_nv, normalizedIp, 'unknown');
+        if (rateLimitBlocked) {
+            return rateLimitBlocked;
         }
 
         const results = await query('SELECT * FROM employees WHERE ma_nv = ?', [ma_nv]);
@@ -290,15 +307,12 @@ class AuthService {
             // V5 Unified Auto-Routing Login: Tự động kiểm tra bảng admins nếu không tìm thấy trong bảng employees
             const adminRows = await query('SELECT username FROM admins WHERE LOWER(username) = LOWER(?) LIMIT 1', [String(ma_nv).trim()]);
             if (adminRows && adminRows.length > 0) {
-                return await this.adminLogin(adminRows[0].username, password, ip_address);
+                return await this.adminLogin(adminRows[0].username, password, ip_address, {
+                    skipPreCheck: adminRows[0].username === ma_nv
+                });
             }
 
-            // Ghi nhận thất bại vào rate limiter MySQL
-            await recordFailedAttemptDb(compositeKey, 'composite', `${ma_nv}:${normalizedIp}`, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
-            await recordFailedAttemptDb(acctKey, 'account', ma_nv, ACCOUNT_GLOBAL_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
-            if (normalizedIp && normalizedIp !== 'unknown') {
-                await recordFailedAttemptDb(ipKey, 'ip', normalizedIp, IP_MAX_ATTEMPTS, IP_LOCKOUT_SEC);
-            }
+            await this._recordLoginFailure(ma_nv, normalizedIp);
 
             await logAuditEvent({
                 actor_id: ma_nv,
@@ -313,25 +327,11 @@ class AuthService {
         }
 
         const emp = results[0];
-        
-        // Kiểm tra xem tài khoản có bị tạm khóa bởi Quản trị viên hay không
-        const isBlocked = emp.status === 'inactive' || emp.status === 'locked' || emp.is_locked === 1 || emp.is_locked === true;
-        if (isBlocked) {
-            return {
-                success: false,
-                statusCode: 403,
-                message: 'Tài khoản nhân sự của bạn đã bị TẠM KHÓA bởi Quản trị viên. Vui lòng liên hệ bộ phận Nhân sự hoặc Ban giám đốc!'
-            };
-        }
 
-        // So sánh mật khẩu bằng bcrypt qua Worker Threads pool
+        // So sánh mật khẩu trước khi kiểm tra trạng thái khóa (chống Account Enumeration qua mã 403)
         const storedPass = emp.password;
         if (!storedPass || !isBcryptHash(storedPass)) {
-            await recordFailedAttemptDb(compositeKey, 'composite', `${ma_nv}:${normalizedIp}`, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
-            await recordFailedAttemptDb(acctKey, 'account', ma_nv, ACCOUNT_GLOBAL_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
-            if (normalizedIp && normalizedIp !== 'unknown') {
-                await recordFailedAttemptDb(ipKey, 'ip', normalizedIp, IP_MAX_ATTEMPTS, IP_LOCKOUT_SEC);
-            }
+            await this._recordLoginFailure(ma_nv, normalizedIp);
 
             await logAuditEvent({
                 actor_id: ma_nv,
@@ -348,12 +348,7 @@ class AuthService {
         const isMatch = await comparePasswordAsync(password, storedPass);
 
         if (!isMatch) {
-            // Ghi nhận thất bại vào rate limiter MySQL
-            await recordFailedAttemptDb(compositeKey, 'composite', `${ma_nv}:${normalizedIp}`, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
-            await recordFailedAttemptDb(acctKey, 'account', ma_nv, ACCOUNT_GLOBAL_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
-            if (normalizedIp && normalizedIp !== 'unknown') {
-                await recordFailedAttemptDb(ipKey, 'ip', normalizedIp, IP_MAX_ATTEMPTS, IP_LOCKOUT_SEC);
-            }
+            await this._recordLoginFailure(ma_nv, normalizedIp);
 
             await logAuditEvent({
                 actor_id: ma_nv,
@@ -367,16 +362,34 @@ class AuthService {
             return { success: false, message: GENERIC_LOGIN_ERROR };
         }
 
+        // Kiểm tra xem tài khoản có bị tạm khóa bởi Quản trị viên hay không (sau khi xác thực mật khẩu)
+        const isBlocked = emp.status === 'inactive' || emp.status === 'locked' || emp.is_locked === 1 || emp.is_locked === true;
+        if (isBlocked) {
+            return {
+                success: false,
+                statusCode: 403,
+                message: 'Tài khoản nhân sự của bạn đã bị TẠM KHÓA bởi Quản trị viên. Vui lòng liên hệ bộ phận Nhân sự hoặc Ban giám đốc!'
+            };
+        }
+
         // ✅ Đăng nhập thành công → Reset rate limiter cho composite key này
         await resetCompositeAttemptsDb(compositeKey);
         await recordKnownLegitIp(ma_nv, normalizedIp);
 
-        // V6 Zero-Password Zalo Auto-Login: Liên kết tự động zalo_user_id và device_id vào hồ sơ nhân viên
-        if (zalo_user_id && String(zalo_user_id).trim().length > 0) {
-            const cleanZaloId = String(zalo_user_id).trim().slice(0, 100);
-            await query('UPDATE employees SET zalo_user_id = ?, zalo_id = ? WHERE ma_nv = ?', [cleanZaloId, cleanZaloId, emp.ma_nv]).catch(() => {});
-            emp.zalo_user_id = cleanZaloId;
-            emp.zalo_id = cleanZaloId;
+        // V6 Zero-Password Zalo Auto-Login: CHỈ liên kết zalo_user_id khi có access token đã được server Zalo xác thực
+        const loginZaloToken = zalo_access_token || zalo_token;
+        let zaloLinked = false;
+        if (loginZaloToken && typeof loginZaloToken === 'string' && loginZaloToken.trim().length > 0) {
+            const verifiedZalo = await verifyZaloAccessToken(loginZaloToken);
+            if (verifiedZalo && verifiedZalo.id) {
+                const verifiedZaloId = String(verifiedZalo.id).trim().slice(0, 100);
+                if (!zalo_user_id || String(zalo_user_id).trim() === verifiedZaloId) {
+                    await query('UPDATE employees SET zalo_user_id = ?, zalo_id = ? WHERE ma_nv = ?', [verifiedZaloId, verifiedZaloId, emp.ma_nv]).catch(() => {});
+                    emp.zalo_user_id = verifiedZaloId;
+                    emp.zalo_id = verifiedZaloId;
+                    zaloLinked = true;
+                }
+            }
         }
         if (device_id && String(device_id).trim().length > 0 && !emp.bound_device_id) {
             const cleanDevId = String(device_id).trim().slice(0, 140);
@@ -387,12 +400,16 @@ class AuthService {
         const role = resolveUserRole(emp);
         const safeEmp = sanitizeUserResponse(emp);
         safeEmp.role = role;
+        if (role === 'accountant') {
+            safeEmp.dynamic_permissions = await getAccountantPermissions();
+        }
         
         const token = generateToken({
             id: emp.ma_nv,
             ma_nv: emp.ma_nv,
             role: role,
-            ho_ten: emp.ho_ten
+            ho_ten: emp.ho_ten,
+            token_version: Number(emp.token_version || 1)
         });
 
         await logAuditEvent({
@@ -400,7 +417,7 @@ class AuthService {
             actor_role: role,
             action: 'LOGIN_SUCCESS',
             resource: 'auth',
-            details: { method: 'employee_login', zalo_linked: Boolean(zalo_user_id), device_id: device_id || null, bcrypt_upgraded: !isBcryptHash(storedPass) },
+            details: { method: 'employee_login', zalo_linked: zaloLinked, device_id: device_id || null, bcrypt_upgraded: !isBcryptHash(storedPass) },
             ip_address
         });
 
@@ -418,27 +435,40 @@ class AuthService {
         };
     }
 
-    async zaloAutoLogin({ zalo_user_id, device_id, ma_nv_hint = null }, ip_address = '') {
+    async zaloAutoLogin({ zalo_user_id, zalo_access_token, zalo_token, device_id, ma_nv_hint = null }, ip_address = '') {
         const cleanZaloId = zalo_user_id ? String(zalo_user_id).trim() : '';
         const cleanDevId = device_id ? String(device_id).trim() : '';
         const cleanHint = ma_nv_hint ? String(ma_nv_hint).trim().toUpperCase() : '';
+        const rawZaloToken = zalo_access_token || zalo_token || '';
 
-        if (!cleanZaloId && !cleanDevId) {
-            return { success: false, statusCode: 400, message: 'Chưa có thông tin liên kết Zalo ID hoặc Thiết bị trên máy này!' };
+        // BẮT BUỘC xác thực access token qua Zalo Graph API trên Server (chống giả mạo zalo_user_id)
+        const verifiedZalo = rawZaloToken ? await verifyZaloAccessToken(rawZaloToken) : null;
+        if (!verifiedZalo || !verifiedZalo.id) {
+            return {
+                success: false,
+                statusCode: 401,
+                message: 'Phiên xác thực Zalo không hợp lệ hoặc đã hết hạn, vui lòng mở lại ứng dụng từ Zalo'
+            };
+        }
+
+        const verifiedZaloId = String(verifiedZalo.id).trim();
+        if (cleanZaloId && cleanZaloId !== verifiedZaloId) {
+            return {
+                success: false,
+                statusCode: 401,
+                message: 'Phiên xác thực Zalo không hợp lệ hoặc đã hết hạn, vui lòng mở lại ứng dụng từ Zalo'
+            };
         }
 
         let rows = [];
         if (cleanHint) {
             rows = await query(
-                `SELECT * FROM employees WHERE ma_nv = ? AND ((? != '' AND (zalo_user_id = ? OR zalo_id = ?)) OR (? != '' AND bound_device_id = ?)) LIMIT 1`,
-                [cleanHint, cleanZaloId, cleanZaloId, cleanZaloId, cleanDevId, cleanDevId]
+                `SELECT * FROM employees WHERE ma_nv = ? AND (zalo_user_id = ? OR zalo_id = ?) LIMIT 1`,
+                [cleanHint, verifiedZaloId, verifiedZaloId]
             );
         }
-        if ((!rows || rows.length === 0) && cleanZaloId) {
-            rows = await query('SELECT * FROM employees WHERE zalo_user_id = ? OR zalo_id = ? LIMIT 1', [cleanZaloId, cleanZaloId]);
-        }
-        if ((!rows || rows.length === 0) && cleanDevId) {
-            rows = await query('SELECT * FROM employees WHERE bound_device_id = ? LIMIT 1', [cleanDevId]);
+        if (!rows || rows.length === 0) {
+            rows = await query('SELECT * FROM employees WHERE zalo_user_id = ? OR zalo_id = ? LIMIT 1', [verifiedZaloId, verifiedZaloId]);
         }
 
         if (!rows || rows.length === 0) {
@@ -459,8 +489,8 @@ class AuthService {
             };
         }
 
-        // Nếu đang ở chế độ enforced và có bound_device_id nhưng device_id truyền lên khác
-        if (emp.device_binding_mode === 'enforced' && emp.bound_device_id && cleanDevId && emp.bound_device_id !== cleanDevId) {
+        // Nếu đang ở chế độ enforced và có bound_device_id nhưng không có hoặc sai device_id truyền lên
+        if (emp.device_binding_mode === 'enforced' && emp.bound_device_id && (!cleanDevId || emp.bound_device_id !== cleanDevId)) {
             return {
                 success: false,
                 statusCode: 403,
@@ -471,12 +501,16 @@ class AuthService {
         const role = resolveUserRole(emp);
         const safeEmp = sanitizeUserResponse(emp);
         safeEmp.role = role;
+        if (role === 'accountant') {
+            safeEmp.dynamic_permissions = await getAccountantPermissions();
+        }
 
         const token = generateToken({
             id: emp.ma_nv,
             ma_nv: emp.ma_nv,
             role: role,
-            ho_ten: emp.ho_ten
+            ho_ten: emp.ho_ten,
+            token_version: Number(emp.token_version || 1)
         });
 
         await logAuditEvent({
@@ -484,7 +518,7 @@ class AuthService {
             actor_role: role,
             action: 'ZALO_AUTO_LOGIN_SUCCESS',
             resource: 'auth',
-            details: { method: 'zalo_1touch_auto_login', zalo_user_id: cleanZaloId || null, device_id: cleanDevId || null },
+            details: { method: 'zalo_1touch_auto_login', zalo_user_id: verifiedZaloId, provider: verifiedZalo.provider, device_id: cleanDevId || null },
             ip_address
         });
 
@@ -499,26 +533,24 @@ class AuthService {
         };
     }
 
-    async adminLogin(username, password, ip_address = '') {
+    async adminLogin(username, password, ip_address = '', { skipPreCheck = false } = {}) {
         if (!username || !password) {
             return { success: false, message: GENERIC_LOGIN_ERROR };
         }
 
-        // Rate limit theo (admin username, IP) — composite key trong MySQL
+        // Rate limit theo (admin username, IP), IP rộng & phân tán nhiều IP — dùng chung helper với employeeLogin
         const normalizedIp = normalizeClientIp(ip_address);
         const adminAcctKey = `composite:${username}:${normalizedIp}`;
-        const acctCheck = await checkRateLimitDb(adminAcctKey, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
-        if (acctCheck.blocked) {
-            return { 
-                success: false, 
-                statusCode: 429,
-                message: `Tài khoản đã bị tạm khóa đăng nhập do nhập sai quá ${ACCOUNT_MAX_ATTEMPTS} lần. Vui lòng thử lại sau ${acctCheck.remainSec} giây!`
-            };
+        if (!skipPreCheck) {
+            const rateLimitBlocked = await this._checkLoginRateLimits(username, normalizedIp, 'admin');
+            if (rateLimitBlocked) {
+                return rateLimitBlocked;
+            }
         }
 
         const results = await query('SELECT * FROM admins WHERE username = ?', [username]);
         if (!results || results.length === 0) {
-            await recordFailedAttemptDb(adminAcctKey, 'composite', `${username}:${normalizedIp}`, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
+            await this._recordLoginFailure(username, normalizedIp);
 
             await logAuditEvent({
                 actor_id: username,
@@ -535,7 +567,7 @@ class AuthService {
         const admin = results[0];
         const storedPass = admin.password;
         if (!storedPass || !isBcryptHash(storedPass)) {
-            await recordFailedAttemptDb(adminAcctKey, 'composite', `${username}:${normalizedIp}`, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
+            await this._recordLoginFailure(username, normalizedIp);
 
             await logAuditEvent({
                 actor_id: username,
@@ -552,7 +584,7 @@ class AuthService {
         const isMatch = await comparePasswordAsync(password, storedPass);
 
         if (!isMatch) {
-            await recordFailedAttemptDb(adminAcctKey, 'composite', `${username}:${normalizedIp}`, ACCOUNT_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
+            await this._recordLoginFailure(username, normalizedIp);
 
             await logAuditEvent({
                 actor_id: username,
@@ -566,8 +598,9 @@ class AuthService {
             return { success: false, message: GENERIC_LOGIN_ERROR };
         }
 
-        // ✅ Đăng nhập thành công → Reset rate limiter cho composite key
+        // ✅ Đăng nhập thành công → Reset rate limiter cho composite key & ghi nhận IP tin cậy
         await resetCompositeAttemptsDb(adminAcctKey);
+        await recordKnownLegitIp(username, normalizedIp);
 
         const safeAdmin = sanitizeUserResponse(admin);
         safeAdmin.role = 'admin';
@@ -576,7 +609,8 @@ class AuthService {
             id: admin.id,
             username: admin.username,
             role: 'admin',
-            ho_ten: admin.ho_ten
+            ho_ten: admin.ho_ten,
+            token_version: Number(admin.token_version || 1)
         });
 
         await logAuditEvent({
@@ -627,6 +661,10 @@ class AuthService {
         }
 
         // Mã hóa mật khẩu bằng bcrypt trước khi lưu
+        const policyCheck = validatePasswordPolicy(password, username);
+        if (!policyCheck.valid) {
+            return { success: false, statusCode: 400, message: policyCheck.message };
+        }
         const hashedPw = hashPassword(password);
 
         await query('INSERT INTO admins (username, password, ho_ten) VALUES (?, ?, ?)', [
@@ -656,11 +694,21 @@ class AuthService {
         }
 
         const results = await query('SELECT password FROM employees WHERE ma_nv = ?', [ma_nv]);
-        if (!results || results.length === 0) {
-            return { success: false, statusCode: 404, message: 'Không tìm thấy nhân viên' };
+        let isPureAdmin = false;
+        let currentPass = null;
+        if (results && results.length > 0) {
+            currentPass = results[0].password;
+        } else if (current_user && current_user.role === 'admin') {
+            const admResults = await query('SELECT password FROM admins WHERE username = ?', [ma_nv]);
+            if (admResults && admResults.length > 0) {
+                currentPass = admResults[0].password;
+                isPureAdmin = true;
+            }
         }
-        const currentPass = results[0].password;
-        if (!currentPass || !isBcryptHash(currentPass)) {
+        if (!currentPass) {
+            return { success: false, statusCode: 404, message: 'Không tìm thấy tài khoản' };
+        }
+        if (!isBcryptHash(currentPass)) {
             return { success: false, statusCode: 400, message: 'Mật khẩu hiện tại không hợp lệ hoặc chưa được mã hóa an toàn!' };
         }
         
@@ -680,19 +728,78 @@ class AuthService {
             return { success: false, statusCode: 400, message: policyCheck.message };
         }
 
-        // Mã hóa mật khẩu mới bằng bcrypt trước khi lưu
+        // Mã hóa mật khẩu mới bằng bcrypt trước khi lưu & tăng token_version để thu hồi JWT cũ tức thì
         const hashedNew = hashPassword(new_password);
-        await query('UPDATE employees SET password = ?, must_change_password = 0 WHERE ma_nv = ?', [hashedNew, ma_nv]);
+        if (isPureAdmin) {
+            await query('UPDATE admins SET password = ?, must_change_password = 0, token_version = COALESCE(token_version, 1) + 1 WHERE username = ?', [hashedNew, ma_nv]);
+        } else {
+            await query('UPDATE employees SET password = ?, must_change_password = 0, token_version = COALESCE(token_version, 1) + 1 WHERE ma_nv = ?', [hashedNew, ma_nv]);
+        }
+        invalidateUserCache(ma_nv);
 
         await logAuditEvent({
             actor_id: current_user ? (current_user.ma_nv || current_user.username) : ma_nv,
             actor_role: current_user ? current_user.role : 'worker',
             action: 'CHANGE_PASSWORD',
-            resource: 'employees',
-            details: { target_ma_nv: ma_nv }
+            resource: isPureAdmin ? 'admins' : 'employees',
+            details: { target_ma_nv: ma_nv, token_revoked: true }
         });
 
         return { success: true, message: 'Đổi mật khẩu thành công!' };
+    }
+
+    async forcePasswordChange(ma_nv, current_user = null) {
+        if (!ma_nv) {
+            return { success: false, statusCode: 400, message: 'Thiếu mã nhân viên!' };
+        }
+        const updRes = await query(
+            'UPDATE employees SET must_change_password = 1, token_version = COALESCE(token_version, 1) + 1 WHERE ma_nv = ?',
+            [ma_nv]
+        );
+        if (!updRes || updRes.affectedRows === 0) {
+            return { success: false, statusCode: 404, message: 'Không tìm thấy nhân viên!' };
+        }
+        invalidateUserCache(ma_nv);
+        await logAuditEvent({
+            actor_id: current_user ? (current_user.ma_nv || current_user.username) : 'admin',
+            actor_role: current_user ? current_user.role : 'admin',
+            action: 'FORCE_PASSWORD_CHANGE',
+            resource: 'employees',
+            details: { target_ma_nv: ma_nv, token_revoked: true }
+        });
+        return { success: true, message: 'Đã kích hoạt đổi mật khẩu bắt buộc và thu hồi phiên đăng nhập cũ!' };
+    }
+
+    async adminResetPassword(ma_nv, new_password, current_user = null) {
+        if (!ma_nv || !new_password) {
+            return { success: false, statusCode: 400, message: 'Thiếu mã nhân viên hoặc mật khẩu mới!' };
+        }
+        const policyCheck = validatePasswordPolicy(new_password, ma_nv);
+        if (!policyCheck.valid) {
+            return { success: false, statusCode: 400, message: policyCheck.message };
+        }
+        const hashedNew = hashPassword(new_password);
+        const updRes = await query(
+            'UPDATE employees SET password = ?, must_change_password = 1, token_version = COALESCE(token_version, 1) + 1 WHERE ma_nv = ?',
+            [hashedNew, ma_nv]
+        );
+        if (!updRes || updRes.affectedRows === 0) {
+            return { success: false, statusCode: 404, message: 'Không tìm thấy nhân viên!' };
+        }
+        invalidateUserCache(ma_nv);
+        await logAuditEvent({
+            actor_id: current_user ? (current_user.ma_nv || current_user.username) : 'admin',
+            actor_role: current_user ? current_user.role : 'admin',
+            action: 'ADMIN_RESET_PASSWORD',
+            resource: 'employees',
+            details: { target_ma_nv: ma_nv, token_revoked: true }
+        });
+        return { success: true, message: 'Đã đặt lại mật khẩu và thu hồi phiên đăng nhập cũ!' };
+    }
+
+    async bindZalo(ma_nv, zalo_token, current_user = null) {
+        const employeeService = require('./employeeService');
+        return employeeService.bindZalo(ma_nv, zalo_token, current_user);
     }
 
     async updateAvatar(ma_nv, avatar_url, current_user = null) {
