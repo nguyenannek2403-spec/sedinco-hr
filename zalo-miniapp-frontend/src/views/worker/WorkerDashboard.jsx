@@ -17,27 +17,23 @@ import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 
 export default function WorkerDashboard({
   currentUser,
-  activeRole,
-  onRoleSwitch,
   onLogout,
   showToast,
   onChangePasswordRequest
 }) {
   const [activeTab, setActiveTab] = useState("checkin"); // 'checkin', 'history', 'requests', 'profile'
   const [fixCheckoutInfo, setFixCheckoutInfo] = useState(null);
-  const canSwitchToManagement =
-    currentUser?.role === "admin" || currentUser?.role === "accountant";
 
   return (
     <div
       className="w-full h-[100dvh] bg-slate-950 text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden"
     >
-      {/* Top Mobile Header - Chuẩn hóa 3 vùng cân đối: Trái (Trở về/Quản trị/Logo) - Giữa (Họ tên + Mã NV) - Phải (Đăng xuất) */}
+      {/* Top Mobile Header - Chuẩn hóa 3 vùng cân đối: Trái (Trở về/Logo) - Giữa (Họ tên + Mã NV) - Phải (Đăng xuất) */}
       <header
         className="shrink-0 z-40 w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3.5 pb-2.5 flex items-center justify-between gap-2.5 shadow-sm"
         style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
       >
-        {/* Trái: Nút Trở về (ở tab phụ), nút Quản trị (nếu có quyền), hoặc Logo Sedinco */}
+        {/* Trái: Nút Trở về (ở tab phụ) hoặc Logo Sedinco */}
         <div className="flex items-center shrink-0">
           {activeTab !== "checkin" ? (
             <button
@@ -47,14 +43,6 @@ export default function WorkerDashboard({
             >
               <ArrowLeft className="w-4 h-4 shrink-0" />
               <span>Trở về</span>
-            </button>
-          ) : canSwitchToManagement && typeof onRoleSwitch === "function" ? (
-            <button
-              type="button"
-              onClick={() => onRoleSwitch(currentUser.role)}
-              className="min-h-[44px] px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 rounded-xl text-xs font-bold whitespace-nowrap shrink-0"
-            >
-              Quản trị
             </button>
           ) : (
             <div className="w-10 h-10 rounded-xl bg-white border border-slate-700/80 flex items-center justify-center p-1 shadow-sm shrink-0">

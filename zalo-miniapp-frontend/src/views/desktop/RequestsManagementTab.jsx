@@ -21,7 +21,8 @@ export default function RequestsManagementTab({
   currentUser,
   showToast,
   activeRole,
-  dynamicPerms = {}
+  dynamicPerms = {},
+  focusTarget = null
 }) {
   const effectiveRole = activeRole || currentUser?.role || "admin";
   const canApproveRequest = useCallback(
@@ -42,6 +43,17 @@ export default function RequestsManagementTab({
   const [dialogState, setDialogState] = useState(null);
   const actionInFlightRef = useRef(false);
   const batchInFlightRef = useRef(false);
+  const lastFocusTsRef = useRef(0);
+
+  useEffect(() => {
+    if (!focusTarget?.ts || focusTarget.ts === lastFocusTsRef.current) return;
+    if (focusTarget.tab !== "requests" && focusTarget.category !== "pending_request") return;
+    lastFocusTsRef.current = focusTarget.ts;
+    setFilterStatus("PENDING");
+    if (focusTarget.ma_nv) {
+      setSearchQuery(focusTarget.ma_nv);
+    }
+  }, [focusTarget]);
 
   const notify = useCallback((msg, type = "info") => {
     if (showToast) showToast(msg, type);
@@ -281,9 +293,14 @@ export default function RequestsManagementTab({
                 const isPending = String(req.status).toUpperCase() === "PENDING";
                 const isOwner = req.ma_nv === currentUser?.ma_nv;
                 const isOperating = actionLoadingId === req.id;
+                const isFocused = Boolean(focusTarget?.id && String(req.id) === String(focusTarget.id));
 
                 return (
-                  <div key={req.id} className="perf-list-item p-4 space-y-3">
+                  <div
+                    key={req.id}
+                    data-request-id={req.id}
+                    className={`perf-list-item p-4 space-y-3 ${isFocused ? "bg-amber-950/35 ring-2 ring-inset ring-amber-400" : ""}`}
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <span className="font-semibold text-base text-white block break-words leading-snug">
@@ -387,9 +404,16 @@ export default function RequestsManagementTab({
                   const isPending = String(req.status).toUpperCase() === "PENDING";
                   const isOwner = req.ma_nv === currentUser?.ma_nv;
                   const isOperating = actionLoadingId === req.id;
+                  const isFocused = Boolean(focusTarget?.id && String(req.id) === String(focusTarget.id));
 
                   return (
-                    <tr key={req.id} className="perf-list-item hover:bg-slate-700/30 transition-colors">
+                    <tr
+                      key={req.id}
+                      data-request-id={req.id}
+                      className={`perf-list-item transition-colors ${
+                        isFocused ? "bg-amber-950/40 ring-2 ring-inset ring-amber-400" : "hover:bg-slate-700/30"
+                      }`}
+                    >
                       <td className="p-3.5 pl-5">
                         <div className="font-bold text-white">{req.ho_ten || req.ma_nv}</div>
                         <div className="text-xs text-slate-400 font-mono">{req.ma_nv}</div>

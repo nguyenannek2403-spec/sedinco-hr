@@ -34,6 +34,7 @@ class PayrollService {
                    a.adjustment_note
             FROM employees e 
             LEFT JOIN attendance a ON e.ma_nv = a.ma_nv AND a.thang = ? AND a.nam = ?
+            WHERE (e.role IS NULL OR e.role != 'admin')
             ORDER BY e.ma_nv ASC
             LIMIT ? OFFSET ?
         `;
@@ -171,6 +172,7 @@ class PayrollService {
         if (!emps || emps.length === 0) return null;
 
         const emp = emps[0];
+        if (emp.role === 'admin') return null;
         const holidays = await query('SELECT start_date, end_date FROM public_holidays');
         const safeHolidays = holidays || [];
 
@@ -275,6 +277,13 @@ class PayrollService {
     async confirmOrDisputeSalary({ ma_nv, month, year, status, dispute_reason, dispute_evidence_media, current_user = null }) {
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
         const y = parseInt(year, 10) || new Date().getFullYear();
+
+        const targetEmpRows = await query('SELECT ma_nv, role FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+        if (targetEmpRows && targetEmpRows[0] && targetEmpRows[0].role === 'admin') {
+            const err = new Error('Tài khoản Quản trị viên không tham gia bảng lương cá nhân!');
+            err.statusCode = 403;
+            throw err;
+        }
         const normalizedStatus = String(status || 'CONFIRMED').toUpperCase();
         if (!['CONFIRMED', 'DISPUTED'].includes(normalizedStatus)) {
             const err = new Error('Trạng thái xác nhận lương không hợp lệ!');
@@ -366,10 +375,15 @@ class PayrollService {
             error.statusCode = 400;
             throw error;
         }
-        const empRows = await query('SELECT ma_nv FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+        const empRows = await query('SELECT ma_nv, role FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
         if (!empRows || empRows.length === 0) {
             const error = new Error(`Không tìm thấy nhân viên ${ma_nv}!`);
             error.statusCode = 404;
+            throw error;
+        }
+        if (empRows[0].role === 'admin') {
+            const error = new Error('Tài khoản Quản trị viên không thuộc danh sách nhận lương!');
+            error.statusCode = 400;
             throw error;
         }
 
@@ -489,10 +503,15 @@ class PayrollService {
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
         const y = parseInt(year, 10) || new Date().getFullYear();
 
-        const empRows = await query('SELECT ma_nv FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+        const empRows = await query('SELECT ma_nv, role FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
         if (!empRows || empRows.length === 0) {
             const err = new Error(`Không tìm thấy nhân viên ${ma_nv}!`);
             err.statusCode = 404;
+            throw err;
+        }
+        if (empRows[0].role === 'admin') {
+            const err = new Error('Tài khoản Quản trị viên không thuộc danh sách tính lương!');
+            err.statusCode = 400;
             throw err;
         }
 

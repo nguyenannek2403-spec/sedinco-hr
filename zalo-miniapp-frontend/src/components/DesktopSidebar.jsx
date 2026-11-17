@@ -9,11 +9,10 @@ import {
   Building,
   Gift,
   ShieldCheck,
+  Settings,
   User,
   LogOut,
   RotateCcw,
-  Smartphone,
-  QrCode,
   Menu,
   X
 } from "lucide-react";
@@ -31,21 +30,14 @@ export function getSidebarMenuItems({
   const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
   const fraudCount = Number(alertsSummary?.fraud_count) || 0;
   const devicePendingCount = Number(alertsSummary?.pending_device_count) || 0;
+  const managementAlertTotal = disputedCount + fraudCount + devicePendingCount;
 
   if (activeRole === ROLES.ADMIN) {
     return [
-      { id: "matrix", label: "Bảng Công Ma Trận", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
-      {
-        id: "payroll",
-        label: "Bảng Lương (Giám Sát)",
-        shortLabel: "Bảng lương",
-        icon: DollarSign,
-        badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
-        badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
-      },
+      { id: "matrix", label: "Bảng công", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
       {
         id: "requests",
-        label: "Phê Duyệt Đơn Từ",
+        label: "Xét duyệt đơn từ",
         shortLabel: "Đơn từ",
         icon: FileText,
         badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
@@ -53,24 +45,14 @@ export function getSidebarMenuItems({
       },
       {
         id: "management",
-        label: "Nhân sự & Thiết bị",
-        shortLabel: "Nhân sự",
+        label: "Trung tâm Quản trị",
+        shortLabel: "Quản trị",
         icon: Users,
-        badge: devicePendingCount > 0 ? `${devicePendingCount}` : null,
-        badgeColor: "bg-rose-500 text-white"
+        badge: managementAlertTotal > 0 ? `${managementAlertTotal}` : null,
+        badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
       },
-      {
-        id: "audit_logs",
-        label: "Nhật Ký & Chống Gian Lận",
-        shortLabel: "Nhật ký",
-        icon: ShieldCheck,
-        badge: fraudCount > 0 ? `${fraudCount} Cảnh báo` : null,
-        badgeColor: fraudCount > 0 ? "bg-rose-600 text-white border-rose-400 animate-pulse" : undefined
-      },
-      { id: "company", label: "Cài Đặt Công Ty", shortLabel: "Cài đặt", icon: Building },
-      { id: "permissions", label: "Phân Quyền Kế Toán", shortLabel: "Phân quyền", icon: ShieldCheck },
-      { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", shortLabel: "Nghỉ lễ", icon: Gift },
-      { id: "profile", label: "Hồ Sơ Quản Trị", shortLabel: "Hồ sơ", icon: User }
+      { id: "settings", label: "Cài đặt Hệ thống", shortLabel: "Cài đặt", icon: Settings },
+      { id: "profile", label: "Hồ sơ Quản trị", shortLabel: "Hồ sơ", icon: User }
     ];
   }
 
@@ -178,7 +160,6 @@ export default function DesktopSidebar({
   currentUser,
   activeRole,
   dynamicPerms = {},
-  onRoleSwitch,
   currentTab,
   setCurrentTab,
   onSelectTab,
@@ -240,19 +221,6 @@ export default function DesktopSidebar({
             {ROLE_LABELS[activeRole]}
           </span>
         </div>
-        {typeof onRoleSwitch === "function" && (
-          <button
-            type="button"
-            onClick={() => {
-              onRoleSwitch(ROLES.WORKER);
-              if (onCloseMobileMenu) onCloseMobileMenu();
-            }}
-            className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
-          >
-            <Smartphone size={14} />
-            <span>Chuyển sang Giao diện Chấm công Cá nhân</span>
-          </button>
-        )}
       </div>
 
       {/* 3. Danh Sách Menu Điều Hướng */}

@@ -10,12 +10,13 @@ import {
   ShieldAlert,
   Send,
   Camera,
+  Image as ImageIcon,
   HardHat,
   Wifi
 } from "lucide-react";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
-import { captureDirectCameraPhoto, compressAndResizeImage } from "../utils/imageHelper";
+import { captureDirectCameraPhoto, compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { getDeviceIdentity } from "../utils/deviceIdentity";
 import { useSpamClickGuard, SPAM_WARNING_MESSAGE } from "../hooks/useAttendanceCheckIn";
 import { AppButton, AppModal } from "./ui";
@@ -106,6 +107,10 @@ export default function OneTouchCheckIn({
     mode: "checking", // 'in_range' | 'wifi_office' | 'out_of_range' | 'checking'
     text: "Đang kiểm tra vị trí chi nhánh gần nhất..."
   });
+  const [networkBadge, setNetworkBadge] = useState({
+    networkType: "unknown",
+    online: true
+  });
 
   // Chế độ Đi Công Trình / Thị Trường
   const [isFieldWorkMode, setIsFieldWorkMode] = useState(false);
@@ -117,6 +122,7 @@ export default function OneTouchCheckIn({
   const timeoutIdRef = useRef(null);
   const lastIdempotencyKeyRef = useRef("");
   const cameraFileInputRef = useRef(null);
+  const albumFileInputRef = useRef(null);
 
   const evaluateFriendlyLocation = useCallback((compData) => {
     if (!compData) return;
@@ -229,6 +235,32 @@ export default function OneTouchCheckIn({
     fetchTodayStatus();
   }, [fetchTodayStatus]);
 
+  useEffect(() => {
+    let active = true;
+    const refreshNetwork = async () => {
+      try {
+        const net = await zmpAdapter.getNetworkType();
+        if (active && net) setNetworkBadge(net);
+      } catch {}
+    };
+    refreshNetwork();
+    zmpAdapter.keepScreenOn(true).catch(() => {});
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", refreshNetwork);
+      window.addEventListener("offline", refreshNetwork);
+    }
+
+    return () => {
+      active = false;
+      zmpAdapter.keepScreenOn(false).catch(() => {});
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", refreshNetwork);
+        window.removeEventListener("offline", refreshNetwork);
+      }
+    };
+  }, []);
+
   const effectiveToday = liveTodayRecord || todayAttendance;
   const hasCheckedIn = Boolean(effectiveToday && effectiveToday.check_in_time);
   const checkinType = hasCheckedIn ? "out" : "in";
@@ -287,6 +319,29 @@ export default function OneTouchCheckIn({
     }
   };
 
+  const handlePickFieldPhoto = async (sourceType) => {
+    const res = await pickCompressedEvidencePhoto({
+      sourceType,
+      cameraType: "back",
+      maxWidth: 720,
+      maxHeight: 720,
+      quality: 0.65
+    });
+    if (res?.success && res?.photoUrl) {
+      setCapturedPhoto(res.photoUrl);
+      setFieldModalError("");
+      setErrorMessage("");
+      setErrorDetails("");
+      setStatusMessage("Đã đính kèm ảnh hiện trường! Chạm nút CHẤM CÔNG để hoàn tất.");
+      return;
+    }
+    if (sourceType?.[0] === "camera") {
+      if (cameraFileInputRef.current) cameraFileInputRef.current.click();
+    } else if (albumFileInputRef.current) {
+      albumFileInputRef.current.click();
+    }
+  };
+
   const handleStartCheckIn = async (bypassPermExplain = false) => {
     if (isFieldWorkMode) {
       if (!capturedPhoto) {
@@ -321,10 +376,12 @@ export default function OneTouchCheckIn({
     }
 
     if (!beginCheckInTap(showToast)) {
+      zmpAdapter.vibrate("medium").catch(() => {});
       return;
     }
     const nowMs = Date.now();
     if (isLockedRef.current || isDebounceLocked || (nowMs - globalCheckInLockTimestamp < 1200)) {
+      zmpAdapter.vibrate("medium").catch(() => {});
       showFriendlySpamAlert(SPAM_WARNING_MESSAGE, showToast);
       return;
     }
@@ -484,6 +541,7 @@ export default function OneTouchCheckIn({
 
       if (result?.is_spam_warning || result?.data?.is_spam_warning) {
         const warnText = result?.message || SPAM_WARNING_MESSAGE;
+        zmpAdapter.vibrate("medium").catch(() => {});
         setStatusMessage(warnText);
         showFriendlySpamAlert(warnText, showToast);
         endCheckInTap(true);
@@ -543,9 +601,9 @@ export default function OneTouchCheckIn({
         </button>
       )}
 
-      {/* 2. THẺ TRẠNG THÁI VỊ TRÍ THÂN THIỆN (Không hiện thông số kỹ thuật thô) */}
+      {/* 2. THẺ TRẠNG THÁI VỊ TRÍ & KẾT NỐI MẠNG THÂN THIỆN */}
       <div
-        className={`w-full px-3.5 py-2.5 rounded-2xl border text-xs font-bold flex items-center gap-2 shadow-sm ${
+        className={`w-full px-3.5 py-2.5 rounded-2xl border text-xs font-bold flex flex-col gap-1.5 shadow-sm ${
           locationFriendlyBadge.mode === "in_range"
             ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-200"
             : locationFriendlyBadge.mode === "wifi_office"
@@ -555,12 +613,33 @@ export default function OneTouchCheckIn({
             : "bg-slate-900/90 border-slate-700 text-slate-300"
         }`}
       >
-        {locationFriendlyBadge.mode === "wifi_office" ? (
-          <Wifi className="w-4 h-4 text-blue-400 shrink-0" />
-        ) : (
-          <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
-        )}
-        <span className="flex-1 min-w-0 leading-snug">{locationFriendlyBadge.text}</span>
+        <div className="flex items-center gap-2">
+          {locationFriendlyBadge.mode === "wifi_office" ? (
+            <Wifi className="w-4 h-4 text-blue-400 shrink-0" />
+          ) : (
+            <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
+          <span className="flex-1 min-w-0 leading-snug">{locationFriendlyBadge.text}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs font-semibold opacity-95 pl-6">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${
+              !networkBadge.online || networkBadge.networkType === "none"
+                ? "bg-rose-500/20 border-rose-400/50 text-rose-200"
+                : networkBadge.networkType === "wifi"
+                ? "bg-emerald-500/15 border-emerald-400/40 text-emerald-200"
+                : "bg-sky-500/15 border-sky-400/40 text-sky-200"
+            }`}
+          >
+            {!networkBadge.online || networkBadge.networkType === "none"
+              ? "⚠️ Không có kết nối mạng"
+              : networkBadge.networkType === "wifi"
+              ? "🛜 Mạng: Wi-Fi ổn định"
+              : networkBadge.networkType === "cellular"
+              ? "📶 Mạng: 4G / Di động"
+              : "🌐 Kết nối trực tuyến"}
+          </span>
+        </div>
       </div>
 
       {/* F4: THÔNG BÁO NỘI BỘ CÔNG TY */}
@@ -874,16 +953,26 @@ export default function OneTouchCheckIn({
                 <span className="text-xs font-bold text-emerald-400">✅ Đã có ảnh</span>
               )}
             </div>
-            <AppButton
-              variant="secondary"
-              tone="dark"
-              fullWidth
-              icon={Camera}
-              onClick={handleCaptureSelfie}
-              className="!text-emerald-300"
-            >
-              {capturedPhoto ? "Chụp lại ảnh hiện trường" : "Chụp ảnh hiện trường ngay"}
-            </AppButton>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <AppButton
+                variant="secondary"
+                tone="dark"
+                icon={Camera}
+                onClick={() => handlePickFieldPhoto(["camera"])}
+                className="!text-emerald-300 text-xs"
+              >
+                📷 Chụp ảnh Camera
+              </AppButton>
+              <AppButton
+                variant="secondary"
+                tone="dark"
+                icon={ImageIcon}
+                onClick={() => handlePickFieldPhoto(["album"])}
+                className="!text-sky-300 text-xs"
+              >
+                🖼️ Chọn ảnh thư viện
+              </AppButton>
+            </div>
           </div>
         </div>
       </AppModal>
@@ -964,6 +1053,13 @@ export default function OneTouchCheckIn({
           type="file"
           accept="image/*"
           capture="environment"
+          onChange={handleFallbackFileChange}
+          className="hidden"
+        />
+        <input
+          ref={albumFileInputRef}
+          type="file"
+          accept="image/*"
           onChange={handleFallbackFileChange}
           className="hidden"
         />

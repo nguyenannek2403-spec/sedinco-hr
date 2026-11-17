@@ -15,6 +15,7 @@ import {
   UserCheck
 } from "lucide-react";
 import { safeGet, safePost, sanitizeFormula, generateIdempotencyKey } from "../utils/api";
+import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { useDebouncedValue } from "../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
 import PeriodLockModal from "./PeriodLockModal";
@@ -142,6 +143,7 @@ export default function AttendanceMatrixTable({
 
   // Lọc nhân sự theo từ khóa tìm kiếm + khối/bộ phận
   const filteredData = (sourceList || []).filter(item => {
+    if (item.role === "admin") return false;
     const q = (debouncedSearch || "").toLowerCase();
     const matchText = !q ||
       item.ho_ten?.toLowerCase().includes(q) ||
@@ -281,7 +283,7 @@ export default function AttendanceMatrixTable({
   };
 
   // Xuất bảng chấm công sang CSV UTF-8
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     const headers = ["Mã NV", "Họ và Tên", ...dayNumbers.map(d => `Ngày ${d}`), "Đủ công (1)", "Nửa công (0.5)", "Phép (P)", "Tăng ca (OT)"];
     const rows = filteredData.map(item => {
       const days = item.days || [];
@@ -301,14 +303,16 @@ export default function AttendanceMatrixTable({
     });
 
     const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Bang_Cham_Cong_Ma_Tran_Thang_${month}_${year}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      await zmpAdapter.saveFile({
+        filename: `Bang_Cham_Cong_Ma_Tran_Thang_${month}_${year}.csv`,
+        content: csvContent,
+        mimeType: "text/csv;charset=utf-8;"
+      });
+      if (showToast) showToast(`Đã tải xuống bảng chấm công Tháng ${month}/${year}!`, "success");
+    } catch (err) {
+      if (showToast) showToast(err?.message || "Không thể xuất bảng chấm công!", "error");
+    }
   };
 
   return (

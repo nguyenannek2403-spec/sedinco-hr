@@ -1197,8 +1197,51 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await loginThroughAuthView(session, 'admin', '123456');
         await inspectPhysicsAndGeometry(session, 'Admin Dashboard Initial', { expectModal: false, testScrollBleed: false });
 
-        // 3A: Trung tâm Nhân sự 360° — Add NV_UI_TEMP, Quick Filters, Open Unified 360° Modal, Approve Device
-        await openDesktopTabViaDrawer('management', 'Admin');
+        // 3A: Verify V17 Pure Manager Isolation (zero Role Switcher) & 4 Clean Sidebar Modules + Profile
+        const adminShellAudit = await session.evaluate(`(() => {
+            const bodyTxt = document.body.innerText || '';
+            return {
+                hasRoleSwitchText: bodyTxt.includes('Chế độ NV') || bodyTxt.includes('Chấm công Cá nhân'),
+                bottomBtns: Array.from(document.querySelectorAll('nav button')).map((b) => (b.innerText || '').trim())
+            };
+        })()`);
+        assert.equal(adminShellAudit.hasRoleSwitchText, false, 'Admin UI must NOT contain any Role Switcher button or text');
+
+        async function openAdminSubTab(hubTabId, subTabId) {
+            await openDesktopTabViaDrawer(hubTabId, 'Admin');
+            await clickInPage(session, { selector: `button[data-subtab="${subTabId}"]`, inTopModal: false });
+            await sleep(260);
+            await waitForNoBlockingLoading(session);
+        }
+
+        // 3A-Bell: Test Deep-Link 1-tap from Header Bell -> Opens SalarySlipModal on Disputed NV003 Slip directly
+        await clickInPage(session, { selector: 'button[data-bell-button="true"]', inTopModal: false });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Admin Bell Alert modal opened');
+        await inspectPhysicsAndGeometry(session, 'Admin Header Deep-Link Bell Modal', { expectModal: true });
+        const clickedDisputeAlert = await session.evaluate(`(() => {
+            const btn = document.querySelector('[data-modal-root="true"] button[data-alert-category="salary_dispute"]');
+            if (btn) { btn.click(); return true; }
+            return false;
+        })()`);
+        if (clickedDisputeAlert) {
+            await waitForCondition(
+                session,
+                `Boolean(document.querySelector('[data-subtab="payroll"].bg-blue-600'))`,
+                5000,
+                'Deep-link transitioned straight into Management -> Payroll sub-tab'
+            );
+            await sleep(450);
+            const autoOpenedModal = await session.evaluate(`Boolean(document.querySelector('[data-modal-root="true"]'))`);
+            if (autoOpenedModal) {
+                await inspectPhysicsAndGeometry(session, 'Admin Bell Deep-Link Opened SalarySlipModal', { expectModal: true });
+                await dismissModalIfOpen(session);
+            }
+        } else {
+            await dismissModalIfOpen(session);
+        }
+
+        // 3B: Trung tâm Quản trị (Phân mục A: Nhân sự & Thiết bị) — Add NV_UI_TEMP, Quick Filters, Open Unified 360° Modal, Approve Device
+        await openAdminSubTab('management', 'employees');
         await clickInPage(session, { text: 'Thêm nhân viên', inTopModal: false });
         await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Add Employee modal opened');
         await inspectPhysicsAndGeometry(session, 'Admin Add Employee Modal', { expectModal: true });
@@ -1249,17 +1292,9 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await clickInPage(session, { text: 'Tất cả nhân sự', inTopModal: false });
         await sleep(200);
 
-        // 3B: Accountant Permissions Tab — semantic <button role="switch">
-        await openDesktopTabViaDrawer('permissions', 'Admin');
-        await inspectPhysicsAndGeometry(session, 'Admin Tab: permissions', { expectModal: false, testScrollBleed: false });
-        await clickInPage(session, { selector: 'button[role="switch"]', inTopModal: false });
-        await sleep(260);
-        await clickInPage(session, { selector: 'button[role="switch"]', inTopModal: false });
-        await sleep(260);
-
-        // 3C: Payroll Admin Flow — Inspect "Trả lại Kế toán" modal, then Approve ("Chốt & Phát hành") & Pay ("Xác nhận Đã Chi Trả Lương")
-        await openDesktopTabViaDrawer('payroll', 'Admin');
-        await inspectPhysicsAndGeometry(session, 'Admin Tab: payroll', { expectModal: false, testScrollBleed: false });
+        // 3C: Trung tâm Quản trị (Phân mục B: Giám sát Lương) — Inspect "Trả lại Kế toán" modal, then Approve ("Chốt & Phát hành")
+        await openAdminSubTab('management', 'payroll');
+        await inspectPhysicsAndGeometry(session, 'Admin SubTab: management -> payroll', { expectModal: false, testScrollBleed: false });
         const hasReturnBtn = await session.evaluate(`(() => {
             const isVis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; };
             return Array.from(document.querySelectorAll('#app button')).some((b) => isVis(b) && (b.innerText || '').includes('Trả lại Kế toán'));
@@ -1291,9 +1326,21 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await dismissToastIfVisible(session);
         }
 
-        // 3D: Holidays Tab — Add Holiday Modal
-        await openDesktopTabViaDrawer('holidays', 'Admin');
-        await inspectPhysicsAndGeometry(session, 'Admin Tab: holidays', { expectModal: false, testScrollBleed: false });
+        // 3D: Trung tâm Quản trị (Phân mục C: Nhật ký & An ninh)
+        await openAdminSubTab('management', 'audit_logs');
+        await inspectPhysicsAndGeometry(session, 'Admin SubTab: management -> audit_logs', { expectModal: false, testScrollBleed: false });
+
+        // 3E: Cài đặt Hệ thống — Phân quyền Kế toán (semantic <button role="switch">)
+        await openAdminSubTab('settings', 'permissions');
+        await inspectPhysicsAndGeometry(session, 'Admin SubTab: settings -> permissions', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[role="switch"]', inTopModal: false });
+        await sleep(260);
+        await clickInPage(session, { selector: 'button[role="switch"]', inTopModal: false });
+        await sleep(260);
+
+        // 3F: Cài đặt Hệ thống — Lịch nghỉ lễ (Add Holiday Modal)
+        await openAdminSubTab('settings', 'holidays');
+        await inspectPhysicsAndGeometry(session, 'Admin SubTab: settings -> holidays', { expectModal: false, testScrollBleed: false });
         await clickInPage(session, { text: 'Thêm ngày lễ', inTopModal: false });
         await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Add Holiday modal opened');
         await inspectPhysicsAndGeometry(session, 'Admin Add Holiday Modal', { expectModal: true });
@@ -1305,19 +1352,23 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await dismissModalIfOpen(session);
         await dismissToastIfVisible(session);
 
-        // 3E: Company Settings Tab — Expand Accordions + 200% Elderly Font Scale FormRow Check
-        await openDesktopTabViaDrawer('company', 'Admin');
-        await inspectPhysicsAndGeometry(session, 'Admin Tab: company (100%)', { expectModal: false, testScrollBleed: false });
+        // 3G: Cài đặt Hệ thống — Công ty & Vị trí (100% & 200% Elderly Scale FormRow Check)
+        await openAdminSubTab('settings', 'company');
+        await inspectPhysicsAndGeometry(session, 'Admin SubTab: settings -> company (100%)', { expectModal: false, testScrollBleed: false });
         await setViewportAndScale(session, 360, 780, 200);
-        await inspectPhysicsAndGeometry(session, 'Admin Tab: company (200% Elderly Scale)', { expectModal: false, testScrollBleed: false });
+        await inspectPhysicsAndGeometry(session, 'Admin SubTab: settings -> company (200% Elderly Scale)', { expectModal: false, testScrollBleed: false });
         await setViewportAndScale(session, 360, 780, 100);
         await clickInPage(session, { text: 'Lưu cấu hình', inTopModal: false });
         await sleep(350);
         await dismissToastIfVisible(session);
 
-        // 3F: Audit Logs Tab
-        await openDesktopTabViaDrawer('audit_logs', 'Admin');
-        await inspectPhysicsAndGeometry(session, 'Admin Tab: audit_logs', { expectModal: false, testScrollBleed: false });
+        // 3H: Pure Manager Profile Isolation (Zero personal salary slip / leave balance / device lock)
+        await openDesktopTabViaDrawer('profile', 'Admin');
+        await inspectPhysicsAndGeometry(session, 'Admin Pure Manager Profile Tab', { expectModal: false, testScrollBleed: false });
+        const adminProfileText = await session.evaluate(`document.body.innerText || ''`);
+        assert.ok(adminProfileText.includes('chỉ dùng để điều hành'), 'Admin profile must display manager-only notice');
+        assert.ok(!adminProfileText.includes('Phiếu Lương Điện Tử'), 'Admin profile must NEVER display personal Salary Slip section');
+        assert.ok(!adminProfileText.includes('Quỹ phép năm'), 'Admin profile must NEVER display personal Leave Quota');
 
         // Admin Logout cleanly
         await logoutViaConfirmDialog(session, 'Đăng xuất');

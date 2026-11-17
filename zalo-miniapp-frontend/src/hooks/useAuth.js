@@ -110,13 +110,14 @@ export function useAuth() {
         const rawUser = res.data;
         let resolvedRole = ROLES.WORKER;
         const u = String(rawUser.ma_nv || rawUser.username || "").toUpperCase();
-        if (u === "ADMIN" || u === "NV001" || rawUser.role === "admin") {
-          resolvedRole = ROLES.ADMIN;
-        } else if (u === "NV002" || rawUser.role === "accountant" || (rawUser.chuc_danh && rawUser.chuc_danh.toLowerCase().includes("kế toán"))) {
-          resolvedRole = ROLES.ACCOUNTANT;
-        } else if (rawUser.role) {
+        if (rawUser.role === "admin" || rawUser.role === "accountant" || rawUser.role === "worker") {
           resolvedRole = rawUser.role;
+        } else if (u === "ADMIN" || rawUser.username === "admin") {
+          resolvedRole = ROLES.ADMIN;
+        } else if (u === "NV002" || (rawUser.chuc_danh && rawUser.chuc_danh.toLowerCase().includes("kế toán"))) {
+          resolvedRole = ROLES.ACCOUNTANT;
         }
+        const isPureAdmin = resolvedRole === ROLES.ADMIN;
 
         const validToken = rawUser.token || `token_${Date.now()}`;
         setAuthToken(validToken);
@@ -127,15 +128,15 @@ export function useAuth() {
           ho_ten: rawUser.ho_ten || `Nhân viên ${u}`,
           chuc_danh: rawUser.chuc_danh || "Cán bộ nhân viên",
           department: rawUser.department || "Khối Công trình",
-          shift_type: rawUser.shift_type || "FULL_DAY",
-          custom_start_time: rawUser.custom_start_time || null,
-          custom_end_time: rawUser.custom_end_time || null,
-          annual_leave_quota: rawUser.annual_leave_quota ?? 12,
-          bound_device_id: rawUser.bound_device_id || null,
-          bound_device_name: rawUser.bound_device_name || device_name || null,
-          known_devices_json: rawUser.known_devices_json || null,
-          multi_device_alert: Boolean(rawUser.multi_device_alert),
-          device_binding_mode: rawUser.device_binding_mode || "recording",
+          shift_type: isPureAdmin ? null : (rawUser.shift_type || "FULL_DAY"),
+          custom_start_time: isPureAdmin ? null : (rawUser.custom_start_time || null),
+          custom_end_time: isPureAdmin ? null : (rawUser.custom_end_time || null),
+          annual_leave_quota: isPureAdmin ? null : (rawUser.annual_leave_quota ?? 12),
+          bound_device_id: isPureAdmin ? null : (rawUser.bound_device_id || null),
+          bound_device_name: isPureAdmin ? null : (rawUser.bound_device_name || device_name || null),
+          known_devices_json: isPureAdmin ? null : (rawUser.known_devices_json || null),
+          multi_device_alert: isPureAdmin ? false : Boolean(rawUser.multi_device_alert),
+          device_binding_mode: isPureAdmin ? null : (rawUser.device_binding_mode || "recording"),
           avatar_url: rawUser.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
           dien_thoai: rawUser.dien_thoai || "0905123456",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
@@ -340,15 +341,14 @@ export function useAuth() {
         }
 
         let resolvedRole = ROLES.WORKER;
-        if (u === "ADMIN" || u === "NV001" || rawUser.username === "admin" || rawUser.role === "admin") {
-          resolvedRole = ROLES.ADMIN;
-        } else if (u === "NV002" || (rawUser.chuc_danh && rawUser.chuc_danh.toLowerCase().includes("kế toán")) || rawUser.role === "accountant") {
-          resolvedRole = ROLES.ACCOUNTANT;
-        } else if (rawUser.role === "worker") {
-          resolvedRole = ROLES.WORKER;
-        } else if (rawUser.role) {
+        if (rawUser.role === "admin" || rawUser.role === "accountant" || rawUser.role === "worker") {
           resolvedRole = rawUser.role;
+        } else if (u === "ADMIN" || rawUser.username === "admin") {
+          resolvedRole = ROLES.ADMIN;
+        } else if (u === "NV002" || (rawUser.chuc_danh && rawUser.chuc_danh.toLowerCase().includes("kế toán"))) {
+          resolvedRole = ROLES.ACCOUNTANT;
         }
+        const isPureAdmin = resolvedRole === ROLES.ADMIN;
 
         const validToken = rawUser.token || `token_${Date.now()}`;
         setAuthToken(validToken);
@@ -359,15 +359,15 @@ export function useAuth() {
           ho_ten: rawUser.ho_ten || (u === "ADMIN" ? "Ban Giám Đốc" : `Nhân viên ${u}`),
           chuc_danh: rawUser.chuc_danh || (u === "ADMIN" ? "Tổng Giám Đốc" : "Cán bộ nhân viên"),
           department: rawUser.department || "Khối Công trình",
-          shift_type: rawUser.shift_type || "FULL_DAY",
-          custom_start_time: rawUser.custom_start_time || null,
-          custom_end_time: rawUser.custom_end_time || null,
-          annual_leave_quota: rawUser.annual_leave_quota ?? 12,
-          bound_device_id: rawUser.bound_device_id || null,
-          bound_device_name: rawUser.bound_device_name || device_name || null,
-          known_devices_json: rawUser.known_devices_json || null,
-          multi_device_alert: Boolean(rawUser.multi_device_alert),
-          device_binding_mode: rawUser.device_binding_mode || "recording",
+          shift_type: isPureAdmin ? null : (rawUser.shift_type || "FULL_DAY"),
+          custom_start_time: isPureAdmin ? null : (rawUser.custom_start_time || null),
+          custom_end_time: isPureAdmin ? null : (rawUser.custom_end_time || null),
+          annual_leave_quota: isPureAdmin ? null : (rawUser.annual_leave_quota ?? 12),
+          bound_device_id: isPureAdmin ? null : (rawUser.bound_device_id || null),
+          bound_device_name: isPureAdmin ? null : (rawUser.bound_device_name || device_name || null),
+          known_devices_json: isPureAdmin ? null : (rawUser.known_devices_json || null),
+          multi_device_alert: isPureAdmin ? false : Boolean(rawUser.multi_device_alert),
+          device_binding_mode: isPureAdmin ? null : (rawUser.device_binding_mode || "recording"),
           avatar_url: rawUser.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
           dien_thoai: rawUser.dien_thoai || "0905123456",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,

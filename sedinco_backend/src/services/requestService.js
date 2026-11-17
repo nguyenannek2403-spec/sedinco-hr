@@ -239,6 +239,13 @@ class RequestService {
             throw error;
         }
 
+        const empTargetRows = await query('SELECT role FROM employees WHERE ma_nv = ? LIMIT 1', [targetId]);
+        if (empTargetRows && empTargetRows[0] && empTargetRows[0].role === 'admin') {
+            const error = new Error('Tài khoản Quản trị viên chỉ dùng để điều hành, không tạo đơn từ chấm công cá nhân!');
+            error.statusCode = 403;
+            throw error;
+        }
+
         const cleanType = String(request_type || '').trim().slice(0, 50);
         if (!cleanType) {
             const error = new Error('Vui lòng chọn loại đơn từ!');

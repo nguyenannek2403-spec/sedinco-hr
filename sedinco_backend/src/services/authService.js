@@ -392,25 +392,38 @@ class AuthService {
                 }
             }
         }
-        const deviceTrack = await recordEmployeeDeviceActivity(emp, {
-            device_id,
-            device_name,
-            device_info,
-            user_agent,
-            ip_address: normalizedIp,
-            source: 'login'
-        });
-        if (deviceTrack.blocked) {
-            return {
-                success: false,
-                statusCode: 403,
-                message: 'Thiết bị hiện tại chưa được cấp phép sử dụng tài khoản này (tài khoản đang khóa cứng 1 máy). Vui lòng liên hệ Quản trị viên!'
-            };
+        const role = resolveUserRole(emp);
+        const isPureAdmin = role === 'admin';
+
+        if (!isPureAdmin) {
+            const deviceTrack = await recordEmployeeDeviceActivity(emp, {
+                device_id,
+                device_name,
+                device_info,
+                user_agent,
+                ip_address: normalizedIp,
+                source: 'login'
+            });
+            if (deviceTrack.blocked) {
+                return {
+                    success: false,
+                    statusCode: 403,
+                    message: 'Thiết bị hiện tại chưa được cấp phép sử dụng tài khoản này (tài khoản đang khóa cứng 1 máy). Vui lòng liên hệ Quản trị viên!'
+                };
+            }
         }
 
-        const role = resolveUserRole(emp);
         const safeEmp = sanitizeUserResponse(emp);
         safeEmp.role = role;
+        if (isPureAdmin) {
+            safeEmp.bound_device_id = null;
+            safeEmp.bound_device_name = null;
+            safeEmp.known_devices = [];
+            safeEmp.multi_device_alert = false;
+            safeEmp.device_binding_enforced = false;
+            safeEmp.pending_device_id = null;
+            safeEmp.pending_device_name = null;
+        }
         if (role === 'accountant') {
             safeEmp.dynamic_permissions = await getAccountantPermissions();
         }
@@ -500,27 +513,40 @@ class AuthService {
             };
         }
 
-        const deviceTrack = await recordEmployeeDeviceActivity(emp, {
-            device_id: cleanDevId || null,
-            device_name,
-            device_info,
-            user_agent,
-            ip_address,
-            source: 'zalo_auto_login'
-        });
+        const role = resolveUserRole(emp);
+        const isPureAdmin = role === 'admin';
 
-        // Nếu đang ở chế độ enforced và có bound_device_id nhưng không có hoặc sai device_id truyền lên
-        if (emp.device_binding_mode === 'enforced' && emp.bound_device_id && (!cleanDevId || deviceTrack.blocked)) {
-            return {
-                success: false,
-                statusCode: 403,
-                message: 'Thiết bị hiện tại không khớp với thiết bị đã đăng ký bảo mật!'
-            };
+        if (!isPureAdmin) {
+            const deviceTrack = await recordEmployeeDeviceActivity(emp, {
+                device_id: cleanDevId || null,
+                device_name,
+                device_info,
+                user_agent,
+                ip_address,
+                source: 'zalo_auto_login'
+            });
+
+            // Nếu đang ở chế độ enforced và có bound_device_id nhưng không có hoặc sai device_id truyền lên
+            if (emp.device_binding_mode === 'enforced' && emp.bound_device_id && (!cleanDevId || deviceTrack.blocked)) {
+                return {
+                    success: false,
+                    statusCode: 403,
+                    message: 'Thiết bị hiện tại không khớp với thiết bị đã đăng ký bảo mật!'
+                };
+            }
         }
 
-        const role = resolveUserRole(emp);
         const safeEmp = sanitizeUserResponse(emp);
         safeEmp.role = role;
+        if (isPureAdmin) {
+            safeEmp.bound_device_id = null;
+            safeEmp.bound_device_name = null;
+            safeEmp.known_devices = [];
+            safeEmp.multi_device_alert = false;
+            safeEmp.device_binding_enforced = false;
+            safeEmp.pending_device_id = null;
+            safeEmp.pending_device_name = null;
+        }
         if (role === 'accountant') {
             safeEmp.dynamic_permissions = await getAccountantPermissions();
         }

@@ -247,12 +247,24 @@ class PermissionService {
         const { getVietnamDateString } = require('../utils/timeHelper');
         const todayStr = getVietnamDateString(new Date());
 
-        const [fraudRows, disputedRows, deviceRows, reqRows, csRows, totalEmpRows, todayLogsRows] = await Promise.all([
+        const parseJsonDetails = (raw) => {
+            if (!raw) return {};
+            if (typeof raw === 'object') return raw;
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return {};
+            }
+        };
+
+        const [fraudRows, disputedRows, deviceRows, reqCountRows, reqItemRows, csRows, totalEmpRows, todayLogsRows] = await Promise.all([
             query(`
-                SELECT a.id, a.actor_id, e.ho_ten, a.details, a.created_at, COALESCE(e.is_locked, 0) as is_locked
+                SELECT a.id, a.actor_id, e.ho_ten, a.action, a.resource, a.details, a.created_at, COALESCE(e.is_locked, 0) as is_locked
                 FROM audit_logs a
                 LEFT JOIN employees e ON a.actor_id = e.ma_nv
-                WHERE a.action = 'CRITICAL_FRAUD' AND a.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                WHERE (a.action = 'CRITICAL_FRAUD' OR a.resource = 'attendance_security')
+                  AND a.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                  AND (e.role IS NULL OR e.role != 'admin')
                 ORDER BY a.created_at DESC
                 LIMIT 15
             `).catch(() => []),
@@ -261,18 +273,38 @@ class PermissionService {
                 FROM attendance att
                 LEFT JOIN employees e ON att.ma_nv = e.ma_nv
                 WHERE att.salary_confirm_status = 'DISPUTED'
+                  AND (e.role IS NULL OR e.role != 'admin')
                 ORDER BY att.nam DESC, att.thang DESC
                 LIMIT 20
             `).catch(() => []),
             query(`
-                SELECT COUNT(*) as cnt FROM employees WHERE (pending_device_id IS NOT NULL AND pending_device_id != '') OR COALESCE(multi_device_alert, 0) = 1
+                SELECT ma_nv, ho_ten, pending_device_id, pending_device_name, device_change_reason,
+                       known_devices_json, COALESCE(multi_device_alert, 0) as multi_device_alert
+                FROM employees
+                WHERE ((pending_device_id IS NOT NULL AND pending_device_id != '') OR COALESCE(multi_device_alert, 0) = 1)
+                  AND (role IS NULL OR role != 'admin')
+                ORDER BY COALESCE(multi_device_alert, 0) DESC, ma_nv ASC
+                LIMIT 50
+            `).catch(() => []),
+            query(`
+                SELECT COUNT(*) as cnt
+                FROM requests r
+                LEFT JOIN employees e ON r.employee_id = e.ma_nv
+                WHERE r.status = 'pending' AND (e.role IS NULL OR e.role != 'admin')
             `).catch(() => [{ cnt: 0 }]),
             query(`
-                SELECT COUNT(*) as cnt FROM requests WHERE status = 'pending'
-            `).catch(() => [{ cnt: 0 }]),
+                SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type,
+                       DATE_FORMAT(r.request_date, '%Y-%m-%d') as request_date,
+                       r.reason, r.created_at
+                FROM requests r
+                LEFT JOIN employees e ON r.employee_id = e.ma_nv
+                WHERE r.status = 'pending' AND (e.role IS NULL OR e.role != 'admin')
+                ORDER BY r.created_at DESC
+                LIMIT 15
+            `).catch(() => []),
             query('SELECT log_retention_days FROM company_settings LIMIT 1').catch(() => [{ log_retention_days: 30 }]),
-            query("SELECT ma_nv, ho_ten, chuc_danh, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM employees WHERE status != 'inactive' ORDER BY ma_nv ASC").catch(() => []),
-            query("SELECT a.employee_id, a.status, a.late_minutes, a.check_in_time, a.check_out_time, a.work_location_type, a.location_name, a.field_note, COALESCE(a.shift_type, 'FULL_DAY') as shift_type, CASE WHEN a.check_in_image IS NOT NULL AND LENGTH(a.check_in_image) > 100 THEN 1 ELSE 0 END as has_photo FROM attendance_logs a WHERE a.record_date = ?", [todayStr]).catch(() => [])
+            query("SELECT ma_nv, ho_ten, chuc_danh, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM employees WHERE status != 'inactive' AND (role IS NULL OR role != 'admin') ORDER BY ma_nv ASC").catch(() => []),
+            query("SELECT a.employee_id, a.status, a.late_minutes, a.check_in_time, a.check_out_time, a.work_location_type, a.location_name, a.field_note, COALESCE(a.shift_type, 'FULL_DAY') as shift_type, CASE WHEN a.check_in_image IS NOT NULL AND LENGTH(a.check_in_image) > 100 THEN 1 ELSE 0 END as has_photo FROM attendance_logs a INNER JOIN employees e ON a.employee_id = e.ma_nv WHERE a.record_date = ? AND (e.role IS NULL OR e.role != 'admin')", [todayStr]).catch(() => [])
         ]);
 
         const empList = Array.isArray(totalEmpRows) ? totalEmpRows : [];
@@ -344,9 +376,100 @@ class PermissionService {
 
         const fraudAlerts = fraudRows || [];
         const salaryDisputes = disputedRows || [];
-        const pendingDevicesCount = deviceRows && deviceRows[0] ? Number(deviceRows[0].cnt) : 0;
-        const pendingRequestsCount = reqRows && reqRows[0] ? Number(reqRows[0].cnt) : 0;
+        const deviceAlerts = Array.isArray(deviceRows) ? deviceRows : [];
+        const pendingDevicesCount = deviceAlerts.length;
+        const pendingRequestsCount = reqCountRows && reqCountRows[0] ? Number(reqCountRows[0].cnt) : 0;
+        const pendingRequests = Array.isArray(reqItemRows) ? reqItemRows : [];
         const retentionDays = csRows && csRows[0] ? (Number(csRows[0].log_retention_days) || 30) : 30;
+
+        const REQUEST_TYPE_LABELS = {
+            leave: 'Xin nghỉ phép',
+            late_early: 'Đi muộn / Về sớm',
+            supplement: 'Bổ sung công',
+            ot: 'Đăng ký tăng ca'
+        };
+
+        const actionableAlerts = [];
+        fraudAlerts.forEach((f) => {
+            const parsed = parseJsonDetails(f.details);
+            const reasonText = parsed.reason || parsed.fraud_reason || parsed.fraud_type || 'Cảnh báo bất thường khi chấm công';
+            actionableAlerts.push({
+                id: `fraud_${f.id}`,
+                category: 'fraud',
+                severity: 'critical',
+                title: `Cảnh báo an ninh: ${f.ho_ten || f.actor_id} (${f.actor_id})`,
+                description: reasonText,
+                created_at: f.created_at || null,
+                target_tab: 'management',
+                target_subtab: 'audit_logs',
+                target_ma_nv: f.actor_id,
+                target_id: f.id,
+                month: null,
+                year: null
+            });
+        });
+
+        deviceAlerts.forEach((d) => {
+            const isMulti = Number(d.multi_device_alert) === 1;
+            const hasPending = Boolean(d.pending_device_id);
+            const deviceDesc = isMulti && hasPending
+                ? `Phát hiện đăng nhập nhiều máy & chờ duyệt đổi sang ${d.pending_device_name || 'thiết bị mới'}`
+                : isMulti
+                    ? 'Phát hiện đăng nhập nhiều máy khác nhau — cần khóa cố định 1 máy'
+                    : `Yêu cầu đổi sang ${d.pending_device_name || 'thiết bị mới'}: ${d.device_change_reason || 'Cập nhật thiết bị'}`;
+            actionableAlerts.push({
+                id: `device_${d.ma_nv}`,
+                category: 'device',
+                severity: 'high',
+                title: `${isMulti ? 'Cảnh báo thiết bị' : 'Duyệt đổi thiết bị'}: ${d.ho_ten || d.ma_nv} (${d.ma_nv})`,
+                description: deviceDesc,
+                created_at: null,
+                target_tab: 'management',
+                target_subtab: 'employees',
+                target_ma_nv: d.ma_nv,
+                target_id: d.ma_nv,
+                month: null,
+                year: null
+            });
+        });
+
+        salaryDisputes.forEach((s) => {
+            actionableAlerts.push({
+                id: `dispute_${s.id}`,
+                category: 'salary_dispute',
+                severity: 'high',
+                title: `Khiếu nại lương T${s.thang}/${s.nam}: ${s.ho_ten || s.ma_nv} (${s.ma_nv})`,
+                description: s.dispute_reason || 'Nhân viên báo sai số liệu bảng lương',
+                created_at: s.confirmed_at || null,
+                target_tab: 'management',
+                target_subtab: 'payroll',
+                target_ma_nv: s.ma_nv,
+                target_id: s.id,
+                month: s.thang,
+                year: s.nam
+            });
+        });
+
+        pendingRequests.forEach((r) => {
+            const rawType = String(r.request_type || '').trim();
+            const typeLabel = REQUEST_TYPE_LABELS[rawType.toLowerCase()] || rawType || 'Đơn từ nhân sự';
+            actionableAlerts.push({
+                id: `request_${r.id}`,
+                category: 'pending_request',
+                severity: 'medium',
+                title: `${typeLabel}: ${r.ho_ten || r.ma_nv} (${r.ma_nv})`,
+                description: r.reason ? String(r.reason).slice(0, 120) : `Ngày đề nghị: ${r.request_date || ''}`.trim(),
+                created_at: r.created_at || null,
+                target_tab: 'requests',
+                target_subtab: null,
+                target_ma_nv: r.ma_nv,
+                target_id: r.id,
+                month: null,
+                year: null
+            });
+        });
+
+        const totalRedAlerts = fraudAlerts.length + salaryDisputes.length + pendingDevicesCount;
 
         return {
             fraud_count: fraudAlerts.length,
@@ -354,8 +477,12 @@ class PermissionService {
             disputed_salary_count: salaryDisputes.length,
             salary_disputes: salaryDisputes,
             pending_device_count: pendingDevicesCount,
+            pending_device_alerts: deviceAlerts,
             pending_requests_count: pendingRequestsCount,
-            total_red_alerts: fraudAlerts.length + salaryDisputes.length + pendingDevicesCount,
+            pending_requests: pendingRequests,
+            total_red_alerts: totalRedAlerts,
+            total_actionable_count: totalRedAlerts + pendingRequestsCount,
+            actionable_alerts: actionableAlerts.slice(0, 30),
             log_retention_days: retentionDays,
             headcount_today: {
                 date: todayStr,

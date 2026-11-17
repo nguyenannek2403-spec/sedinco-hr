@@ -16,6 +16,7 @@ import {
   Building2,
 } from "lucide-react";
 import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
+import { zmpAdapter } from "../../adapters/zmp/sdkAdapter";
 import { AppButton, FormRow, SkeletonList } from "../../components/ui";
 
 const toNum = (val, fallback) => {
@@ -208,37 +209,29 @@ export default function CompanySettingsTab({ showToast }) {
     });
   };
 
-  const handleUseCurrentGps = (idx) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      notify("Thiết bị không hỗ trợ định vị vị trí hiện tại.", "error");
-      return;
-    }
+  const handleUseCurrentGps = async (idx) => {
     setDetectingLocIdx(idx);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const rawLat = Number(pos?.coords?.latitude);
-        const rawLng = Number(pos?.coords?.longitude);
-        if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) {
-          setDetectingLocIdx(null);
-          notify("Tọa độ GPS trả về không hợp lệ.", "error");
-          return;
-        }
-        const lat = Number(rawLat.toFixed(6));
-        const lng = Number(rawLng.toFixed(6));
-        setConfig((prev) => {
-          const next = [...(prev.allowed_locations || [])];
-          next[idx] = { ...next[idx], lat, lng };
-          return { ...prev, allowed_locations: next };
-        });
-        setDetectingLocIdx(null);
-        notify("Đã cập nhật tọa độ theo vị trí bạn đang đứng!");
-      },
-      () => {
-        setDetectingLocIdx(null);
-        notify("Không thể lấy vị trí. Hãy kiểm tra quyền truy cập vị trí trên điện thoại.", "error");
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    try {
+      const pos = await zmpAdapter.getLocation();
+      const rawLat = Number(pos?.latitude);
+      const rawLng = Number(pos?.longitude);
+      if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) {
+        notify("Thiết bị chưa trả về được tọa độ vị trí hiện tại. Vui lòng nhập tay hoặc thử lại.", "error");
+        return;
+      }
+      const lat = Number(rawLat.toFixed(6));
+      const lng = Number(rawLng.toFixed(6));
+      setConfig((prev) => {
+        const next = [...(prev.allowed_locations || [])];
+        next[idx] = { ...next[idx], lat, lng };
+        return { ...prev, allowed_locations: next };
+      });
+      notify("Đã cập nhật tọa độ theo vị trí bạn đang đứng!");
+    } catch (err) {
+      notify(err?.message || "Không thể lấy vị trí. Hãy kiểm tra quyền truy cập vị trí trên thiết bị.", "error");
+    } finally {
+      setDetectingLocIdx(null);
+    }
   };
 
   const handleSaveWifiIp = async () => {

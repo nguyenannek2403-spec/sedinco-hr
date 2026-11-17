@@ -7,8 +7,36 @@ import {
   chooseImage as zmpChooseImage,
   getSystemInfo as zmpGetSystemInfo,
   scanQRCode as zmpScanQRCode,
-  vibrate as zmpVibrate
+  vibrate as zmpVibrate,
+  getNetworkType as zmpGetNetworkType,
+  keepScreen as zmpKeepScreen,
+  downloadFile as zmpDownloadFile
 } from "zmp-sdk/apis";
+
+let _screenWakeLock = null;
+
+function isInsideZaloRuntime() {
+  if (typeof window === "undefined") return false;
+  return Boolean(
+    window.ZaloJavaScriptInterface ||
+    window.__ZMP__ ||
+    (typeof navigator !== "undefined" && /Zalo|ZMP/i.test(navigator.userAgent || ""))
+  );
+}
+
+function encodeUtf8ToDataUrl(content, mimeType = "text/plain;charset=utf-8") {
+  const cleanMime = String(mimeType || "application/octet-stream").split(";")[0].trim();
+  if (typeof TextEncoder !== "undefined" && typeof btoa === "function") {
+    const bytes = new TextEncoder().encode(String(content ?? ""));
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return `data:${cleanMime};base64,${btoa(binary)}`;
+  }
+  return "";
+}
 
 /**
  * Real Zalo Mini App SDK Adapter
@@ -185,9 +213,13 @@ export const realSdkAdapter = {
     }
   },
 
-  async chooseImage({ count = 1, sourceType = ["camera"] } = {}) {
+  async chooseImage({ count = 1, sourceType = ["camera"], cameraType = "front" } = {}) {
     try {
-      const res = await zmpChooseImage({ count, sourceType });
+      const res = await zmpChooseImage({
+        count,
+        sourceType,
+        ...(cameraType ? { cameraType } : {})
+      });
       return {
         filePaths: res?.filePaths || []
       };
@@ -228,18 +260,148 @@ export const realSdkAdapter = {
   },
 
   async vibrate(type = "light") {
+    const durationMap = { light: 120, medium: 250, heavy: 500 };
+    const ms = typeof type === "number" ? Math.max(50, Math.min(2000, type)) : (durationMap[type] || 150);
     try {
-      if (typeof zmpVibrate === "function") {
-        await zmpVibrate({ type });
+      if (isInsideZaloRuntime() && typeof zmpVibrate === "function") {
+        await zmpVibrate({ type: "oneShot", milliseconds: ms });
         return true;
       }
       if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
-        navigator.vibrate(120);
+        navigator.vibrate(ms);
+        return true;
+      }
+      if (typeof zmpVibrate === "function") {
+        await zmpVibrate({ type: "oneShot", milliseconds: ms });
         return true;
       }
       return false;
     } catch (e) {
       return false;
     }
+  },
+
+  async getNetworkType() {
+    try {
+      if (isInsideZaloRuntime() && typeof zmpGetNetworkType === "function") {
+        const res = await zmpGetNetworkType({});
+        const type = String(res?.networkType || "unknown").toLowerCase();
+        return {
+          networkType: type,
+          online: type !== "none",
+          source: "zmp"
+        };
+      }
+    } catch (e) {
+      // Fallback sang API trình duyệt bên dưới
+    }
+
+    if (typeof navigator !== "undefined") {
+      if (navigator.onLine === false) {
+        return { networkType: "none", online: false, source: "browser" };
+      }
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      const rawType = String(conn?.type || "").toLowerCase();
+      if (rawType === "wifi" || rawType === "ethernet") {
+        return { networkType: "wifi", online: true, source: "browser" };
+      }
+      if (rawType === "cellular" || conn?.effectiveType) {
+        return {
+          networkType: rawType === "cellular" ? "cellular" : "wifi",
+          online: true,
+          effectiveType: conn?.effectiveType || null,
+          source: "browser"
+        };
+      }
+      return { networkType: "wifi", online: true, source: "browser" };
+    }
+    return { networkType: "unknown", online: true, source: "fallback" };
+  },
+
+  async keepScreenOn(enabled = true) {
+    const keepOn = Boolean(enabled);
+    try {
+      if (isInsideZaloRuntime() && typeof zmpKeepScreen === "function") {
+        await zmpKeepScreen({ keepScreenOn: keepOn });
+        return true;
+      }
+    } catch (e) {
+      // Fallback Web WakeLock API bên dưới
+    }
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.wakeLock) {
+        if (keepOn) {
+          if (!_screenWakeLock) {
+            _screenWakeLock = await navigator.wakeLock.request("screen");
+            _screenWakeLock?.addEventListener?.("release", () => {
+              _screenWakeLock = null;
+            });
+          }
+          return true;
+        } else if (_screenWakeLock) {
+          await _screenWakeLock.release();
+          _screenWakeLock = null;
+          return true;
+        }
+      }
+    } catch (e) {
+      // Trình duyệt có thể từ chối wakeLock khi tab đang ẩn
+    }
+    return false;
+  },
+
+  async saveFile({ filename = "tep_tai_ve.txt", content = "", mimeType = "text/plain;charset=utf-8", fileBase64Data = "", url = "" } = {}) {
+    if (isInsideZaloRuntime() && typeof zmpDownloadFile === "function") {
+      try {
+        const dataPayload = fileBase64Data || (content ? encodeUtf8ToDataUrl(content, mimeType) : "");
+        if (url) {
+          await zmpDownloadFile({ url });
+          return { success: true, method: "zmp" };
+        }
+        if (dataPayload) {
+          await zmpDownloadFile({ fileBase64Data: dataPayload });
+          return { success: true, method: "zmp" };
+        }
+      } catch (err) {
+        console.warn("[RealSDK] downloadFile error, falling back to browser:", err);
+      }
+    }
+
+    if (typeof document !== "undefined" && typeof URL !== "undefined" && typeof Blob !== "undefined") {
+      try {
+        if (url && !content) {
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", filename);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          return { success: true, method: "browser" };
+        }
+        const blob = new Blob([content], { type: mimeType });
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.setAttribute("download", filename);
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        return { success: true, method: "browser" };
+      } catch (err) {
+        throw {
+          code: "FILE_SAVE_FAILED",
+          message: "Không thể tải xuống tệp về máy.",
+          raw: err
+        };
+      }
+    }
+
+    throw {
+      code: "FILE_SAVE_UNSUPPORTED",
+      message: "Môi trường hiện tại không hỗ trợ lưu tệp trực tiếp."
+    };
   }
 };

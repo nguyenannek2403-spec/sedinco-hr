@@ -7,12 +7,14 @@ import {
   AlertTriangle,
   Camera,
   Video,
+  Image as ImageIcon,
   Send,
   ShieldCheck,
   Calendar
 } from "lucide-react";
 import { safePost, sanitizeFormula, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
-import { compressAndResizeImage } from "../utils/imageHelper";
+import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
+import { compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { AppButton, AppModal, StatusBadge } from "./ui";
 
 /**
@@ -102,6 +104,32 @@ export default function SalarySlipModal({
       }
     } catch (err) {
       notify("Lỗi xử lý tệp đính kèm: " + err.message, "error");
+    }
+  };
+
+  const handlePickDisputeMedia = async (sourceType) => {
+    const res = await pickCompressedEvidencePhoto({
+      sourceType,
+      cameraType: "back",
+      maxWidth: 640,
+      maxHeight: 640,
+      quality: 0.55
+    });
+    if (res?.success && res?.photoUrl) {
+      const sizeKB = Math.round((res.photoUrl.length * 3) / 4 / 1024);
+      setEvidenceMedia(res.photoUrl);
+      setMediaNotice(`Đã đính kèm ảnh (${sizeKB} KB)`);
+      return;
+    }
+    if (fileInputRef.current) {
+      if (sourceType?.[0] === "camera") {
+        fileInputRef.current.setAttribute("accept", "image/*");
+        fileInputRef.current.setAttribute("capture", "environment");
+      } else {
+        fileInputRef.current.setAttribute("accept", "image/*,video/*");
+        fileInputRef.current.removeAttribute("capture");
+      }
+      fileInputRef.current.click();
     }
   };
 
@@ -205,7 +233,7 @@ export default function SalarySlipModal({
   };
 
   // Tải phiếu lương cá nhân ra CSV/Excel
-  const handleExportSingleSlipExcel = () => {
+  const handleExportSingleSlipExcel = async () => {
     const rows = [
       ["PHIẾU LƯƠNG ĐIỆN TỬ SEDINCO", `Kỳ lương: Tháng ${thang}/${nam}`],
       ["Mã nhân viên", sanitizeFormula(maNv)],
@@ -232,16 +260,16 @@ export default function SalarySlipModal({
       "\uFEFF" +
       rows.map((r) => r.map((c) => formatCsvCellRFC4180(c)).join(",")).join("\r\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Phieu_Luong_${maNv}_T${thang}_${nam}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    notify("Đã tải xuống Phiếu lương Excel/CSV!", "success");
+    try {
+      await zmpAdapter.saveFile({
+        filename: `Phieu_Luong_${maNv}_T${thang}_${nam}.csv`,
+        content: csvContent,
+        mimeType: "text/csv;charset=utf-8;"
+      });
+      notify("Đã tải xuống Phiếu lương Excel/CSV!", "success");
+    } catch (err) {
+      notify(err?.message || "Không thể tải xuống phiếu lương lúc này!", "error");
+    }
   };
 
   // Chia sẻ nhanh qua Zalo / Mobile Share
@@ -717,20 +745,31 @@ export default function SalarySlipModal({
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-700">
+                    <div className="space-y-2">
+                      <span className="block text-xs font-bold text-slate-700">
                         Đính kèm Ảnh minh chứng (&lt;50KB) hoặc Video ngắn (&lt;800KB):
                       </span>
-                      <AppButton
-                        variant="secondary"
-                        tone="dark"
-                        icon={Camera}
-                        onClick={() => fileInputRef.current?.click()}
-                        className="text-xs px-3.5 py-2"
-                      >
-                        <Video size={14} className="inline mr-1" />
-                        Chọn Ảnh / Video
-                      </AppButton>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <AppButton
+                          variant="secondary"
+                          tone="dark"
+                          icon={Camera}
+                          onClick={() => handlePickDisputeMedia(["camera"])}
+                          className="text-xs px-3 py-2"
+                        >
+                          📷 Chụp ảnh Camera
+                        </AppButton>
+                        <AppButton
+                          variant="secondary"
+                          tone="dark"
+                          icon={ImageIcon}
+                          onClick={() => handlePickDisputeMedia(["album"])}
+                          className="text-xs px-3 py-2"
+                        >
+                          <Video size={14} className="inline mr-1" />
+                          Chọn Thư viện / Video
+                        </AppButton>
+                      </div>
                     </div>
                     <input
                       ref={fileInputRef}

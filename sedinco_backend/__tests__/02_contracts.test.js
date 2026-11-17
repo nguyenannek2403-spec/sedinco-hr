@@ -105,3 +105,23 @@ test('CONTRACT-04: BE permission route alignment & SoD UI transparency & staging
     assert.match(permView, /role=["']switch["']/, 'AccountantPermissionView switches must use accessible role="switch" button semantics');
 });
 
+test('CONTRACT-05: V17 Pure Manager isolation (no Role Switcher) & 7 Zalo SDK APIs in realSdkAdapter', () => {
+    for (const relPath of [
+        'components/DesktopSidebar.jsx',
+        'components/DesktopHeader.jsx',
+        'views/desktop/DesktopDashboard.jsx',
+        'pages/index.jsx'
+    ]) {
+        const src = fs.readFileSync(path.join(FE_SRC, relPath), 'utf8');
+        assert.ok(!src.includes('Chế độ NV'), `${relPath} must not contain "Chế độ NV" role switcher`);
+        assert.ok(!src.includes('chấm công cá nhân'), `${relPath} must not contain personal check-in switcher`);
+        assert.ok(!src.includes('onRoleSwitch'), `${relPath} must not wire onRoleSwitch`);
+    }
+
+    const adapter = fs.readFileSync(path.join(FE_SRC, 'adapters/zmp/realSdkAdapter.js'), 'utf8');
+    for (const sdkApi of ['getLocation', 'getNetworkType', 'keepScreen', 'vibrate', 'chooseImage', 'downloadFile']) {
+        assert.ok(adapter.includes(sdkApi), `realSdkAdapter.js must import and wrap Zalo SDK API: ${sdkApi}`);
+    }
+    assert.match(adapter, /type:\s*["']oneShot["']/, 'realSdkAdapter.js vibrate must use Zalo SDK { type: "oneShot", milliseconds } schema');
+});
+

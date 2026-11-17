@@ -16,7 +16,7 @@ import { safeGet, safePost, safePut } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import { AppButton, FormRow, SkeletonList, EmptyState } from "../../components/ui";
 
-export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }) {
+export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts, focusTarget = null }) {
   const [logs, setLogs] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -33,10 +33,19 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts }
   const [retentionDays, setRetentionDays] = useState(30);
   const [cleaning, setCleaning] = useState(false);
 
+  const lastFocusTsRef = useRef(0);
   const pinLockRef = useRef(false);
   const keepLockRef = useRef(false);
   const accLockRef = useRef(false);
   const cleanupLockRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusTarget?.ts || focusTarget.ts === lastFocusTsRef.current) return;
+    if (focusTarget.subTab !== "audit_logs" && focusTarget.category !== "fraud") return;
+    lastFocusTsRef.current = focusTarget.ts;
+    if (focusTarget.ma_nv) setSelectedEmp(focusTarget.ma_nv);
+    if (focusTarget.category === "fraud") setCategory("fraud");
+  }, [focusTarget]);
 
   const fetchEmployeesAndSettings = useCallback(async () => {
     try {
@@ -542,12 +551,16 @@ const formatDetails = (rawDetails, action = "") => {
                   const isPinned = Boolean(log.is_pinned);
                   const isKeepEmp = Boolean(log.keep_logs);
                   const isEmpLocked = Boolean(log.is_locked);
+                  const isFocused = Boolean(focusTarget?.id && String(log.id) === String(focusTarget.id));
 
                   return (
                     <tr
                       key={log.id || idx}
+                      data-log-id={log.id}
                       className={`perf-list-item transition-colors ${
-                        isFraud
+                        isFocused
+                          ? "bg-rose-900/75 ring-2 ring-inset ring-amber-400"
+                          : isFraud
                           ? "bg-rose-950/50 hover:bg-rose-900/40"
                           : isPinned
                           ? "bg-amber-950/25 hover:bg-amber-900/20"

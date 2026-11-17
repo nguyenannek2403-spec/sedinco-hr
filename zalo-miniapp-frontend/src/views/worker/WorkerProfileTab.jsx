@@ -40,6 +40,7 @@ export default function WorkerProfileTab({
   const deviceSubmittingRef = useRef(false);
 
   useEffect(() => {
+    if (currentUser?.role === "admin") return undefined;
     let active = true;
     safeGet("/requests/leave-balance")
       .then((res) => {
@@ -51,7 +52,7 @@ export default function WorkerProfileTab({
     return () => {
       active = false;
     };
-  }, []);
+  }, [currentUser?.role]);
 
   const handleOpenSalarySlip = async () => {
     if (salaryLoadingRef.current) return;

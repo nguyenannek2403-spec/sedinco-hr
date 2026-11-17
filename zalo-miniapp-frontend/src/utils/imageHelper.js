@@ -75,21 +75,26 @@ export async function compressAndResizeImage(imageSrc, maxWidth = 480, maxHeight
 }
 
 /**
- * Chụp ảnh trực tiếp từ Camera (CHỈ camera, KHÔNG cho phép chọn album)
- * Sau đó tự động nén/đổi cỡ trước khi trả về.
+ * Chụp ảnh trực tiếp từ Camera hoặc chọn từ Thư viện qua Zalo SDK chooseImage,
+ * tự động nén & đổi kích thước chuẩn DataURL.
  */
-export async function captureDirectCameraPhoto() {
+export async function pickCompressedEvidencePhoto({
+  sourceType = ['camera'],
+  cameraType = 'back',
+  maxWidth = 720,
+  maxHeight = 720,
+  quality = 0.65
+} = {}) {
   try {
-    // Chỉ định sourceType: ["camera"] để chặn người dùng tải ảnh có sẵn từ Album
     const res = await zmpAdapter.chooseImage({
       count: 1,
-      sourceType: ['camera']
+      sourceType,
+      cameraType
     });
 
     if (res && res.filePaths && res.filePaths.length > 0) {
       const originalPath = res.filePaths[0];
-      // Tự động nén và resize tối đa 480px, quality 0.6
-      const compressedDataUrl = await compressAndResizeImage(originalPath, 480, 480, 0.6);
+      const compressedDataUrl = await compressAndResizeImage(originalPath, maxWidth, maxHeight, quality);
       return {
         success: true,
         photoUrl: compressedDataUrl,
@@ -97,11 +102,28 @@ export async function captureDirectCameraPhoto() {
       };
     }
 
-    throw new Error('Không nhận được ảnh chụp từ camera');
+    return {
+      success: false,
+      error: 'Không có ảnh nào được chọn.'
+    };
   } catch (err) {
     return {
       success: false,
-      error: err.message || 'Không thể chụp ảnh khuôn mặt'
+      error: err?.message || 'Không thể mở máy ảnh hoặc thư viện ảnh trên thiết bị.'
     };
   }
+}
+
+/**
+ * Chụp ảnh trực tiếp từ Camera (CHỈ camera, KHÔNG cho phép chọn album)
+ * Sau đó tự động nén/đổi cỡ trước khi trả về.
+ */
+export async function captureDirectCameraPhoto() {
+  return pickCompressedEvidencePhoto({
+    sourceType: ['camera'],
+    cameraType: 'front',
+    maxWidth: 480,
+    maxHeight: 480,
+    quality: 0.6
+  });
 }

@@ -21,6 +21,7 @@ import {
 import SalarySlipModal from "./SalarySlipModal";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "./ui";
 import { safeGet, safePost, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
+import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { useDebouncedValue } from "../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
 
@@ -35,7 +36,8 @@ export default function PayrollGridTable({
   onShowToast,
   activeRole,
   userRole,
-  dynamicPerms = {}
+  dynamicPerms = {},
+  focusTarget = null
 }) {
   const effectiveRole = activeRole || userRole || "admin";
   const isAccountant = effectiveRole === "accountant";
@@ -62,6 +64,7 @@ export default function PayrollGridTable({
   const [rejecting, setRejecting] = useState(false);
   const adjInFlightRef = useRef(false);
   const rejectInFlightRef = useRef(false);
+  const lastFocusTsRef = useRef(0);
 
   // Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2)
   const [adjustItem, setAdjustItem] = useState(null);
@@ -264,8 +267,9 @@ export default function PayrollGridTable({
     ])
   );
 
-  // Lọc dữ liệu theo tìm kiếm và khối/bộ phận
+  // Lọc dữ liệu theo tìm kiếm và khối/bộ phận (chặn tuyệt đối tài khoản Admin khỏi bảng lương)
   const filteredList = (sourceList || []).filter(item => {
+    if (item.role === "admin") return false;
     const q = (debouncedSearch || "").toLowerCase();
     const id = (item.ma_nv || item.id_nhan_vien || "").toLowerCase();
     const name = (item.ho_ten || "").toLowerCase();
@@ -276,6 +280,24 @@ export default function PayrollGridTable({
     return matchText && matchDept;
   });
 
+  useEffect(() => {
+    if (!focusTarget?.ts || focusTarget.ts === lastFocusTsRef.current) return;
+    if (focusTarget.category !== "salary_dispute" && focusTarget.subTab !== "payroll" && focusTarget.tab !== "payroll") return;
+    if (focusTarget.ma_nv) {
+      setSearchQuery(focusTarget.ma_nv);
+    }
+    const targetList = (Array.isArray(payrollData) ? payrollData : internalPayroll) || [];
+    const matched = focusTarget.ma_nv
+      ? targetList.find((item) => (item.ma_nv || item.id_nhan_vien) === focusTarget.ma_nv)
+      : null;
+    if (matched) {
+      lastFocusTsRef.current = focusTarget.ts;
+      setSelectedSlipItem(matched);
+    } else if (!loadingPayroll && focusTarget.ma_nv) {
+      lastFocusTsRef.current = focusTarget.ts;
+    }
+  }, [focusTarget, payrollData, internalPayroll, loadingPayroll]);
+
   // Tính 4 chỉ số KPI tổng hợp
   const totalNetSalary = filteredList.reduce((acc, cur) => acc + (Number(cur.netSalary) || 0), 0);
   const totalEmployees = filteredList.length;
@@ -283,7 +305,7 @@ export default function PayrollGridTable({
   const averageIncome = totalEmployees > 0 ? totalNetSalary / totalEmployees : 0;
 
   // Xuất file CSV UTF-8 BOM chuẩn tiếng Việt
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     const headers = [
       "Mã NV",
       "Họ và Tên",
@@ -339,14 +361,16 @@ export default function PayrollGridTable({
     });
 
     const csvContent = "\uFEFF" + [headers.map(formatCsvCellRFC4180).join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Bang_Luong_Sedinco_Thang_${month}_${year}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      await zmpAdapter.saveFile({
+        filename: `Bang_Luong_Sedinco_Thang_${month}_${year}.csv`,
+        content: csvContent,
+        mimeType: "text/csv;charset=utf-8;"
+      });
+      if (notify) notify(`Đã tải xuống bảng lương Tháng ${month}/${year}!`, "success");
+    } catch (err) {
+      if (notify) notify(err?.message || "Không thể tải xuống tệp bảng lương!", "error");
+    }
   };
 
   const handleDownloadBackupSnapshot = async () => {
@@ -354,15 +378,11 @@ export default function PayrollGridTable({
     try {
       const res = await safeGet("/payroll/backup-snapshot", { month, year }, { cancelPrevious: false });
       const snapshot = res?.data || res;
-      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Sedinco_Backup_Thang_${month}_${year}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await zmpAdapter.saveFile({
+        filename: `Sedinco_Backup_Thang_${month}_${year}.json`,
+        content: JSON.stringify(snapshot, null, 2),
+        mimeType: "application/json;charset=utf-8;"
+      });
       if (notify) notify(`Đã sao lưu dữ liệu Tháng ${month}/${year} thành công!`, "success");
     } catch (err) {
       if (notify) notify(err?.message || "Không thể sao lưu dữ liệu tháng lúc này!", "error");

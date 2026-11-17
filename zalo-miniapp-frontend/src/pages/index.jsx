@@ -95,7 +95,6 @@ export default function HomePage() {
         <DesktopDashboard
           currentUser={currentUser}
           activeRole={activeRole}
-          onRoleSwitch={setActiveRole}
           screenWidth={screenWidth}
           onLogout={handleLogout}
           onClearCache={clearCache}
@@ -107,7 +106,6 @@ export default function HomePage() {
         <WorkerDashboard
           currentUser={currentUser}
           activeRole={activeRole}
-          onRoleSwitch={setActiveRole}
           onLogout={handleLogout}
           showToast={showToast}
           onChangePasswordRequest={() => setMustChangePassword(true)}

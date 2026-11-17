@@ -8,9 +8,11 @@ import {
   Wallet,
   Clock,
   Camera,
+  Image as ImageIcon,
   Trash2
 } from "lucide-react";
 import { safePost, generateIdempotencyKey } from "../utils/api";
+import { pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { analyzeLeaveRequest, formatDateKey } from "../utils/holidayUtils";
 import { CORRECTION_MODES, getRequestTypeLabel } from "../utils/viLabels";
 import { AppButton, AppModal, FormRow } from "./ui";
@@ -102,6 +104,7 @@ export default function SmartLeaveRequestModal({
   const [errorMessage, setErrorMessage] = useState("");
 
   const isSubmittingRef = useRef(false);
+  const proofInputRef = useRef(null);
   const isSalaryAdvance = requestType === "SALARY_ADVANCE";
   const isOt = requestType === "OT";
   const isCompensation =
@@ -165,6 +168,29 @@ export default function SmartLeaveRequestModal({
       setErrorMessage(err.message || "Không thể xử lý ảnh đính kèm.");
     }
     e.target.value = "";
+  };
+
+  const handlePickEvidenceSdk = async (sourceType) => {
+    setErrorMessage("");
+    const res = await pickCompressedEvidencePhoto({
+      sourceType,
+      cameraType: "back",
+      maxWidth: 720,
+      maxHeight: 720,
+      quality: 0.65
+    });
+    if (res?.success && res?.photoUrl) {
+      setEvidenceImage(res.photoUrl);
+      return;
+    }
+    if (proofInputRef.current) {
+      if (sourceType?.[0] === "camera") {
+        proofInputRef.current.setAttribute("capture", "environment");
+      } else {
+        proofInputRef.current.removeAttribute("capture");
+      }
+      proofInputRef.current.click();
+    }
   };
 
   // Xử lý gửi đơn
@@ -565,17 +591,34 @@ export default function SmartLeaveRequestModal({
                     className="w-full max-h-40 object-cover rounded-xl border border-slate-300"
                   />
                 ) : (
-                  <label className="w-full min-h-[44px] px-3 py-2 rounded-xl border-2 border-dashed border-slate-300 hover:border-amber-500 bg-white text-slate-600 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition">
-                    <Camera size={16} className="text-amber-600 shrink-0" />
-                    <span>Chọn / chụp ảnh hiện trường hoặc tin nhắn</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePickEvidence}
-                      className="hidden"
-                    />
-                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <AppButton
+                      type="button"
+                      variant="secondary"
+                      icon={Camera}
+                      onClick={() => handlePickEvidenceSdk(["camera"])}
+                      className="text-xs font-semibold"
+                    >
+                      📷 Chụp ảnh Camera
+                    </AppButton>
+                    <AppButton
+                      type="button"
+                      variant="secondary"
+                      icon={ImageIcon}
+                      onClick={() => handlePickEvidenceSdk(["album"])}
+                      className="text-xs font-semibold"
+                    >
+                      🖼️ Chọn từ thư viện
+                    </AppButton>
+                  </div>
                 )}
+                <input
+                  ref={proofInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePickEvidence}
+                  className="hidden"
+                />
               </div>
             </div>
           ) : (

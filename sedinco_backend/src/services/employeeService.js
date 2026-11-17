@@ -28,6 +28,21 @@ function normalizeOptionalTime(rawVal, label = 'Giờ làm việc riêng') {
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+const sanitizeEmployeeRecord = (emp) => {
+    if (!emp || emp.role !== 'admin') return emp;
+    return {
+        ...emp,
+        bound_device_id: null,
+        bound_device_name: null,
+        pending_device_id: null,
+        pending_device_name: null,
+        device_change_reason: null,
+        known_devices_json: null,
+        multi_device_alert: 0,
+        device_binding_mode: null
+    };
+};
+
 class EmployeeService {
     async getAllEmployees(pagination = {}) {
         const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 200));
@@ -36,13 +51,13 @@ class EmployeeService {
 
         const sql = `SELECT ${SAFE_EMPLOYEE_FIELDS} FROM employees ORDER BY ma_nv ASC LIMIT ? OFFSET ?`;
         const results = await query(sql, [limit, offset]);
-        return results || [];
+        return (results || []).map(sanitizeEmployeeRecord);
     }
 
     async getEmployeeById(ma_nv) {
         const sql = `SELECT ${SAFE_EMPLOYEE_FIELDS} FROM employees WHERE ma_nv = ? LIMIT 1`;
         const results = await query(sql, [ma_nv]);
-        return results && results.length > 0 ? results[0] : null;
+        return results && results.length > 0 ? sanitizeEmployeeRecord(results[0]) : null;
     }
 
     async createEmployee(data, current_user = null) {
@@ -430,6 +445,12 @@ class EmployeeService {
      * Worker gửi yêu cầu đổi/mất thiết bị
      */
     async requestDeviceChange(ma_nv, { new_device_id, device_name = null, reason }, current_user = null, user_agent = '') {
+        const empCheck = await query('SELECT ma_nv, role FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+        if (empCheck && empCheck[0] && empCheck[0].role === 'admin') {
+            const error = new Error('Tài khoản Quản trị viên không sử dụng ràng buộc thiết bị cá nhân!');
+            error.statusCode = 403;
+            throw error;
+        }
         if (!new_device_id || typeof new_device_id !== 'string' || new_device_id.trim().length === 0) {
             const error = new Error('Vui lòng cung cấp mã định danh thiết bị mới!');
             error.statusCode = 400;
@@ -464,8 +485,9 @@ class EmployeeService {
                    pending_device_id, pending_device_name, device_change_reason,
                    device_binding_mode, known_devices_json, COALESCE(multi_device_alert, 0) as multi_device_alert
             FROM employees 
-            WHERE (pending_device_id IS NOT NULL AND pending_device_id != '')
-               OR COALESCE(multi_device_alert, 0) = 1
+            WHERE ((pending_device_id IS NOT NULL AND pending_device_id != '')
+               OR COALESCE(multi_device_alert, 0) = 1)
+              AND (role IS NULL OR role != 'admin')
             ORDER BY COALESCE(multi_device_alert, 0) DESC, ma_nv ASC
         `);
         return rows || [];
@@ -475,7 +497,12 @@ class EmployeeService {
      * Admin duyệt đổi thiết bị cho nhân viên
      */
     async approveDeviceChange(ma_nv, current_user = null) {
-        const rows = await query('SELECT pending_device_id, pending_device_name, device_change_reason FROM employees WHERE ma_nv = ?', [ma_nv]);
+        const rows = await query('SELECT role, pending_device_id, pending_device_name, device_change_reason FROM employees WHERE ma_nv = ?', [ma_nv]);
+        if (rows && rows[0] && rows[0].role === 'admin') {
+            const error = new Error('Tài khoản Quản trị viên không áp dụng ràng buộc thiết bị cá nhân!');
+            error.statusCode = 400;
+            throw error;
+        }
         if (!rows || rows.length === 0 || !rows[0].pending_device_id) {
             const error = new Error('Không tìm thấy yêu cầu đổi thiết bị của nhân viên này!');
             error.statusCode = 404;
@@ -525,6 +552,12 @@ class EmployeeService {
      * Admin từ chối đổi thiết bị
      */
     async rejectDeviceChange(ma_nv, current_user = null) {
+        const rows = await query('SELECT role FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+        if (rows && rows[0] && rows[0].role === 'admin') {
+            const error = new Error('Tài khoản Quản trị viên không áp dụng ràng buộc thiết bị cá nhân!');
+            error.statusCode = 400;
+            throw error;
+        }
         await query(
             'UPDATE employees SET pending_device_id = NULL, pending_device_name = NULL, device_change_reason = NULL WHERE ma_nv = ?',
             [ma_nv]
@@ -549,7 +582,7 @@ class EmployeeService {
      */
     async resolveEmployeeDevices(ma_nv, { target_device_id = null, target_device_name = null, action = 'lock_primary' } = {}, current_user = null) {
         const rows = await query(
-            'SELECT ma_nv, ho_ten, bound_device_id, bound_device_name, known_devices_json FROM employees WHERE ma_nv = ? LIMIT 1',
+            'SELECT ma_nv, ho_ten, role, bound_device_id, bound_device_name, known_devices_json FROM employees WHERE ma_nv = ? LIMIT 1',
             [ma_nv]
         );
         if (!rows || rows.length === 0) {
@@ -558,6 +591,11 @@ class EmployeeService {
             throw err;
         }
         const emp = rows[0];
+        if (emp.role === 'admin') {
+            const err = new Error('Tài khoản Quản trị viên không áp dụng ràng buộc thiết bị cá nhân!');
+            err.statusCode = 400;
+            throw err;
+        }
         const knownDevices = safeParseKnownDevices(emp.known_devices_json);
 
         if (action === 'reset_devices') {
@@ -667,6 +705,12 @@ class EmployeeService {
     async setDeviceBindingMode(ma_nv, mode, current_user = null) {
         if (!['recording', 'enforced'].includes(mode)) {
             const error = new Error("Chế độ ràng buộc thiết bị phải là 'recording' hoặc 'enforced'!");
+            error.statusCode = 400;
+            throw error;
+        }
+        const rows = await query('SELECT role FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+        if (rows && rows[0] && rows[0].role === 'admin') {
+            const error = new Error('Tài khoản Quản trị viên không áp dụng ràng buộc thiết bị cá nhân!');
             error.statusCode = 400;
             throw error;
         }

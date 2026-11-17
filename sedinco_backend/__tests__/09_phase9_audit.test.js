@@ -1112,3 +1112,100 @@ test('P9-RBAC-ALL: Route Inventory (133 Routes), Auth Boundaries, 16-Key 1:1 Mat
     assert.equal(snapAccAllowed.status, 200, 'Accountant with payroll_export=true MUST access GET /api/payroll/backup-snapshot');
 });
 
+test('P9-V17-01: Pure Manager Role Isolation & Deep-Link Actionable Alerts Summary', async () => {
+    // 1. Admin logins from multiple devices MUST NEVER bind device_id or trigger multi_device_alert
+    const admDevLogin1 = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: { ma_nv: ADM1, password: 'QaPass@2026!', device_info: 'ADM_DEVICE_IPHONE_15', device_name: 'iPhone 15 Pro' }
+    });
+    assert.equal(admDevLogin1.status, 200);
+    assert.equal(admDevLogin1.json?.data?.bound_device_id, null, 'Admin login must not bind device_id');
+    assert.equal(admDevLogin1.json?.data?.multi_device_alert, false, 'Admin login must not flag multi_device_alert');
+
+    const admDevLogin2 = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: { ma_nv: ADM1, password: 'QaPass@2026!', device_info: 'ADM_DEVICE_SAMSUNG_S24', device_name: 'Samsung S24' }
+    });
+    assert.equal(admDevLogin2.status, 200);
+    assert.equal(admDevLogin2.json?.data?.multi_device_alert, false, 'Admin multi-device login must never flag alert');
+
+    const [admRow] = await query('SELECT bound_device_id, multi_device_alert FROM employees WHERE ma_nv = ?', [ADM1]);
+    assert.equal(admRow.bound_device_id, null, 'DB bound_device_id must remain NULL for Admin');
+    assert.equal(Number(admRow.multi_device_alert || 0), 0, 'DB multi_device_alert must remain 0 for Admin');
+
+    // 2. Admin excluded from attendance check-in, proxy check-in, matrix, stats, payroll, my-payslip, device binding & personal requests
+    const admCheckIn = await apiRequest(baseUrl, 'POST', '/api/attendance/check-in', {
+        token: admToken,
+        headers: { 'X-Idempotency-Key': `p9-adm-ci-${Date.now()}` },
+        body: { lat: 16.0544, lng: 108.2022, device_info: 'ADM_DEV' }
+    });
+    assert.equal(admCheckIn.status, 403, 'Admin account must be blocked from personal check-in');
+
+    const pureAdmLogin = await apiRequest(baseUrl, 'POST', '/api/admin/login', {
+        body: { username: PURE_ADM, password: 'QaAdmin@2026!' }
+    });
+    assert.equal(pureAdmLogin.status, 200);
+    const pureAdmToken = pureAdmLogin.json?.data?.token;
+
+    const admSelfProxy = await apiRequest(baseUrl, 'POST', '/api/attendance/proxy-check-in', {
+        token: admToken,
+        headers: { 'X-Idempotency-Key': `p9-adm-self-proxy-${Date.now()}` },
+        body: { ma_nv: ADM1, record_date: `${TEST_YEAR}-04-15`, check_in_time: '08:00', work_location_type: 'OFFICE' }
+    });
+    assert.equal(admSelfProxy.status, 403, 'Admin self proxy check-in must remain blocked (403)');
+
+    const admProxyTarget = await apiRequest(baseUrl, 'POST', '/api/attendance/proxy-check-in', {
+        token: pureAdmToken,
+        headers: { 'X-Idempotency-Key': `p9-adm-proxy-${Date.now()}` },
+        body: { ma_nv: ADM1, record_date: `${TEST_YEAR}-04-15`, check_in_time: '08:00', work_location_type: 'OFFICE' }
+    });
+    assert.equal(admProxyTarget.status, 400, 'Proxy check-in targeting Admin account must return 400');
+
+    const admSelfPay = await apiRequest(baseUrl, 'GET', `/api/payroll/me?month=4&year=${TEST_YEAR}`, { token: admToken });
+    assert.equal(admSelfPay.status, 200);
+    assert.equal(admSelfPay.json?.data, null, 'GET /payroll/me for Admin must return null');
+
+    const admConfirmPay = await apiRequest(baseUrl, 'POST', '/api/payroll/confirm', {
+        token: admToken,
+        body: { month: 4, year: TEST_YEAR, status: 'CONFIRMED' }
+    });
+    assert.equal(admConfirmPay.status, 403, 'POST /payroll/confirm for Admin must return 403');
+
+    const admAdjTarget = await apiRequest(baseUrl, 'POST', '/api/payroll/adjustments', {
+        token: admToken,
+        body: { ma_nv: ADM1, month: 4, year: TEST_YEAR, bonus_amount: 100000 }
+    });
+    assert.equal(admAdjTarget.status, 400, 'POST /payroll/adjustments targeting Admin must return 400');
+
+    const admDevLock = await apiRequest(baseUrl, 'PUT', `/api/employees/${ADM1}/device-binding-mode`, {
+        token: admToken,
+        body: { mode: 'enforced' }
+    });
+    assert.equal(admDevLock.status, 400, 'Device binding mode targeting Admin must return 400');
+
+    const payList = await apiRequest(baseUrl, 'GET', `/api/payroll?month=4&year=${TEST_YEAR}`, { token: admToken });
+    assert.equal(payList.status, 200);
+    assert.ok(!(payList.json?.data || []).some((e) => e.ma_nv === ADM1), 'Admin must be excluded from payroll list');
+
+    const matrixList = await apiRequest(baseUrl, 'GET', `/api/attendance?month=4&year=${TEST_YEAR}`, { token: admToken });
+    assert.equal(matrixList.status, 200);
+    assert.ok(!(matrixList.json?.data || []).some((e) => e.ma_nv === ADM1), 'Admin must be excluded from attendance matrix');
+
+    // 3. Notifications Summary returns deep-linkable actionable_alerts & excludes Admin from headcount
+    const reqSeed = await apiRequest(baseUrl, 'POST', '/api/requests', {
+        token: w2Token,
+        body: { request_type: 'P', from_date: `${TEST_YEAR}-04-20`, to_date: `${TEST_YEAR}-04-20`, reason: 'P9_V17 bell deep link check' }
+    });
+    assert.ok([200, 201].includes(reqSeed.status), `Seed request for bell alert failed: ${reqSeed.raw}`);
+
+    const notifRes = await apiRequest(baseUrl, 'GET', '/api/notifications/summary', { token: admToken });
+    assert.equal(notifRes.status, 200);
+    const notif = notifRes.json?.data;
+    assert.ok(Array.isArray(notif?.actionable_alerts), 'notifications/summary must return actionable_alerts array');
+    const seededBellItem = notif.actionable_alerts.find((a) => a.category === 'pending_request' && a.target_ma_nv === W2);
+    assert.ok(seededBellItem, `notifications/summary actionable_alerts must contain pending_request for ${W2}`);
+    for (const a of notif.actionable_alerts) {
+        assert.ok(a.id && a.category && a.target_tab && a.target_ma_nv, `Alert entry missing deep-link fields: ${JSON.stringify(a)}`);
+    }
+    const absentIds = (notif?.headcount_today?.live_board?.absent_list || []).map((x) => x.ma_nv);
+    assert.ok(!absentIds.includes(ADM1), 'Admin must not appear in live_board absent_list');
+});
+

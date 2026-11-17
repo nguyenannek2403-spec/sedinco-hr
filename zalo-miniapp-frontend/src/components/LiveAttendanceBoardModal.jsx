@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { safePost, generateIdempotencyKey } from "../utils/api";
 import { getShiftLabel } from "../utils/viLabels";
+import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { AppButton, AppModal, FormRow, EmptyState } from "./ui";
 
 const TABS = [
@@ -52,6 +53,14 @@ export default function LiveAttendanceBoardModal({
       setProxyError("");
     }
   }, [open, initialTab]);
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    zmpAdapter.keepScreenOn(true).catch(() => {});
+    return () => {
+      zmpAdapter.keepScreenOn(false).catch(() => {});
+    };
+  }, [open]);
 
   if (!open) return null;
 

@@ -53,6 +53,18 @@ function getShiftWindowText(emp) {
 }
 
 function getEmployeeDeviceSummary(emp) {
+  if (emp?.role === "admin") {
+    return {
+      known: [],
+      hasMultiAlert: false,
+      hasPendingChange: false,
+      hasAnyAlert: false,
+      primaryId: "",
+      primaryName: "",
+      primaryTag: "",
+      primaryLabel: "Không áp dụng thiết bị cá nhân"
+    };
+  }
   const known = parseKnownDevices(emp.known_devices_json);
   const hasMultiAlert = Boolean(emp.multi_device_alert) || known.length >= 2;
   const hasPendingChange = Boolean(emp.pending_device_id);
@@ -79,6 +91,7 @@ export default function EmployeeManagementTab({
   currentUser,
   showToast,
   initialFilter = "all",
+  focusTarget = null,
   onRefreshAlerts,
   activeRole,
   dynamicPerms = {}
@@ -133,6 +146,7 @@ export default function EmployeeManagementTab({
   });
   const [confirmLoading, setConfirmLoading] = useState(false);
   const actionInFlightRef = useRef(false);
+  const lastFocusTsRef = useRef(0);
 
   useEffect(() => {
     setQuickFilter(initialFilter || "all");
@@ -206,6 +220,26 @@ export default function EmployeeManagementTab({
     });
   };
 
+  useEffect(() => {
+    if (!focusTarget?.ts || focusTarget.ts === lastFocusTsRef.current) return;
+    if (focusTarget.subTab !== "employees" && focusTarget.category !== "device" && focusTarget.tab !== "management") return;
+    if (focusTarget.category === "device") {
+      setQuickFilter("alerts");
+    }
+    if (focusTarget.ma_nv) {
+      setSearchQuery(focusTarget.ma_nv);
+      const matched = employees.find((e) => e.ma_nv === focusTarget.ma_nv);
+      if (matched) {
+        lastFocusTsRef.current = focusTarget.ts;
+        handleOpen360Modal(matched);
+      } else if (!loading && employees.length > 0) {
+        lastFocusTsRef.current = focusTarget.ts;
+      }
+    } else {
+      lastFocusTsRef.current = focusTarget.ts;
+    }
+  }, [focusTarget, employees, loading]);
+
   const handleAddEmployee = async (e) => {
     e.preventDefault();
     if (submittingRef.current) return;
@@ -228,17 +262,20 @@ export default function EmployeeManagementTab({
     submittingRef.current = true;
     setIsSubmitting(true);
     try {
-      const targetShift = form.shift_type || "FULL_DAY";
+      const isTargetAdmin = form.role === "admin";
+      const targetShift = isTargetAdmin ? "FULL_DAY" : (form.shift_type || "FULL_DAY");
       const res = await safePost("/employees", {
         ...form,
+        luong_cb: isTargetAdmin ? 0 : form.luong_cb,
+        has_insurance: isTargetAdmin ? false : form.has_insurance,
         ma_nv: targetMaNv,
         ho_ten: cleanName,
         chuc_danh: cleanTitle,
-        custom_start_time: form.custom_start_time || null,
-        custom_end_time: form.custom_end_time || null
+        custom_start_time: isTargetAdmin ? null : (form.custom_start_time || null),
+        custom_end_time: isTargetAdmin ? null : (form.custom_end_time || null)
       });
       if (res?.success) {
-        if (targetShift !== "FULL_DAY" || form.custom_start_time || form.custom_end_time) {
+        if (!isTargetAdmin && (targetShift !== "FULL_DAY" || form.custom_start_time || form.custom_end_time)) {
           await safePut(`/employees/${targetMaNv}/shift`, {
             shift_type: targetShift,
             custom_start_time: form.custom_start_time || null,
@@ -650,40 +687,44 @@ export default function EmployeeManagementTab({
                       </span>
                     </div>
 
-                    {/* Dòng 2: Bộ phận, Chức danh & Ca làm việc */}
+                    {/* Dòng 2: Bộ phận, Chức danh & Ca làm việc (ẩn ca với Quản trị viên) */}
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
                       <span className="inline-flex items-center gap-1 text-cyan-300 font-medium">
                         <Building2 className="w-3.5 h-3.5 shrink-0" />
                         <span>{emp.department || "Khối Công trình"} • {emp.chuc_danh || "Nhân viên"}</span>
                       </span>
-                      <span className="inline-flex items-center gap-1 text-indigo-300 font-medium">
-                        <Clock className="w-3.5 h-3.5 shrink-0" />
-                        <span>{getShiftWindowText(emp)}</span>
-                      </span>
+                      {emp.role !== "admin" && (
+                        <span className="inline-flex items-center gap-1 text-indigo-300 font-medium">
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
+                          <span>{getShiftWindowText(emp)}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   <StatusBadge type="employee" status={isLocked ? "locked" : "active"} dark />
                 </div>
 
-                {/* Dòng 3: Hiển thị Thiết bị chuẩn "[Tên nhân viên] : [Tên thiết bị]" */}
-                <div className="px-3 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="font-bold text-emerald-200 break-words">
-                      📱 {devSummary.primaryLabel}
+                {/* Dòng 3: Hiển thị Thiết bị (chỉ áp dụng với Nhân viên & Kế toán, ẩn với Quản trị viên) */}
+                {emp.role !== "admin" && (
+                  <div className="px-3 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="font-bold text-emerald-200 break-words">
+                        📱 {devSummary.primaryLabel}
+                      </span>
+                    </div>
+                    <span
+                      className={`px-2 py-0.5 rounded-md font-semibold shrink-0 ${
+                        emp.device_binding_mode === "enforced"
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                          : "bg-slate-800 text-slate-300 border border-slate-700"
+                      }`}
+                    >
+                      {emp.device_binding_mode === "enforced" ? "🔒 Khóa 1 máy" : "Ghi nhận"}
                     </span>
                   </div>
-                  <span
-                    className={`px-2 py-0.5 rounded-md font-semibold shrink-0 ${
-                      emp.device_binding_mode === "enforced"
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                        : "bg-slate-800 text-slate-300 border border-slate-700"
-                    }`}
-                  >
-                    {emp.device_binding_mode === "enforced" ? "🔒 Khóa 1 máy" : "Ghi nhận"}
-                  </span>
-                </div>
+                )}
 
                 {/* Băng cảnh báo đỏ nếu phát hiện >= 2 thiết bị dùng chung tài khoản hoặc yêu cầu đổi máy */}
                 {devSummary.hasMultiAlert && (
@@ -715,9 +756,15 @@ export default function EmployeeManagementTab({
 
                 {/* Thanh Hành Động Nhanh trên Thẻ */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <span className="text-xs sm:text-sm text-slate-200 font-mono font-semibold whitespace-nowrap">
-                    Lương CB: {Number(emp.luong_cb || 0).toLocaleString("vi-VN")} đ
-                  </span>
+                  {emp.role === "admin" ? (
+                    <span className="text-xs text-amber-300 font-semibold">
+                      🛡️ Quản trị điều hành (Không tính lương)
+                    </span>
+                  ) : (
+                    <span className="text-xs sm:text-sm text-slate-200 font-mono font-semibold whitespace-nowrap">
+                      Lương CB: {Number(emp.luong_cb || 0).toLocaleString("vi-VN")} đ
+                    </span>
+                  )}
                   <div className="flex flex-wrap items-center gap-2">
                     <AppButton
                       variant={devSummary.hasAnyAlert ? "danger" : "primary"}
@@ -911,41 +958,53 @@ export default function EmployeeManagementTab({
               <label className="block text-sm font-semibold text-slate-200 mb-1">Vai trò</label>
               <select
                 value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                onChange={(e) => {
+                  const r = e.target.value;
+                  setForm({
+                    ...form,
+                    role: r,
+                    ...(r === "admin" ? { luong_cb: 0, has_insurance: false } : {})
+                  });
+                }}
                 className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="worker">Nhân viên</option>
                 <option value="accountant">Kế toán</option>
+                <option value="admin">Quản trị viên (Chỉ điều hành)</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-200 mb-1">Lương cơ bản (đ)</label>
-              <input
-                type="number"
-                required
-                min={0}
-                step={100000}
-                value={form.luong_cb}
-                onChange={(e) => setForm({ ...form, luong_cb: Number(e.target.value) })}
-                className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {form.role !== "admin" && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-200 mb-1">Lương cơ bản (đ)</label>
+                <input
+                  type="number"
+                  required
+                  min={0}
+                  step={100000}
+                  value={form.luong_cb}
+                  onChange={(e) => setForm({ ...form, luong_cb: Number(e.target.value) })}
+                  className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-200 mb-1">Ca làm việc mặc định</label>
-            <select
-              value={form.shift_type || "FULL_DAY"}
-              onChange={(e) => setForm({ ...form, shift_type: e.target.value })}
-              className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {SHIFT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {form.role !== "admin" && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-200 mb-1">Ca làm việc mặc định</label>
+              <select
+                value={form.shift_type || "FULL_DAY"}
+                onChange={(e) => setForm({ ...form, shift_type: e.target.value })}
+                className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {SHIFT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </form>
       </AppModal>
 
@@ -1047,18 +1106,20 @@ export default function EmployeeManagementTab({
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Quỹ phép năm (ngày)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={60}
-                    disabled={!canEditEmployees}
-                    value={detailForm.annual_leave_quota}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, annual_leave_quota: Number(e.target.value) || 0 }))}
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
-                  />
-                </div>
+                {detailEmp.role !== "admin" && (
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-200 mb-1">Quỹ phép năm (ngày)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={60}
+                      disabled={!canEditEmployees}
+                      value={detailForm.annual_leave_quota}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, annual_leave_quota: Number(e.target.value) || 0 }))}
+                      className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1086,76 +1147,85 @@ export default function EmployeeManagementTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Lương cơ bản (đ)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={100000}
-                    disabled={!canEditEmployees}
-                    value={detailForm.luong_cb}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Number(e.target.value) || 0 }))}
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-300 disabled:opacity-60"
-                  />
+              {detailEmp.role === "admin" ? (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/40 text-xs sm:text-sm text-amber-200 leading-relaxed">
+                  Tài khoản Quản trị viên chỉ dùng để điều hành hệ thống; không áp dụng bảng lương, phép năm, ca chấm công hay khóa thiết bị cá nhân.
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Phụ cấp ăn trưa (đ)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={50000}
-                    disabled={!canEditEmployees}
-                    value={detailForm.phu_cap_an_trua}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Number(e.target.value) || 0 }))}
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
-                  />
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-200 mb-1">Lương cơ bản (đ)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={100000}
+                        disabled={!canEditEmployees}
+                        value={detailForm.luong_cb}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Number(e.target.value) || 0 }))}
+                        className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-300 disabled:opacity-60"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-200 mb-1">Phụ cấp ăn trưa (đ)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={50000}
+                        disabled={!canEditEmployees}
+                        value={detailForm.phu_cap_an_trua}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Number(e.target.value) || 0 }))}
+                        className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
+                      />
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Phụ cấp xăng xe (đ)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={50000}
-                    disabled={!canEditEmployees}
-                    value={detailForm.phu_cap_xang_xe}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Number(e.target.value) || 0 }))}
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Phụ cấp nhà ở / khác (đ)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={50000}
-                    disabled={!canEditEmployees}
-                    value={detailForm.phu_cap_nha_o}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Number(e.target.value) || 0 }))}
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
-                  />
-                </div>
-              </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-200 mb-1">Phụ cấp xăng xe (đ)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={50000}
+                        disabled={!canEditEmployees}
+                        value={detailForm.phu_cap_xang_xe}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Number(e.target.value) || 0 }))}
+                        className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-200 mb-1">Phụ cấp nhà ở / khác (đ)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={50000}
+                        disabled={!canEditEmployees}
+                        value={detailForm.phu_cap_nha_o}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Number(e.target.value) || 0 }))}
+                        className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
+                      />
+                    </div>
+                  </div>
 
-              <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  disabled={!canEditEmployees}
-                  checked={Boolean(detailForm.has_insurance)}
-                  onChange={(e) => setDetailForm((p) => ({ ...p, has_insurance: e.target.checked }))}
-                  className="w-5 h-5 rounded text-blue-600"
-                />
-                <span className="text-sm font-semibold text-slate-200">
-                  Có tham gia đóng Bảo hiểm xã hội bắt buộc
-                </span>
-              </label>
+                  <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      disabled={!canEditEmployees}
+                      checked={Boolean(detailForm.has_insurance)}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, has_insurance: e.target.checked }))}
+                      className="w-5 h-5 rounded text-blue-600"
+                    />
+                    <span className="text-sm font-semibold text-slate-200">
+                      Có tham gia đóng Bảo hiểm xã hội bắt buộc
+                    </span>
+                  </label>
+                </>
+              )}
             </section>
 
-            {/* KHU VỰC 2: CA LÀM VIỆC & GIỜ RIÊNG */}
-            <section className="space-y-3 bg-slate-950/60 border border-slate-700/80 rounded-2xl p-4">
+            {/* KHU VỰC 2: CA LÀM VIỆC & GIỜ RIÊNG (ẩn với Quản trị viên) */}
+            {detailEmp.role !== "admin" && (
+              <section className="space-y-3 bg-slate-950/60 border border-slate-700/80 rounded-2xl p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-black text-indigo-300 uppercase tracking-wide flex items-center gap-2">
                   <Clock className="w-4 h-4 shrink-0" />
@@ -1210,8 +1280,10 @@ export default function EmployeeManagementTab({
                 </FormRow>
               </div>
             </section>
+            )}
 
-            {/* KHU VỰC 3: KIỂM SOÁT THIẾT BỊ & CHỐNG DÙNG CHUNG TÀI KHOẢN */}
+            {/* KHU VỰC 3: KIỂM SOÁT THIẾT BỊ & CHỐNG DÙNG CHUNG TÀI KHOẢN (ẩn với Quản trị viên) */}
+            {detailEmp.role !== "admin" && (
             <section className="space-y-3 bg-slate-950/60 border border-slate-700/80 rounded-2xl p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-black text-emerald-300 uppercase tracking-wide flex items-center gap-2">
@@ -1345,6 +1417,7 @@ export default function EmployeeManagementTab({
                 </div>
               )}
             </section>
+            )}
 
             {/* KHU VỰC 4: QUYỀN HẠN & BẢO MẬT TÀI KHOẢN */}
             {isAdmin && detailEmp.role !== "admin" && (

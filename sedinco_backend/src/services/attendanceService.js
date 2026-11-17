@@ -56,7 +56,7 @@ class AttendanceService {
         const offset = (page - 1) * limit;
 
         const emps = await query(
-            "SELECT ma_nv, ho_ten, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department FROM employees ORDER BY ma_nv ASC LIMIT ? OFFSET ?",
+            "SELECT ma_nv, ho_ten, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department FROM employees WHERE (role IS NULL OR role != 'admin') ORDER BY ma_nv ASC LIMIT ? OFFSET ?",
             [limit, offset]
         );
         if (!emps || emps.length === 0) return [];
@@ -101,10 +101,28 @@ class AttendanceService {
         );
 
         const empShiftRows = await query(
-            "SELECT COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ? LIMIT 1",
+            "SELECT role, COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ? LIMIT 1",
             [ma_nv]
         ).catch(() => []);
         const empRow = (empShiftRows && empShiftRows[0]) ? empShiftRows[0] : {};
+        if (empRow.role === 'admin') {
+            return {
+                logs: [],
+                days: [],
+                forgotten_checkout: null,
+                excluded_admin: true,
+                shift_type: 'FULL_DAY',
+                shift_info: { ...SHIFT_DEFINITIONS.FULL_DAY },
+                summary: {
+                    total_work_days: 0,
+                    total_ot_hours: 0,
+                    total_leave_days: 0,
+                    late_count: 0,
+                    total_late_minutes: 0,
+                    on_time_count: 0
+                }
+            };
+        }
         const empShiftCode = (empRow.shift_type && SHIFT_DEFINITIONS[empRow.shift_type])
             ? empRow.shift_type
             : 'FULL_DAY';
@@ -477,7 +495,7 @@ class AttendanceService {
         }
 
         const empRows = await query(
-            'SELECT ma_nv, ho_ten, status, is_locked, shift_type FROM employees WHERE ma_nv = ? LIMIT 1',
+            'SELECT ma_nv, ho_ten, role, status, is_locked, shift_type FROM employees WHERE ma_nv = ? LIMIT 1',
             [cleanMaNv]
         );
         if (!empRows || empRows.length === 0) {
@@ -486,6 +504,11 @@ class AttendanceService {
             throw error;
         }
         const emp = empRows[0];
+        if (emp.role === 'admin') {
+            const error = new Error('Tài khoản Quản trị viên chỉ dùng để điều hành, không thuộc danh sách chấm công cá nhân.');
+            error.statusCode = 400;
+            throw error;
+        }
         if (emp.status === 'inactive' || emp.is_locked === 1 || emp.is_locked === true) {
             const error = new Error(`Tài khoản nhân viên ${emp.ho_ten || cleanMaNv} đang bị tạm khóa.`);
             error.statusCode = 403;
@@ -715,6 +738,11 @@ class AttendanceService {
             throw error;
         }
         const emp = empCheck[0];
+        if (emp.role === 'admin' || current_user.role === 'admin') {
+            const error = new Error('Tài khoản Quản trị viên chỉ dùng để quản lý hệ thống, không tham gia chấm công cá nhân!');
+            error.statusCode = 403;
+            throw error;
+        }
         if (emp.status === 'inactive' || emp.is_locked === 1 || emp.is_locked === true) {
             const error = new Error(`Tài khoản nhân viên ${ma_nv} đang bị TẠM KHÓA. Không thể thực hiện chấm công!`);
             error.statusCode = 403;
@@ -1426,11 +1454,11 @@ class AttendanceService {
     async getAttendanceStats(dateStr = null) {
         const { getVietnamDateString } = require('../utils/timeHelper');
         const targetDate = dateStr || getVietnamDateString(new Date());
-        const [totalEmpRow] = await query('SELECT COUNT(*) as total FROM employees WHERE status != "inactive"');
+        const [totalEmpRow] = await query('SELECT COUNT(*) as total FROM employees WHERE status != "inactive" AND (role IS NULL OR role != "admin")');
         const totalEmployees = totalEmpRow ? Number(totalEmpRow.total) : 0;
 
         const logs = await query(
-            "SELECT status, check_in_time, late_minutes, work_location_type, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM attendance_logs WHERE record_date = ?",
+            "SELECT a.status, a.check_in_time, a.late_minutes, a.work_location_type, COALESCE(a.shift_type, 'FULL_DAY') as shift_type FROM attendance_logs a LEFT JOIN employees e ON a.employee_id = e.ma_nv WHERE a.record_date = ? AND (e.role IS NULL OR e.role != 'admin')",
             [targetDate]
         );
 

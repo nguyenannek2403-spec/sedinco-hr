@@ -8,7 +8,8 @@ import {
   Bell,
   ShieldAlert,
   AlertTriangle,
-  X,
+  FileText,
+  DollarSign,
   ArrowLeft,
   LogOut
 } from "lucide-react";
@@ -19,8 +20,11 @@ export default function DesktopHeader({
   currentUser,
   currentTab,
   setCurrentTab,
+  onNavigateAlert,
+  managementSubTab = "employees",
+  settingsSubTab = "company",
   activeRole,
-  onRoleSwitch,
+  dynamicPerms = {},
   onLogout,
   currentTime,
   alertsSummary = {},
@@ -33,7 +37,76 @@ export default function DesktopHeader({
   const fraudCount = Number(alertsSummary?.fraud_count) || 0;
   const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
   const deviceCount = Number(alertsSummary?.pending_device_count) || 0;
-  const totalRedAlerts = disputedCount + (activeRole === ROLES.ADMIN ? fraudCount + deviceCount : 0);
+  const pendingReqCount = Number(alertsSummary?.pending_requests_count) || 0;
+
+  const isAlertVisibleForRole = (item) => {
+    if (activeRole === ROLES.ADMIN) return true;
+    if (item.category === "salary_dispute") return dynamicPerms?.payroll_view_all !== false;
+    if (item.category === "pending_request") return dynamicPerms?.leave_view_all !== false;
+    return false;
+  };
+
+  const rawActionable = Array.isArray(alertsSummary?.actionable_alerts)
+    ? alertsSummary.actionable_alerts
+    : null;
+
+  const fallbackAlerts = [];
+  if (fraudCount > 0) {
+    fallbackAlerts.push({
+      id: "summary_fraud",
+      category: "fraud",
+      severity: "critical",
+      title: `${fraudCount} Cảnh báo Vị trí / Thiết bị lạ`,
+      description: "Nhấn để mở Nhật ký Giám sát, xem chi tiết vị trí/thiết bị và xử lý tài khoản.",
+      target_tab: "management",
+      target_subtab: "audit_logs"
+    });
+  }
+  if (deviceCount > 0) {
+    fallbackAlerts.push({
+      id: "summary_device",
+      category: "device",
+      severity: "high",
+      title: `${deviceCount} Cảnh báo đa thiết bị / Đổi máy`,
+      description: "Nhấn để mở Hồ sơ 360° kiểm tra và khóa cố định 1 thiết bị cho nhân viên.",
+      target_tab: "management",
+      target_subtab: "employees"
+    });
+  }
+  if (disputedCount > 0) {
+    fallbackAlerts.push({
+      id: "summary_dispute",
+      category: "salary_dispute",
+      severity: "high",
+      title: `${disputedCount} Khiếu nại sai lương từ Nhân viên`,
+      description: "Nhân viên đã gửi báo cáo sai lương kèm minh chứng. Nhấn để đối soát ngay.",
+      target_tab: activeRole === ROLES.ADMIN ? "management" : "payroll",
+      target_subtab: activeRole === ROLES.ADMIN ? "payroll" : null
+    });
+  }
+  if (pendingReqCount > 0) {
+    fallbackAlerts.push({
+      id: "summary_requests",
+      category: "pending_request",
+      severity: "medium",
+      title: `${pendingReqCount} Đơn từ nhân sự đang chờ duyệt`,
+      description: "Nghỉ phép, bổ sung công, ứng lương hoặc tăng ca chờ phê duyệt.",
+      target_tab: "requests",
+      target_subtab: null
+    });
+  }
+
+  const visibleAlerts = (rawActionable || fallbackAlerts)
+    .filter(isAlertVisibleForRole)
+    .map((item) => {
+      if (activeRole === ROLES.ACCOUNTANT && item.category === "salary_dispute") {
+        return { ...item, target_tab: "payroll", target_subtab: null };
+      }
+      return item;
+    });
+
+  const criticalOrHighCount = visibleAlerts.filter((a) => a.severity === "critical" || a.severity === "high").length;
+  const totalBellCount = visibleAlerts.length;
 
   const getTabTitle = () => {
     switch (currentTab) {
@@ -41,24 +114,23 @@ export default function DesktopHeader({
         return activeRole === "accountant"
           ? "Bảng Chấm Công Ma Trận"
           : "Bảng Công Ma Trận (Toàn Công Ty)";
+      case "requests":
+        return "Xét Duyệt Đơn Từ";
+      case "management":
+        if (activeRole !== ROLES.ADMIN) return "Quản Lý Nhân Sự";
+        if (managementSubTab === "payroll") return "Trung Tâm Quản Trị • Giám Sát Lương";
+        if (managementSubTab === "audit_logs") return "Trung Tâm Quản Trị • Nhật Ký & An Ninh";
+        return "Trung Tâm Quản Trị • Nhân Sự & Thiết Bị";
+      case "settings":
+        if (settingsSubTab === "permissions") return "Cài Đặt Hệ Thống • Phân Quyền Kế Toán";
+        if (settingsSubTab === "holidays") return "Cài Đặt Hệ Thống • Lịch Nghỉ Lễ (x3)";
+        return "Cài Đặt Hệ Thống • Công Ty & GPS";
       case "payroll":
         return "Bảng Lương & Đối Soát Khiếu Nại";
-      case "requests":
-        return "Trung Tâm Phê Duyệt Đơn Từ";
-      case "management":
-        return "Quản lý hồ sơ nhân viên";
-      case "company":
-        return "Cài đặt Công ty & Chấm công";
-      case "holidays":
-        return "Danh Mục Ngày Nghỉ Lễ (x3)";
-      case "devices":
-        return "Quản lý nhân sự & Thiết bị";
-      case "permissions":
-        return "Phân Quyền Kế Toán";
-      case "audit_logs":
-        return "Giám Sát Nhân Viên & Chống Gian Lận";
       case "profile":
-        return "Hồ Sơ Cá Nhân & Phiếu Lương";
+        return activeRole === ROLES.ADMIN
+          ? "Hồ Sơ Quản Trị Hệ Thống"
+          : "Hồ Sơ Cá Nhân & Phiếu Lương";
       default:
         return "Bảng Điều Khiển Sedinco HR";
     }
@@ -120,7 +192,7 @@ export default function DesktopHeader({
         </div>
       </div>
 
-      {/* Phải: Cảnh báo + Chế độ NV + Đăng xuất rõ ràng */}
+      {/* Phải: Thông báo, Làm mới & Đăng xuất */}
       <div className="flex items-center gap-[6px] sm:gap-1.5 shrink-0 relative">
         {/* Đồng hồ số thời gian thực (Desktop) */}
         <div className="hidden xl:flex items-center gap-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-slate-200">
@@ -130,38 +202,41 @@ export default function DesktopHeader({
           </span>
         </div>
 
-        {/* Nút Chuông Cảnh Báo Nóng (Vị trí/Thiết bị lạ / Khiếu nại sai lương) */}
+        {/* Nút Chuông Thông Báo & Cảnh Báo Deep-Link */}
         <button
           type="button"
+          data-bell-button="true"
           onClick={() => setShowAlertPanel(!showAlertPanel)}
           aria-label="Trung tâm cảnh báo và thông báo"
           className={`relative min-w-[44px] min-h-[44px] px-[8px] sm:px-2.5 py-1.5 rounded-xl border flex items-center justify-center gap-1.5 text-xs font-black transition-all ${
-            totalRedAlerts > 0
+            criticalOrHighCount > 0
               ? "bg-rose-600/20 border-rose-500 text-rose-300 shadow-lg shadow-rose-600/20"
+              : totalBellCount > 0
+              ? "bg-amber-500/20 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/15"
               : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
           }`}
-          title="Trung tâm Cảnh báo & Khiếu nại Lương"
+          title="Trung tâm Thông báo & Cảnh báo"
         >
-          <Bell size={16} className={totalRedAlerts > 0 ? "text-rose-400 animate-bounce" : "text-slate-300"} />
-          {totalRedAlerts > 0 && (
-            <span className="px-[5px] py-0.5 text-[11px] leading-none rounded-full bg-rose-600 text-white font-black">
-              {totalRedAlerts}
+          <Bell
+            size={16}
+            className={
+              criticalOrHighCount > 0
+                ? "text-rose-400 animate-bounce"
+                : totalBellCount > 0
+                ? "text-amber-300"
+                : "text-slate-300"
+            }
+          />
+          {totalBellCount > 0 && (
+            <span
+              className={`px-[5px] py-0.5 text-[11px] leading-none rounded-full text-white font-black ${
+                criticalOrHighCount > 0 ? "bg-rose-600" : "bg-amber-600"
+              }`}
+            >
+              {totalBellCount}
             </span>
           )}
         </button>
-
-        {/* Nút chuyển nhanh sang chế độ Công nhân (Desktop) */}
-        {typeof onRoleSwitch === "function" && (
-          <button
-            type="button"
-            onClick={() => onRoleSwitch(ROLES.WORKER)}
-            className="hidden sm:flex min-h-[44px] items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-bold"
-            title="Chuyển sang giao diện chấm công cá nhân"
-          >
-            <Smartphone size={14} className="text-blue-400" />
-            <span>Chế độ NV</span>
-          </button>
-        )}
 
         {/* Nút Làm mới dữ liệu (Desktop) */}
         {onRefresh && (
@@ -190,83 +265,101 @@ export default function DesktopHeader({
           </button>
         )}
 
-        {/* Modal Danh Sách Cảnh Báo Nóng (Render qua AppModal Portal chống trôi nền) */}
+        {/* Modal Trung tâm Thông báo & Cảnh báo 1 chạm (Render qua AppModal Portal) */}
         <AppModal
           open={showAlertPanel}
           onClose={() => setShowAlertPanel(false)}
           theme="dark"
-          title={`Cảnh báo nóng (${totalRedAlerts})`}
-          subtitle="Giám sát vị trí, thiết bị & khiếu nại lương"
+          title={`Thông báo & Cảnh báo (${totalBellCount})`}
+          subtitle="Chạm vào mục bất kỳ để mở thẳng nơi xử lý"
           icon={<ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />}
-          maxWidthClass="max-w-md"
+          maxWidthClass="max-w-lg"
         >
-          <div className="p-4 space-y-3">
-            {totalRedAlerts === 0 ? (
+          <div className="p-4 space-y-2.5">
+            {visibleAlerts.length === 0 ? (
               <p className="text-xs text-slate-300 py-6 text-center">
-                Hệ thống ổn định. Không có cảnh báo vị trí/thiết bị hay khiếu nại lương nào đang chờ xử lý.
+                Hệ thống ổn định. Không có cảnh báo vị trí/thiết bị, khiếu nại lương hay đơn từ nào đang chờ xử lý.
               </p>
             ) : (
               <div className="space-y-2.5">
-                {fraudCount > 0 && activeRole === ROLES.ADMIN && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (setCurrentTab) setCurrentTab("audit_logs");
-                      setShowAlertPanel(false);
-                    }}
-                    className="w-full min-h-[46px] text-left p-3.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 border border-rose-500/40 space-y-1 transition"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-black text-rose-200">
-                        🚨 {fraudCount} Cảnh báo Vị trí / Thiết bị lạ
-                      </span>
-                      <span className="text-xs font-bold text-rose-200 underline shrink-0">Xem &amp; Khóa</span>
-                    </div>
-                    <p className="text-xs text-slate-200">
-                      Nhấn để mở Nhật ký Giám sát, xem chi tiết vị trí/thiết bị và xử lý tài khoản.
-                    </p>
-                  </button>
-                )}
+                {visibleAlerts.map((alert) => {
+                  const styleMap = {
+                    fraud: {
+                      card: "bg-rose-950/70 hover:bg-rose-900/70 border-rose-500/50",
+                      title: "text-rose-200",
+                      action: "Xem & Khóa →",
+                      Icon: ShieldAlert,
+                      iconColor: "text-rose-400"
+                    },
+                    device: {
+                      card: "bg-indigo-950/70 hover:bg-indigo-900/70 border-indigo-500/50",
+                      title: "text-indigo-200",
+                      action: "Mở 360° →",
+                      Icon: Smartphone,
+                      iconColor: "text-indigo-300"
+                    },
+                    salary_dispute: {
+                      card: "bg-amber-950/70 hover:bg-amber-900/70 border-amber-500/50",
+                      title: "text-amber-200",
+                      action: "Xem phiếu →",
+                      Icon: DollarSign,
+                      iconColor: "text-amber-300"
+                    },
+                    pending_request: {
+                      card: "bg-slate-800/90 hover:bg-slate-700/90 border-blue-500/40",
+                      title: "text-blue-200",
+                      action: "Duyệt đơn →",
+                      Icon: FileText,
+                      iconColor: "text-blue-300"
+                    }
+                  };
+                  const theme = styleMap[alert.category] || {
+                    card: "bg-slate-800 hover:bg-slate-700 border-slate-600",
+                    title: "text-white",
+                    action: "Mở xử lý →",
+                    Icon: AlertTriangle,
+                    iconColor: "text-amber-300"
+                  };
+                  const IconComp = theme.Icon;
 
-                {disputedCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (setCurrentTab) setCurrentTab("payroll");
-                      setShowAlertPanel(false);
-                    }}
-                    className="w-full min-h-[46px] text-left p-3.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 border border-amber-500/40 space-y-1 transition"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-black text-amber-200 flex items-center gap-1">
-                        <AlertTriangle size={13} />
-                        {disputedCount} Khiếu nại sai lương từ Nhân viên
-                      </span>
-                      <span className="text-xs font-bold text-amber-200 underline shrink-0">Xem minh chứng</span>
-                    </div>
-                    <p className="text-xs text-slate-200">
-                      Nhân viên đã gửi báo cáo sai lương kèm hình ảnh/video minh chứng. Nhấn để kiểm tra.
-                    </p>
-                  </button>
-                )}
-
-                {deviceCount > 0 && activeRole === ROLES.ADMIN && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (setCurrentTab) setCurrentTab("management");
-                      setShowAlertPanel(false);
-                    }}
-                    className="w-full min-h-[46px] text-left p-3.5 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 space-y-1 transition"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-black text-indigo-300">
-                        📱 {deviceCount} Cảnh báo đa thiết bị / Đổi máy
-                      </span>
-                      <span className="text-xs font-bold text-indigo-200 underline shrink-0">Mở 360° Xử lý</span>
-                    </div>
-                  </button>
-                )}
+                  return (
+                    <button
+                      key={alert.id}
+                      type="button"
+                      data-alert-item={alert.id}
+                      data-alert-category={alert.category}
+                      onClick={() => {
+                        setShowAlertPanel(false);
+                        if (typeof onNavigateAlert === "function") {
+                          onNavigateAlert(alert);
+                        } else if (setCurrentTab && alert.target_tab) {
+                          setCurrentTab(alert.target_tab);
+                        }
+                      }}
+                      className={`w-full min-h-[52px] text-left p-3.5 rounded-xl border space-y-1 transition cursor-pointer ${theme.card}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className={`text-xs font-black flex items-center gap-1.5 leading-snug ${theme.title}`}>
+                          <IconComp size={14} className={`${theme.iconColor} shrink-0`} />
+                          <span>{alert.title}</span>
+                        </span>
+                        <span className={`text-xs font-bold underline shrink-0 whitespace-nowrap ${theme.title}`}>
+                          {theme.action}
+                        </span>
+                      </div>
+                      {alert.description && (
+                        <p className="text-xs text-slate-200/90 leading-relaxed pl-5">
+                          {alert.description}
+                        </p>
+                      )}
+                      {alert.created_at && (
+                        <div className="text-xs text-slate-400 pl-5">
+                          {new Date(alert.created_at).toLocaleString("vi-VN")}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
