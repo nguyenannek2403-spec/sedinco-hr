@@ -86,9 +86,12 @@ export default function AppButton({
       ) : Icon ? (
         <Icon className="w-4 h-4 shrink-0" />
       ) : null}
-      <span className="break-words text-center">
-        {isBusy && loadingText ? loadingText : children}
-      </span>
+      {((isBusy && loadingText) ||
+        (children !== null && children !== undefined && children !== false && children !== "")) && (
+        <span className="min-w-0 leading-snug break-words text-center">
+          {isBusy && loadingText ? loadingText : children}
+        </span>
+      )}
     </button>
   );
 }

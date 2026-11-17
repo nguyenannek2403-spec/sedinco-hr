@@ -523,16 +523,16 @@ export default function OneTouchCheckIn({
   };
 
   return (
-    <div className="w-full flex flex-col items-center justify-center p-1 sm:p-3 space-y-3">
+    <div className="w-full flex flex-col items-center justify-center space-y-3">
       {/* 1. BANNER NHẮC NHỞ THÔNG MINH "QUÊN BẤM GIỜ RA" */}
       {forgottenCheckout && (
         <button
           type="button"
           onClick={() => onOpenFixCheckoutRequest && onOpenFixCheckoutRequest(forgottenCheckout)}
-          className="w-full max-w-sm p-3.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border-2 border-amber-400/70 text-left flex items-start gap-2.5 shadow-lg transition cursor-pointer"
+          className="w-full p-3.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border-2 border-amber-400/70 text-left flex items-start gap-2.5 shadow-lg transition cursor-pointer"
         >
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-          <div className="text-xs leading-relaxed">
+          <div className="flex-1 min-w-0 text-xs leading-relaxed">
             <p className="font-black text-amber-200">
               ⚠️ Phát hiện ngày {forgottenCheckout.short_date} bạn có chấm công Vào ({String(forgottenCheckout.check_in_time).slice(0, 5)}) nhưng quên bấm Giờ Ra!
             </p>
@@ -545,7 +545,7 @@ export default function OneTouchCheckIn({
 
       {/* 2. THẺ TRẠNG THÁI VỊ TRÍ THÂN THIỆN (Không hiện thông số kỹ thuật thô) */}
       <div
-        className={`w-full max-w-sm px-3.5 py-2.5 rounded-2xl border text-xs font-bold flex items-center gap-2 shadow-sm ${
+        className={`w-full px-3.5 py-2.5 rounded-2xl border text-xs font-bold flex items-center gap-2 shadow-sm ${
           locationFriendlyBadge.mode === "in_range"
             ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-200"
             : locationFriendlyBadge.mode === "wifi_office"
@@ -560,16 +560,16 @@ export default function OneTouchCheckIn({
         ) : (
           <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
         )}
-        <span>{locationFriendlyBadge.text}</span>
+        <span className="flex-1 min-w-0 leading-snug">{locationFriendlyBadge.text}</span>
       </div>
 
       {/* F4: THÔNG BÁO NỘI BỘ CÔNG TY */}
       {companyMeta?.announcement_text && String(companyMeta.announcement_text).trim() && (
-        <div className="w-full max-w-sm bg-amber-500/15 border border-amber-400/50 rounded-2xl px-3.5 py-2.5 text-left space-y-1 shadow-sm">
+        <div className="w-full bg-amber-500/15 border border-amber-400/50 rounded-2xl px-3.5 py-2.5 text-left space-y-1 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-amber-200">📢 Thông báo từ Công ty</span>
             {companyMeta.announcement_updated_at && (
-              <span className="text-xs text-amber-100/90 whitespace-nowrap">
+              <span className="text-xs text-amber-100/90 whitespace-nowrap shrink-0">
                 {new Date(companyMeta.announcement_updated_at).toLocaleDateString("vi-VN")}
               </span>
             )}
@@ -581,13 +581,13 @@ export default function OneTouchCheckIn({
       )}
 
       {/* 3. THẺ TÓM TẮT CÔNG HÔM NAY & CA CHUẨN */}
-      <div className="w-full max-w-sm bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2 text-xs shadow-md">
-        <div className="flex items-center justify-between gap-2">
-          <div>
+      <div className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5 text-xs shadow-md">
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex-1 min-w-0">
             <span className="text-slate-300 font-medium block">
               Hôm nay ({new Date().toLocaleDateString("vi-VN")}):
             </span>
-            <span className="font-bold text-emerald-400 text-sm">
+            <span className="font-bold text-emerald-400 text-sm block mt-0.5 leading-snug">
               {effectiveToday?.check_out_time
                 ? `Vào ${effectiveToday.check_in_time?.slice(0, 5)} • Ra ${effectiveToday.check_out_time?.slice(0, 5)}`
                 : effectiveToday?.check_in_time
@@ -595,7 +595,7 @@ export default function OneTouchCheckIn({
                 : "Chưa chấm công vào ca"}
             </span>
             {effectiveToday?.location_name && (
-              <span className="block text-xs text-slate-300 mt-0.5">
+              <span className="block text-xs text-slate-300 mt-0.5 truncate">
                 📍 {effectiveToday.location_name}
               </span>
             )}
@@ -606,12 +606,12 @@ export default function OneTouchCheckIn({
             )}
           </div>
           <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700 shrink-0">
-            <span className="text-xs text-slate-300 font-medium block">Công tháng này</span>
-            <span className="text-base font-bold text-blue-400">{monthlyCount} ngày</span>
+            <span className="text-xs text-slate-300 font-medium block whitespace-nowrap">Công tháng này</span>
+            <span className="text-base font-bold text-blue-400 whitespace-nowrap">{monthlyCount} ngày</span>
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-800 space-y-1.5 text-xs text-slate-300">
+        <div className="pt-2 border-t border-slate-800 space-y-2 text-xs text-slate-300">
           <div className="flex flex-wrap items-center justify-between gap-1.5">
             <span>
               {(() => {
@@ -640,7 +640,7 @@ export default function OneTouchCheckIn({
                 return (
                   <>
                     Ca làm việc của bạn hôm nay:{" "}
-                    <strong className="text-slate-100">
+                    <strong className="text-slate-100 whitespace-nowrap">
                       {effStart} – {effEnd}
                     </strong>
                   </>
@@ -661,15 +661,19 @@ export default function OneTouchCheckIn({
             </div>
           </div>
 
-          <div className="text-xs font-semibold text-slate-200 flex flex-wrap items-center gap-1">
-            <span>Tháng này:</span>
-            <span className="text-amber-300 font-bold">
-              Đi trễ {attendanceSummary?.late_count || 0} lần (Tổng {attendanceSummary?.total_late_minutes || 0} phút)
-            </span>
-            <span className="text-slate-400">•</span>
-            <span className="text-emerald-300 font-bold">
-              Đi sớm/Đúng giờ {attendanceSummary?.on_time_count || 0} ngày
-            </span>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="bg-slate-800/60 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
+              <span className="text-xs text-slate-300 block">Đúng giờ tháng này</span>
+              <span className="text-xs font-bold text-emerald-300">
+                {attendanceSummary?.on_time_count || 0} ngày
+              </span>
+            </div>
+            <div className="bg-slate-800/60 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
+              <span className="text-xs text-slate-300 block">Đi trễ tháng này</span>
+              <span className="text-xs font-bold text-amber-300">
+                {attendanceSummary?.late_count || 0} lần ({attendanceSummary?.total_late_minutes || 0} phút)
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -743,7 +747,7 @@ export default function OneTouchCheckIn({
       </AppModal>
 
       {/* 4. NÚT CHUYỂN CHẾ ĐỘ ĐI CÔNG TRÌNH / THỊ TRƯỜNG */}
-      <div className="w-full max-w-sm">
+      <div className="w-full">
         <AppButton
           variant={isFieldWorkMode ? "warning" : "secondary"}
           tone={isFieldWorkMode ? "light" : "dark"}
@@ -764,8 +768,8 @@ export default function OneTouchCheckIn({
           }`}
         >
           {isFieldWorkMode
-            ? "🚧 Đang bật: Chấm Công Đi Công Trình (Bấm để tắt)"
-            : "🚧 Chấm công Đi Công Trình / Thị Trường (Ngoài VP)"}
+            ? "Đang bật: Chấm công Đi Công Trình (Bấm để tắt)"
+            : "Chấm công Đi Công Trình / Thị Trường"}
         </AppButton>
 
         {isFieldWorkMode && (
@@ -891,7 +895,7 @@ export default function OneTouchCheckIn({
           type="button"
           onClick={() => handleStartCheckIn(false)}
           disabled={isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || isLockedPeriod}
-          className={`relative min-w-[208px] min-h-[208px] w-auto h-auto max-w-[90vw] px-6 py-6 md:min-w-[240px] md:min-h-[240px] rounded-full flex flex-col items-center justify-center text-white transition-all duration-200 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed border-[6px] ${
+          className={`relative w-[216px] min-h-[216px] aspect-square h-auto max-w-[85vw] p-5 rounded-full flex flex-col items-center justify-center text-white transition-all duration-200 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed border-[6px] ${
             isLockedPeriod
               ? "bg-slate-600 border-slate-400 opacity-70"
               : stage === STAGES.SUCCESS
@@ -923,7 +927,7 @@ export default function OneTouchCheckIn({
             )}
           </div>
 
-          <span className="font-black text-2xl md:text-3xl tracking-normal uppercase leading-tight text-center px-4">
+          <span className="font-black text-xl tracking-tight uppercase leading-tight text-center px-2">
             {stage === STAGES.SUBMITTING
               ? "ĐANG GỬI..."
               : stage === STAGES.LOCATING
@@ -954,7 +958,7 @@ export default function OneTouchCheckIn({
       </div>
 
       {/* Nút chụp ảnh Selfie / Hiện trường */}
-      <div className="w-full max-w-sm">
+      <div className="w-full">
         <input
           ref={cameraFileInputRef}
           type="file"
@@ -981,7 +985,7 @@ export default function OneTouchCheckIn({
       </div>
 
       {/* Kết quả & Thông báo chi tiết */}
-      <div className="w-full max-w-sm text-center space-y-3">
+      <div className="w-full text-center space-y-3">
         {spamWarning && (
           <div className="p-3.5 rounded-2xl bg-amber-500/20 border-2 border-amber-400 text-left flex items-start gap-2.5 shadow-lg">
             <AlertTriangle size={18} className="text-amber-300 shrink-0 mt-0.5" />

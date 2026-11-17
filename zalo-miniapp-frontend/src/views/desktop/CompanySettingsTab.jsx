@@ -39,25 +39,25 @@ const AccordionSection = ({
     <button
       type="button"
       onClick={() => onToggle(id)}
-      className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-slate-50/70 active:bg-slate-100/70 transition-colors min-h-[64px]"
+      className="w-full flex items-center justify-between gap-[10px] p-[14px] sm:p-4 text-left hover:bg-slate-50/70 active:bg-slate-100/70 transition-colors min-h-[64px]"
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-[10px] min-w-0 flex-1">
         <div
-          className={`w-10 h-10 rounded-xl ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
+          className={`w-[38px] h-[38px] rounded-xl ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
         >
-          <Icon className="w-5 h-5" />
+          <Icon className="w-[18px] h-[18px]" />
         </div>
-        <div className="min-w-0">
-          <h3 className="text-[15px] font-bold text-slate-800 truncate">{title}</h3>
-          <p className="text-xs text-slate-500 truncate mt-0.5">{subtitle}</p>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[15px] font-bold text-slate-800 leading-snug break-words">{title}</h3>
+          <p className="text-xs text-slate-500 leading-snug break-words mt-0.5">{subtitle}</p>
         </div>
       </div>
-      <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+      <div className="w-[34px] h-[34px] rounded-full bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
         {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </div>
     </button>
     {isOpen && (
-      <div className="px-4 pb-4 pt-2 border-t border-slate-100 space-y-4">
+      <div className="px-[14px] sm:px-4 pb-[14px] sm:pb-4 pt-2 border-t border-slate-100 space-y-4">
         {children}
       </div>
     )}
@@ -440,7 +440,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.work_start || "08:00"}
               onChange={(e) => updateField("work_start", e.target.value)}
-              className="w-32 sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
           </FormRow>
           <FormRow label="Giờ tan ca">
@@ -448,7 +448,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.work_end || "17:30"}
               onChange={(e) => updateField("work_end", e.target.value)}
-              className="w-32 sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
           </FormRow>
           <FormRow label="Bắt đầu nghỉ trưa">
@@ -456,7 +456,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.lunch_start || "12:00"}
               onChange={(e) => updateField("lunch_start", e.target.value)}
-              className="w-32 sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
           </FormRow>
           <FormRow label="Kết thúc nghỉ trưa">
@@ -464,7 +464,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.lunch_end || "13:30"}
               onChange={(e) => updateField("lunch_end", e.target.value)}
-              className="w-32 sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
             />
           </FormRow>
         </div>

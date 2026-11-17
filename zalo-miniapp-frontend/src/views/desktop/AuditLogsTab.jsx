@@ -526,12 +526,12 @@ const formatDetails = (rawDetails, action = "") => {
           </div>
         ) : (
           <div className="overflow-x-auto touch-scroll-x">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[860px] text-left text-xs">
               <thead className="bg-slate-900/90 border-b border-slate-700/80 text-slate-400 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="p-3.5 pl-4">Thời Gian</th>
                   <th className="p-3.5">Nhân Viên</th>
-                  <th className="p-3.5">Hành Động</th>
+                  <th className="p-3.5 min-w-[210px] whitespace-nowrap">Hành Động</th>
                   <th className="p-3.5">Chi Tiết Hoạt Động / Vi Phạm</th>
                   <th className="p-3.5 text-center">Bảo Toàn & Xử Lý</th>
                 </tr>
@@ -558,7 +558,7 @@ const formatDetails = (rawDetails, action = "") => {
                         {formatAuditDateTime(log.created_at)}
                       </td>
 
-                      <td className="p-3.5">
+                      <td className="p-3.5 min-w-[150px]">
                         <div className="font-black text-white flex items-center gap-1.5">
                           <UserCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                           <span>{log.ho_ten || log.actor_id || "Hệ thống"}</span>
@@ -573,9 +573,9 @@ const formatDetails = (rawDetails, action = "") => {
                         </div>
                       </td>
 
-                      <td className="p-3.5">
+                      <td className="p-3.5 min-w-[210px] whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-black text-xs border ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-black text-xs border whitespace-nowrap ${
                             isFraud
                               ? "bg-rose-600 text-white border-rose-400 shadow-sm"
                               : log.action?.includes("DISPUTED")
@@ -583,12 +583,12 @@ const formatDetails = (rawDetails, action = "") => {
                               : "bg-blue-500/15 border-blue-500/30 text-blue-300"
                           }`}
                         >
-                          {isFraud && <ShieldAlert className="w-3.5 h-3.5" />}
+                          {isFraud && <ShieldAlert className="w-3.5 h-3.5 shrink-0" />}
                           {getActionLabel(log.action)}
                         </span>
                       </td>
 
-                      <td className="p-3.5 max-w-md text-slate-200 font-medium leading-relaxed">
+                      <td className="p-3.5 min-w-[220px] max-w-md text-slate-200 font-medium leading-relaxed">
                         {formatDetails(log.details, log.action)}
                       </td>
 

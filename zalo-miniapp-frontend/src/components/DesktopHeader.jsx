@@ -68,16 +68,16 @@ export default function DesktopHeader({
 
   return (
     <header
-      className="bg-slate-900 border-b border-slate-800 pl-3 sm:pl-6 pr-[96px] lg:pr-8 pb-2.5 flex items-center justify-between gap-2 sticky top-0 z-40 select-none shadow-sm"
+      className="bg-slate-900 border-b border-slate-800 px-[12px] sm:px-6 lg:px-8 pb-2.5 flex items-center justify-between gap-[6px] sm:gap-2 sticky top-0 z-40 select-none shadow-sm"
       style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
     >
       {/* Trái: Nút Menu Mobile + Nút Trở về trên tab phụ + Tiêu đề tab */}
-      <div className="flex items-center gap-2 min-w-0 shrink-0 sm:shrink">
+      <div className="flex items-center gap-[6px] sm:gap-2 min-w-0 shrink-0 sm:shrink">
         {onOpenMobileMenu && (
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            className="lg:hidden min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center shrink-0"
+            className="lg:hidden min-w-[44px] min-h-[44px] p-[8px] sm:p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center shrink-0"
             aria-label="Mở danh mục quản trị"
             title="Mở danh mục quản trị"
           >
@@ -88,11 +88,12 @@ export default function DesktopHeader({
         {currentTab && currentTab !== "matrix" && typeof setCurrentTab === "function" && (
           <button
             type="button"
+            aria-label="Trở về"
             onClick={() => setCurrentTab("matrix")}
-            className="min-h-[44px] px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 flex items-center gap-1 text-xs font-extrabold shrink-0"
+            className="min-w-[44px] min-h-[44px] px-[8px] sm:px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 flex items-center justify-center gap-1 text-xs font-extrabold shrink-0"
           >
-            <ArrowLeft size={15} />
-            <span>Trở về</span>
+            <ArrowLeft size={15} className="shrink-0" />
+            <span className="hidden sm:inline">Trở về</span>
           </button>
         )}
 
@@ -119,8 +120,8 @@ export default function DesktopHeader({
         </div>
       </div>
 
-      {/* Phải: Cảnh báo + Chế độ NV + Đăng xuất rõ ràng (Đã chừa 96px tránh nút ... và X của Zalo) */}
-      <div className="flex items-center gap-1.5 shrink-0 relative">
+      {/* Phải: Cảnh báo + Chế độ NV + Đăng xuất rõ ràng */}
+      <div className="flex items-center gap-[6px] sm:gap-1.5 shrink-0 relative">
         {/* Đồng hồ số thời gian thực (Desktop) */}
         <div className="hidden xl:flex items-center gap-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-slate-200">
           <Clock size={14} className="text-blue-400" />
@@ -134,7 +135,7 @@ export default function DesktopHeader({
           type="button"
           onClick={() => setShowAlertPanel(!showAlertPanel)}
           aria-label="Trung tâm cảnh báo và thông báo"
-          className={`relative min-w-[44px] min-h-[44px] px-2.5 py-2 rounded-xl border flex items-center justify-center gap-1.5 text-xs font-black transition-all ${
+          className={`relative min-w-[44px] min-h-[44px] px-[8px] sm:px-2.5 py-1.5 rounded-xl border flex items-center justify-center gap-1.5 text-xs font-black transition-all ${
             totalRedAlerts > 0
               ? "bg-rose-600/20 border-rose-500 text-rose-300 shadow-lg shadow-rose-600/20"
               : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
@@ -143,7 +144,7 @@ export default function DesktopHeader({
         >
           <Bell size={16} className={totalRedAlerts > 0 ? "text-rose-400 animate-bounce" : "text-slate-300"} />
           {totalRedAlerts > 0 && (
-            <span className="px-1.5 py-0.5 text-xs leading-none rounded-full bg-rose-600 text-white font-black">
+            <span className="px-[5px] py-0.5 text-[11px] leading-none rounded-full bg-rose-600 text-white font-black">
               {totalRedAlerts}
             </span>
           )}
@@ -179,12 +180,13 @@ export default function DesktopHeader({
         {typeof onLogout === "function" && (
           <button
             type="button"
+            aria-label="Đăng xuất"
             onClick={onLogout}
             title="Đăng xuất"
-            className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-100 hover:text-rose-200 border border-slate-700 hover:border-rose-500/40 flex items-center gap-1.5 text-xs font-bold shrink-0 transition-colors"
+            className="min-w-[44px] min-h-[44px] px-[10px] sm:px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-100 hover:text-rose-200 border border-slate-700 hover:border-rose-500/40 flex items-center justify-center gap-1.5 text-xs font-bold shrink-0 transition-colors"
           >
             <LogOut size={14} className="shrink-0" />
-            <span>Đăng xuất</span>
+            <span className="hidden sm:inline">Đăng xuất</span>
           </button>
         )}
 

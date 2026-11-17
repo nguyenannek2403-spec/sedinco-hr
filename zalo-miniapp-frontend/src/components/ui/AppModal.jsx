@@ -95,7 +95,7 @@ export default function AppModal({
           }`}
           onWheel={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="flex items-center gap-2.5 min-w-[200px] flex-1">
             <button
               type="button"
               disabled={disableClose}
@@ -132,7 +132,7 @@ export default function AppModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
             {headerExtra}
             {showCloseX && (
               <button

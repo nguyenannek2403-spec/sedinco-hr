@@ -577,9 +577,41 @@ async function inspectPhysicsAndGeometry(session, label, { expectModal = false, 
             }
         }
 
-        // Check 5: Zero Jargon
+        // Check 5: Zero Jargon & Anti-Squash Text Structure
         const bodyText = (document.body.innerText || '').trim();
         const jargonMatch = bodyText.match(/\\b(WORK_HOURS|FULL_DAY|MORNING|AFTERNOON|TiDB|undefined|null|NaN|Sổ lỗi P1|TypeError|ReferenceError|attendance_edit|payroll_approve)\\b|\\[object Object\\]/);
+
+        const crushedTextNodes = [];
+        const rootFs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        const minTruncateW = rootFs >= 24 ? 48 : 65;
+        const towerMaxW = rootFs >= 24 ? 52 : 75;
+        const textEls = Array.from(activeScope.querySelectorAll('div, span, p, h1, h2, h3, h4, label')).filter(isVisible);
+        for (const el of textEls) {
+            if (el.closest('.grid-cols-7')) continue;
+            const directText = Array.from(el.childNodes)
+                .filter((n) => n.nodeType === 3)
+                .map((n) => n.textContent || '')
+                .join('')
+                .trim();
+            if (directText.length < 5) continue;
+            const r = el.getBoundingClientRect();
+            const cs = getComputedStyle(el);
+            const fs = parseFloat(cs.fontSize) || 14;
+            const lh = parseFloat(cs.lineHeight) || fs * 1.35;
+            const isTruncatedCrushed = el.classList.contains('truncate') && r.width < minTruncateW && el.scrollWidth > el.clientWidth + 2;
+            const isTinyWidthWrapped = r.width < 45 && (r.height > lh * 1.8 || el.scrollWidth > el.clientWidth + 2);
+            const isVerticalTower = r.height > lh * 3.2 && r.width < towerMaxW;
+            if (isTruncatedCrushed || isTinyWidthWrapped || isVerticalTower) {
+                crushedTextNodes.push({
+                    text: directText.slice(0, 35),
+                    w: Math.round(r.width),
+                    h: Math.round(r.height),
+                    lh: Math.round(lh),
+                    truncate: el.classList.contains('truncate'),
+                    scrollW: Math.round(el.scrollWidth)
+                });
+            }
+        }
 
         return {
             overflowPx,
@@ -589,6 +621,7 @@ async function inspectPhysicsAndGeometry(session, label, { expectModal = false, 
             overlaps,
             undersizedButtons,
             clippedInputs,
+            crushedTextNodes,
             jargonFound: jargonMatch ? jargonMatch[0] : null
         };
     })()`);
@@ -599,6 +632,7 @@ async function inspectPhysicsAndGeometry(session, label, { expectModal = false, 
     assert.ok(audit.overflowPx <= 1, `[${label}] CHECK-4 FAIL: Horizontal overflow ${audit.overflowPx}px detected`);
     assert.equal(audit.clippedInputs.length, 0, `[${label}] CHECK-4 FAIL: Clipped inputs detected: ${JSON.stringify(audit.clippedInputs)}`);
     assert.equal(audit.undersizedButtons.length, 0, `[${label}] CHECK-4 FAIL: Buttons below min touch height: ${JSON.stringify(audit.undersizedButtons)}`);
+    assert.equal(audit.crushedTextNodes.length, 0, `[${label}] CHECK-4 FAIL: Crushed/vertical-wrapped text detected: ${JSON.stringify(audit.crushedTextNodes)}`);
     assert.equal(audit.jargonFound, null, `[${label}] CHECK-5 FAIL: Jargon/invalid token detected in DOM: ${audit.jargonFound}`);
 
     return audit;

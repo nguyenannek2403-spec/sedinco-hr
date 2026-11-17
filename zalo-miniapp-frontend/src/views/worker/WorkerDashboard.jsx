@@ -13,7 +13,6 @@ import OneTouchCheckIn from "../../components/OneTouchCheckIn";
 import WorkerHistoryTab from "./WorkerHistoryTab";
 import WorkerRequestsTab from "./WorkerRequestsTab";
 import WorkerProfileTab from "./WorkerProfileTab";
-import CompanyLogo from "../../components/CompanyLogo";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 
 export default function WorkerDashboard({
@@ -31,43 +30,49 @@ export default function WorkerDashboard({
 
   return (
     <div
-      className="h-[100dvh] bg-slate-950 text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden"
+      className="w-full h-[100dvh] bg-slate-950 text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden"
     >
-      {/* Top Mobile Header - Chuẩn hóa 3 vùng: Trái (Trở về/Logo) - Giữa (Tên + Mã/Role) - Phải (Đăng xuất) & chừa cụm nút Zalo */}
+      {/* Top Mobile Header - Chuẩn hóa 3 vùng cân đối: Trái (Trở về/Quản trị/Logo) - Giữa (Họ tên + Mã NV) - Phải (Đăng xuất) */}
       <header
-        className="shrink-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 pl-3 pr-[96px] pb-2.5 flex items-center justify-between gap-2 shadow-sm"
+        className="shrink-0 z-40 w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3.5 pb-2.5 flex items-center justify-between gap-2.5 shadow-sm"
         style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
       >
-        {/* Trái: Nút Trở về (ở tab phụ) hoặc Logo công ty */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Trái: Nút Trở về (ở tab phụ), nút Quản trị (nếu có quyền), hoặc Logo Sedinco */}
+        <div className="flex items-center shrink-0">
           {activeTab !== "checkin" ? (
             <button
               type="button"
               onClick={() => setActiveTab("checkin")}
-              className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 flex items-center gap-1.5 text-xs font-bold shrink-0"
+              className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 flex items-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 shrink-0" />
               <span>Trở về</span>
             </button>
           ) : canSwitchToManagement && typeof onRoleSwitch === "function" ? (
             <button
               type="button"
               onClick={() => onRoleSwitch(currentUser.role)}
-              className="min-h-[44px] px-3 py-2 bg-amber-500/20 border border-amber-500/40 text-amber-200 rounded-xl text-xs font-bold shrink-0"
+              className="min-h-[44px] px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 rounded-xl text-xs font-bold whitespace-nowrap shrink-0"
             >
               Quản trị
             </button>
           ) : (
-            <CompanyLogo size="small" theme="dark" layout="horizontal" showSubtitle={false} />
+            <div className="w-10 h-10 rounded-xl bg-white border border-slate-700/80 flex items-center justify-center p-1 shadow-sm shrink-0">
+              <img
+                src="/sedinco-logo.png"
+                alt="Sedinco HR"
+                className="w-full h-full object-contain select-none"
+              />
+            </div>
           )}
         </div>
 
-        {/* Giữa: Tên nhân viên nổi bật + Mã NV & Vai trò */}
-        <div className="flex-1 min-w-0 text-center px-1">
-          <div className="text-xs font-extrabold text-white leading-tight truncate">
+        {/* Giữa: Tên nhân viên nổi bật + Mã NV & Vai trò (luôn nằm ngang, không gãy dọc từng chữ) */}
+        <div className="flex-1 min-w-0 px-1 text-left">
+          <div className="text-sm font-extrabold text-white leading-tight truncate">
             {currentUser?.ho_ten || "Nhân viên"}
           </div>
-          <div className="text-xs text-blue-300 font-semibold leading-snug break-words">
+          <div className="text-xs text-blue-300 font-semibold leading-snug truncate mt-0.5">
             {currentUser?.ma_nv || "NV"} • {currentUser?.role === "admin" ? "Quản trị" : currentUser?.role === "accountant" ? "Kế toán" : "Nhân sự"}
           </div>
         </div>
@@ -77,7 +82,7 @@ export default function WorkerDashboard({
           type="button"
           onClick={onLogout}
           title="Đăng xuất"
-          className="min-h-[44px] px-3 py-2 bg-slate-800/90 hover:bg-rose-500/20 border border-slate-700 hover:border-rose-500/40 text-slate-200 hover:text-rose-300 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-bold shrink-0"
+          className="min-h-[44px] px-3 py-2 bg-slate-800/90 hover:bg-rose-500/20 border border-slate-700 hover:border-rose-500/40 text-slate-200 hover:text-rose-300 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0"
         >
           <LogOut className="w-3.5 h-3.5 shrink-0" />
           <span>Đăng xuất</span>
@@ -88,7 +93,7 @@ export default function WorkerDashboard({
       <main data-scroll-container="worker" className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div key={activeTab} className="animate-tab-enter pb-6">
         {activeTab === "checkin" && (
-          <div className="p-4 space-y-4">
+          <div className="p-3.5 space-y-3.5">
             <OneTouchCheckIn
               currentUser={currentUser}
               showToast={showToast}

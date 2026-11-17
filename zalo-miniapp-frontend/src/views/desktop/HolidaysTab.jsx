@@ -160,10 +160,10 @@ export default function HolidaysTab({ showToast }) {
           </div>
         ) : (
           <div className="overflow-x-auto touch-scroll-x">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[640px] text-left text-xs">
               <thead className="bg-slate-900/80 border-b border-slate-700/80 text-slate-300 font-semibold">
                 <tr>
-                  <th className="p-3.5 pl-5 whitespace-nowrap">Tên dịp lễ</th>
+                  <th className="p-3.5 pl-5 min-w-[200px] whitespace-nowrap">Tên dịp lễ</th>
                   <th className="p-3.5 whitespace-nowrap">Từ ngày</th>
                   <th className="p-3.5 whitespace-nowrap">Đến ngày</th>
                   <th className="p-3.5 whitespace-nowrap">Hệ số lương</th>
@@ -173,7 +173,7 @@ export default function HolidaysTab({ showToast }) {
               <tbody className="divide-y divide-slate-700/50 text-slate-300">
                 {holidays.map((h) => (
                   <tr key={h.id} className="perf-list-item hover:bg-slate-700/30 transition-colors">
-                    <td className="p-3.5 pl-5 font-semibold text-white flex items-center gap-2">
+                    <td className="p-3.5 pl-5 min-w-[200px] font-semibold text-white flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-rose-400 shrink-0" />
                       <span>{h.holiday_name || h.name}</span>
                     </td>

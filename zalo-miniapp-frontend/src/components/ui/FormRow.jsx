@@ -16,7 +16,7 @@ export default function FormRow({
 }) {
   return (
     <div
-      className={`flex items-center justify-between gap-3 px-3.5 py-2.5 ${
+      className={`flex items-center justify-between gap-[10px] sm:gap-3 px-[12px] sm:px-3.5 py-2.5 ${
         dark ? "text-slate-100" : "text-slate-800"
       } ${className}`}
     >

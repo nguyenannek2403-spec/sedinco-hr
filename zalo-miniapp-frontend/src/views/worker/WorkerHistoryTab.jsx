@@ -261,15 +261,19 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                 </strong>
               </div>
             )}
-            <div className="text-xs text-slate-200 font-semibold flex flex-wrap items-center gap-1.5">
-              <span>Tháng này:</span>
-              <span className="text-amber-300 font-bold">
-                Đi trễ {summary.late_count || 0} lần (Tổng {summary.total_late_minutes || 0} phút)
-              </span>
-              <span className="text-slate-400">•</span>
-              <span className="text-emerald-300 font-bold">
-                Đi sớm/Đúng giờ {summary.on_time_count || 0} ngày
-              </span>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="bg-slate-800/60 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
+                <span className="text-xs text-slate-300 block">Đúng giờ tháng này</span>
+                <span className="text-xs font-bold text-emerald-300">
+                  {summary.on_time_count || 0} ngày
+                </span>
+              </div>
+              <div className="bg-slate-800/60 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
+                <span className="text-xs text-slate-300 block">Đi trễ tháng này</span>
+                <span className="text-xs font-bold text-amber-300">
+                  {summary.late_count || 0} lần ({summary.total_late_minutes || 0} phút)
+                </span>
+              </div>
             </div>
           </div>
         </div>

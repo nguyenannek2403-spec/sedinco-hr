@@ -23,7 +23,7 @@ export default function AuthView({
 
   return (
     <div
-      className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 relative overflow-x-hidden overflow-y-auto"
+      className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-[14px] sm:px-4 relative overflow-x-hidden overflow-y-auto"
       style={{
         paddingTop: "calc(env(safe-area-inset-top, 0px) + 48px)",
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)"
@@ -33,7 +33,7 @@ export default function AuthView({
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/3 w-80 h-80 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md bg-slate-900/90 border border-slate-700/80 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-5">
+      <div className="w-full max-w-md bg-slate-900/90 border border-slate-700/80 rounded-3xl p-[18px] sm:p-6 md:p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-5">
         {/* Logo Sedinco */}
         <div className="flex justify-center">
           <CompanyLogo size="large" theme="dark" showSubtitle={true} />
@@ -49,7 +49,7 @@ export default function AuthView({
 
         {/* NÚT ĐĂNG NHẬP NHANH 1 CHẠM BẰNG ZALO (Zero-Password Auto Login) */}
         {typeof onZaloOneTouchLogin === "function" && (
-          <div className="bg-gradient-to-br from-emerald-950/80 via-slate-900 to-teal-950/70 border-2 border-emerald-500/50 rounded-2xl p-4 space-y-2.5 shadow-lg shadow-emerald-950/40">
+          <div className="bg-gradient-to-br from-emerald-950/80 via-slate-900 to-teal-950/70 border-2 border-emerald-500/50 rounded-2xl p-[14px] sm:p-4 space-y-2.5 shadow-lg shadow-emerald-950/40">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="font-black text-emerald-300 uppercase tracking-wide flex items-center gap-1.5">
                 <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
@@ -72,10 +72,10 @@ export default function AuthView({
               type="button"
               disabled={isLoggingIn}
               onClick={() => onZaloOneTouchLogin(false)}
-              className="w-full min-h-[48px] py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full min-h-[48px] py-3 px-[12px] sm:px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Zap className="w-4 h-4 fill-slate-950 shrink-0" />
-              <span>
+              <span className="min-w-0 leading-snug text-center">
                 {linkedZaloMeta?.ma_nv
                   ? `⚡ Đăng nhập nhanh 1 chạm bằng Zalo (${linkedZaloMeta.ma_nv})`
                   : "⚡ Đăng nhập nhanh 1 chạm bằng Zalo"}
