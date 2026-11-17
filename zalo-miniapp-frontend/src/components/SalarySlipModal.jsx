@@ -721,15 +721,16 @@ export default function SalarySlipModal({
                       <span className="text-xs font-bold text-slate-700">
                         Đính kèm Ảnh minh chứng (&lt;50KB) hoặc Video ngắn (&lt;800KB):
                       </span>
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="secondary"
+                        tone="dark"
+                        icon={Camera}
                         onClick={() => fileInputRef.current?.click()}
-                        className="min-h-[44px] px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                        className="text-xs px-3.5 py-2"
                       >
-                        <Camera size={14} />
-                        <Video size={14} />
-                        <span>Chọn Ảnh / Video</span>
-                      </button>
+                        <Video size={14} className="inline mr-1" />
+                        Chọn Ảnh / Video
+                      </AppButton>
                     </div>
                     <input
                       ref={fileInputRef}

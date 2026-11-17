@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { AlertTriangle, CheckCircle2, HelpCircle, Loader2, X, ArrowLeft } from "lucide-react";
-import { useLockBodyScroll } from "../hooks/useLockBodyScroll";
+import { AlertTriangle, CheckCircle2, HelpCircle } from "lucide-react";
+import AppButton from "./ui/AppButton";
+import AppModal from "./ui/AppModal";
 
 /**
- * Hộp thoại xác nhận / nhập liệu trong ứng dụng (thay thế window.confirm / window.prompt / alert
- * vốn bị chặn hoặc hoạt động không ổn định trên WebView Zalo Mini App iOS/Android).
+ * Hộp thoại xác nhận / nhập liệu chuẩn Design System:
+ * - Tích hợp trực tiếp AppModal (ReactDOM.createPortal + Multi-layer Scroll-Lock + Z-index stack >= 120)
+ * - Thay thế hoàn toàn window.confirm / window.prompt / alert
  */
 export default function ConfirmDialog({
   open = false,
@@ -25,8 +27,6 @@ export default function ConfirmDialog({
   const [inputVal, setInputVal] = useState(inputDefaultValue || "");
   const [validationError, setValidationError] = useState("");
 
-  useLockBodyScroll(open);
-
   useEffect(() => {
     if (open) {
       setInputVal(inputDefaultValue || "");
@@ -34,25 +34,23 @@ export default function ConfirmDialog({
     }
   }, [open, inputDefaultValue]);
 
-  if (!open) return null;
-
   const palette =
     variant === "danger"
       ? {
           iconBg: "bg-rose-100 text-rose-600",
           Icon: AlertTriangle,
-          btn: "bg-rose-600 hover:bg-rose-700 text-white",
+          btnVariant: "danger",
         }
       : variant === "warning"
       ? {
           iconBg: "bg-amber-100 text-amber-600",
           Icon: AlertTriangle,
-          btn: "bg-amber-500 hover:bg-amber-600 text-slate-950",
+          btnVariant: "warning",
         }
       : {
           iconBg: "bg-blue-100 text-blue-600",
           Icon: CheckCircle2,
-          btn: "bg-blue-600 hover:bg-blue-700 text-white",
+          btnVariant: "primary",
         };
 
   const IconComp = palette.Icon || HelpCircle;
@@ -71,103 +69,70 @@ export default function ConfirmDialog({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[90] bg-slate-950/70 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={{
-        paddingTop: "env(safe-area-inset-top, 0px)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-      }}
-      onTouchMove={(e) => {
-        if (e.target === e.currentTarget) e.preventDefault();
-      }}
-      onClick={() => {
-        if (!loading && onCancel) onCancel();
-      }}
-    >
-      <div
-        className="w-full sm:max-w-md max-h-[88vh] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-sheet-up"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-2 px-4 py-3.5 border-b border-slate-100 shrink-0">
-          <button
-            type="button"
-            disabled={loading}
-            onClick={onCancel}
-            className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs sm:text-sm font-semibold shrink-0 disabled:opacity-50"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Trở về</span>
-          </button>
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${palette.iconBg}`}>
-              <IconComp className="w-4 h-4" />
-            </div>
-            <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug break-words">{title}</h3>
-          </div>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={onCancel}
-            className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 disabled:opacity-50"
-            aria-label="Đóng"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <AppModal
+      open={Boolean(open)}
+      onClose={onCancel}
+      disableClose={loading}
+      closeOnBackdrop={!loading}
+      title={title}
+      icon={
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${palette.iconBg}`}>
+          <IconComp className="w-4 h-4" />
         </div>
-
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-5 py-4 space-y-3">
-          {message && (
-            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
-              {message}
-            </p>
-          )}
-
-          {showInput && (
-            <div className="space-y-1.5">
-              {inputLabel && (
-                <label className="block text-xs font-semibold text-slate-700">{inputLabel}</label>
-              )}
-              <textarea
-                rows={3}
-                value={inputVal}
-                onChange={(e) => {
-                  setInputVal(e.target.value);
-                  if (validationError) setValidationError("");
-                }}
-                placeholder={inputPlaceholder}
-                className="w-full p-3 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
-              />
-              {validationError && (
-                <p className="text-xs font-medium text-rose-600">{validationError}</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div
-          className="grid grid-cols-2 gap-2.5 px-5 py-3.5 border-t border-slate-100 bg-white shrink-0"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
-        >
-          <button
-            type="button"
+      }
+      maxWidthClass="sm:max-w-md"
+      maxHeightClass="max-h-[88vh]"
+      zIndexClass="z-[120]"
+      footer={
+        <div className="grid grid-cols-2 gap-2.5">
+          <AppButton
+            variant="secondary"
             disabled={loading}
             onClick={onCancel}
-            className="min-h-[46px] px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold disabled:opacity-50"
+            className="w-full"
           >
             {cancelLabel}
-          </button>
-          <button
-            type="button"
-            disabled={loading}
+          </AppButton>
+          <AppButton
+            variant={palette.btnVariant}
+            loading={loading}
+            loadingText="Đang xử lý..."
             onClick={handleConfirmClick}
-            className={`min-h-[46px] px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50 ${palette.btn}`}
+            className="w-full font-bold"
           >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            <span>{loading ? "Đang xử lý..." : confirmLabel}</span>
-          </button>
+            {confirmLabel}
+          </AppButton>
         </div>
+      }
+    >
+      <div className="px-5 py-4 space-y-3">
+        {message && (
+          <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line break-words">
+            {message}
+          </p>
+        )}
+
+        {showInput && (
+          <div className="space-y-1.5">
+            {inputLabel && (
+              <label className="block text-xs font-semibold text-slate-700">{inputLabel}</label>
+            )}
+            <textarea
+              rows={3}
+              value={inputVal}
+              onChange={(e) => {
+                setInputVal(e.target.value);
+                if (validationError) setValidationError("");
+              }}
+              placeholder={inputPlaceholder}
+              className="w-full p-3 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+            />
+            {validationError && (
+              <p className="text-xs font-medium text-rose-600">{validationError}</p>
+            )}
+          </div>
+        )}
       </div>
-    </div>
+    </AppModal>
   );
 }
-

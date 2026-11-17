@@ -12,12 +12,19 @@ export function normalizeApiUrl(raw) {
 }
 
 export function resolveApiBase() {
+  if (typeof window !== "undefined" && window.__API_BASE__) {
+    return normalizeApiUrl(window.__API_BASE__);
+  }
+  if (
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") &&
+    (window.__USE_ORIGIN_API__ || (window.location.port !== "5173" && window.location.port !== "2999"))
+  ) {
+    return `${window.location.origin}/api`;
+  }
   const envUrl = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env.VITE_API_URL : null;
   if (envUrl && typeof envUrl === "string" && envUrl.trim()) {
     return normalizeApiUrl(envUrl);
-  }
-  if (typeof window !== "undefined" && window.__API_BASE__) {
-    return normalizeApiUrl(window.__API_BASE__);
   }
   if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
     return `${window.location.origin}/api`;
@@ -52,6 +59,9 @@ export const setOnUnauthorizedCallback = (callback) => {
 // Request Interceptor: Gắn Token và Idempotency-Key
 apiClient.interceptors.request.use(
   (config) => {
+    if (typeof window !== "undefined" && window.__API_BASE__) {
+      config.baseURL = normalizeApiUrl(window.__API_BASE__);
+    }
     let token = currentAuthToken;
     if (!token && typeof window !== "undefined") {
       try {

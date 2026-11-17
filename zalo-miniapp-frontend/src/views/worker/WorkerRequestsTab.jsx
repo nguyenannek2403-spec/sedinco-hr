@@ -312,6 +312,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
           existingRequests={requests}
           leaveBalance={leaveBalance}
           initialMode={modalInitialType}
+          showToast={showToast}
           onClose={() => setIsModalOpen(false)}
           onRequestSubmitted={() => {
             setIsModalOpen(false);

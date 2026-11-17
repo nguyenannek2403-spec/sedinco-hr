@@ -13,6 +13,7 @@ import {
   LogOut
 } from "lucide-react";
 import { ROLE_LABELS, ROLES } from "../constants/roles";
+import { AppModal } from "./ui";
 
 export default function DesktopHeader({
   currentUser,
@@ -187,32 +188,23 @@ export default function DesktopHeader({
           </button>
         )}
 
-        {/* Popover Danh Sách Cảnh Báo Nóng (Cảnh báo chấm công + Khiếu nại lương) */}
-        {showAlertPanel && (
-          <div className="fixed sm:absolute right-3 sm:right-0 top-[76px] sm:top-12 w-[92vw] max-w-sm bg-slate-900 border-2 border-slate-700 rounded-2xl shadow-2xl p-4 z-50 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-                <span className="text-sm font-bold text-white">
-                  Cảnh báo nóng ({totalRedAlerts})
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAlertPanel(false)}
-                aria-label="Đóng"
-                className="min-w-[44px] min-h-[44px] p-2 text-slate-200 hover:text-white bg-slate-800 rounded-xl flex items-center justify-center cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
+        {/* Modal Danh Sách Cảnh Báo Nóng (Render qua AppModal Portal chống trôi nền) */}
+        <AppModal
+          open={showAlertPanel}
+          onClose={() => setShowAlertPanel(false)}
+          theme="dark"
+          title={`Cảnh báo nóng (${totalRedAlerts})`}
+          subtitle="Giám sát vị trí, thiết bị & khiếu nại lương"
+          icon={<ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />}
+          maxWidthClass="max-w-md"
+        >
+          <div className="p-4 space-y-3">
             {totalRedAlerts === 0 ? (
-              <p className="text-xs text-slate-300 py-4 text-center">
+              <p className="text-xs text-slate-300 py-6 text-center">
                 Hệ thống ổn định. Không có cảnh báo vị trí/thiết bị hay khiếu nại lương nào đang chờ xử lý.
               </p>
             ) : (
-              <div className="space-y-2.5 max-h-72 overflow-y-auto">
+              <div className="space-y-2.5">
                 {fraudCount > 0 && activeRole === ROLES.ADMIN && (
                   <button
                     type="button"
@@ -220,7 +212,7 @@ export default function DesktopHeader({
                       if (setCurrentTab) setCurrentTab("audit_logs");
                       setShowAlertPanel(false);
                     }}
-                    className="w-full text-left p-3 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 border border-rose-500/40 space-y-1 transition"
+                    className="w-full min-h-[46px] text-left p-3.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 border border-rose-500/40 space-y-1 transition"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-black text-rose-200">
@@ -241,7 +233,7 @@ export default function DesktopHeader({
                       if (setCurrentTab) setCurrentTab("payroll");
                       setShowAlertPanel(false);
                     }}
-                    className="w-full text-left p-3 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 border border-amber-500/40 space-y-1 transition"
+                    className="w-full min-h-[46px] text-left p-3.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 border border-amber-500/40 space-y-1 transition"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-black text-amber-200 flex items-center gap-1">
@@ -263,20 +255,20 @@ export default function DesktopHeader({
                       if (setCurrentTab) setCurrentTab("devices");
                       setShowAlertPanel(false);
                     }}
-                    className="w-full text-left p-3 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 space-y-1 transition"
+                    className="w-full min-h-[46px] text-left p-3.5 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 space-y-1 transition"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-black text-indigo-300">
                         📱 {deviceCount} Yêu cầu đổi thiết bị chờ duyệt
                       </span>
-                      <span className="text-xs font-bold text-indigo-200 underline">Xét duyệt</span>
+                      <span className="text-xs font-bold text-indigo-200 underline shrink-0">Xét duyệt</span>
                     </div>
                   </button>
                 )}
               </div>
             )}
           </div>
-        )}
+        </AppModal>
       </div>
     </header>
   );

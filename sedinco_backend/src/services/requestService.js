@@ -548,17 +548,19 @@ class RequestService {
                     if (logRes && logRes.length > 0 && logRes[0].status === '1') {
                         newStatus = '1/OT';
                     }
+                    const otMatch = String(row.reason || '').match(/(\d+(?:\.\d+)?)\s*(?:giờ|h\b)/i);
+                    const approvedOtHours = otMatch ? Math.min(12, Math.max(0.5, Number(otMatch[1]))) : 4;
                     await txQuery(
                         `INSERT INTO attendance_logs (employee_id, record_date, status, ot_hours)
-                         VALUES (?, ?, ?, 4)
-                         ON DUPLICATE KEY UPDATE status = ?, ot_hours = GREATEST(IFNULL(ot_hours, 0), 4)`,
-                        [row.employee_id, dateStr, newStatus, newStatus]
+                         VALUES (?, ?, ?, ?)
+                         ON DUPLICATE KEY UPDATE status = ?, ot_hours = GREATEST(IFNULL(ot_hours, 0), ?)`,
+                        [row.employee_id, dateStr, newStatus, approvedOtHours, newStatus, approvedOtHours]
                     );
                     await txQuery(
                         `INSERT INTO ot_registrations (employee_id, work_date, expected_hours, reason, approved_by, status)
-                         VALUES (?, ?, 4, ?, ?, 'approved')
-                         ON DUPLICATE KEY UPDATE status = 'approved', approved_by = VALUES(approved_by)`,
-                        [row.employee_id, dateStr, row.reason || 'Duyệt từ đơn tăng ca', actorId || 'admin']
+                         VALUES (?, ?, ?, ?, ?, 'approved')
+                         ON DUPLICATE KEY UPDATE status = 'approved', expected_hours = GREATEST(expected_hours, VALUES(expected_hours)), approved_by = VALUES(approved_by)`,
+                        [row.employee_id, dateStr, approvedOtHours, row.reason || 'Duyệt từ đơn tăng ca', actorId || 'admin']
                     );
                 } else if (isUnpaidLeave) {
                     await txQuery(

@@ -395,7 +395,7 @@ const formatDetails = (rawDetails, action = "") => {
           <select
             value={selectedEmp}
             onChange={(e) => setSelectedEmp(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold"
+            className="min-h-[46px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white font-semibold"
           >
             <option value="">👤 Tất cả nhân sự ({employees.length})</option>
             {employees.map((emp) => (
@@ -409,7 +409,7 @@ const formatDetails = (rawDetails, action = "") => {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold"
+            className="min-h-[46px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white font-semibold"
           >
             <option value="">📂 Tất cả loại hành động</option>
             <option value="fraud">🚨 Cảnh báo chấm công bất thường (Sai vị trí / Thiết bị lạ)</option>
@@ -447,7 +447,7 @@ const formatDetails = (rawDetails, action = "") => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm mã NV, nội dung..."
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500"
+              className="w-full min-h-[46px] bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500"
             />
           </div>
 
@@ -456,7 +456,7 @@ const formatDetails = (rawDetails, action = "") => {
             <button
               type="button"
               onClick={() => setPinnedOnly(!pinnedOnly)}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
+              className={`flex-1 min-h-[46px] py-2.5 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
                 pinnedOnly
                   ? "bg-amber-500/20 border-amber-400 text-amber-300"
                   : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"

@@ -353,64 +353,6 @@ class EmployeeService {
     }
 
     /**
-     * Kiểm tra ràng buộc thiết bị (Proposal 1: Chỉ áp dụng cho worker / Mini App)
-     */
-    async checkDeviceBinding({ ma_nv, role, device_info }) {
-        // Chỉ áp dụng cho worker
-        if (role !== 'worker' && role !== 'employee') {
-            return { allowed: true };
-        }
-
-        if (!ma_nv) {
-            return { allowed: true };
-        }
-
-        const rows = await query('SELECT bound_device_id, device_binding_mode FROM employees WHERE ma_nv = ?', [ma_nv]);
-        if (!rows || rows.length === 0) {
-            return { allowed: true };
-        }
-
-        const emp = rows[0];
-        const mode = emp.device_binding_mode || 'recording';
-
-        // Lần đầu: Tự động ghi nhận (Recording Mode)
-        if (!emp.bound_device_id) {
-            if (device_info) {
-                await query('UPDATE employees SET bound_device_id = ? WHERE ma_nv = ?', [device_info, ma_nv]);
-                await logAuditEvent({
-                    actor_id: ma_nv,
-                    actor_role: 'worker',
-                    action: 'BIND_DEVICE_AUTO',
-                    resource: 'employee_device',
-                    details: { bound_device_id: device_info, mode }
-                });
-            }
-            return { allowed: true, newlyBound: true };
-        }
-
-        // Thiết bị khớp với thiết bị đã đăng ký
-        if (emp.bound_device_id === device_info) {
-            return { allowed: true };
-        }
-
-        // Thiết bị khác thiết bị đã đăng ký:
-        // Chế độ bắt buộc (Enforced Mode): Chặn ngay lập tức
-        if (mode === 'enforced') {
-            return {
-                allowed: false,
-                reason: `Thiết bị này (${device_info || 'Không rõ'}) chưa được liên kết với tài khoản của bạn! Vui lòng gửi yêu cầu đổi thiết bị tới Quản trị viên.`
-            };
-        }
-
-        // Chế độ ghi nhận (Recording Mode): Vẫn cho qua nhưng gắn cờ nghi vấn
-        return {
-            allowed: true,
-            is_suspicious: true,
-            suspicious_reason: `Phát hiện thiết bị khác (${device_info}) với thiết bị đã đăng ký (${emp.bound_device_id}) ở chế độ ghi nhận`
-        };
-    }
-
-    /**
      * Liên kết tài khoản Zalo thông qua Access Token được Server xác minh với Zalo
      */
     async bindZalo(ma_nv, zalo_token, current_user = null) {

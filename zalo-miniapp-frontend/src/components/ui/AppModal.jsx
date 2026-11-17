@@ -1,14 +1,15 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, X } from "lucide-react";
-import useLockBodyScroll from "../../hooks/useLockBodyScroll";
+import { useModalStack } from "../../hooks/useLockBodyScroll";
 import AppButton from "./AppButton";
 
 /**
  * Hộp thoại chuẩn Design System cho Zalo Mini App & Desktop:
- * - Tự khóa cuộn nền & chặn vuốt xuyênbackdrop
- * - Tự tính safe-area tránh cụm nút Zalo phía trên
- * - Luôn có nút "< Trở về" ở góc trên trái & nút "Đóng / Quay lại" ở đáy Modal
- * - Thân cuộn mượt 60fps trên iOS/Android
+ * - Render qua ReactDOM.createPortal(..., document.body) tách hoàn toàn khỏi DOM nền
+ * - Tự khóa cuộn đa tầng (inert + bg-scroll-locked) & cách ly sự kiện wheel/touchmove
+ * - Tự động quản lý Z-Index ngăn xếp khi mở Modal lồng nhau (100 -> 110 -> 120)
+ * - Tự tính safe-area tránh cụm nút Zalo phía trên & luôn có nút "< Trở về" + "Đóng / Quay lại"
  */
 export default function AppModal({
   isOpen = true,
@@ -23,34 +24,54 @@ export default function AppModal({
   theme = "light",
   maxWidthClass = "max-w-lg",
   maxHeightClass = "max-h-[90vh]",
-  zIndexClass = "z-50",
+  zIndexClass = "",
   closeOnBackdrop = true,
   disableClose = false,
   showCloseX = true,
   children
 }) {
   const visible = open !== undefined ? Boolean(open) : Boolean(isOpen);
-  useLockBodyScroll(visible);
+  const { zIndex, isTopModal } = useModalStack(visible, 100);
+  const dialogCardRef = useRef(null);
 
-  if (!visible) return null;
+  useEffect(() => {
+    if (dialogCardRef.current) {
+      dialogCardRef.current.inert = Boolean(visible && !isTopModal);
+    }
+  }, [visible, isTopModal]);
+
+  if (!visible || typeof document === "undefined") return null;
 
   const isDark = theme === "dark";
+  const zMatch = String(zIndexClass || "").match(/z-\[(\d+)\]/);
+  const minExplicitZ = zMatch ? Number(zMatch[1]) : 0;
+  const effectiveZIndex = Math.max(zIndex, minExplicitZ);
 
   const handleSafeClose = () => {
-    if (!disableClose && typeof onClose === "function") {
+    if (!disableClose && isTopModal && typeof onClose === "function") {
       onClose();
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className={`fixed inset-0 ${zIndexClass} flex items-end sm:items-center justify-center bg-black/65 backdrop-blur-sm p-0 sm:p-4 animate-fade-in`}
+      data-modal-root="true"
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 flex items-end sm:items-center justify-center bg-slate-900/55 backdrop-blur-[3px] transition-opacity duration-200 p-0 sm:p-4 animate-fade-in"
       style={{
+        zIndex: effectiveZIndex,
         paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)"
       }}
+      onWheel={(e) => {
+        e.stopPropagation();
+      }}
       onTouchMove={(e) => {
-        if (e.target === e.currentTarget) e.preventDefault();
+        if (!e.target?.closest?.(".modal-scroll-area")) {
+          e.preventDefault();
+        }
+        e.stopPropagation();
       }}
       onClick={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) {
@@ -59,18 +80,20 @@ export default function AppModal({
       }}
     >
       <div
+        ref={dialogCardRef}
         className={`flex flex-col w-full ${maxWidthClass} ${maxHeightClass} rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl animate-sheet-up border ${
           isDark
             ? "bg-slate-900 text-slate-100 border-slate-700/80"
             : "bg-white text-slate-800 border-slate-200"
-        }`}
+        } ${!isTopModal ? "pointer-events-none select-none" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Thanh tiêu đề: luôn có "< Trở về" ở góc trên trái */}
+        {/* Thanh tiêu đề cố định: luôn có "< Trở về" ở góc trên trái */}
         <div
           className={`px-4 py-3.5 border-b flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
             isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
           }`}
+          onWheel={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <button
@@ -129,7 +152,7 @@ export default function AppModal({
           </div>
         </div>
 
-        {/* Nội dung Modal cuộn mượt, chặn trôi nền */}
+        {/* Nội dung Modal cuộn mượt, cách ly cuộn nền 100% */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area">
           {children}
         </div>
@@ -142,6 +165,7 @@ export default function AppModal({
               : "bg-white border-slate-200"
           }`}
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+          onWheel={(e) => e.stopPropagation()}
         >
           {footer ? (
             footer
@@ -158,7 +182,7 @@ export default function AppModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
-

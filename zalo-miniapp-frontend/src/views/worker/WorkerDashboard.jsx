@@ -31,12 +31,11 @@ export default function WorkerDashboard({
 
   return (
     <div
-      className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between max-w-md mx-auto shadow-2xl relative overflow-x-hidden"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)" }}
+      className="h-[100dvh] bg-slate-950 text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden"
     >
       {/* Top Mobile Header - Chuẩn hóa 3 vùng: Trái (Trở về/Logo) - Giữa (Tên + Mã/Role) - Phải (Đăng xuất) & chừa cụm nút Zalo */}
       <header
-        className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 pl-3 pr-[96px] pb-2.5 flex items-center justify-between gap-2 shadow-sm"
+        className="shrink-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 pl-3 pr-[96px] pb-2.5 flex items-center justify-between gap-2 shadow-sm"
         style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
       >
         {/* Trái: Nút Trở về (ở tab phụ) hoặc Logo công ty */}
@@ -86,7 +85,8 @@ export default function WorkerDashboard({
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto">
+      <main data-scroll-container="worker" className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <div key={activeTab} className="animate-tab-enter pb-6">
         {activeTab === "checkin" && (
           <div className="p-4 space-y-4">
             <OneTouchCheckIn
@@ -115,11 +115,12 @@ export default function WorkerDashboard({
             onChangePasswordRequest={onChangePasswordRequest}
           />
         )}
+        </div>
       </main>
 
-      {/* Bottom Navigation Bar - Tối ưu Safe Area Bottom cho iPhone Home Indicator & Touch Target >= 44px */}
+      {/* Bottom Navigation Bar - In-flow footer, Safe Area Bottom iPhone Home Indicator & Touch Target >= 44px */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/90 max-w-md mx-auto px-2 pt-1.5 flex items-center justify-around shadow-2xl"
+        className="shrink-0 z-40 w-full bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/90 px-2 pt-1.5 flex items-center justify-around shadow-2xl"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
       >
         <button

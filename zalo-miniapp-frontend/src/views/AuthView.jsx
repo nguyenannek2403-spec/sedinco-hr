@@ -122,8 +122,8 @@ export default function AuthView({
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
               Mật Khẩu Bảo Mật
             </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <div className="flex items-center bg-slate-950/90 border border-slate-700 rounded-2xl focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all overflow-hidden">
+              <div className="pl-3.5 flex items-center pointer-events-none text-slate-400 shrink-0">
                 <Lock className="w-5 h-5" />
               </div>
               <input
@@ -132,13 +132,13 @@ export default function AuthView({
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Nhập mật khẩu của bạn..."
                 required
-                className="w-full bg-slate-950/90 border border-slate-700 rounded-2xl pl-11 pr-11 py-3.5 text-white placeholder-slate-500 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="flex-1 min-w-0 bg-transparent border-0 pl-3 pr-2 py-3.5 text-white placeholder-slate-500 font-semibold text-sm focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? "Ẩn mật khẩu" : "Hiển thị mật khẩu"}
-                className="absolute inset-y-0 right-0 min-w-[44px] min-h-[44px] px-3 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
+                className="shrink-0 min-w-[44px] min-h-[44px] px-3 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>

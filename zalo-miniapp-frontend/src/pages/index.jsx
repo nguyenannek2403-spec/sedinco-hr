@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "../hooks/useAuth";
 import ConfirmDialog from "../components/ConfirmDialog";
 import AuthView from "../views/AuthView";
 import WorkerDashboard from "../views/worker/WorkerDashboard";
 import DesktopDashboard from "../views/desktop/DesktopDashboard";
 import { ROLES } from "../constants/roles";
-import { CheckCircle2, AlertCircle, Info, RefreshCw } from "lucide-react";
+import { CheckCircle2, AlertCircle, Info, RefreshCw, X } from "lucide-react";
 
 // Lazy-load modal đổi mật khẩu bắt buộc
 const ForcePasswordChangeModal = lazy(() => import("../components/ForcePasswordChangeModal"));
@@ -139,31 +140,56 @@ export default function HomePage() {
         onCancel={() => setShowLogoutConfirm(false)}
       />
 
-      {/* Global Toast Notification Container - Tránh cụm nút mặc định Zalo ở góc trên bên phải */}
-      {toastNotification && (
-        <div
-          className="fixed left-4 right-4 sm:left-auto sm:right-5 z-[120] max-w-sm animate-fade-in"
-          style={{ top: "calc(env(safe-area-inset-top, 0px) + 54px)" }}
-        >
+      {/* Global Toast Notification Container - Render qua Portal z-[130], tránh header & cụm nút Zalo */}
+      {toastNotification && typeof document !== "undefined" &&
+        createPortal(
           <div
-            className={`p-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border flex items-center gap-3 text-xs font-bold ${
-              toastNotification.type === "success"
-                ? "bg-emerald-950/90 border-emerald-500/40 text-emerald-200 shadow-emerald-900/30"
-                : toastNotification.type === "error"
-                ? "bg-rose-950/90 border-rose-500/40 text-rose-200 shadow-rose-900/30"
-                : toastNotification.type === "warning"
-                ? "bg-amber-950/90 border-amber-500/40 text-amber-200 shadow-amber-900/30"
-                : "bg-slate-900/90 border-slate-700/80 text-slate-200 shadow-slate-950/50"
-            }`}
+            data-toast-root="true"
+            key={toastNotification.id}
+            className="fixed left-1/2 -translate-x-1/2 w-[calc(100vw-24px)] max-w-md animate-toast-down"
+            style={{ zIndex: 130, top: "calc(env(safe-area-inset-top, 0px) + 64px)" }}
           >
-            {toastNotification.type === "success" && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
-            {toastNotification.type === "error" && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
-            {toastNotification.type === "warning" && <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />}
-            {toastNotification.type === "info" && <Info className="w-4 h-4 text-blue-400 shrink-0" />}
-            <span>{toastNotification.message}</span>
-          </div>
-        </div>
-      )}
+            <div
+              className={`relative overflow-hidden p-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border flex items-center justify-between gap-2.5 text-xs sm:text-sm font-bold ${
+                toastNotification.type === "success"
+                  ? "bg-emerald-950/95 border-emerald-500/50 text-emerald-100 shadow-emerald-950/50"
+                  : toastNotification.type === "error"
+                  ? "bg-rose-950/95 border-rose-500/50 text-rose-100 shadow-rose-950/50"
+                  : toastNotification.type === "warning"
+                  ? "bg-amber-950/95 border-amber-500/50 text-amber-100 shadow-amber-950/50"
+                  : "bg-slate-900/95 border-slate-700 text-slate-100 shadow-slate-950/60"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {toastNotification.type === "success" && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+                {toastNotification.type === "error" && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+                {toastNotification.type === "warning" && <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />}
+                {toastNotification.type === "info" && <Info className="w-4 h-4 text-blue-400 shrink-0" />}
+                <span className="min-w-0 flex-1 break-words leading-snug">{toastNotification.message}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setToastNotification(null)}
+                aria-label="Đóng thông báo"
+                className="min-w-[44px] min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div
+                className={`absolute bottom-0 left-0 h-0.5 toast-progress-bar ${
+                  toastNotification.type === "success"
+                    ? "bg-emerald-400"
+                    : toastNotification.type === "error"
+                    ? "bg-rose-400"
+                    : toastNotification.type === "warning"
+                    ? "bg-amber-400"
+                    : "bg-blue-400"
+                }`}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Check, X, ShieldCheck, RefreshCw, Loader2 } from "lucide-react";
+import { Check, X, ShieldCheck, RefreshCw } from "lucide-react";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import ConfirmDialog from "./ConfirmDialog";
+import { AppButton, StatusBadge, SkeletonList, EmptyState } from "./ui";
 
 /**
  * Màn hình Admin quản lý, phê duyệt hoặc từ chối yêu cầu đổi thiết bị chấm công
@@ -115,15 +116,15 @@ export default function AdminDeviceApproval({ currentUser, showToast, onChanged 
             </div>
           </div>
 
-          <button
-            type="button"
-            disabled={loading}
+          <AppButton
+            variant="secondary"
+            icon={RefreshCw}
+            loading={loading}
             onClick={fetchPendingRequests}
-            className="min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50"
+            className="text-xs px-3.5 py-2 whitespace-nowrap"
           >
-            <RefreshCw size={14} className={loading ? "animate-spin text-blue-600" : ""} />
-            <span>Làm mới</span>
-          </button>
+            Làm mới
+          </AppButton>
         </div>
 
         {message && (
@@ -133,14 +134,12 @@ export default function AdminDeviceApproval({ currentUser, showToast, onChanged 
         )}
 
         {loading && requests.length === 0 ? (
-          <div className="py-10 text-center text-slate-400 text-sm flex flex-col items-center gap-2">
-            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-            <span>Đang kiểm tra danh sách chờ duyệt...</span>
-          </div>
+          <SkeletonList rows={3} label="Đang kiểm tra danh sách chờ duyệt..." />
         ) : requests.length === 0 ? (
-          <div className="py-10 text-center text-slate-500 text-sm">
-            Hiện không có yêu cầu đổi thiết bị nào đang chờ duyệt.
-          </div>
+          <EmptyState
+            icon={ShieldCheck}
+            title="Hiện không có yêu cầu đổi thiết bị nào đang chờ duyệt."
+          />
         ) : (
           <div className="space-y-3">
             {requests.map((req) => {
@@ -148,23 +147,21 @@ export default function AdminDeviceApproval({ currentUser, showToast, onChanged 
               return (
                 <div
                   key={req.ma_nv}
-                  className="p-4 border border-slate-200 rounded-2xl flex flex-col gap-3 bg-slate-50/70"
+                  className="perf-list-item p-4 border border-slate-200 rounded-2xl flex flex-col gap-3 bg-slate-50/70"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold text-sm text-slate-900">{req.ho_ten}</span>
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-md font-mono font-semibold">
+                        <span className="font-bold text-sm text-slate-900 break-words">{req.ho_ten}</span>
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-md font-mono font-semibold whitespace-nowrap">
                           {req.ma_nv}
                         </span>
                       </div>
                       {req.chuc_danh && (
-                        <p className="text-xs text-slate-500 mt-0.5">{req.chuc_danh}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 break-words">{req.chuc_danh}</p>
                       )}
                     </div>
-                    <span className="text-xs bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg font-medium whitespace-nowrap shrink-0">
-                      Chờ duyệt
-                    </span>
+                    <StatusBadge type="request" status="pending" />
                   </div>
 
                   <div className="text-xs text-slate-600 space-y-1 bg-white p-3 rounded-xl border border-slate-200">
@@ -175,30 +172,32 @@ export default function AdminDeviceApproval({ currentUser, showToast, onChanged 
                       <strong>Thiết bị mới:</strong>{" "}
                       <span className="font-mono text-blue-700">{req.pending_device_id}</span>
                     </p>
-                    <p>
+                    <p className="break-words">
                       <strong>Lý do:</strong> <em>"{req.device_change_reason || "Không ghi rõ"}"</em>
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="secondary"
+                      icon={X}
                       disabled={busy || actionLoading !== null}
                       onClick={() => setPendingReject(req)}
-                      className="min-h-[44px] px-3 py-2 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-50"
+                      className="text-rose-700 border-rose-300 bg-white hover:bg-rose-50 text-xs"
                     >
-                      <X size={15} />
-                      <span>Từ chối</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || actionLoading !== null}
+                      Từ chối
+                    </AppButton>
+                    <AppButton
+                      variant="success"
+                      icon={Check}
+                      loading={busy}
+                      loadingText="Đang xử lý..."
+                      disabled={actionLoading !== null && !busy}
                       onClick={() => handleApprove(req.ma_nv)}
-                      className="min-h-[44px] px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap disabled:opacity-50"
+                      className="text-xs"
                     >
-                      {busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-                      <span>{busy ? "Đang xử lý..." : "Phê duyệt"}</span>
-                    </button>
+                      Phê duyệt
+                    </AppButton>
                   </div>
                 </div>
               );

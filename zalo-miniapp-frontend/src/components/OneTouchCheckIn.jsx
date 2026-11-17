@@ -119,6 +119,8 @@ export default function OneTouchCheckIn({
   // Chế độ Đi Công Trình / Thị Trường
   const [isFieldWorkMode, setIsFieldWorkMode] = useState(false);
   const [fieldNote, setFieldNote] = useState("");
+  const [showFieldWorkModal, setShowFieldWorkModal] = useState(false);
+  const [fieldModalError, setFieldModalError] = useState("");
 
   const isLockedRef = useRef(false);
   const timeoutIdRef = useRef(null);
@@ -738,7 +740,14 @@ export default function OneTouchCheckIn({
           tone={isFieldWorkMode ? "light" : "dark"}
           fullWidth
           icon={HardHat}
-          onClick={() => setIsFieldWorkMode((v) => !v)}
+          onClick={() => {
+            if (isFieldWorkMode) {
+              setIsFieldWorkMode(false);
+            } else {
+              setFieldModalError("");
+              setShowFieldWorkModal(true);
+            }
+          }}
           className={`text-xs font-black rounded-2xl border-2 ${
             isFieldWorkMode
               ? "border-amber-300 shadow-lg shadow-amber-500/20"
@@ -752,22 +761,119 @@ export default function OneTouchCheckIn({
 
         {isFieldWorkMode && (
           <div className="mt-2.5 bg-amber-950/35 border border-amber-500/40 rounded-2xl p-3.5 space-y-2.5 text-xs">
-            <label className="block text-xs font-black text-amber-200 uppercase">
-              Ghi chú tên công trình / khách hàng (Bắt buộc):
-            </label>
-            <input
-              type="text"
-              value={fieldNote}
-              onChange={(e) => setFieldNote(e.target.value)}
-              placeholder="VD: Giao gạch công trình Hòa Xuân / Gặp anh Minh..."
-              className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-400"
-            />
-            <p className="text-xs text-amber-100">
-              * Bắt buộc bấm nút chụp ảnh hiện trường bên dưới trước khi chấm công.
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-black text-amber-200 uppercase">
+                Thông tin công trình đã xác nhận:
+              </span>
+              <AppButton
+                variant="secondary"
+                tone="dark"
+                onClick={() => {
+                  setFieldModalError("");
+                  setShowFieldWorkModal(true);
+                }}
+                className="text-xs px-3 py-1.5"
+              >
+                Chỉnh sửa
+              </AppButton>
+            </div>
+            <p className="text-sm font-semibold text-white break-words bg-slate-950/60 border border-slate-700 rounded-xl px-3 py-2">
+              {fieldNote}
+            </p>
+            <p className="text-xs text-emerald-300 font-semibold">
+              {capturedPhoto ? "✅ Đã đính kèm ảnh chụp hiện trường" : "⚠️ Chưa có ảnh hiện trường"}
             </p>
           </div>
         )}
       </div>
+
+      {/* Modal Nhập Thông Tin & Ảnh Hiện Trường Đi Công Trình */}
+      <AppModal
+        open={showFieldWorkModal}
+        onClose={() => setShowFieldWorkModal(false)}
+        theme="dark"
+        title="Chấm công Đi công trình"
+        subtitle="Nhập tên công trình & chụp ảnh hiện trường"
+        icon={<HardHat className="w-5 h-5 text-amber-400 shrink-0" />}
+        maxWidthClass="max-w-md"
+        footer={
+          <div className="flex gap-2.5">
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              onClick={() => setShowFieldWorkModal(false)}
+              className="flex-1"
+            >
+              Đóng / Quay lại
+            </AppButton>
+            <AppButton
+              variant="warning"
+              onClick={() => {
+                if (!fieldNote.trim() || fieldNote.trim().length < 5) {
+                  setFieldModalError("Vui lòng nhập tên công trình hoặc tên khách hàng (tối thiểu 5 ký tự).");
+                  return;
+                }
+                if (!capturedPhoto) {
+                  setFieldModalError("Vui lòng chụp hoặc chọn ảnh hiện trường trước khi xác nhận đi công trình.");
+                  return;
+                }
+                setFieldModalError("");
+                setIsFieldWorkMode(true);
+                setShowFieldWorkModal(false);
+              }}
+              className="flex-1 font-bold"
+            >
+              Xác nhận Công trình
+            </AppButton>
+          </div>
+        }
+      >
+        <div className="p-4 space-y-3.5 text-sm">
+          {fieldModalError && (
+            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs font-semibold flex items-start gap-2">
+              <AlertTriangle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+              <span>{fieldModalError}</span>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-amber-200 uppercase mb-1.5">
+              Tên công trình / khách hàng <span className="text-rose-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={fieldNote}
+              onChange={(e) => {
+                setFieldNote(e.target.value);
+                if (fieldModalError) setFieldModalError("");
+              }}
+              placeholder="VD: Giao gạch công trình Hòa Xuân / Gặp anh Minh..."
+              className="w-full min-h-[46px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400"
+            />
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-700 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-200">
+                Ảnh xác thực hiện trường <span className="text-rose-400">*</span>
+              </span>
+              {capturedPhoto && (
+                <span className="text-xs font-bold text-emerald-400">✅ Đã có ảnh</span>
+              )}
+            </div>
+            <AppButton
+              variant="secondary"
+              tone="dark"
+              fullWidth
+              icon={Camera}
+              onClick={handleCaptureSelfie}
+              className="!text-emerald-300"
+            >
+              {capturedPhoto ? "Chụp lại ảnh hiện trường" : "Chụp ảnh hiện trường ngay"}
+            </AppButton>
+          </div>
+        </div>
+      </AppModal>
 
       {/* 5. NÚT CHẤM CÔNG 1 CHẠM DUY NHẤT */}
       <div className="relative my-2 flex flex-col items-center">

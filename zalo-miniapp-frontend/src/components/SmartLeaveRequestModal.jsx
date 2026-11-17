@@ -78,6 +78,7 @@ export default function SmartLeaveRequestModal({
   initialCorrectionMode = "CHECK_OUT",
   initialCheckInTime = "",
   initialCheckOutTime = "",
+  showToast = null,
   onClose,
   onRequestCreated,
   onRequestSubmitted
@@ -91,6 +92,7 @@ export default function SmartLeaveRequestModal({
   const [startDate, setStartDate] = useState(defaultDate);
   const [endDate, setEndDate] = useState(defaultDate);
   const [advanceAmount, setAdvanceAmount] = useState("1000000");
+  const [otHours, setOtHours] = useState("3");
   const [correctionMode, setCorrectionMode] = useState(initialCorrectionMode || "CHECK_OUT");
   const [checkInTime, setCheckInTime] = useState(initialCheckInTime || "07:30");
   const [checkOutTime, setCheckOutTime] = useState(initialCheckOutTime || "17:30");
@@ -101,6 +103,7 @@ export default function SmartLeaveRequestModal({
 
   const isSubmittingRef = useRef(false);
   const isSalaryAdvance = requestType === "SALARY_ADVANCE";
+  const isOt = requestType === "OT";
   const isCompensation =
     requestType === "Bổ sung công / Quên chấm giờ ra" ||
     requestType === "ATTENDANCE_COMPENSATION";
@@ -171,7 +174,19 @@ export default function SmartLeaveRequestModal({
 
     if (isSalaryAdvance) {
       if (!Number.isFinite(parsedAdvanceNum) || parsedAdvanceNum < 10000 || parsedAdvanceNum > 500000000) {
-        setErrorMessage("Số tiền xin ứng lương phải từ 10.000 đ đến 500.000.000 đ.");
+        const msg = "Số tiền xin ứng lương phải từ 10.000 đ đến 500.000.000 đ.";
+        setErrorMessage(msg);
+        if (showToast) showToast(msg, "warning");
+        return;
+      }
+    }
+
+    if (isOt) {
+      const parsedOt = Number(otHours);
+      if (!Number.isFinite(parsedOt) || parsedOt < 0.5 || parsedOt > 12) {
+        const msg = "Số giờ tăng ca dự kiến phải từ 0.5 đến 12 giờ.";
+        setErrorMessage(msg);
+        if (showToast) showToast(msg, "warning");
         return;
       }
     }
@@ -189,12 +204,16 @@ export default function SmartLeaveRequestModal({
 
     const trimmedReason = reason.trim();
     if (!trimmedReason) {
-      setErrorMessage(isSalaryAdvance ? "Vui lòng nhập lý do xin ứng lương." : "Vui lòng nhập lý do cụ thể.");
+      const msg = isSalaryAdvance ? "Vui lòng nhập lý do xin ứng lương." : "Vui lòng nhập lý do cụ thể.";
+      setErrorMessage(msg);
+      if (showToast) showToast(msg, "warning");
       return;
     }
 
     if (trimmedReason.length < 5) {
-      setErrorMessage("Lý do phải có tối thiểu 5 ký tự.");
+      const msg = "Lý do phải có tối thiểu 5 ký tự.";
+      setErrorMessage(msg);
+      if (showToast) showToast(msg, "warning");
       return;
     }
 
@@ -214,7 +233,12 @@ export default function SmartLeaveRequestModal({
     try {
       const idempotencyKey = generateIdempotencyKey("req");
 
-      const effectiveEndDate = isSalaryAdvance || isCompensation ? startDate : endDate;
+      const effectiveEndDate = isSalaryAdvance || isCompensation || isOt ? startDate : endDate;
+      const otHoursNum = isOt ? Number(otHours) || 3 : 0;
+      const finalReason =
+        isOt && !/\d+(?:\.\d+)?\s*(?:giờ|h\b)/i.test(trimmedReason)
+          ? `${trimmedReason} (${otHoursNum} giờ)`
+          : trimmedReason;
       const payload = {
         employee_id: currentUser?.ma_nv,
         request_type: requestType,
@@ -223,9 +247,10 @@ export default function SmartLeaveRequestModal({
         start_date: startDate,
         end_date: effectiveEndDate,
         request_date: startDate,
-        reason: trimmedReason,
+        reason: finalReason,
         advance_amount: isSalaryAdvance ? parsedAdvanceNum : 0,
-        calculated_days: isSalaryAdvance || isCompensation ? 0 : analysis.actualDeductedDays,
+        ot_hours: isOt ? otHoursNum : undefined,
+        calculated_days: isSalaryAdvance || isCompensation || isOt ? 0 : analysis.actualDeductedDays,
         ...(isCompensation
           ? {
               correction_mode: correctionMode,
@@ -359,14 +384,13 @@ export default function SmartLeaveRequestModal({
                 </label>
                 <input
                   type="number"
-                  min={10000}
+                  min={0}
                   max={500000000}
                   step={50000}
                   value={advanceAmount}
                   onChange={(e) => setAdvanceAmount(e.target.value)}
                   placeholder="Ví dụ: 2000000"
-                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-900 text-base font-bold focus:outline-none focus:border-emerald-600"
-                  required
+                  className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-900 text-base font-bold focus:outline-none focus:border-emerald-600"
                 />
                 <div className="mt-1.5 text-xs font-semibold text-emerald-700">
                   Bằng số: {formatVnd(parsedAdvanceNum)}
@@ -396,9 +420,51 @@ export default function SmartLeaveRequestModal({
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
                     className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-emerald-600"
-                    required
                   />
                 </FormRow>
+              </div>
+            </div>
+          ) : isOt ? (
+            <div className="space-y-3">
+              <div className="divide-y divide-slate-200 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                <FormRow label="Ngày đăng ký tăng ca">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setEndDate(e.target.value);
+                    }}
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-violet-600"
+                  />
+                </FormRow>
+                <FormRow label="Số giờ tăng ca dự kiến" description="Đơn giá 1.5x ngày thường • 2.0x CN • 3.0x Lễ">
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={12}
+                    step={0.5}
+                    value={otHours}
+                    onChange={(e) => setOtHours(e.target.value)}
+                    className="w-24 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-bold text-center focus:outline-none focus:border-violet-600"
+                  />
+                </FormRow>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[2, 3, 4, 8].map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setOtHours(String(h))}
+                    className={`min-h-[44px] px-2 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                      Number(otHours) === h
+                        ? "bg-violet-600 text-white border-violet-700"
+                        : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                    }`}
+                  >
+                    {h} giờ
+                  </button>
+                ))}
               </div>
             </div>
           ) : isCompensation ? (
@@ -640,7 +706,6 @@ export default function SmartLeaveRequestModal({
                   : "Ghi rõ lý do xin nghỉ hoặc công việc tăng ca để quản lý xét duyệt..."
               }
               className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600 leading-relaxed"
-              required
             />
           </div>
         </form>

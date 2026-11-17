@@ -189,8 +189,8 @@ export default function WorkerProfileTab({
           </div>
 
           <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 overflow-hidden">
-            <FormRow dark label="Kỳ phiếu lương">
-              <div className="flex items-center gap-1.5">
+            <FormRow dark label="Kỳ phiếu lương" controlClassName="!max-w-[65%]">
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <select
                   aria-label="Chọn tháng phiếu lương"
                   value={slipMonth}

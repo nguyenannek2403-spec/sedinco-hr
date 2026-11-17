@@ -408,7 +408,7 @@ export default function CompanySettingsTab({ showToast }) {
             <button
               type="button"
               onClick={() => updateField("announcement_text", "")}
-              className="px-2.5 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-medium text-amber-900 hover:bg-amber-100 whitespace-nowrap shrink-0"
+              className="min-h-[44px] px-3 py-2 rounded-xl bg-white border border-amber-300 text-xs font-semibold text-amber-900 hover:bg-amber-100 whitespace-nowrap shrink-0"
             >
               Xóa thông báo
             </button>
@@ -942,10 +942,9 @@ export default function CompanySettingsTab({ showToast }) {
         </div>
       </AccordionSection>
 
-      {/* Thanh hành động cố định bên dưới */}
+      {/* Thanh hành động in-flow bên dưới — không dùng sticky bottom để tránh đè lên ô nhập liệu ở 200% font scale */}
       <div
-        className="sticky bottom-0 z-20 bg-white/95 backdrop-blur border-t border-slate-200 -mx-2 px-3 py-3 rounded-t-2xl shadow-lg flex items-center justify-between gap-3"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+        className="bg-white border border-slate-200 px-3 sm:px-5 py-3.5 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3"
       >
         <AppButton
           variant="secondary"

@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import {
   Calendar,
   Clock,
@@ -21,6 +22,158 @@ import useLockBodyScroll from "../hooks/useLockBodyScroll";
 
 import CompanyLogo from "./CompanyLogo";
 
+export function getSidebarMenuItems({
+  activeRole,
+  dynamicPerms = {},
+  alertsSummary = {},
+  pendingRequestsCount = 0
+}) {
+  const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
+  const fraudCount = Number(alertsSummary?.fraud_count) || 0;
+  const devicePendingCount = Number(alertsSummary?.pending_device_count) || 0;
+
+  if (activeRole === ROLES.ADMIN) {
+    return [
+      { id: "matrix", label: "Bảng Công Ma Trận", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
+      {
+        id: "payroll",
+        label: "Bảng Lương (Giám Sát)",
+        shortLabel: "Bảng lương",
+        icon: DollarSign,
+        badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
+        badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
+      },
+      {
+        id: "requests",
+        label: "Phê Duyệt Đơn Từ",
+        shortLabel: "Đơn từ",
+        icon: FileText,
+        badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
+        badgeColor: "bg-amber-500 text-slate-950 border-amber-300"
+      },
+      {
+        id: "management",
+        label: "Nhân Sự, Ca & Thiết Bị",
+        shortLabel: "Nhân sự",
+        icon: Users,
+        badge: devicePendingCount > 0 ? `${devicePendingCount}` : null,
+        badgeColor: "bg-rose-500 text-white"
+      },
+      {
+        id: "audit_logs",
+        label: "Nhật Ký & Chống Gian Lận",
+        shortLabel: "Nhật ký",
+        icon: ShieldCheck,
+        badge: fraudCount > 0 ? `${fraudCount} Cảnh báo` : null,
+        badgeColor: fraudCount > 0 ? "bg-rose-600 text-white border-rose-400 animate-pulse" : undefined
+      },
+      { id: "company", label: "Cài Đặt Công Ty", shortLabel: "Cài đặt", icon: Building },
+      { id: "permissions", label: "Phân Quyền Kế Toán", shortLabel: "Phân quyền", icon: ShieldCheck },
+      { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", shortLabel: "Nghỉ lễ", icon: Gift },
+      { id: "profile", label: "Hồ Sơ Quản Trị", shortLabel: "Hồ sơ", icon: User }
+    ];
+  }
+
+  if (activeRole === ROLES.ACCOUNTANT) {
+    const items = [];
+    if (dynamicPerms.attendance_view_all !== false) {
+      items.push({ id: "matrix", label: "Bảng Công Kỳ Lương", shortLabel: "Bảng công", icon: Calendar, badge: "Chốt sổ" });
+    }
+    if (dynamicPerms.payroll_view_all !== false) {
+      items.push({
+        id: "payroll",
+        label: "Tính Lương & Điều Chỉnh",
+        shortLabel: "Tính lương",
+        icon: DollarSign,
+        badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
+        badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
+      });
+    }
+    if (dynamicPerms.leave_view_all !== false) {
+      items.push({
+        id: "requests",
+        label: "Đơn Từ & Tạm Ứng",
+        shortLabel: "Đơn từ",
+        icon: FileText,
+        badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
+        badgeColor: "bg-rose-500 text-white"
+      });
+    }
+    if (dynamicPerms.employee_view === true) {
+      items.push({ id: "management", label: "Hồ Sơ Nhân Sự", shortLabel: "Nhân sự", icon: Users });
+    }
+    items.push({ id: "profile", label: "Hồ Sơ Kế Toán", shortLabel: "Hồ sơ", icon: User });
+    return items;
+  }
+
+  return [
+    { id: "checkin", label: "Điểm Danh 1 Chạm", shortLabel: "Chấm công", icon: Clock, badge: "1 Chạm" },
+    { id: "history", label: "Bảng Công Tháng (31 Ngày)", shortLabel: "Lịch sử", icon: Calendar },
+    { id: "requests", label: "Đơn Từ Của Tôi", shortLabel: "Đơn từ", icon: FileText },
+    { id: "payroll", label: "Phiếu Lương Điện Tử", shortLabel: "Phiếu lương", icon: DollarSign },
+    { id: "profile", label: "Hồ Sơ Cá Nhân", shortLabel: "Hồ sơ", icon: User }
+  ];
+}
+
+export function DesktopMobileBottomNav({
+  activeRole,
+  dynamicPerms = {},
+  alertsSummary = {},
+  pendingRequestsCount = 0,
+  currentTab,
+  setCurrentTab,
+  onSelectTab,
+  onOpenMobileMenu
+}) {
+  const mobileBottomItems = getSidebarMenuItems({
+    activeRole,
+    dynamicPerms,
+    alertsSummary,
+    pendingRequestsCount
+  }).slice(0, 4);
+
+  const handleSelect = (id) => {
+    if (onSelectTab) onSelectTab(id);
+    else if (setCurrentTab) setCurrentTab(id);
+  };
+
+  return (
+    <nav
+      className="lg:hidden shrink-0 z-40 w-full bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 px-2 pt-1.5 flex items-center justify-around shadow-2xl"
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
+    >
+      {mobileBottomItems.map((item) => {
+        const Icon = item.icon;
+        const isActive = currentTab === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => handleSelect(item.id)}
+            className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl transition-all ${
+              isActive
+                ? "text-blue-300 font-bold bg-blue-500/10"
+                : "text-slate-300 hover:text-white font-medium"
+            }`}
+          >
+            <Icon className="w-5 h-5" />
+            <span className="text-xs leading-tight whitespace-nowrap">{item.shortLabel || item.label}</span>
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        onClick={onOpenMobileMenu}
+        aria-label="Mở menu đầy đủ"
+        className="flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl text-slate-200 hover:text-white font-bold"
+      >
+        <Menu className="w-5 h-5 text-amber-400" />
+        <span className="text-xs leading-tight">Menu</span>
+      </button>
+    </nav>
+  );
+}
+
 export default function DesktopSidebar({
   currentUser,
   activeRole,
@@ -35,102 +188,17 @@ export default function DesktopSidebar({
   pendingRequestsCount = 0,
   isMobileMenuOpen = false,
   onCloseMobileMenu,
-  onOpenMobileMenu
+  onOpenMobileMenu,
+  showMobileBottomNav = true
 }) {
-  const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
-  const fraudCount = Number(alertsSummary?.fraud_count) || 0;
-  const devicePendingCount = Number(alertsSummary?.pending_device_count) || 0;
+  useLockBodyScroll(Boolean(isMobileMenuOpen), 90);
 
-  useLockBodyScroll(Boolean(isMobileMenuOpen));
-
-  // Danh sách menu theo đúng 3 Role chuẩn: Admin, Accountant, Worker (V5 đã loại bỏ Kiosk QR)
-  const getMenuItems = () => {
-    if (activeRole === ROLES.ADMIN) {
-      return [
-        { id: "matrix", label: "Bảng Công Ma Trận", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
-        {
-          id: "payroll",
-          label: "Bảng Lương (Giám Sát)",
-          shortLabel: "Bảng lương",
-          icon: DollarSign,
-          badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
-          badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
-        },
-        {
-          id: "requests",
-          label: "Phê Duyệt Đơn Từ",
-          shortLabel: "Đơn từ",
-          icon: FileText,
-          badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
-          badgeColor: "bg-amber-500 text-slate-950 border-amber-300"
-        },
-        {
-          id: "management",
-          label: "Nhân Sự, Ca & Thiết Bị",
-          shortLabel: "Nhân sự",
-          icon: Users,
-          badge: devicePendingCount > 0 ? `${devicePendingCount}` : null,
-          badgeColor: "bg-rose-500 text-white"
-        },
-        {
-          id: "audit_logs",
-          label: "Nhật Ký & Chống Gian Lận",
-          shortLabel: "Nhật ký",
-          icon: ShieldCheck,
-          badge: fraudCount > 0 ? `${fraudCount} Cảnh báo` : null,
-          badgeColor: fraudCount > 0 ? "bg-rose-600 text-white border-rose-400 animate-pulse" : undefined
-        },
-        { id: "company", label: "Cài Đặt Công Ty", shortLabel: "Cài đặt", icon: Building },
-        { id: "permissions", label: "Phân Quyền Kế Toán", shortLabel: "Phân quyền", icon: ShieldCheck },
-        { id: "holidays", label: "Lịch Nghỉ Lễ (x3)", shortLabel: "Nghỉ lễ", icon: Gift },
-        { id: "profile", label: "Hồ Sơ Quản Trị", shortLabel: "Hồ sơ", icon: User }
-      ];
-    }
-
-    if (activeRole === ROLES.ACCOUNTANT) {
-      const items = [];
-      if (dynamicPerms.attendance_view_all !== false) {
-        items.push({ id: "matrix", label: "Bảng Công Kỳ Lương", shortLabel: "Bảng công", icon: Calendar, badge: "Chốt sổ" });
-      }
-      if (dynamicPerms.payroll_view_all !== false) {
-        items.push({
-          id: "payroll",
-          label: "Tính Lương & Điều Chỉnh",
-          shortLabel: "Tính lương",
-          icon: DollarSign,
-          badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
-          badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
-        });
-      }
-      if (dynamicPerms.leave_view_all !== false) {
-        items.push({
-          id: "requests",
-          label: "Đơn Từ & Tạm Ứng",
-          shortLabel: "Đơn từ",
-          icon: FileText,
-          badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
-          badgeColor: "bg-rose-500 text-white"
-        });
-      }
-      if (dynamicPerms.employee_view === true) {
-        items.push({ id: "management", label: "Hồ Sơ Nhân Sự", shortLabel: "Nhân sự", icon: Users });
-      }
-      items.push({ id: "profile", label: "Hồ Sơ Kế Toán", shortLabel: "Hồ sơ", icon: User });
-      return items;
-    }
-
-    // Role Công Nhân / Nhân Viên (Worker / Employee)
-    return [
-      { id: "checkin", label: "Điểm Danh 1 Chạm", shortLabel: "Chấm công", icon: Clock, badge: "1 Chạm" },
-      { id: "history", label: "Bảng Công Tháng (31 Ngày)", shortLabel: "Lịch sử", icon: Calendar },
-      { id: "requests", label: "Đơn Từ Của Tôi", shortLabel: "Đơn từ", icon: FileText },
-      { id: "payroll", label: "Phiếu Lương Điện Tử", shortLabel: "Phiếu lương", icon: DollarSign },
-      { id: "profile", label: "Hồ Sơ Cá Nhân", shortLabel: "Hồ sơ", icon: User }
-    ];
-  };
-
-  const menuItems = getMenuItems();
-  const mobileBottomItems = menuItems.slice(0, 4);
+  const menuItems = getSidebarMenuItems({
+    activeRole,
+    dynamicPerms,
+    alertsSummary,
+    pendingRequestsCount
+  });
 
   const handleSelect = (id) => {
     if (onSelectTab) onSelectTab(id);
@@ -150,6 +218,7 @@ export default function DesktopSidebar({
           <button
             type="button"
             onClick={onCloseMobileMenu}
+            aria-label="Đóng"
             className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center"
           >
             <X size={20} />
@@ -187,7 +256,7 @@ export default function DesktopSidebar({
       </div>
 
       {/* 3. Danh Sách Menu Điều Hướng */}
-      <nav className="p-3 sm:p-4 flex-1 overflow-y-auto space-y-1.5">
+      <nav className="p-3 sm:p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area space-y-1.5">
         {menuItems.map(item => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
@@ -286,59 +355,53 @@ export default function DesktopSidebar({
         {renderSidebarBody(false)}
       </aside>
 
-      {/* Mobile Slide-Over Drawer (khi mở trên Zalo Mini App / màn hình < 1024px) */}
-      {isMobileMenuOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-50 flex animate-fade-in"
-          onTouchMove={(e) => {
-            if (e.target === e.currentTarget) e.preventDefault();
-          }}
-        >
+      {/* Mobile Slide-Over Drawer (Render qua Portal & Z-Index 90 tách hoàn toàn khỏi #app) */}
+      {isMobileMenuOpen && typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
-            onClick={onCloseMobileMenu}
-            onTouchMove={(e) => e.preventDefault()}
-          />
-          <aside className="relative z-10 w-[84vw] max-w-[320px] bg-slate-900 text-slate-200 flex flex-col justify-between h-full border-r border-slate-700 shadow-2xl">
-            {renderSidebarBody(true)}
-          </aside>
-        </div>
-      )}
+            data-modal-root="true"
+            role="dialog"
+            aria-modal="true"
+            className="lg:hidden fixed inset-0 flex animate-fade-in"
+            style={{ zIndex: 90 }}
+            onWheel={(e) => e.stopPropagation()}
+            onTouchMove={(e) => {
+              if (!e.target?.closest?.(".modal-scroll-area")) e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <div
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
+              onClick={onCloseMobileMenu}
+              onWheel={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onTouchMove={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            />
+            <aside className="relative z-10 w-[84vw] max-w-[320px] bg-slate-900 text-slate-200 flex flex-col justify-between h-full border-r border-slate-700 shadow-2xl">
+              {renderSidebarBody(true)}
+            </aside>
+          </div>,
+          document.body
+        )}
 
-      {/* Mobile Bottom Navigation Bar cho Admin & Accountant trên Zalo Mini App */}
-      <nav
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 px-2 pt-1.5 flex items-center justify-around shadow-2xl"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
-      >
-        {mobileBottomItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentTab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleSelect(item.id)}
-              className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl transition-all ${
-                isActive
-                  ? "text-blue-300 font-bold bg-blue-500/10"
-                  : "text-slate-300 hover:text-white font-medium"
-              }`}
-            >
-              <Icon className="w-5 h-5" />
-              <span className="text-xs leading-tight whitespace-nowrap">{item.shortLabel || item.label}</span>
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={onOpenMobileMenu}
-          aria-label="Mở menu đầy đủ"
-          className="flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl text-slate-200 hover:text-white font-bold"
-        >
-          <Menu className="w-5 h-5 text-amber-400" />
-          <span className="text-xs leading-tight">Menu</span>
-        </button>
-      </nav>
+      {/* Mobile Bottom Navigation Bar fallback (chỉ render nếu caller chưa đặt DesktopMobileBottomNav in-flow) */}
+      {showMobileBottomNav && (
+        <DesktopMobileBottomNav
+          activeRole={activeRole}
+          dynamicPerms={dynamicPerms}
+          alertsSummary={alertsSummary}
+          pendingRequestsCount={pendingRequestsCount}
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+          onSelectTab={onSelectTab}
+          onOpenMobileMenu={onOpenMobileMenu}
+        />
+      )}
     </>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
-import DesktopSidebar from "../../components/DesktopSidebar";
+import DesktopSidebar, { DesktopMobileBottomNav } from "../../components/DesktopSidebar";
 import DesktopHeader from "../../components/DesktopHeader";
 import RequestsManagementTab from "./RequestsManagementTab";
 import EmployeeManagementTab from "./EmployeeManagementTab";
@@ -109,8 +109,8 @@ export default function DesktopDashboard({
   };
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans relative">
-      {/* Sidebar Trái (Tự động chuyển thành Drawer + Bottom Nav khi mở trên điện thoại < 1024px) */}
+    <div className="flex h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden font-sans relative">
+      {/* Sidebar Trái (Tự động chuyển thành Drawer Portal + Bottom Nav khi mở trên điện thoại < 1024px) */}
       <DesktopSidebar
         currentTab={effectiveTab}
         setCurrentTab={(tabId) => {
@@ -133,10 +133,11 @@ export default function DesktopDashboard({
         isMobileMenuOpen={isMobileMenuOpen}
         onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
         onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        showMobileBottomNav={false}
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Header (Hỗ trợ Safe Area Top & Tránh cụm nút Zalo góc phải trên điện thoại) */}
         <DesktopHeader
           currentUser={currentUser}
@@ -169,35 +170,35 @@ export default function DesktopDashboard({
             <button
               type="button"
               onClick={() => setLiveBoardModal({ open: true, initialTab: "present" })}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 shrink-0 whitespace-nowrap cursor-pointer transition"
+              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 shrink-0 whitespace-nowrap cursor-pointer transition"
             >
               👥 Quân số: <strong className="text-white">{alertsSummary.headcount_today.total_employees}</strong>
             </button>
             <button
               type="button"
               onClick={() => setLiveBoardModal({ open: true, initialTab: "present" })}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 shrink-0 whitespace-nowrap cursor-pointer transition"
             >
               🟢 Có mặt: <strong>{alertsSummary.headcount_today.present}</strong>
             </button>
             <button
               type="button"
               onClick={() => setLiveBoardModal({ open: true, initialTab: "late" })}
-              className="px-2.5 py-1.5 rounded-lg bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500/40 text-amber-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500/40 text-amber-300 shrink-0 whitespace-nowrap cursor-pointer transition"
             >
               🟡 Đi muộn: <strong>{alertsSummary.headcount_today.late}</strong>
             </button>
             <button
               type="button"
               onClick={() => setLiveBoardModal({ open: true, initialTab: "field_work" })}
-              className="px-2.5 py-1.5 rounded-lg bg-orange-950/70 hover:bg-orange-900/80 border border-orange-500/40 text-orange-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-orange-950/70 hover:bg-orange-900/80 border border-orange-500/40 text-orange-300 shrink-0 whitespace-nowrap cursor-pointer transition"
             >
               🚧 Công trình: <strong>{alertsSummary.headcount_today.field_work}</strong>
             </button>
             <button
               type="button"
               onClick={() => setLiveBoardModal({ open: true, initialTab: "leave" })}
-              className="px-2.5 py-1.5 rounded-lg bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/40 text-purple-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/40 text-purple-300 shrink-0 whitespace-nowrap cursor-pointer transition"
             >
               🟣 Nghỉ phép: <strong>{alertsSummary.headcount_today.leave}</strong>
             </button>
@@ -205,7 +206,7 @@ export default function DesktopDashboard({
               <button
                 type="button"
                 onClick={() => setLiveBoardModal({ open: true, initialTab: "absent" })}
-                className="px-2.5 py-1.5 rounded-lg bg-rose-950/70 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 shrink-0 whitespace-nowrap cursor-pointer transition"
+                className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-950/70 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 shrink-0 whitespace-nowrap cursor-pointer transition"
               >
                 ⚪ Chưa chấm: <strong>{alertsSummary.headcount_today.live_board.absent_list.length}</strong>
               </button>
@@ -215,9 +216,10 @@ export default function DesktopDashboard({
 
         {/* Tab Content with Suspense Loading */}
         <main
-          className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 bg-slate-900/60"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 84px)" }}
+          data-scroll-container="desktop"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:p-6 pb-8 bg-slate-900/60"
         >
+          <div key={effectiveTab} className="animate-tab-enter">
           <Suspense
             fallback={
               <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 py-12">
@@ -326,7 +328,27 @@ export default function DesktopDashboard({
               </div>
             )}
           </Suspense>
+          </div>
         </main>
+
+        {/* Bottom Navigation Bar in-flow cho Mobile (< 1024px), không bao giờ đè lên nội dung chính */}
+        <DesktopMobileBottomNav
+          activeRole={resolvedRole}
+          dynamicPerms={effectiveDynamicPerms}
+          alertsSummary={alertsSummary}
+          pendingRequestsCount={alertsSummary.pending_requests_count || 0}
+          currentTab={effectiveTab}
+          setCurrentTab={(tabId) => {
+            if (!isTabAllowedForRole(tabId, resolvedRole, effectiveDynamicPerms)) return;
+            setCurrentTab(tabId);
+          }}
+          onSelectTab={(tabId) => {
+            if (!isTabAllowedForRole(tabId, resolvedRole, effectiveDynamicPerms)) return;
+            setCurrentTab(tabId);
+            setIsMobileMenuOpen(false);
+          }}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        />
       </div>
 
       {/* Modal Bảng Sĩ Số Trực Tiếp (Live Attendance Board) */}

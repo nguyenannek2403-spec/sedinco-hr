@@ -19,7 +19,7 @@ import {
   Wallet
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
-import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState } from "./ui";
+import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "./ui";
 import { safeGet, safePost, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { useDebouncedValue } from "../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
@@ -840,7 +840,7 @@ export default function PayrollGridTable({
                           <button
                             type="button"
                             onClick={() => setSelectedSlipItem(item)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600 text-white font-semibold text-xs shadow-sm animate-pulse cursor-pointer"
+                            className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-600 text-white font-semibold text-xs shadow-sm animate-pulse cursor-pointer"
                             title={item.dispute_reason || "Nhấn để xem minh chứng khiếu nại lương"}
                           >
                             Khiếu nại (Xem)
@@ -966,41 +966,37 @@ export default function PayrollGridTable({
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Tiền thưởng thêm (VNĐ)</label>
-              <input
-                type="number"
-                min={0}
-                step={50000}
-                value={adjForm.bonus_amount}
-                onChange={(e) => setAdjForm((f) => ({ ...f, bonus_amount: Number(e.target.value) || 0 }))}
-                className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-emerald-700 focus:outline-none focus:border-emerald-600"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Khấu trừ phạt (VNĐ)</label>
+            <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
+              <FormRow label="Tiền thưởng thêm (VNĐ)">
+                <input
+                  type="number"
+                  min={0}
+                  step={50000}
+                  value={adjForm.bonus_amount}
+                  onChange={(e) => setAdjForm((f) => ({ ...f, bonus_amount: Number(e.target.value) || 0 }))}
+                  className="w-36 min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-emerald-700 text-right focus:outline-none focus:border-emerald-600"
+                />
+              </FormRow>
+              <FormRow label="Khấu trừ phạt (VNĐ)">
                 <input
                   type="number"
                   min={0}
                   step={50000}
                   value={adjForm.penalty_amount}
                   onChange={(e) => setAdjForm((f) => ({ ...f, penalty_amount: Number(e.target.value) || 0 }))}
-                  className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-rose-700 focus:outline-none focus:border-rose-500"
+                  className="w-36 min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-rose-700 text-right focus:outline-none focus:border-rose-500"
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Tạm ứng đã trừ (VNĐ)</label>
+              </FormRow>
+              <FormRow label="Tạm ứng đã trừ (VNĐ)">
                 <input
                   type="number"
                   min={0}
                   step={50000}
                   value={adjForm.advance_deduction}
                   onChange={(e) => setAdjForm((f) => ({ ...f, advance_deduction: Number(e.target.value) || 0 }))}
-                  className="w-full min-h-[44px] px-3 py-2 border-2 border-slate-300 rounded-xl text-sm font-semibold text-amber-800 focus:outline-none focus:border-amber-500"
+                  className="w-36 min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-amber-800 text-right focus:outline-none focus:border-amber-500"
                 />
-              </div>
+              </FormRow>
             </div>
 
             <div>
