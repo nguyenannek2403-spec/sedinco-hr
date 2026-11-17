@@ -382,34 +382,6 @@ class RequestService {
                 }
             }
 
-            // Giới hạn tối đa 3 lần nộp đơn bổ sung công / quên chấm công trong 1 tháng
-            if (reqCategory === 'ATTENDANCE_COMPENSATION') {
-                const [yStr, mStr] = datesList[0].split('-');
-                const cntRows = await txQuery(`
-                    SELECT COUNT(*) as cnt 
-                    FROM requests 
-                    WHERE employee_id = ? 
-                      AND (
-                        LOWER(request_type) LIKE '%cập nhật công%'
-                        OR LOWER(request_type) LIKE '%quên chấm công%'
-                        OR LOWER(request_type) LIKE '%bổ sung%'
-                        OR LOWER(request_type) LIKE '%giờ ra%'
-                        OR LOWER(request_type) = 'ct'
-                        OR LOWER(request_type) LIKE '%forgot_checkin%'
-                        OR LOWER(request_type) LIKE '%late_early%'
-                        OR LOWER(request_type) LIKE '%compensation%'
-                      )
-                      AND MONTH(request_date) = ? AND YEAR(request_date) = ?
-                      AND status != 'cancelled'
-                `, [targetId, Number(mStr), Number(yStr)]);
-                const currentCount = (cntRows && cntRows[0]) ? Number(cntRows[0].cnt) : 0;
-                if (currentCount + datesList.length > 3) {
-                    const error = new Error(`Chính sách công ty: Bạn đã nộp tối đa 3 đơn bổ sung công trong Tháng ${Number(mStr)}/${yStr}! Vui lòng gặp trực tiếp Quản trị viên.`);
-                    error.statusCode = 400;
-                    throw error;
-                }
-            }
-
             const insertedIds = [];
             for (const iso of datesList) {
                 const insertRes = await txQuery(

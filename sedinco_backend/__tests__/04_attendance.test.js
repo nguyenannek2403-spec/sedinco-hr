@@ -148,6 +148,50 @@ test('ATT-04: Concurrency spam check-in produces at most 1 row + Idempotency rep
 
     const todayLogs = await query('SELECT COUNT(*) as cnt FROM attendance_logs WHERE employee_id = ? AND record_date = CURDATE()', ['QA_ATT_W2']);
     assert.equal(todayLogs[0].cnt, 1, 'Parallel check-in burst must produce strictly 1 row for the day');
+
+    // V16 Smart Anti-Spam Check-in: No 60s block!
+    // < 3 seconds after check-in -> returns friendly is_spam_warning without corrupting check_out_time
+    // >= 3 seconds after check-in -> immediately records check_out_time cleanly
+    const attendanceService = require('../src/services/attendanceService');
+    const [w2Row] = await query("SELECT ma_nv, ho_ten, role FROM employees WHERE ma_nv = 'QA_ATT_W2' LIMIT 1");
+    await query("DELETE FROM attendance_logs WHERE employee_id = 'QA_ATT_W2' AND record_date = '2099-05-10'");
+
+    const tIn = new Date('2099-05-10T01:00:00.000Z'); // 08:00:00 VN
+    const resFirst = await attendanceService.checkInMultiFactor({
+        lat: 16.0544,
+        lng: 108.2022,
+        device_info: 'QA_BURST_DEV',
+        current_user: w2Row,
+        currentTime: tIn
+    });
+    assert.equal(resFirst.success, true);
+    assert.equal(resFirst.is_spam_warning, undefined);
+
+    const tSpam = new Date('2099-05-10T01:00:01.000Z'); // 08:00:01 VN (+1s -> spam warning)
+    const resSpam = await attendanceService.checkInMultiFactor({
+        lat: 16.0544,
+        lng: 108.2022,
+        device_info: 'QA_BURST_DEV',
+        current_user: w2Row,
+        currentTime: tSpam
+    });
+    assert.equal(resSpam.success, true);
+    assert.equal(resSpam.is_spam_warning, true, 'Rapid tap < 3s must return friendly is_spam_warning=true instead of 429 error');
+    const [afterSpamRow] = await query("SELECT check_in_time, check_out_time FROM attendance_logs WHERE employee_id = 'QA_ATT_W2' AND record_date = '2099-05-10'");
+    assert.equal(afterSpamRow.check_out_time, null, 'Spam tap < 3s must NOT overwrite check_out_time');
+
+    const tOut = new Date('2099-05-10T01:00:05.000Z'); // 08:00:05 VN (+5s -> immediate checkout OK!)
+    const resOut = await attendanceService.checkInMultiFactor({
+        lat: 16.0544,
+        lng: 108.2022,
+        device_info: 'QA_BURST_DEV',
+        current_user: w2Row,
+        currentTime: tOut
+    });
+    assert.equal(resOut.success, true);
+    assert.equal(resOut.data?.check_type, 'OUT', 'Tap after >= 3s must check out normally without waiting 60s');
+    const [afterOutRow] = await query("SELECT check_out_time FROM attendance_logs WHERE employee_id = 'QA_ATT_W2' AND record_date = '2099-05-10'");
+    assert.ok(afterOutRow.check_out_time, 'check_out_time must be recorded cleanly after 3s window');
 });
 
 test('ATT-05: Period lock blocks worker/admin mutations until admin unlocks + Holiday & Cleanup audit logging', async () => {

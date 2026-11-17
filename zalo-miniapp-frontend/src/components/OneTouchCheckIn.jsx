@@ -16,6 +16,8 @@ import {
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
 import { captureDirectCameraPhoto, compressAndResizeImage } from "../utils/imageHelper";
+import { getDeviceIdentity } from "../utils/deviceIdentity";
+import { useSpamClickGuard, SPAM_WARNING_MESSAGE } from "../hooks/useAttendanceCheckIn";
 import { AppButton, AppModal } from "./ui";
 
 export const FEATURE_BIOMETRIC_ENABLED = false;
@@ -42,24 +44,6 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function getOrCreateDeviceId() {
-  try {
-    const key = "sedinco_bound_device_fingerprint";
-    let existing = localStorage.getItem(key);
-    if (existing) return existing;
-    const platform = typeof navigator !== "undefined" ? (navigator.platform || "Mobile") : "ZMP";
-    const uaHash = typeof navigator !== "undefined"
-      ? String(navigator.userAgent || "").replace(/[^a-zA-Z0-9]/g, "").slice(-12)
-      : "ZALO";
-    const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-    existing = `ZMP_${platform}_${uaHash}_${rand}`.slice(0, 80);
-    localStorage.setItem(key, existing);
-    return existing;
-  } catch {
-    return "ZMP_MOBILE_DEFAULT";
-  }
-}
-
 let globalCheckInLockTimestamp = 0;
 export function getGlobalCheckInLockTimestamp() {
   return globalCheckInLockTimestamp;
@@ -80,8 +64,15 @@ export default function OneTouchCheckIn({
   todayAttendance = null,
   onCheckInSuccess,
   onOpenFixCheckoutRequest,
-  isLockedPeriod = false
+  isLockedPeriod = false,
+  showToast = null
 }) {
+  const {
+    spamWarning,
+    showFriendlySpamAlert,
+    beginCheckInTap,
+    endCheckInTap
+  } = useSpamClickGuard(2500);
   const [stage, setStage] = useState(STAGES.IDLE);
   const [statusMessage, setStatusMessage] = useState("Chạm nút tròn lớn bên dưới để Chấm Công 1 Chạm (Vào ca / Ra ca)");
   const [serverTimeResult, setServerTimeResult] = useState("");
@@ -329,14 +320,20 @@ export default function OneTouchCheckIn({
       return;
     }
 
+    if (!beginCheckInTap(showToast)) {
+      return;
+    }
     const nowMs = Date.now();
-    if (isLockedRef.current || isDebounceLocked || (nowMs - globalCheckInLockTimestamp < 1800)) return;
+    if (isLockedRef.current || isDebounceLocked || (nowMs - globalCheckInLockTimestamp < 1200)) {
+      showFriendlySpamAlert(SPAM_WARNING_MESSAGE, showToast);
+      return;
+    }
     globalCheckInLockTimestamp = nowMs;
     isLockedRef.current = true;
     setIsDebounceLocked(true);
     setTimeout(() => {
       setIsDebounceLocked(false);
-    }, 1800);
+    }, 1200);
 
     setErrorMessage("");
     setErrorDetails("");
@@ -416,7 +413,7 @@ export default function OneTouchCheckIn({
       );
 
       lastIdempotencyKeyRef.current = generateIdempotencyKey("checkin");
-      const deviceFingerprint = getOrCreateDeviceId();
+      const devIdentity = await getDeviceIdentity();
 
       let result = null;
       try {
@@ -425,7 +422,8 @@ export default function OneTouchCheckIn({
           lng: rawLng,
           zalo_location_token: locationToken || undefined,
           zalo_access_token: accessToken || undefined,
-          device_info: deviceFingerprint,
+          device_name: devIdentity.device_model_name,
+          device_info: devIdentity.device_info,
           gps_accuracy: gpsAccuracy,
           is_fake_gps: isFakeGpsDetected,
           work_location_type: isFieldWorkMode ? "FIELD_WORK" : "OFFICE",
@@ -484,12 +482,22 @@ export default function OneTouchCheckIn({
       setFieldNote("");
       fetchTodayStatus();
 
+      if (result?.is_spam_warning || result?.data?.is_spam_warning) {
+        const warnText = result?.message || SPAM_WARNING_MESSAGE;
+        setStatusMessage(warnText);
+        showFriendlySpamAlert(warnText, showToast);
+        endCheckInTap(true);
+        return;
+      }
+
       const locTag = result?.data?.location_name ? ` tại ${result.data.location_name}` : "";
       const serverMsg = `${result?.message || `Đã ghi nhận chấm công lúc ${serverTime}`}${locTag}`;
       setStatusMessage(serverMsg);
+      endCheckInTap(true);
 
       if (onCheckInSuccess) onCheckInSuccess({ ...result, autoShiftMsg: serverMsg });
     } catch (err) {
+      endCheckInTap(false);
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
       setStage(STAGES.ERROR);
       isLockedRef.current = false;
@@ -497,6 +505,7 @@ export default function OneTouchCheckIn({
       setErrorMessage(err.message || "Không thể hoàn thành chấm công.");
       setErrorDetails("Vui lòng kiểm tra lại kết nối mạng 4G/Wifi hoặc thử lại sau.");
     } finally {
+      endCheckInTap(false);
       isLockedRef.current = false;
       setIsDebounceLocked(false);
       globalCheckInLockTimestamp = 0;
@@ -973,6 +982,12 @@ export default function OneTouchCheckIn({
 
       {/* Kết quả & Thông báo chi tiết */}
       <div className="w-full max-w-sm text-center space-y-3">
+        {spamWarning && (
+          <div className="p-3.5 rounded-2xl bg-amber-500/20 border-2 border-amber-400 text-left flex items-start gap-2.5 shadow-lg">
+            <AlertTriangle size={18} className="text-amber-300 shrink-0 mt-0.5" />
+            <p className="font-bold text-xs sm:text-sm text-amber-100 leading-relaxed">{spamWarning}</p>
+          </div>
+        )}
         <div
           className={`w-full py-3 px-4 rounded-2xl text-xs sm:text-sm font-extrabold inline-flex items-center justify-center gap-2 transition-all border-2 shadow-sm ${
             stage === STAGES.SUCCESS

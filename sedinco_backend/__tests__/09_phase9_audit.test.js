@@ -637,6 +637,75 @@ test('P9-SEC-DEV-01: Enforced device binding blocks omitted device_info/device_i
     );
     assert.ok(replayAudit, 'LOCATION_TOKEN_REPLAY must record CRITICAL_FRAUD audit event');
 
+    // V16: Same-model Multi-Device Detection (2 physical iPhone 8 devices with distinct device_id) & 1-Tap Admin Lock/Revoke
+    const MD_W = 'P9_V16_MD';
+    await createQaEmployee({ ma_nv: MD_W, ho_ten: 'Nguyễn Văn Máy Đôi', role: 'worker', luong_cb: 9000000 });
+    const loginIphone1 = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: {
+            ma_nv: MD_W,
+            password: 'QaPass@2026!',
+            device_id: 'DEV_IPHONE8_HW_FIRST_8F2A',
+            device_name: 'iPhone 8',
+            device_info: { deviceId: 'DEV_IPHONE8_HW_FIRST_8F2A', deviceName: 'iPhone 8', platform: 'iOS', screenWidth: 375, screenHeight: 667, pixelRatio: 2 }
+        }
+    });
+    assert.equal(loginIphone1.status, 200);
+    const tokenIphone1 = loginIphone1.json?.data?.token;
+    assert.equal(loginIphone1.json?.data?.bound_device_name, 'iPhone 8');
+    assert.equal(Boolean(loginIphone1.json?.data?.multi_device_alert), false);
+
+    // Same user logs in from a SECOND physical iPhone 8 (same commercial name 'iPhone 8', different hardware device_id)
+    const loginIphone2 = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: {
+            ma_nv: MD_W,
+            password: 'QaPass@2026!',
+            device_id: 'DEV_IPHONE8_HW_SECOND_3C9D',
+            device_name: 'iPhone 8',
+            device_info: { deviceId: 'DEV_IPHONE8_HW_SECOND_3C9D', deviceName: 'iPhone 8', platform: 'iOS', screenWidth: 375, screenHeight: 667, pixelRatio: 2 }
+        }
+    });
+    assert.equal(loginIphone2.status, 200);
+    const tokenIphone2 = loginIphone2.json?.data?.token;
+    assert.equal(Boolean(loginIphone2.json?.data?.multi_device_alert), true, 'Logging in from 2nd iPhone 8 must trigger multi_device_alert = 1');
+
+    const [mdEmpRow] = await query('SELECT bound_device_id, bound_device_name, known_devices_json, multi_device_alert FROM employees WHERE ma_nv = ?', [MD_W]);
+    const knownList = JSON.parse(mdEmpRow.known_devices_json || '[]');
+    assert.equal(knownList.length, 2, 'known_devices_json must preserve both distinct iPhone 8 entries');
+    assert.notEqual(knownList[0].short_tag, knownList[1].short_tag, 'Two same-model iPhone 8 phones must have distinct #short_tag identifiers');
+    assert.equal(Number(mdEmpRow.multi_device_alert), 1);
+
+    const [mdAudit] = await query(
+        "SELECT action, details FROM audit_logs WHERE actor_id = ? AND action = 'MULTI_DEVICE_DETECTED' ORDER BY id DESC LIMIT 1",
+        [MD_W]
+    );
+    assert.ok(mdAudit, '2nd device login must write MULTI_DEVICE_DETECTED audit log');
+
+    // Admin 1-tap locks strictly to iPhone 8 #1, clears #2, enables enforced & increments token_version to kick iPhone 8 #2
+    const lockPrimaryRes = await apiRequest(baseUrl, 'POST', `/api/employees/${MD_W}/resolve-devices`, {
+        token: admToken,
+        body: { action: 'lock_primary', target_device_id: 'DEV_IPHONE8_HW_FIRST_8F2A', target_device_name: 'iPhone 8' }
+    });
+    assert.equal(lockPrimaryRes.status, 200, `Admin resolve-devices failed: ${lockPrimaryRes.raw}`);
+    assert.equal(lockPrimaryRes.json?.data?.device_binding_mode, 'enforced');
+    assert.equal(lockPrimaryRes.json?.data?.multi_device_alert, 0);
+    assert.equal(lockPrimaryRes.json?.data?.known_devices?.length, 1);
+
+    // Token issued before resolve-devices (including iPhone 8 #2) MUST immediately return 401 due to bumped token_version
+    const kickedCheck = await apiRequest(baseUrl, 'GET', '/api/me', { token: tokenIphone2 });
+    assert.equal(kickedCheck.status, 401, `Previous session on 2nd iPhone 8 must be kicked with 401 after lock_primary, got ${kickedCheck.status}`);
+    const kickedCheck1 = await apiRequest(baseUrl, 'GET', '/api/me', { token: tokenIphone1 });
+    assert.equal(kickedCheck1.status, 401, 'Old JWT tokens are revoked when token_version increments');
+
+    // Enforced login from iPhone 8 #2 MUST now be rejected 403, while iPhone 8 #1 succeeds 200
+    const blockedReLogin2 = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: { ma_nv: MD_W, password: 'QaPass@2026!', device_id: 'DEV_IPHONE8_HW_SECOND_3C9D', device_name: 'iPhone 8' }
+    });
+    assert.equal(blockedReLogin2.status, 403, 'Secondary iPhone 8 must be blocked 403 once enforced lock_primary is active');
+    const allowedReLogin1 = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: { ma_nv: MD_W, password: 'QaPass@2026!', device_id: 'DEV_IPHONE8_HW_FIRST_8F2A', device_name: 'iPhone 8' }
+    });
+    assert.equal(allowedReLogin1.status, 200);
+
     // Staging vs Production Zalo token hardening audit (mocks strictly allowed ONLY in NODE_ENV=test)
     const prevEnv = process.env.NODE_ENV;
     try {
@@ -778,9 +847,9 @@ test('P9-SEC-LOGIN-01: Special/Unicode passwords, SQLi, Account Enumeration (P1 
 // =========================================================================
 // GROUP 4: COMPLETE 132-ROUTE RBAC, 1:1 16-KEY PERMISSION MATRIX & SOD
 // =========================================================================
-test('P9-RBAC-ALL: Route Inventory (132 Routes), Auth Boundaries, 16-Key 1:1 Matrix & SoD Verification', async () => {
+test('P9-RBAC-ALL: Route Inventory (133 Routes), Auth Boundaries, 16-Key 1:1 Matrix & SoD Verification', async () => {
     const routes = listExpressRoutes(app);
-    assert.equal(routes.length, 132, `Expected 132 Express routes, observed ${routes.length}`);
+    assert.equal(routes.length, 133, `Expected 133 Express routes, observed ${routes.length}`);
 
     const publicWhitelist = new Set([
         'GET /api/health',
@@ -872,6 +941,7 @@ test('P9-RBAC-ALL: Route Inventory (132 Routes), Auth Boundaries, 16-Key 1:1 Mat
         ['POST', `/api/employees/${W2}/reject-device-change`],
         ['POST', `/api/employees/${W2}/reject-device`],
         ['PUT', `/api/employees/${W2}/device-binding-mode`, { mode: 'recording' }],
+        ['POST', `/api/employees/${W2}/resolve-devices`, { action: 'lock_primary' }],
         ['PUT', `/api/employees/${W2}/status`, { is_locked: 1 }],
         ['POST', `/api/employees/${W2}/toggle-lock`, { is_locked: 1 }],
         ['PUT', `/api/employees/${W2}`, { ho_ten: 'Nope' }],
@@ -964,6 +1034,7 @@ test('P9-RBAC-ALL: Route Inventory (132 Routes), Auth Boundaries, 16-Key 1:1 Mat
         ['POST', '/api/attendance/unlock-period', { month: 4, year: TEST_YEAR, reason: 'Bypass' }],
         ['PUT', `/api/employees/${W2}/role`, { role: 'admin' }],
         ['PUT', `/api/employees/${W2}/device-binding-mode`, { mode: 'enforced' }],
+        ['POST', `/api/employees/${W2}/resolve-devices`, { action: 'lock_primary' }],
         ['PUT', `/api/employees/${W2}/permissions`, { permissions: {} }],
         ['POST', '/api/employees/approve-device-change', { ma_nv: W2 }],
         ['POST', '/api/employees/staged-force-password', { ma_nv: W2 }],

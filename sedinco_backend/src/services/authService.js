@@ -8,6 +8,7 @@ const {
     invalidateUserCache
 } = require('../middlewares/authMiddleware');
 const { verifyZaloAccessToken } = require('../utils/zaloAdapter');
+const { recordEmployeeDeviceActivity } = require('../utils/deviceIdentityHelper');
 const { 
     hashPassword, 
     comparePassword, 
@@ -290,7 +291,7 @@ class AuthService {
         }
     }
 
-    async employeeLogin(ma_nv, password, ip_address = '', { zalo_user_id = null, zalo_access_token = null, zalo_token = null, device_id = null } = {}) {
+    async employeeLogin(ma_nv, password, ip_address = '', { zalo_user_id = null, zalo_access_token = null, zalo_token = null, device_id = null, device_name = null, device_info = null, user_agent = '' } = {}) {
         if (!ma_nv || !password) {
             return { success: false, statusCode: 400, message: GENERIC_LOGIN_ERROR };
         }
@@ -391,10 +392,20 @@ class AuthService {
                 }
             }
         }
-        if (device_id && String(device_id).trim().length > 0 && !emp.bound_device_id) {
-            const cleanDevId = String(device_id).trim().slice(0, 140);
-            await query('UPDATE employees SET bound_device_id = ? WHERE ma_nv = ?', [cleanDevId, emp.ma_nv]).catch(() => {});
-            emp.bound_device_id = cleanDevId;
+        const deviceTrack = await recordEmployeeDeviceActivity(emp, {
+            device_id,
+            device_name,
+            device_info,
+            user_agent,
+            ip_address: normalizedIp,
+            source: 'login'
+        });
+        if (deviceTrack.blocked) {
+            return {
+                success: false,
+                statusCode: 403,
+                message: 'Thiết bị hiện tại chưa được cấp phép sử dụng tài khoản này (tài khoản đang khóa cứng 1 máy). Vui lòng liên hệ Quản trị viên!'
+            };
         }
 
         const role = resolveUserRole(emp);
@@ -435,7 +446,7 @@ class AuthService {
         };
     }
 
-    async zaloAutoLogin({ zalo_user_id, zalo_access_token, zalo_token, device_id, ma_nv_hint = null }, ip_address = '') {
+    async zaloAutoLogin({ zalo_user_id, zalo_access_token, zalo_token, device_id, device_name = null, device_info = null, user_agent = '', ma_nv_hint = null }, ip_address = '') {
         const cleanZaloId = zalo_user_id ? String(zalo_user_id).trim() : '';
         const cleanDevId = device_id ? String(device_id).trim() : '';
         const cleanHint = ma_nv_hint ? String(ma_nv_hint).trim().toUpperCase() : '';
@@ -489,8 +500,17 @@ class AuthService {
             };
         }
 
+        const deviceTrack = await recordEmployeeDeviceActivity(emp, {
+            device_id: cleanDevId || null,
+            device_name,
+            device_info,
+            user_agent,
+            ip_address,
+            source: 'zalo_auto_login'
+        });
+
         // Nếu đang ở chế độ enforced và có bound_device_id nhưng không có hoặc sai device_id truyền lên
-        if (emp.device_binding_mode === 'enforced' && emp.bound_device_id && (!cleanDevId || emp.bound_device_id !== cleanDevId)) {
+        if (emp.device_binding_mode === 'enforced' && emp.bound_device_id && (!cleanDevId || deviceTrack.blocked)) {
             return {
                 success: false,
                 statusCode: 403,

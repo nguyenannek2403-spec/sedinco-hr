@@ -56,7 +56,7 @@ test.after(async () => {
     }
 });
 
-test('REQ-01: Leave balance tracking, duplicate-date conflict (409), 3/month comp limit & Paid leave (P) sync', async () => {
+test('REQ-01: Leave balance tracking, duplicate-date conflict (409), unlimited comp requests & Paid leave (P) sync', async () => {
     const bal0 = await apiRequest(baseUrl, 'GET', '/api/requests/leave-balance', { token: workerToken });
     assert.equal(bal0.status, 200);
     assert.equal(Number(bal0.json?.data?.quota), 2);

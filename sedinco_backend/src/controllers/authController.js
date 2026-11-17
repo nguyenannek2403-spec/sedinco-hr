@@ -5,12 +5,15 @@ class AuthController {
     async login(req, res, next) {
         try {
             const identifier = req.body.ma_nv || req.body.username || req.body.identifier;
-            const { password, zalo_user_id, zalo_access_token, zalo_token, device_id } = req.body;
+            const { password, zalo_user_id, zalo_access_token, zalo_token, device_id, device_name, device_info } = req.body;
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
             const result = await authService.employeeLogin(identifier, password, ip, {
                 zalo_user_id,
                 zalo_access_token: zalo_access_token || zalo_token || req.headers['x-zalo-access-token'] || null,
-                device_id
+                device_id,
+                device_name,
+                device_info,
+                user_agent: req.headers['user-agent'] || ''
             });
             if (!result.success) {
                 const status = result.statusCode || 401;
@@ -24,12 +27,15 @@ class AuthController {
 
     async zaloAutoLogin(req, res, next) {
         try {
-            const { zalo_user_id, zalo_access_token, zalo_token, device_id, ma_nv } = req.body;
+            const { zalo_user_id, zalo_access_token, zalo_token, device_id, device_name, device_info, ma_nv } = req.body;
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
             const result = await authService.zaloAutoLogin({
                 zalo_user_id,
                 zalo_access_token: zalo_access_token || zalo_token || req.headers['x-zalo-access-token'] || null,
                 device_id,
+                device_name,
+                device_info,
+                user_agent: req.headers['user-agent'] || '',
                 ma_nv_hint: ma_nv
             }, ip);
             if (!result.success) {

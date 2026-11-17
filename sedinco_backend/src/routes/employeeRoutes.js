@@ -50,8 +50,9 @@ router.put('/:ma_nv/reject-device-change', authenticateToken, requireRole(['admi
 router.post('/:ma_nv/reject-device-change', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.rejectDeviceChange(req, res, next));
 router.post('/:ma_nv/reject-device', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.rejectDeviceChange(req, res, next));
 
-// 4.3 Cài đặt chế độ ràng buộc thiết bị: recording / enforced (Chỉ Admin)
+// 4.3 Cài đặt chế độ ràng buộc thiết bị: recording / enforced & xử lý đa thiết bị (Chỉ Admin)
 router.put('/:ma_nv/device-binding-mode', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.setDeviceBindingMode(req, res, next));
+router.post('/:ma_nv/resolve-devices', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.resolveDevices(req, res, next));
 
 // 5. Khóa hoặc kích hoạt lại tài khoản nhân viên (Yêu cầu permission: employee_status_manage)
 router.put('/:ma_nv/status', authenticateToken, requirePermission('employee_status_manage'), (req, res, next) => employeeController.updateEmployeeStatus(req, res, next));

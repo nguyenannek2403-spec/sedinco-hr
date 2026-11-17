@@ -14,6 +14,7 @@ import {
 import { safePost, safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import { getShiftLabel } from "../../utils/viLabels";
+import { getDeviceIdentity, getDeviceIdentitySync, formatEmployeeDeviceLabel } from "../../utils/deviceIdentity";
 import { AppButton, AppModal, FormRow } from "../../components/ui";
 
 export default function WorkerProfileTab({
@@ -84,9 +85,11 @@ export default function WorkerProfileTab({
     setDeviceSubmitting(true);
     setDeviceError("");
     try {
+      const identity = await getDeviceIdentity();
       const res = await safePost("/employees/request-device-change", {
         reason: deviceReason.trim(),
-        new_device_id: `WEB_MOBILE_${Date.now()}`
+        new_device_id: identity.device_id,
+        device_name: identity.device_model_name
       });
       if (res?.success) {
         if (showToast) showToast("Đã gửi yêu cầu đổi thiết bị đến Quản trị viên!", "success");
@@ -110,7 +113,7 @@ export default function WorkerProfileTab({
   const activeShiftLabel = getShiftLabel(currentUser?.shift_type);
 
   return (
-    <div className="p-4 pb-28 space-y-4">
+    <div className="p-4 pb-8 space-y-4">
       {/* Profile Header Card */}
       <div className="bg-slate-800/80 border border-slate-700/70 rounded-3xl p-5 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full blur-2xl pointer-events-none" />
@@ -148,6 +151,15 @@ export default function WorkerProfileTab({
           <div className="flex items-center gap-1.5 sm:col-span-2 text-indigo-300">
             <Clock className="w-3.5 h-3.5 shrink-0" />
             <span className="font-medium">Ca làm việc: {activeShiftLabel}</span>
+          </div>
+          <div className="flex items-center gap-1.5 sm:col-span-2 text-emerald-300 min-w-0">
+            <Smartphone className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-semibold break-words">
+              Thiết bị: {formatEmployeeDeviceLabel(
+                currentUser?.ho_ten,
+                currentUser?.bound_device_name || getDeviceIdentitySync().device_model_name
+              )}
+            </span>
           </div>
         </div>
       </div>

@@ -53,7 +53,7 @@ export function getSidebarMenuItems({
       },
       {
         id: "management",
-        label: "Nhân Sự, Ca & Thiết Bị",
+        label: "Nhân sự & Thiết bị",
         shortLabel: "Nhân sự",
         icon: Users,
         badge: devicePendingCount > 0 ? `${devicePendingCount}` : null,
@@ -100,7 +100,7 @@ export function getSidebarMenuItems({
       });
     }
     if (dynamicPerms.employee_view === true) {
-      items.push({ id: "management", label: "Hồ Sơ Nhân Sự", shortLabel: "Nhân sự", icon: Users });
+      items.push({ id: "management", label: "Nhân sự & Thiết bị", shortLabel: "Nhân sự", icon: Users });
     }
     items.push({ id: "profile", label: "Hồ Sơ Kế Toán", shortLabel: "Hồ sơ", icon: User });
     return items;

@@ -36,9 +36,13 @@ async function initDatabase() {
         await query("ALTER TABLE employees ALTER COLUMN password DROP DEFAULT").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN zalo_id VARCHAR(100) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN bound_device_id VARCHAR(100) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN bound_device_name VARCHAR(150) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN device_binding_mode VARCHAR(20) DEFAULT 'recording'").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN pending_device_id VARCHAR(100) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN pending_device_name VARCHAR(150) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN device_change_reason TEXT NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN known_devices_json TEXT NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN multi_device_alert TINYINT(1) DEFAULT 0").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN token_version INT NOT NULL DEFAULT 1").catch(() => {});
         
         // Migrate dữ liệu role ban đầu từ chức danh (CHỈ thực hiện một lần khi role chưa được thiết lập)

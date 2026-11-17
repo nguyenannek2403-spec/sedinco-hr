@@ -265,7 +265,7 @@ class PermissionService {
                 LIMIT 20
             `).catch(() => []),
             query(`
-                SELECT COUNT(*) as cnt FROM employees WHERE pending_device_id IS NOT NULL AND pending_device_id != ''
+                SELECT COUNT(*) as cnt FROM employees WHERE (pending_device_id IS NOT NULL AND pending_device_id != '') OR COALESCE(multi_device_alert, 0) = 1
             `).catch(() => [{ cnt: 0 }]),
             query(`
                 SELECT COUNT(*) as cnt FROM requests WHERE status = 'pending'

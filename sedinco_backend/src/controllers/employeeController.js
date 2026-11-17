@@ -105,12 +105,32 @@ class EmployeeController {
 
     async requestDeviceChange(req, res, next) {
         try {
-            const { new_device_id, reason } = req.body;
+            const { new_device_id, device_name, reason } = req.body;
             const ma_nv = req.user ? req.user.ma_nv : null;
             if (!ma_nv) {
                 return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
             }
-            const result = await employeeService.requestDeviceChange(ma_nv, { new_device_id, reason }, req.user);
+            const result = await employeeService.requestDeviceChange(
+                ma_nv,
+                { new_device_id, device_name, reason },
+                req.user,
+                req.headers['user-agent'] || ''
+            );
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async resolveDevices(req, res, next) {
+        try {
+            const { ma_nv } = req.params;
+            const { target_device_id, target_device_name, action } = req.body || {};
+            const result = await employeeService.resolveEmployeeDevices(
+                ma_nv,
+                { target_device_id, target_device_name, action },
+                req.user
+            );
             return res.json(result);
         } catch (err) {
             next(err);

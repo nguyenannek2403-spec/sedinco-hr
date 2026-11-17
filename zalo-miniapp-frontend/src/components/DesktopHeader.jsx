@@ -252,16 +252,16 @@ export default function DesktopHeader({
                   <button
                     type="button"
                     onClick={() => {
-                      if (setCurrentTab) setCurrentTab("devices");
+                      if (setCurrentTab) setCurrentTab("management");
                       setShowAlertPanel(false);
                     }}
                     className="w-full min-h-[46px] text-left p-3.5 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 space-y-1 transition"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-black text-indigo-300">
-                        📱 {deviceCount} Yêu cầu đổi thiết bị chờ duyệt
+                        📱 {deviceCount} Cảnh báo đa thiết bị / Đổi máy
                       </span>
-                      <span className="text-xs font-bold text-indigo-200 underline shrink-0">Xét duyệt</span>
+                      <span className="text-xs font-bold text-indigo-200 underline shrink-0">Mở 360° Xử lý</span>
                     </div>
                   </button>
                 )}

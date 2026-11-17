@@ -2,7 +2,12 @@ const crypto = require('crypto');
 const { query } = require('../config/db');
 const { SAFE_EMPLOYEE_FIELDS, resolveUserRole, logAuditEvent, invalidateUserCache } = require('../middlewares/authMiddleware');
 const { verifyZaloUserToken } = require('../utils/zaloAdapter');
-const { hashPassword } = require('../utils/passwordHelper');
+const { hashPassword, validatePasswordPolicy } = require('../utils/passwordHelper');
+const {
+    computeDeviceShortTag,
+    resolveFriendlyDeviceName,
+    safeParseKnownDevices
+} = require('../utils/deviceIdentityHelper');
 
 function normalizeOptionalTime(rawVal, label = 'Giờ làm việc riêng') {
     if (rawVal === null || rawVal === '') return null;
@@ -135,7 +140,8 @@ class EmployeeService {
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
-            status, is_locked, custom_start_time, custom_end_time
+            status, is_locked, shift_type, annual_leave_quota, keep_logs, new_password,
+            custom_start_time, custom_end_time
         } = data;
 
         const setClauses = [];
@@ -169,6 +175,39 @@ class EmployeeService {
         }
         if (status !== undefined) addField('status', status);
         if (is_locked !== undefined) addField('is_locked', is_locked ? 1 : 0);
+        if (shift_type !== undefined && shift_type !== null) {
+            const cleanShift = String(shift_type).trim().toUpperCase();
+            if (!['FULL_DAY', 'MORNING_SHIFT', 'AFTERNOON_SHIFT', 'NIGHT_SHIFT'].includes(cleanShift)) {
+                const err = new Error('Ca làm việc không hợp lệ!');
+                err.statusCode = 400;
+                throw err;
+            }
+            addField('shift_type', cleanShift);
+        }
+        if (annual_leave_quota !== undefined && annual_leave_quota !== null && annual_leave_quota !== '') {
+            const cleanQuota = Math.max(0, Math.min(60, Number(annual_leave_quota)));
+            if (!Number.isFinite(cleanQuota)) {
+                const err = new Error('Hạn mức phép năm không hợp lệ!');
+                err.statusCode = 400;
+                throw err;
+            }
+            addField('annual_leave_quota', cleanQuota);
+        }
+        if ((current_user && current_user.role === 'admin') && keep_logs !== undefined) {
+            addField('keep_logs', keep_logs ? 1 : 0);
+        }
+        if ((current_user && current_user.role === 'admin') && new_password && String(new_password).trim().length > 0) {
+            const cleanPw = String(new_password).trim();
+            const policyCheck = validatePasswordPolicy(cleanPw, id);
+            if (!policyCheck.valid) {
+                const err = new Error(policyCheck.message);
+                err.statusCode = 400;
+                throw err;
+            }
+            addField('password', hashPassword(cleanPw));
+            addField('must_change_password', 1);
+            setClauses.push('token_version = COALESCE(token_version, 1) + 1');
+        }
         if (custom_start_time !== undefined) addField('custom_start_time', normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng'));
         if (custom_end_time !== undefined) addField('custom_end_time', normalizeOptionalTime(custom_end_time, 'Giờ tan ca riêng'));
 
@@ -390,38 +429,44 @@ class EmployeeService {
     /**
      * Worker gửi yêu cầu đổi/mất thiết bị
      */
-    async requestDeviceChange(ma_nv, { new_device_id, reason }, current_user = null) {
+    async requestDeviceChange(ma_nv, { new_device_id, device_name = null, reason }, current_user = null, user_agent = '') {
         if (!new_device_id || typeof new_device_id !== 'string' || new_device_id.trim().length === 0) {
             const error = new Error('Vui lòng cung cấp mã định danh thiết bị mới!');
             error.statusCode = 400;
             throw error;
         }
+        const cleanNewId = new_device_id.trim().slice(0, 100);
+        const cleanNewName = resolveFriendlyDeviceName({ device_name, user_agent });
 
         await query(
-            'UPDATE employees SET pending_device_id = ?, device_change_reason = ? WHERE ma_nv = ?',
-            [new_device_id.trim(), reason || 'Đổi thiết bị mới', ma_nv]
+            'UPDATE employees SET pending_device_id = ?, pending_device_name = ?, device_change_reason = ? WHERE ma_nv = ?',
+            [cleanNewId, cleanNewName, reason || 'Đổi thiết bị mới', ma_nv]
         );
+        invalidateUserCache(ma_nv);
 
         await logAuditEvent({
             actor_id: ma_nv,
             actor_role: current_user?.role || 'worker',
             action: 'REQUEST_DEVICE_CHANGE',
             resource: 'employee_device',
-            details: { new_device_id: new_device_id.trim(), reason }
+            details: { new_device_id: cleanNewId, device_name: cleanNewName, reason }
         });
 
         return { success: true, message: 'Đã gửi yêu cầu đổi thiết bị tới Quản trị viên!' };
     }
 
     /**
-     * Danh sách yêu cầu đổi thiết bị chờ duyệt (Chỉ Admin)
+     * Danh sách yêu cầu đổi thiết bị chờ duyệt hoặc cảnh báo đa thiết bị (Chỉ Admin)
      */
     async getPendingDeviceChanges() {
         const rows = await query(`
-            SELECT ma_nv, ho_ten, chuc_danh, bound_device_id, pending_device_id, device_change_reason, device_binding_mode
+            SELECT ma_nv, ho_ten, chuc_danh, bound_device_id, bound_device_name,
+                   pending_device_id, pending_device_name, device_change_reason,
+                   device_binding_mode, known_devices_json, COALESCE(multi_device_alert, 0) as multi_device_alert
             FROM employees 
-            WHERE pending_device_id IS NOT NULL AND pending_device_id != ''
-            ORDER BY ma_nv ASC
+            WHERE (pending_device_id IS NOT NULL AND pending_device_id != '')
+               OR COALESCE(multi_device_alert, 0) = 1
+            ORDER BY COALESCE(multi_device_alert, 0) DESC, ma_nv ASC
         `);
         return rows || [];
     }
@@ -430,7 +475,7 @@ class EmployeeService {
      * Admin duyệt đổi thiết bị cho nhân viên
      */
     async approveDeviceChange(ma_nv, current_user = null) {
-        const rows = await query('SELECT pending_device_id, device_change_reason FROM employees WHERE ma_nv = ?', [ma_nv]);
+        const rows = await query('SELECT pending_device_id, pending_device_name, device_change_reason FROM employees WHERE ma_nv = ?', [ma_nv]);
         if (!rows || rows.length === 0 || !rows[0].pending_device_id) {
             const error = new Error('Không tìm thấy yêu cầu đổi thiết bị của nhân viên này!');
             error.statusCode = 404;
@@ -438,20 +483,42 @@ class EmployeeService {
         }
 
         const newDevice = rows[0].pending_device_id;
+        const newDeviceName = rows[0].pending_device_name || resolveFriendlyDeviceName({ device_name: newDevice });
+        const nowIso = new Date().toISOString();
+        const freshKnown = [{
+            device_id: newDevice,
+            device_name: newDeviceName,
+            short_tag: computeDeviceShortTag(newDevice),
+            first_seen: nowIso,
+            last_seen: nowIso,
+            ip: '',
+            login_count: 1
+        }];
+
         await query(
-            'UPDATE employees SET bound_device_id = pending_device_id, pending_device_id = NULL, device_change_reason = NULL WHERE ma_nv = ?',
-            [ma_nv]
+            `UPDATE employees
+             SET bound_device_id = pending_device_id,
+                 bound_device_name = ?,
+                 known_devices_json = ?,
+                 multi_device_alert = 0,
+                 pending_device_id = NULL,
+                 pending_device_name = NULL,
+                 device_change_reason = NULL,
+                 token_version = COALESCE(token_version, 1) + 1
+             WHERE ma_nv = ?`,
+            [newDeviceName, JSON.stringify(freshKnown), ma_nv]
         );
+        invalidateUserCache(ma_nv);
 
         await logAuditEvent({
             actor_id: current_user?.username || current_user?.ma_nv || 'admin',
             actor_role: 'admin',
             action: 'APPROVE_DEVICE_CHANGE',
             resource: 'employee_device',
-            details: { target_ma_nv: ma_nv, approved_device: newDevice }
+            details: { target_ma_nv: ma_nv, approved_device: newDevice, approved_device_name: newDeviceName }
         });
 
-        return { success: true, message: `Đã phê duyệt đổi thiết bị cho nhân viên ${ma_nv}!` };
+        return { success: true, message: `Đã phê duyệt đổi sang máy mới (${newDeviceName}) cho ${ma_nv}!` };
     }
 
     /**
@@ -459,9 +526,10 @@ class EmployeeService {
      */
     async rejectDeviceChange(ma_nv, current_user = null) {
         await query(
-            'UPDATE employees SET pending_device_id = NULL, device_change_reason = NULL WHERE ma_nv = ?',
+            'UPDATE employees SET pending_device_id = NULL, pending_device_name = NULL, device_change_reason = NULL WHERE ma_nv = ?',
             [ma_nv]
         );
+        invalidateUserCache(ma_nv);
 
         await logAuditEvent({
             actor_id: current_user?.username || current_user?.ma_nv || 'admin',
@@ -472,6 +540,125 @@ class EmployeeService {
         });
 
         return { success: true, message: `Đã từ chối yêu cầu đổi thiết bị của nhân viên ${ma_nv}!` };
+    }
+
+    /**
+     * V16: Xử lý 1 chạm thiết bị & cảnh báo đa thiết bị cho Admin
+     * - action = 'lock_primary': Chốt 1 thiết bị chính, xóa thiết bị phụ, đá văng token cũ & khóa cứng enforced
+     * - action = 'reset_devices': Xóa toàn bộ liên kết để nhân viên đăng nhập lại từ đầu trên 1 máy sạch
+     */
+    async resolveEmployeeDevices(ma_nv, { target_device_id = null, target_device_name = null, action = 'lock_primary' } = {}, current_user = null) {
+        const rows = await query(
+            'SELECT ma_nv, ho_ten, bound_device_id, bound_device_name, known_devices_json FROM employees WHERE ma_nv = ? LIMIT 1',
+            [ma_nv]
+        );
+        if (!rows || rows.length === 0) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
+        const emp = rows[0];
+        const knownDevices = safeParseKnownDevices(emp.known_devices_json);
+
+        if (action === 'reset_devices') {
+            await query(
+                `UPDATE employees
+                 SET bound_device_id = NULL,
+                     bound_device_name = NULL,
+                     pending_device_id = NULL,
+                     pending_device_name = NULL,
+                     device_change_reason = NULL,
+                     known_devices_json = NULL,
+                     multi_device_alert = 0,
+                     device_binding_mode = 'recording',
+                     token_version = COALESCE(token_version, 1) + 1
+                 WHERE ma_nv = ?`,
+                [ma_nv]
+            );
+            invalidateUserCache(ma_nv);
+
+            await logAuditEvent({
+                actor_id: current_user?.username || current_user?.ma_nv || 'admin',
+                actor_role: 'admin',
+                action: 'RESET_EMPLOYEE_DEVICES',
+                resource: 'employee_device',
+                details: { target_ma_nv: ma_nv, token_revoked: true }
+            });
+
+            return {
+                success: true,
+                message: `Đã làm mới liên kết thiết bị và đăng xuất toàn bộ phiên của ${emp.ho_ten || ma_nv}!`
+            };
+        }
+
+        const chosenDevice = knownDevices.find((d) => d.device_id === target_device_id) || knownDevices[0] || null;
+        const finalDeviceId = String(target_device_id || chosenDevice?.device_id || emp.bound_device_id || '').trim();
+        if (!finalDeviceId) {
+            const err = new Error('Chưa có thiết bị nào được ghi nhận để khóa cố định!');
+            err.statusCode = 400;
+            throw err;
+        }
+
+        const finalDeviceName = String(
+            target_device_name ||
+            chosenDevice?.device_name ||
+            emp.bound_device_name ||
+            resolveFriendlyDeviceName({ device_name: finalDeviceId })
+        ).trim().slice(0, 150);
+        const nowIso = new Date().toISOString();
+        const singleDeviceList = [{
+            device_id: finalDeviceId,
+            device_name: finalDeviceName,
+            short_tag: chosenDevice?.short_tag || computeDeviceShortTag(finalDeviceId),
+            first_seen: chosenDevice?.first_seen || nowIso,
+            last_seen: nowIso,
+            ip: chosenDevice?.ip || '',
+            login_count: chosenDevice?.login_count || 1
+        }];
+
+        await query(
+            `UPDATE employees
+             SET bound_device_id = ?,
+                 bound_device_name = ?,
+                 pending_device_id = NULL,
+                 pending_device_name = NULL,
+                 device_change_reason = NULL,
+                 known_devices_json = ?,
+                 multi_device_alert = 0,
+                 device_binding_mode = 'enforced',
+                 token_version = COALESCE(token_version, 1) + 1
+             WHERE ma_nv = ?`,
+            [finalDeviceId, finalDeviceName, JSON.stringify(singleDeviceList), ma_nv]
+        );
+        invalidateUserCache(ma_nv);
+
+        await logAuditEvent({
+            actor_id: current_user?.username || current_user?.ma_nv || 'admin',
+            actor_role: 'admin',
+            action: 'RESOLVE_MULTI_DEVICE_LOCK',
+            resource: 'employee_device',
+            details: {
+                target_ma_nv: ma_nv,
+                locked_device_id: finalDeviceId,
+                locked_device_name: finalDeviceName,
+                short_tag: singleDeviceList[0].short_tag,
+                token_revoked: true,
+                device_binding_mode: 'enforced'
+            }
+        });
+
+        return {
+            success: true,
+            data: {
+                ma_nv,
+                bound_device_id: finalDeviceId,
+                bound_device_name: finalDeviceName,
+                device_binding_mode: 'enforced',
+                multi_device_alert: 0,
+                known_devices: singleDeviceList
+            },
+            message: `Đã khóa cứng máy ${finalDeviceName} (#${singleDeviceList[0].short_tag}) cho ${emp.ho_ten || ma_nv} và đăng xuất toàn bộ máy khác!`
+        };
     }
 
     /**

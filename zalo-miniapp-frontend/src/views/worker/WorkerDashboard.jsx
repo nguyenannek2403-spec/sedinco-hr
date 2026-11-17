@@ -91,6 +91,7 @@ export default function WorkerDashboard({
           <div className="p-4 space-y-4">
             <OneTouchCheckIn
               currentUser={currentUser}
+              showToast={showToast}
               onOpenFixCheckoutRequest={(info) => setFixCheckoutInfo(info)}
               onCheckInSuccess={() => {
                 if (showToast) showToast("Điểm danh thành công!", "success");

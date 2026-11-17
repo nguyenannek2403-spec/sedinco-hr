@@ -127,7 +127,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
   });
 
   return (
-    <div className="p-4 pb-28 space-y-4">
+    <div className="p-4 pb-8 space-y-4">
       {/* Top Header */}
       <div className="space-y-3">
         <div>

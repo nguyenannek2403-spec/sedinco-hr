@@ -316,26 +316,19 @@ test('QA3-ATT-02: Manual attendance update rejects unknown ma_nv (404) & deletio
     assert.equal(delLogs.length, 1, 'Deleting manual attendance must write DELETE_ATTENDANCE audit log');
 });
 
-test('QA3-REQ-01: Monthly 3-request limit includes "ct" attendance compensation & rejected OT preserves "1" log', async () => {
+test('QA3-REQ-01: Unlimited monthly attendance compensation (including "ct" 4th/5th) & rejected OT preserves "1" log', async () => {
     const quotaMonth = '2098-06';
-    for (const day of ['02', '03', '04']) {
+    for (const day of ['02', '03', '04', '05', '06']) {
+        const reqType = day === '05' ? 'ct' : 'quên chấm công';
         const res = await apiRequest(baseUrl, 'POST', '/api/requests', {
             token: workerToken,
             headers: { 'X-Idempotency-Key': `qv3-comp-${day}-${tracker.test_run_id}` },
-            body: { request_type: 'quên chấm công', from_date: `${quotaMonth}-${day}`, to_date: `${quotaMonth}-${day}`, reason: `Compensation ${day}` }
+            body: { request_type: reqType, from_date: `${quotaMonth}-${day}`, to_date: `${quotaMonth}-${day}`, reason: `Compensation ${day}` }
         });
-        assert.equal(res.status, 201, `Request ${day} must be accepted`);
+        assert.equal(res.status, 201, `Request ${day} (${reqType}) including 4th/5th must succeed 201 after V16 unlimited quota, got ${res.status}: ${res.raw}`);
         const [r] = await query('SELECT id FROM requests WHERE employee_id = ? AND request_date = ? ORDER BY id DESC LIMIT 1', [w1Id, `${quotaMonth}-${day}`]);
         if (r) tracker.trackRequest(r.id);
     }
-
-    // 4th compensation request using alias 'ct' in the same month MUST hit the 3/month ceiling
-    const fourthCt = await apiRequest(baseUrl, 'POST', '/api/requests', {
-        token: workerToken,
-        headers: { 'X-Idempotency-Key': `qv3-comp-05-${tracker.test_run_id}` },
-        body: { request_type: 'ct', from_date: `${quotaMonth}-05`, to_date: `${quotaMonth}-05`, reason: 'Cong tac 4th alias' }
-    });
-    assert.equal(fourthCt.status, 400, `4th attendance compensation via alias "ct" must return 400 quota exceeded, got ${fourthCt.status}`);
 
     // Worker 2 has '1' worked day on 2098-06-16 -> submits OT -> Admin rejects -> attendance stays '1'
     await query(

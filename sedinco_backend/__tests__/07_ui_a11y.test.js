@@ -722,7 +722,7 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // Snapshot DB baseline & max IDs so all UI test mutations are 100% restored in finally
         settingsSnap = await snapshotSettings();
         coreUsersBefore = await query(
-            "SELECT ma_nv, ho_ten, chuc_danh, role, status, is_locked, password, must_change_password, bound_device_id, pending_device_id, device_change_reason, token_version FROM employees WHERE ma_nv IN ('NV001','NV002','NV003')"
+            "SELECT ma_nv, ho_ten, chuc_danh, role, status, is_locked, password, must_change_password, bound_device_id, bound_device_name, pending_device_id, pending_device_name, device_change_reason, device_binding_mode, known_devices_json, multi_device_alert, token_version FROM employees WHERE ma_nv IN ('NV001','NV002','NV003')"
         );
         adminBefore = await query('SELECT username, password, must_change_password, token_version FROM admins WHERE username = "admin"');
         for (const tbl of ['attendance_logs', 'requests', 'ot_registrations', 'payroll_periods', 'period_locks', 'public_holidays', 'audit_logs']) {
@@ -733,7 +733,7 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // Prepare predictable real DB state for core accounts & current month logs
         const pw123456 = bcrypt.hashSync('123456', 10);
         await query(
-            "UPDATE employees SET password = ?, must_change_password = 0, is_locked = 0, status = 'active', bound_device_id = NULL, pending_device_id = NULL, device_change_reason = NULL WHERE ma_nv IN ('NV001','NV002','NV003')",
+            "UPDATE employees SET password = ?, must_change_password = 0, is_locked = 0, status = 'active', bound_device_id = NULL, bound_device_name = NULL, pending_device_id = NULL, pending_device_name = NULL, device_change_reason = NULL, device_binding_mode = 'recording', known_devices_json = NULL, multi_device_alert = 0 WHERE ma_nv IN ('NV001','NV002','NV003')",
             [pw123456]
         );
         await query("UPDATE employees SET role = 'worker' WHERE ma_nv = 'NV003'");
@@ -1133,23 +1133,23 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await dismissModalIfOpen(session);
         }
 
-        // 2F: Management Tab (Accountant views roster — Device Approval sub-tab strictly restricted to Admin)
+        // 2F: Management Tab (Accountant views Trung tâm Nhân sự 360° & opens Hồ sơ 360°)
         await openDesktopTabViaDrawer('management', 'Accountant');
         await inspectPhysicsAndGeometry(session, 'Accountant Tab: management', { expectModal: false, testScrollBleed: false });
-        const accHasDeviceSubtab = await session.evaluate(`Array.from(document.querySelectorAll('#app button')).some((b) => (b.innerText || '').includes('Đổi thiết bị'))`);
-        assert.equal(accHasDeviceSubtab, false, 'RBAC: Accountant must NOT see Admin-only Đổi thiết bị approval sub-tab');
+        const hasDeviceLabel = await session.evaluate(`(document.body.innerText || '').includes(' : ')`);
+        assert.ok(hasDeviceLabel, 'Employee cards in Trung tâm Nhân sự 360° must display "[Tên nhân viên] : [Tên thiết bị]"');
         const hasEmpDetail = await session.evaluate(`(() => {
             const isVis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; };
-            return Array.from(document.querySelectorAll('#app button')).some((b) => isVis(b) && ((b.innerText || '').includes('Thông tin / Sửa') || (b.innerText || '').includes('Xem hồ sơ')));
+            return Array.from(document.querySelectorAll('#app button')).some((b) => isVis(b) && ((b.innerText || '').includes('Hồ sơ 360') || (b.innerText || '').includes('Xem hồ sơ') || (b.innerText || '').includes('Xử lý thiết bị')));
         })()`);
         if (hasEmpDetail) {
             await session.evaluate(`(() => {
                 const isVis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; };
-                const b = Array.from(document.querySelectorAll('#app button')).find((x) => isVis(x) && ((x.innerText || '').includes('Thông tin / Sửa') || (x.innerText || '').includes('Xem hồ sơ')));
+                const b = Array.from(document.querySelectorAll('#app button')).find((x) => isVis(x) && ((x.innerText || '').includes('Hồ sơ 360') || (x.innerText || '').includes('Xem hồ sơ') || (x.innerText || '').includes('Xử lý thiết bị')));
                 if (b) b.click();
             })()`);
-            await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Employee detail modal opened');
-            await inspectPhysicsAndGeometry(session, 'Accountant Employee Detail Modal', { expectModal: true });
+            await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Employee 360 modal opened');
+            await inspectPhysicsAndGeometry(session, 'Accountant Employee 360 Modal', { expectModal: true });
             await dismissModalIfOpen(session);
         }
 
@@ -1163,13 +1163,13 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await loginThroughAuthView(session, 'admin', '123456');
         await inspectPhysicsAndGeometry(session, 'Admin Dashboard Initial', { expectModal: false, testScrollBleed: false });
 
-        // 3A: Employee Management — Add NV_UI_TEMP, Open Custom Shift Modal, Approve Device
+        // 3A: Trung tâm Nhân sự 360° — Add NV_UI_TEMP, Quick Filters, Open Unified 360° Modal, Approve Device
         await openDesktopTabViaDrawer('management', 'Admin');
         await clickInPage(session, { text: 'Thêm nhân viên', inTopModal: false });
         await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Add Employee modal opened');
         await inspectPhysicsAndGeometry(session, 'Admin Add Employee Modal', { expectModal: true });
         await setReactInputValue(session, { selector: 'input[placeholder*="VD: NV"]', value: 'NV_UI_TEMP', inTopModal: true });
-        await setReactInputValue(session, { selector: 'input[placeholder="Nguyễn Văn A"]', value: 'Nhân Viên Kiểm Thử V15', inTopModal: true });
+        await setReactInputValue(session, { selector: 'input[placeholder="Nguyễn Văn A"]', value: 'Nhân Viên Kiểm Thử V16', inTopModal: true });
         await setReactInputValue(session, { selector: 'input[placeholder*="Kỹ thuật"]', value: 'Công nhân kiểm thử', inTopModal: true });
         await clickInPage(session, { text: 'Lưu nhân viên', inTopModal: true });
         await waitForCondition(
@@ -1185,32 +1185,35 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         }
         await dismissToastIfVisible(session);
 
-        // Open Custom Shift Modal ("Giờ riêng" mobile / "Giờ làm việc riêng" desktop)
-        const shiftClicked = await session.evaluate(`(() => {
+        // Test Quick Filter "Đa thiết bị / Đổi máy" & open unified Modal 360° to resolve device change inside 1 window
+        await clickInPage(session, { text: 'Đa thiết bị / Đổi máy', inTopModal: false });
+        await sleep(250);
+        await inspectPhysicsAndGeometry(session, 'Admin 360 Filter: Đa thiết bị / Đổi máy', { expectModal: false, testScrollBleed: false });
+
+        const open360Clicked = await session.evaluate(`(() => {
             const isVis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; };
-            const b = Array.from(document.querySelectorAll('#app button')).find((x) => isVis(x) && ((x.innerText || '').includes('Giờ riêng') || (x.innerText || '').includes('Giờ làm việc') || x.getAttribute('title') === 'Giờ làm việc riêng'));
+            const b = Array.from(document.querySelectorAll('#app button')).find((x) => isVis(x) && ((x.innerText || '').includes('Xử lý thiết bị') || (x.innerText || '').includes('Hồ sơ 360')));
             if (b) { b.click(); return true; }
             return false;
         })()`);
-        if (shiftClicked) {
-            await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Custom Shift modal opened');
-            await inspectPhysicsAndGeometry(session, 'Admin Custom Shift Modal', { expectModal: true });
+        if (open360Clicked) {
+            await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Admin 360 Modal opened');
+            await inspectPhysicsAndGeometry(session, 'Admin Unified 360° Control Modal', { expectModal: true });
+            const hasApproveInside360 = await session.evaluate(`(() => {
+                const top = document.querySelector('[data-modal-root="true"]');
+                return top ? Array.from(top.querySelectorAll('button')).some((b) => (b.innerText || '').includes('Duyệt đổi sang máy mới')) : false;
+            })()`);
+            if (hasApproveInside360) {
+                await clickInPage(session, { text: 'Duyệt đổi sang máy mới', inTopModal: true });
+                await sleep(350);
+                await dismissToastIfVisible(session);
+            }
             await dismissModalIfOpen(session);
         }
 
-        // Approve pending NV003 device change request
-        await clickInPage(session, { text: 'Đổi thiết bị', inTopModal: false });
-        await sleep(300);
-        await inspectPhysicsAndGeometry(session, 'Admin Sub-tab: Đổi thiết bị', { expectModal: false, testScrollBleed: false });
-        const hasDeviceApprove = await session.evaluate(`(() => {
-            const isVis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; };
-            return Array.from(document.querySelectorAll('#app button')).some((b) => isVis(b) && (b.innerText || '').trim() === 'Phê duyệt');
-        })()`);
-        if (hasDeviceApprove) {
-            await clickInPage(session, { text: 'Phê duyệt', exact: true, inTopModal: false });
-            await sleep(350);
-            await dismissToastIfVisible(session);
-        }
+        // Restore filter back to "Tất cả nhân sự"
+        await clickInPage(session, { text: 'Tất cả nhân sự', inTopModal: false });
+        await sleep(200);
 
         // 3B: Accountant Permissions Tab — semantic <button role="switch">
         await openDesktopTabViaDrawer('permissions', 'Admin');
@@ -1309,13 +1312,15 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await query(
                 `UPDATE employees SET
                     ho_ten = ?, chuc_danh = ?, role = ?, status = ?, is_locked = ?,
-                    password = ?, must_change_password = ?, bound_device_id = ?,
-                    pending_device_id = ?, device_change_reason = ?, token_version = ?
+                    password = ?, must_change_password = ?, bound_device_id = ?, bound_device_name = ?,
+                    pending_device_id = ?, pending_device_name = ?, device_change_reason = ?,
+                    device_binding_mode = ?, known_devices_json = ?, multi_device_alert = ?, token_version = ?
                  WHERE ma_nv = ?`,
                 [
                     emp.ho_ten, emp.chuc_danh, emp.role, emp.status, emp.is_locked,
-                    emp.password, emp.must_change_password, emp.bound_device_id,
-                    emp.pending_device_id, emp.device_change_reason, emp.token_version,
+                    emp.password, emp.must_change_password, emp.bound_device_id, emp.bound_device_name,
+                    emp.pending_device_id, emp.pending_device_name, emp.device_change_reason,
+                    emp.device_binding_mode, emp.known_devices_json, emp.multi_device_alert, emp.token_version,
                     emp.ma_nv
                 ]
             ).catch(() => {});

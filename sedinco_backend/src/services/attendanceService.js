@@ -3,6 +3,7 @@ const { query, withTransaction } = require('../config/db');
 const { logAuditEvent, getAccountantPermissions } = require('../middlewares/authMiddleware');
 const { calculateDistanceMeters } = require('../utils/geoHelper');
 const { parseAllowedLocations, normalizeIp } = require('./companyService');
+const { parseDeviceIdentity, recordEmployeeDeviceActivity } = require('../utils/deviceIdentityHelper');
 
 const SHIFT_DEFINITIONS = {
     FULL_DAY: { code: 'FULL_DAY', label: 'Ca hành chính', start: '08:00', end: '17:30' },
@@ -693,7 +694,7 @@ class AttendanceService {
         return null;
     }
 
-    async checkInMultiFactor({ lat, lng, zalo_location_token, zalo_access_token = '', image_snapshot, device_info, is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
+    async checkInMultiFactor({ lat, lng, zalo_location_token, zalo_access_token = '', image_snapshot, device_info, device_name = null, user_agent = '', is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
             error.statusCode = 401;
@@ -707,7 +708,7 @@ class AttendanceService {
         const timeStr = getVietnamTimeString(today);
 
         // 1. Kiểm tra tài khoản có bị tạm khóa không & lấy thông tin ràng buộc thiết bị + ca làm việc riêng
-        const empCheck = await query("SELECT is_locked, status, bound_device_id, device_binding_mode, COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ?", [ma_nv]);
+        const empCheck = await query("SELECT ma_nv, ho_ten, role, is_locked, status, bound_device_id, bound_device_name, device_binding_mode, known_devices_json, COALESCE(multi_device_alert, 0) as multi_device_alert, COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ?", [ma_nv]);
         if (!empCheck || empCheck.length === 0) {
             const error = new Error('Mã nhân viên không tồn tại trong hệ thống!');
             error.statusCode = 404;
@@ -725,12 +726,9 @@ class AttendanceService {
             this.validateImageSnapshot(image_snapshot);
         }
 
-        // Chuẩn hóa chuỗi định danh thiết bị
-        const deviceStr = device_info
-            ? (typeof device_info === 'object'
-                ? String(device_info.deviceId || [device_info.platform, device_info.userAgent].filter(Boolean).join('|')).slice(0, 140)
-                : String(device_info).slice(0, 140))
-            : null;
+        // Chuẩn hóa chuỗi định danh & tên thương mại thiết bị
+        const deviceIdentity = parseDeviceIdentity({ device_name, device_info, user_agent });
+        const deviceStr = deviceIdentity.deviceId || null;
 
         // Đọc cấu hình công ty & kiểm tra Wi-Fi nội bộ trước để hỗ trợ fallback mượt mà
         const companySettingsRows = await query('SELECT * FROM company_settings LIMIT 1');
@@ -933,20 +931,29 @@ class AttendanceService {
 
         if (current_user.role === 'worker') {
             const bindingMode = emp.device_binding_mode || 'recording';
-            if (bindingMode === 'enforced' && emp.bound_device_id && (!deviceStr || emp.bound_device_id !== deviceStr)) {
+            const prevBoundDeviceId = emp.bound_device_id;
+            if (bindingMode === 'enforced' && prevBoundDeviceId && !deviceStr) {
                 await triggerCriticalFraud(
                     'UNREGISTERED_DEVICE',
-                    deviceStr
-                        ? `Thiết bị lạ chưa được cấp phép (${deviceStr}) khác với thiết bị đã đăng ký (${emp.bound_device_id})`
-                        : `Thiếu định danh thiết bị ở chế độ bắt buộc khớp với thiết bị đã đăng ký (${emp.bound_device_id})`
+                    `Thiếu định danh thiết bị ở chế độ bắt buộc khớp với thiết bị đã đăng ký (${prevBoundDeviceId})`
                 );
             } else if (deviceStr) {
-                if (!emp.bound_device_id) {
-                    await query('UPDATE employees SET bound_device_id = ? WHERE ma_nv = ?', [deviceStr, ma_nv]);
-                    emp.bound_device_id = deviceStr;
-                } else if (emp.bound_device_id !== deviceStr) {
+                const deviceTrack = await recordEmployeeDeviceActivity(emp, {
+                    device_id: deviceStr,
+                    device_name: deviceIdentity.deviceName,
+                    device_info,
+                    user_agent,
+                    ip_address: cleanClientIp,
+                    source: 'check_in'
+                });
+                if (deviceTrack.blocked) {
+                    await triggerCriticalFraud(
+                        'UNREGISTERED_DEVICE',
+                        `Thiết bị lạ chưa được cấp phép (${emp.ho_ten || ma_nv} : ${deviceIdentity.deviceName} #${deviceIdentity.shortTag}) khác với thiết bị đã đăng ký (${prevBoundDeviceId})`
+                    );
+                } else if (prevBoundDeviceId && prevBoundDeviceId !== deviceStr) {
                     is_suspicious = true;
-                    suspicious_reason = `Phát hiện chấm công từ thiết bị lạ (${deviceStr}) khác với thiết bị đã đăng ký (${emp.bound_device_id})`;
+                    suspicious_reason = `Phát hiện chấm công từ thiết bị lạ (${emp.ho_ten || ma_nv} : ${deviceIdentity.deviceName} #${deviceIdentity.shortTag}) khác với thiết bị đã đăng ký (${prevBoundDeviceId})`;
                 }
             }
         }
@@ -1084,19 +1091,17 @@ class AttendanceService {
             const existingLog = existingRows && existingRows.length > 0 ? existingRows[0] : null;
             const isCheckOut = Boolean(existingLog && existingLog.check_in_time);
 
-            // Chốt chặn Cooldown 60 giây chống bấm nhầm liên tiếp nhảy sang Check-out hoặc spam Check-out
+            // Chống rung tay / bấm spam liên tục trong 3 giây đầu tiên (KHÔNG chặn cứng 60s, KHÔNG ghi đè Giờ Ra)
             if (existingLog && currentSecs !== null) {
                 const lastTimeStr = existingLog.check_out_time || existingLog.check_in_time;
                 const lastSecs = this.parseTimeToSeconds(lastTimeStr);
                 if (lastSecs !== null) {
                     const diffSecs = currentSecs - lastSecs;
-                    if (diffSecs >= 0 && diffSecs < 60) {
-                        const err = new Error(
-                            `Bạn vừa chấm công vào lúc ${lastTimeStr}, vui lòng không bấm liên tục (chờ ${60 - diffSecs}s)!`
-                        );
-                        err.statusCode = 429;
-                        err.code = 'CHECKIN_COOLDOWN_60S';
-                        throw err;
+                    if (diffSecs >= 0 && diffSecs < 3) {
+                        return {
+                            isSpamWarning: true,
+                            existingLog
+                        };
                     }
                 }
             }
@@ -1299,6 +1304,29 @@ class AttendanceService {
                 detailedMessage
             };
         });
+
+        if (txOutcome.isSpamWarning) {
+            const savedLog = txOutcome.existingLog;
+            const recordedTime = savedLog.check_out_time || savedLog.check_in_time || timeStr;
+            return {
+                success: true,
+                is_spam_warning: true,
+                message: '⚠️ Bạn đang thao tác bấm liên tục quá nhiều lần! Giờ chấm công của bạn đã được ghi nhận, vui lòng không bấm lặp lại.',
+                server_time: recordedTime,
+                data: {
+                    employee_id: ma_nv,
+                    record_date: dateStr,
+                    check_type: savedLog.check_out_time ? 'OUT' : 'IN',
+                    is_spam_warning: true,
+                    location_name: savedLog.location_name || locationName,
+                    work_location_type: savedLog.work_location_type || finalLocationType,
+                    check_in_time: savedLog.check_in_time,
+                    check_out_time: savedLog.check_out_time || null,
+                    server_time: recordedTime,
+                    status: savedLog.status || '1'
+                }
+            };
+        }
 
         const {
             isCheckOut,

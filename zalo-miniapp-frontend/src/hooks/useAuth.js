@@ -7,32 +7,18 @@ import {
 } from "../utils/api";
 import { resolveSession, logoutSession } from "../services/authService";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
+import { getDeviceIdentity } from "../utils/deviceIdentity";
 
 const STORAGE_USER_KEY = "sedinco_miniapp_user";
 const STORAGE_TOKEN_KEY = "sedinco_auth_token";
 const STORAGE_ACCOUNTS_KEY = "sedinco_employee_accounts";
 const STORAGE_ZALO_LINK_META = "sedinco_zalo_linked_meta";
-const DEVICE_FP_KEY = "sedinco_bound_device_fingerprint";
-
-function getOrCreateDeviceId() {
-  try {
-    let existing = localStorage.getItem(DEVICE_FP_KEY);
-    if (existing) return existing;
-    const platform = typeof navigator !== "undefined" ? (navigator.platform || "Mobile") : "ZMP";
-    const uaHash = typeof navigator !== "undefined"
-      ? String(navigator.userAgent || "").replace(/[^a-zA-Z0-9]/g, "").slice(-12)
-      : "ZALO";
-    const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-    existing = `ZMP_${platform}_${uaHash}_${rand}`.slice(0, 80);
-    localStorage.setItem(DEVICE_FP_KEY, existing);
-    return existing;
-  } catch {
-    return "ZMP_MOBILE_DEFAULT";
-  }
-}
 
 async function resolveZaloAndDeviceIdentity() {
-  const device_id = getOrCreateDeviceId();
+  const identity = await getDeviceIdentity();
+  const device_id = identity.device_id;
+  const device_name = identity.device_model_name;
+  const device_info = identity.device_info;
   let zalo_user_id = "";
   let zalo_access_token = "";
   try {
@@ -55,7 +41,7 @@ async function resolveZaloAndDeviceIdentity() {
       zalo_user_id = `ZALO_${device_id}`;
     }
   }
-  return { zalo_user_id, zalo_access_token, device_id };
+  return { zalo_user_id, zalo_access_token, device_id, device_name, device_info };
 }
 
 export function useAuth() {
@@ -104,7 +90,7 @@ export function useAuth() {
     setIsLoggingIn(true);
 
     try {
-      const { zalo_user_id, zalo_access_token, device_id } = await resolveZaloAndDeviceIdentity();
+      const { zalo_user_id, zalo_access_token, device_id, device_name, device_info } = await resolveZaloAndDeviceIdentity();
       let meta = null;
       try {
         meta = JSON.parse(localStorage.getItem(STORAGE_ZALO_LINK_META) || "null");
@@ -115,6 +101,8 @@ export function useAuth() {
         zalo_access_token: zalo_access_token || undefined,
         zalo_token: zalo_access_token || undefined,
         device_id,
+        device_name,
+        device_info,
         ma_nv: meta?.ma_nv || undefined
       });
 
@@ -144,6 +132,9 @@ export function useAuth() {
           custom_end_time: rawUser.custom_end_time || null,
           annual_leave_quota: rawUser.annual_leave_quota ?? 12,
           bound_device_id: rawUser.bound_device_id || null,
+          bound_device_name: rawUser.bound_device_name || device_name || null,
+          known_devices_json: rawUser.known_devices_json || null,
+          multi_device_alert: Boolean(rawUser.multi_device_alert),
           device_binding_mode: rawUser.device_binding_mode || "recording",
           avatar_url: rawUser.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
           dien_thoai: rawUser.dien_thoai || "0905123456",
@@ -281,7 +272,7 @@ export function useAuth() {
     setIsLoggingIn(true);
 
     try {
-      const { zalo_user_id, zalo_access_token, device_id } = await resolveZaloAndDeviceIdentity();
+      const { zalo_user_id, zalo_access_token, device_id, device_name, device_info } = await resolveZaloAndDeviceIdentity();
 
       // 1. Kiểm tra tài khoản local cache cấp phát
       const storedAccounts = JSON.parse(localStorage.getItem(STORAGE_ACCOUNTS_KEY) || "{}");
@@ -331,7 +322,9 @@ export function useAuth() {
         zalo_user_id,
         zalo_access_token: zalo_access_token || undefined,
         zalo_token: zalo_access_token || undefined,
-        device_id
+        device_id,
+        device_name,
+        device_info
       }).catch((err) => err?.data || (err?.message ? { success: false, message: err.message } : null));
 
       if ((!res || !res.success) && u === "ADMIN") {
@@ -371,6 +364,9 @@ export function useAuth() {
           custom_end_time: rawUser.custom_end_time || null,
           annual_leave_quota: rawUser.annual_leave_quota ?? 12,
           bound_device_id: rawUser.bound_device_id || null,
+          bound_device_name: rawUser.bound_device_name || device_name || null,
+          known_devices_json: rawUser.known_devices_json || null,
+          multi_device_alert: Boolean(rawUser.multi_device_alert),
           device_binding_mode: rawUser.device_binding_mode || "recording",
           avatar_url: rawUser.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
           dien_thoai: rawUser.dien_thoai || "0905123456",

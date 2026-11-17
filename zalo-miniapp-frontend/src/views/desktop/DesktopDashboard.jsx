@@ -270,14 +270,15 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 4 & 9. Quản Lý Hồ Sơ Nhân Sự & Phê Duyệt Đổi Thiết Bị */}
+            {/* 4. Trung tâm Nhân sự 360° & Kiểm soát Thiết bị */}
             {(effectiveTab === "management" || effectiveTab === "devices") && (
               <EmployeeManagementTab
                 key={`management-${refreshTick}-${effectiveTab}`}
                 currentUser={currentUser}
+                activeRole={resolvedRole}
                 dynamicPerms={effectiveDynamicPerms}
                 showToast={showToast}
-                initialSubTab={effectiveTab === "devices" ? "devices" : "list"}
+                initialFilter={effectiveTab === "devices" ? "alerts" : "all"}
                 pendingDeviceCount={alertsSummary?.pending_device_count || 0}
                 onRefreshAlerts={fetchAlertsSummary}
               />
