@@ -164,7 +164,6 @@ export default function AccountantPermissionView({ showToast }) {
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <AppButton
             variant="secondary"
-            tone="dark"
             icon={RotateCcw}
             disabled={saving || loading}
             onClick={handleApplyPreset}

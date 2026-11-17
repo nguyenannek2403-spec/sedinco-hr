@@ -12,12 +12,26 @@
   --brand-success: #059669;
   --brand-danger: #e11d48;
   --brand-warning: #d97706;
+  --surface-base: #f8fafc;
   --surface-card: #ffffff;
-  --surface-muted: #f8fafc;
+  --surface-muted: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --border-subtle: #e2e8f0;
 
   --space-card: 16px;
   --space-row: 12px;
   --radius-control: 12px;
+}
+
+html.dark,
+[zaui-theme="dark"] {
+  --surface-base: #090d16;
+  --surface-card: #111827;
+  --surface-muted: #1e293b;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border-subtle: #1e293b;
 }
 
 html,
@@ -28,6 +42,9 @@ body {
   -webkit-overflow-scrolling: touch;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
+  background-color: var(--surface-base);
+  color: var(--text-primary);
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 button,
@@ -220,4 +237,21 @@ input[type="month"] {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+}
+
+/* Chế độ Sáng / Tối đồng bộ nền tảng ZMP & form controls */
+.zaui-page {
+  background-color: var(--surface-base);
+  color: var(--text-primary);
+}
+
+html.dark select option,
+[zaui-theme="dark"] select option {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+html:not(.dark) select option {
+  background-color: #ffffff;
+  color: #0f172a;
 }

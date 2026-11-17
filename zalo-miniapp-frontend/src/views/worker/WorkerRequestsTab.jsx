@@ -25,8 +25,8 @@ const REQUEST_HUB_CARDS = [
     title: "Nghỉ phép / Việc riêng",
     desc: "Phép năm, không lương, ốm",
     icon: Calendar,
-    cardClass: "bg-blue-600/20 hover:bg-blue-600/30 border-blue-500/40 text-blue-100",
-    iconClass: "bg-blue-500/30 text-blue-300"
+    cardClass: "bg-blue-50 hover:bg-blue-100 dark:bg-blue-600/20 dark:hover:bg-blue-600/30 border-blue-200 dark:border-blue-500/40 text-blue-900 dark:text-blue-100",
+    iconClass: "bg-blue-100 dark:bg-blue-500/30 text-blue-700 dark:text-blue-300"
   },
   {
     key: "comp",
@@ -34,8 +34,8 @@ const REQUEST_HUB_CARDS = [
     title: "Giải trình Bổ sung công",
     desc: "Quên giờ vào/ra, đổi ca",
     icon: Clock,
-    cardClass: "bg-amber-600/20 hover:bg-amber-600/30 border-amber-500/40 text-amber-100",
-    iconClass: "bg-amber-500/30 text-amber-300"
+    cardClass: "bg-amber-50 hover:bg-amber-100 dark:bg-amber-600/20 dark:hover:bg-amber-600/30 border-amber-200 dark:border-amber-500/40 text-amber-900 dark:text-amber-100",
+    iconClass: "bg-amber-100 dark:bg-amber-500/30 text-amber-700 dark:text-amber-300"
   },
   {
     key: "ot",
@@ -43,8 +43,8 @@ const REQUEST_HUB_CARDS = [
     title: "Đăng ký Tăng ca",
     desc: "Làm thêm giờ, ngoài ca",
     icon: TrendingUp,
-    cardClass: "bg-violet-600/20 hover:bg-violet-600/30 border-violet-500/40 text-violet-100",
-    iconClass: "bg-violet-500/30 text-violet-300"
+    cardClass: "bg-violet-50 hover:bg-violet-100 dark:bg-violet-600/20 dark:hover:bg-violet-600/30 border-violet-200 dark:border-violet-500/40 text-violet-900 dark:text-violet-100",
+    iconClass: "bg-violet-100 dark:bg-violet-500/30 text-violet-700 dark:text-violet-300"
   },
   {
     key: "advance",
@@ -52,8 +52,8 @@ const REQUEST_HUB_CARDS = [
     title: "Xin Ứng lương",
     desc: "Tạm ứng trước kỳ lương",
     icon: Wallet,
-    cardClass: "bg-emerald-600/20 hover:bg-emerald-600/30 border-emerald-500/40 text-emerald-100",
-    iconClass: "bg-emerald-500/30 text-emerald-300"
+    cardClass: "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 border-emerald-200 dark:border-emerald-500/40 text-emerald-900 dark:text-emerald-100",
+    iconClass: "bg-emerald-100 dark:bg-emerald-500/30 text-emerald-700 dark:text-emerald-300"
   }
 ];
 
@@ -131,8 +131,8 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
       {/* Top Header */}
       <div className="space-y-3">
         <div>
-          <h2 className="text-lg font-bold leading-snug text-white">Trung tâm Đơn từ &amp; Giải trình</h2>
-          <p className="text-sm text-slate-400 leading-relaxed">
+          <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white">Trung tâm Đơn từ &amp; Giải trình</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
             Chọn loại đơn bạn muốn gửi cho quản lý xét duyệt
           </p>
         </div>
@@ -166,33 +166,33 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
 
         {/* F1: Thẻ Quỹ Phép Năm */}
         {leaveBalance && (
-          <div className="bg-gradient-to-r from-indigo-950/90 to-slate-800/90 border border-indigo-500/30 rounded-2xl p-4 shadow-lg flex items-center justify-between gap-3">
+          <div className="bg-indigo-50 dark:bg-gradient-to-r dark:from-indigo-950/90 dark:to-slate-800/90 border border-indigo-200 dark:border-indigo-500/30 rounded-2xl p-4 shadow-sm dark:shadow-lg flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-400/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
                 <CalendarCheck className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-white">
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">
                   Quỹ phép năm {leaveBalance.year}
                 </div>
-                <div className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                <div className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
                   Đã dùng {leaveBalance.used} • Chờ duyệt {leaveBalance.pending} ngày
                 </div>
               </div>
             </div>
             <div className="text-right shrink-0">
               <div className={`text-base font-bold whitespace-nowrap ${
-                leaveBalance.remaining > 0 ? "text-emerald-400" : "text-rose-400"
+                leaveBalance.remaining > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
               }`}>
                 Còn {leaveBalance.remaining} / {leaveBalance.quota}
               </div>
-              <div className="text-xs text-slate-300">ngày phép</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">ngày phép</div>
             </div>
           </div>
         )}
 
         {/* Filter Tabs */}
-        <div className="flex flex-wrap bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 text-xs gap-1">
+        <div className="flex flex-wrap bg-slate-200/80 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-300 dark:border-slate-700/60 text-xs gap-1">
           {["all", "PENDING", "APPROVED", "REJECTED"].map((st) => (
             <button
               key={st}
@@ -201,7 +201,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
               className={`flex-1 min-h-[44px] px-2.5 py-2 font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 filterStatus === st
                   ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                  : "text-slate-300 hover:text-white"
+                  : "text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
             {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
@@ -212,15 +212,14 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
       {/* Requests List */}
       <div className="space-y-3">
         {loading ? (
-          <SkeletonList rows={3} dark label="Đang tải danh sách đơn từ..." />
+          <SkeletonList rows={3} label="Đang tải danh sách đơn từ..." />
         ) : error ? (
-          <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs flex items-center gap-2">
+          <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             {error}
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState
-            dark
             icon={FileText}
             title="Chưa có đơn từ nào trong danh mục này."
             description="Chọn một trong bốn thẻ phía trên để gửi đơn mới."
@@ -232,26 +231,26 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
             return (
               <div
                 key={req.id}
-                className="perf-list-item bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4 shadow-lg space-y-2.5 transition-all"
+                className="perf-list-item bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4 shadow-sm dark:shadow-lg space-y-2.5 transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="text-sm font-semibold text-white block leading-snug break-words">
+                    <span className="text-sm font-semibold text-slate-900 dark:text-white block leading-snug break-words">
                       {getRequestTypeLabel(req.request_type)}
                     </span>
                     {req.correction_mode && getCorrectionModeLabel(req.correction_mode) && (
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 text-amber-200 text-xs font-semibold">
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs font-semibold">
                         {getCorrectionModeLabel(req.correction_mode)}
                       </span>
                     )}
-                    <span className="text-xs text-slate-400 font-medium block mt-1">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block mt-1">
                       Ngày áp dụng:{" "}
-                      <strong className="text-slate-200">
+                      <strong className="text-slate-800 dark:text-slate-200">
                         {String(req.request_date || req.start_date || "").slice(0, 10)}
                       </strong>
                     </span>
                     {(req.check_in_time || req.check_out_time) && (
-                      <div className="text-xs text-amber-300 font-medium mt-1">
+                      <div className="text-xs text-amber-700 dark:text-amber-300 font-medium mt-1">
                         Giờ đề xuất:{" "}
                         {req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}
                         {req.check_in_time && req.check_out_time ? " • " : ""}
@@ -259,18 +258,18 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                       </div>
                     )}
                     {Number(req.advance_amount) > 0 && (
-                      <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold whitespace-nowrap">
+                      <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold whitespace-nowrap">
                         <Wallet className="w-3.5 h-3.5 shrink-0" />
                         <span>Số tiền ứng: {Math.round(Number(req.advance_amount) || 0).toLocaleString("vi-VN")} đ</span>
                       </div>
                     )}
                   </div>
 
-                  <StatusBadge type="request" status={req.status} dark />
+                  <StatusBadge type="request" status={req.status} />
                 </div>
 
                 {req.reason && (
-                  <p className="text-sm text-slate-300 bg-slate-900/50 p-3 rounded-xl border border-slate-800 leading-relaxed break-words">
+                  <p className="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800 leading-relaxed break-words">
                     {req.reason}
                   </p>
                 )}
@@ -280,20 +279,19 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                     <img
                       src={req.evidence_image}
                       alt="Ảnh chứng minh đơn từ"
-                      className="max-h-36 rounded-xl border border-slate-700 object-cover"
+                      className="max-h-36 rounded-xl border border-slate-200 dark:border-slate-700 object-cover"
                     />
                   </div>
                 )}
 
-                <div className="flex items-center justify-between pt-1 text-xs text-slate-400">
+                <div className="flex items-center justify-between pt-1 text-xs text-slate-500 dark:text-slate-400">
                   <span>Mã đơn: #{req.id}</span>
                   {isPending && (
                     <AppButton
                       variant="ghost"
-                      tone="dark"
                       icon={Trash2}
                       onClick={() => handleCancelRequest(req.id)}
-                      className="text-rose-400 hover:bg-rose-500/10 border-rose-500/20 px-3 py-1.5 text-xs"
+                      className="text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 px-3 py-1.5 text-xs"
                     >
                       Hủy đơn
                     </AppButton>

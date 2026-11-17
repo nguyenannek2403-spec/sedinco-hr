@@ -101,13 +101,13 @@ export default function HolidaysTab({ showToast }) {
   return (
     <div className="space-y-4 max-w-4xl pb-28">
       {/* Header */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4 shadow-sm dark:shadow-xl flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold leading-snug text-white flex items-center gap-2">
-            <Gift className="w-5 h-5 text-rose-400 shrink-0" />
+          <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white flex items-center gap-2">
+            <Gift className="w-5 h-5 text-rose-500 dark:text-rose-400 shrink-0" />
             Danh mục lịch nghỉ lễ quốc gia
           </h2>
-          <p className="text-sm text-slate-300 leading-relaxed mt-0.5">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">
             Ngày lễ được nhân hệ số lương 3.0x khi làm thêm giờ theo quy định
           </p>
         </div>
@@ -117,13 +117,12 @@ export default function HolidaysTab({ showToast }) {
             variant="danger"
             icon={Plus}
             onClick={() => setIsAddOpen(true)}
-            className="text-xs shadow-lg shadow-rose-600/30"
+            className="text-xs shadow-lg shadow-rose-600/25"
           >
             Thêm ngày lễ
           </AppButton>
           <AppButton
             variant="secondary"
-            tone="dark"
             icon={RefreshCw}
             loading={loading}
             onClick={fetchHolidays}
@@ -134,13 +133,13 @@ export default function HolidaysTab({ showToast }) {
       </div>
 
       {/* List */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl shadow-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
         {loading ? (
           <div className="p-4">
-            <SkeletonList rows={3} dark label="Đang tải dữ liệu ngày lễ..." />
+            <SkeletonList rows={3} label="Đang tải dữ liệu ngày lễ..." />
           </div>
         ) : error ? (
-          <div className="p-6 text-center text-rose-300 text-xs flex flex-col items-center justify-center gap-3">
+          <div className="p-6 text-center text-rose-600 dark:text-rose-300 text-xs flex flex-col items-center justify-center gap-3">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5" />
               <span>{error}</span>
@@ -152,7 +151,6 @@ export default function HolidaysTab({ showToast }) {
         ) : holidays.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              dark
               icon={Gift}
               title="Chưa có ngày lễ nào được thiết lập."
               description="Bấm 'Thêm ngày lễ' để khai báo ngày nghỉ lễ hưởng nguyên lương và nhân hệ số tăng ca."
@@ -161,7 +159,7 @@ export default function HolidaysTab({ showToast }) {
         ) : (
           <div className="overflow-x-auto touch-scroll-x">
             <table className="w-full min-w-[640px] text-left text-xs">
-              <thead className="bg-slate-900/80 border-b border-slate-700/80 text-slate-300 font-semibold">
+              <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 font-semibold">
                 <tr>
                   <th className="p-3.5 pl-5 min-w-[200px] whitespace-nowrap">Tên dịp lễ</th>
                   <th className="p-3.5 whitespace-nowrap">Từ ngày</th>
@@ -170,15 +168,15 @@ export default function HolidaysTab({ showToast }) {
                   <th className="p-3.5 text-right pr-5 whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50 text-slate-300">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700/50 text-slate-700 dark:text-slate-300">
                 {holidays.map((h) => (
-                  <tr key={h.id} className="perf-list-item hover:bg-slate-700/30 transition-colors">
-                    <td className="p-3.5 pl-5 min-w-[200px] font-semibold text-white flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-rose-400 shrink-0" />
+                  <tr key={h.id} className="perf-list-item hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                    <td className="p-3.5 pl-5 min-w-[200px] font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
                       <span>{h.holiday_name || h.name}</span>
                     </td>
-                    <td className="p-3.5 font-mono text-slate-300 whitespace-nowrap">{h.start_date}</td>
-                    <td className="p-3.5 font-mono text-slate-300 whitespace-nowrap">{h.end_date}</td>
+                    <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.start_date}</td>
+                    <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.end_date}</td>
                     <td className="p-3.5 whitespace-nowrap">
                       <StatusBadge
                         type="attendance"
@@ -189,10 +187,9 @@ export default function HolidaysTab({ showToast }) {
                     <td className="p-3.5 text-right pr-5 whitespace-nowrap">
                       <AppButton
                         variant="ghost"
-                        tone="dark"
                         icon={Trash2}
                         onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
-                        className="min-w-[44px] px-2.5 text-rose-400 hover:bg-rose-500/15"
+                        className="min-w-[44px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/15"
                         title="Xóa"
                         aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
                       />
@@ -223,16 +220,14 @@ export default function HolidaysTab({ showToast }) {
         open={isAddOpen}
         onClose={() => !isSubmitting && setIsAddOpen(false)}
         disableClose={isSubmitting}
-        theme="dark"
         title="Thêm dịp nghỉ lễ"
         subtitle="Thiết lập ngày lễ hưởng nguyên lương (3.0x khi OT)"
-        icon={<Gift className="w-5 h-5 text-rose-400" />}
+        icon={<Gift className="w-5 h-5 text-rose-500 dark:text-rose-400" />}
         maxWidthClass="max-w-sm"
         footer={
           <div className="flex gap-2.5">
             <AppButton
               variant="secondary"
-              tone="dark"
               disabled={isSubmitting}
               onClick={() => setIsAddOpen(false)}
               className="flex-1"
@@ -254,34 +249,34 @@ export default function HolidaysTab({ showToast }) {
       >
         <form id="add-holiday-form" onSubmit={handleAddHoliday} className="p-5 space-y-3">
           <div>
-            <label className="block text-sm font-semibold text-slate-200 mb-1.5">Tên dịp lễ</label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Tên dịp lễ</label>
             <input
               type="text"
               required
               placeholder="Ví dụ: Tết Dương Lịch"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+              className="w-full min-h-[44px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
             />
           </div>
 
-          <div className="divide-y divide-slate-800 border border-slate-700 rounded-2xl bg-slate-900/90 overflow-hidden">
-            <FormRow dark label="Từ ngày">
+          <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-900/90 overflow-hidden">
+            <FormRow label="Từ ngày">
               <input
                 type="date"
                 required
                 value={form.start_date}
                 onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                className="w-36 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="w-36 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-slate-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
             </FormRow>
-            <FormRow dark label="Đến ngày">
+            <FormRow label="Đến ngày">
               <input
                 type="date"
                 required
                 value={form.end_date}
                 onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                className="w-36 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="w-36 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-slate-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
             </FormRow>
           </div>

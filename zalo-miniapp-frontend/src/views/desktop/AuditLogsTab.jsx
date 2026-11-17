@@ -355,21 +355,21 @@ const formatDetails = (rawDetails, action = "") => {
   return (
     <div className="space-y-4">
       {/* Header & Cấu hình Tự động Xóa Dữ liệu Quá hạn (Auto-Retention Cleanup) */}
-      <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-4 shadow-xl space-y-4">
+      <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-black text-white flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               Nhật ký hoạt động & Kiểm tra chấm công
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Ghi vết thời gian thực theo từng mã nhân viên • Tự động dọn dẹp dữ liệu định kỳ
             </p>
           </div>
 
           {/* Chu kỳ tự động xóa nhật ký quá hạn */}
-          <div className="flex flex-wrap items-center gap-2 bg-slate-900/90 border border-slate-700 p-2 rounded-xl">
-            <span className="text-xs font-bold text-slate-300 pl-1">Tự xóa sau:</span>
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 p-2 rounded-xl">
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-300 pl-1">Tự xóa sau:</span>
             <select
               value={retentionDays}
               onChange={(e) => {
@@ -377,7 +377,7 @@ const formatDetails = (rawDetails, action = "") => {
                 setRetentionDays(val);
                 handleRunCleanup(val);
               }}
-              className="min-h-[44px] bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-xs font-black text-amber-300"
+              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-xs font-black text-amber-700 dark:text-amber-300"
             >
               <option value={15}>15 ngày</option>
               <option value={30}>30 ngày</option>
@@ -398,13 +398,12 @@ const formatDetails = (rawDetails, action = "") => {
           </div>
         </div>
 
-        {/* Thanh Bộ Lọc Đa Chiều (Nhân viên / Phân loại / Từ ngày - Đến ngày / Ghim) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-700/60">
-          {/* Lọc theo Nhân viên */}
+        {/* Thanh Bộ Lọc Đa Chiều */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-700/60">
           <select
             value={selectedEmp}
             onChange={(e) => setSelectedEmp(e.target.value)}
-            className="min-h-[46px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white font-semibold"
+            className="min-h-[46px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold"
           >
             <option value="">👤 Tất cả nhân sự ({employees.length})</option>
             {employees.map((emp) => (
@@ -414,11 +413,10 @@ const formatDetails = (rawDetails, action = "") => {
             ))}
           </select>
 
-          {/* Lọc theo Danh mục hành động */}
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="min-h-[46px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white font-semibold"
+            className="min-h-[46px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold"
           >
             <option value="">📂 Tất cả loại hành động</option>
             <option value="fraud">🚨 Cảnh báo chấm công bất thường (Sai vị trí / Thiết bị lạ)</option>
@@ -428,27 +426,25 @@ const formatDetails = (rawDetails, action = "") => {
             <option value="auth_device">🔐 Đăng nhập & Đổi thiết bị</option>
           </select>
 
-          {/* Từ ngày - Đến ngày (Bố cục ngang gọn trên Mobile) */}
-          <div className="divide-y divide-slate-800 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
-            <FormRow dark label="Từ ngày" className="py-1.5 px-3">
+          <div className="divide-y divide-slate-200 dark:divide-slate-800 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden">
+            <FormRow label="Từ ngày" className="py-1.5 px-3">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-36 sm:w-40 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-white text-center"
+                className="w-36 sm:w-40 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-900 dark:text-white text-center"
               />
             </FormRow>
-            <FormRow dark label="Đến ngày" className="py-1.5 px-3">
+            <FormRow label="Đến ngày" className="py-1.5 px-3">
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-36 sm:w-40 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-white text-center"
+                className="w-36 sm:w-40 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-900 dark:text-white text-center"
               />
             </FormRow>
           </div>
 
-          {/* Ô tìm kiếm từ khóa */}
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -456,19 +452,18 @@ const formatDetails = (rawDetails, action = "") => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm mã NV, nội dung..."
-              className="w-full min-h-[46px] bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500"
+              className="w-full min-h-[46px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
             />
           </div>
 
-          {/* Nút lọc Đã ghim & Làm mới */}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setPinnedOnly(!pinnedOnly)}
               className={`flex-1 min-h-[46px] py-2.5 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
                 pinnedOnly
-                  ? "bg-amber-500/20 border-amber-400 text-amber-300"
-                  : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
+                  ? "bg-amber-100 dark:bg-amber-500/20 border-amber-400 text-amber-800 dark:text-amber-300"
+                  : "bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}
             >
               <Pin className="w-3.5 h-3.5" />
@@ -476,7 +471,6 @@ const formatDetails = (rawDetails, action = "") => {
             </button>
             <AppButton
               variant="secondary"
-              tone="dark"
               icon={RefreshCw}
               loading={loading}
               onClick={fetchLogs}
@@ -487,14 +481,13 @@ const formatDetails = (rawDetails, action = "") => {
           </div>
         </div>
 
-        {/* Nếu đang chọn 1 nhân viên cụ thể: Hiện thanh công tắc "🔒 Giữ toàn bộ lịch sử của nhân viên này" */}
         {selectedEmpObj && (
-          <div className="p-3 rounded-xl bg-indigo-950/50 border border-indigo-500/40 flex flex-wrap items-center justify-between gap-2">
+          <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-500/40 flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs">
-              <span className="font-black text-white">
+              <span className="font-black text-slate-900 dark:text-white">
                 Nhân sự đang chọn: {selectedEmpObj.ho_ten} ({selectedEmpObj.ma_nv})
               </span>
-              <span className="block text-xs text-indigo-200 mt-0.5">
+              <span className="block text-xs text-indigo-700 dark:text-indigo-200 mt-0.5">
                 Khi bật giữ lịch sử, toàn bộ hoạt động của nhân viên này sẽ được miễn trừ khỏi tiến trình tự động xóa định kỳ.
               </span>
             </div>
@@ -504,7 +497,7 @@ const formatDetails = (rawDetails, action = "") => {
               className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-black border flex items-center gap-1.5 transition ${
                 selectedEmpObj.keep_logs
                   ? "bg-emerald-600 text-white border-emerald-400 shadow-md"
-                  : "bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700"
+                  : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
               }`}
             >
               <Lock className="w-3.5 h-3.5" />
@@ -519,24 +512,24 @@ const formatDetails = (rawDetails, action = "") => {
       </div>
 
       {/* Bảng Danh Sách Nhật Ký Kiểm Toán & Cảnh Báo Đỏ */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl shadow-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
         {loading ? (
           <div className="p-4">
-            <SkeletonList rows={4} dark label="Đang tải dữ liệu giám sát hoạt động..." />
+            <SkeletonList rows={4} label="Đang tải dữ liệu giám sát hoạt động..." />
           </div>
         ) : error ? (
-          <div className="p-6 text-center text-rose-400 text-xs flex items-center justify-center gap-2">
+          <div className="p-6 text-center text-rose-600 dark:text-rose-400 text-xs flex items-center justify-center gap-2">
             <AlertCircle className="w-5 h-5" />
             {error}
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-4">
-            <EmptyState dark icon={ShieldCheck} title="Không có bản ghi hoạt động nào khớp với bộ lọc hiện tại." />
+            <EmptyState icon={ShieldCheck} title="Không có bản ghi hoạt động nào khớp với bộ lọc hiện tại." />
           </div>
         ) : (
           <div className="overflow-x-auto touch-scroll-x">
             <table className="w-full min-w-[860px] text-left text-xs">
-              <thead className="bg-slate-900/90 border-b border-slate-700/80 text-slate-400 uppercase tracking-wider font-bold">
+              <thead className="bg-slate-50 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-400 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="p-3.5 pl-4">Thời Gian</th>
                   <th className="p-3.5">Nhân Viên</th>
@@ -545,7 +538,7 @@ const formatDetails = (rawDetails, action = "") => {
                   <th className="p-3.5 text-center">Bảo Toàn & Xử Lý</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50 text-slate-200">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700/50 text-slate-700 dark:text-slate-200">
                 {filtered.map((log, idx) => {
                   const isFraud = log.action === "CRITICAL_FRAUD" || log.resource === "attendance_security";
                   const isPinned = Boolean(log.is_pinned);
@@ -559,27 +552,27 @@ const formatDetails = (rawDetails, action = "") => {
                       data-log-id={log.id}
                       className={`perf-list-item transition-colors ${
                         isFocused
-                          ? "bg-rose-900/75 ring-2 ring-inset ring-amber-400"
+                          ? "bg-rose-100 dark:bg-rose-900/75 ring-2 ring-inset ring-amber-400"
                           : isFraud
-                          ? "bg-rose-950/50 hover:bg-rose-900/40"
+                          ? "bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/40"
                           : isPinned
-                          ? "bg-amber-950/25 hover:bg-amber-900/20"
-                          : "hover:bg-slate-700/30"
+                          ? "bg-amber-50 dark:bg-amber-950/25 hover:bg-amber-100 dark:hover:bg-amber-900/20"
+                          : "hover:bg-slate-50 dark:hover:bg-slate-700/30"
                       }`}
                     >
-                      <td className="p-3.5 pl-4 font-mono text-xs text-slate-300 whitespace-nowrap">
+                      <td className="p-3.5 pl-4 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
                         {formatAuditDateTime(log.created_at)}
                       </td>
 
                       <td className="p-3.5 min-w-[150px]">
-                        <div className="font-black text-white flex items-center gap-1.5">
-                          <UserCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <div className="font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <UserCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                           <span>{log.ho_ten || log.actor_id || "Hệ thống"}</span>
                         </div>
-                        <div className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
                           <span>Mã: {log.actor_id || "HT"}</span>
                           {isKeepEmp && (
-                            <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded font-sans font-bold">
+                            <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 rounded font-sans font-bold">
                               🔒 Giữ LS
                             </span>
                           )}
@@ -592,8 +585,8 @@ const formatDetails = (rawDetails, action = "") => {
                             isFraud
                               ? "bg-rose-600 text-white border-rose-400 shadow-sm"
                               : log.action?.includes("DISPUTED")
-                              ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                              : "bg-blue-500/15 border-blue-500/30 text-blue-300"
+                              ? "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/40"
+                              : "bg-blue-50 dark:bg-blue-500/15 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-300"
                           }`}
                         >
                           {isFraud && <ShieldAlert className="w-3.5 h-3.5 shrink-0" />}
@@ -601,7 +594,7 @@ const formatDetails = (rawDetails, action = "") => {
                         </span>
                       </td>
 
-                      <td className="p-3.5 min-w-[220px] max-w-md text-slate-200 font-medium leading-relaxed">
+                      <td className="p-3.5 min-w-[220px] max-w-md text-slate-700 dark:text-slate-200 font-medium leading-relaxed">
                         {formatDetails(log.details, log.action)}
                       </td>
 
@@ -613,8 +606,8 @@ const formatDetails = (rawDetails, action = "") => {
                             onClick={() => handleTogglePin(log)}
                             className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition ${
                               isPinned
-                                ? "bg-amber-500 text-slate-950 border-amber-300 font-black"
-                                : "bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-700"
+                                ? "bg-amber-500 text-slate-950 border-amber-400 font-black"
+                                : "bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
                             }`}
                             title="📌 Ghim giữ lại lịch sử này vĩnh viễn"
                           >
@@ -630,7 +623,7 @@ const formatDetails = (rawDetails, action = "") => {
                               className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition ${
                                 isKeepEmp
                                   ? "bg-indigo-600 text-white border-indigo-400"
-                                  : "bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-700"
+                                  : "bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
                               }`}
                               title="🔒 Giữ toàn bộ lịch sử của nhân viên này"
                             >

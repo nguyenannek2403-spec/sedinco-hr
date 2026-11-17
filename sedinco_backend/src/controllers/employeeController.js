@@ -29,6 +29,9 @@ class EmployeeController {
             return res.status(201).json({ 
                 success: true, 
                 message: 'Tạo hồ sơ nhân viên thành công!',
+                ma_nv: result.ma_nv,
+                login_username: result.login_username,
+                phone: result.phone,
                 ...(result.one_time_password ? { one_time_password: result.one_time_password } : {})
             });
         } catch (err) {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme } from "../context/ThemeContext";
 import ConfirmDialog from "../components/ConfirmDialog";
 import AuthView from "../views/AuthView";
 import WorkerDashboard from "../views/worker/WorkerDashboard";
@@ -12,8 +13,10 @@ import { CheckCircle2, AlertCircle, Info, RefreshCw, X } from "lucide-react";
 const ForcePasswordChangeModal = lazy(() => import("../components/ForcePasswordChangeModal"));
 
 export default function HomePage() {
+  const { syncThemeFromUser } = useTheme();
   const {
     currentUser,
+    updateCurrentUser,
     activeRole,
     setActiveRole,
     mustChangePassword,
@@ -25,7 +28,9 @@ export default function HomePage() {
     loginWithZaloOneTouch,
     logout,
     clearCache
-  } = useAuth();
+  } = useAuth({ onThemeSync: syncThemeFromUser });
+
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   // Responsive Device & Viewport State
   const [screenWidth, setScreenWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 390));
@@ -68,13 +73,17 @@ export default function HomePage() {
     showToast(msg, "info");
   };
 
-  const handlePasswordChanged = () => {
+  const handlePasswordChanged = (updatedUser, freshToken) => {
+    if (updatedUser) {
+      updateCurrentUser(updatedUser, freshToken);
+    }
     setMustChangePassword(false);
-    showToast("Đổi mật khẩu thành công! Tài khoản của bạn đã được bảo vệ.", "success");
+    setShowAccountModal(false);
+    showToast("Cập nhật tài khoản & bảo mật thành công!", "success");
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-600 selection:text-white transition-colors duration-200">
       {/* 1. Màn hình Chưa Đăng Nhập */}
       {!currentUser ? (
         <AuthView
@@ -99,7 +108,7 @@ export default function HomePage() {
           onLogout={handleLogout}
           onClearCache={clearCache}
           showToast={showToast}
-          onChangePasswordRequest={() => setMustChangePassword(true)}
+          onChangePasswordRequest={() => setShowAccountModal(true)}
         />
       ) : (
         /* 3. Giao Diện Mobile (Công Nhân Zalo Mini App) */
@@ -108,19 +117,22 @@ export default function HomePage() {
           activeRole={activeRole}
           onLogout={handleLogout}
           showToast={showToast}
-          onChangePasswordRequest={() => setMustChangePassword(true)}
+          onChangePasswordRequest={() => setShowAccountModal(true)}
         />
       )}
 
-      {/* Modal Bắt Buộc / Tự Nguyện Đổi Mật Khẩu */}
-      {currentUser && mustChangePassword && (
+      {/* Modal Tài Khoản & Đổi Mật Khẩu (Khả dụng cho cả 3 Role) */}
+      {currentUser && (mustChangePassword || showAccountModal) && (
         <Suspense fallback={null}>
           <ForcePasswordChangeModal
             visible={true}
-            maNv={currentUser.ma_nv}
+            currentUser={currentUser}
+            maNv={currentUser.ma_nv || currentUser.username}
             token={currentUser.token}
-            canClose={!currentUser.must_change_password}
-            onClose={() => setMustChangePassword(false)}
+            canClose={!mustChangePassword}
+            onClose={() => {
+              if (!mustChangePassword) setShowAccountModal(false);
+            }}
             showToast={showToast}
             onPasswordChanged={handlePasswordChanged}
           />

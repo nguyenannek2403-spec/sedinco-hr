@@ -752,7 +752,6 @@ export default function SalarySlipModal({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <AppButton
                           variant="secondary"
-                          tone="dark"
                           icon={Camera}
                           onClick={() => handlePickDisputeMedia(["camera"])}
                           className="text-xs px-3 py-2"
@@ -761,7 +760,6 @@ export default function SalarySlipModal({
                         </AppButton>
                         <AppButton
                           variant="secondary"
-                          tone="dark"
                           icon={ImageIcon}
                           onClick={() => handlePickDisputeMedia(["album"])}
                           className="text-xs px-3 py-2"

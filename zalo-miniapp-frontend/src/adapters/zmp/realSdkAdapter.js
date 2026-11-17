@@ -10,7 +10,10 @@ import {
   vibrate as zmpVibrate,
   getNetworkType as zmpGetNetworkType,
   keepScreen as zmpKeepScreen,
-  downloadFile as zmpDownloadFile
+  downloadFile as zmpDownloadFile,
+  getStorage as zmpGetStorage,
+  setStorage as zmpSetStorage,
+  nativeStorage as zmpNativeStorage
 } from "zmp-sdk/apis";
 
 let _screenWakeLock = null;
@@ -403,5 +406,59 @@ export const realSdkAdapter = {
       code: "FILE_SAVE_UNSUPPORTED",
       message: "Môi trường hiện tại không hỗ trợ lưu tệp trực tiếp."
     };
+  },
+
+  async getStorage(key) {
+    if (!key) return null;
+    try {
+      if (isInsideZaloRuntime()) {
+        if (zmpNativeStorage && typeof zmpNativeStorage.getItem === "function") {
+          const val = zmpNativeStorage.getItem(key);
+          if (val !== undefined && val !== null && val !== "") return val;
+        }
+        if (typeof zmpGetStorage === "function") {
+          const res = await zmpGetStorage({ keys: [key] });
+          if (res && res[key] !== undefined && res[key] !== null && res[key] !== "") {
+            return res[key];
+          }
+        }
+      }
+    } catch (e) {
+      // Fallback sang localStorage ben duoi
+    }
+    try {
+      if (typeof localStorage !== "undefined") {
+        return localStorage.getItem(key);
+      }
+    } catch (e) {}
+    return null;
+  },
+
+  async setStorage(key, value) {
+    if (!key) return false;
+    try {
+      if (typeof localStorage !== "undefined") {
+        if (value === null || value === undefined) {
+          localStorage.removeItem(key);
+        } else {
+          localStorage.setItem(key, String(value));
+        }
+      }
+    } catch (e) {}
+    try {
+      if (isInsideZaloRuntime()) {
+        if (zmpNativeStorage && typeof zmpNativeStorage.setItem === "function") {
+          zmpNativeStorage.setItem(key, value === null || value === undefined ? "" : String(value));
+          return true;
+        }
+        if (typeof zmpSetStorage === "function") {
+          await zmpSetStorage({ data: { [key]: value === null || value === undefined ? "" : String(value) } });
+          return true;
+        }
+      }
+    } catch (e) {
+      // Da luu localStorage lam fallback
+    }
+    return true;
   }
 };

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ArrowLeft, X } from "lucide-react";
 import { useModalStack } from "../../hooks/useLockBodyScroll";
 import AppButton from "./AppButton";
+import { useTheme } from "../../context/ThemeContext";
 
 /**
  * Hộp thoại chuẩn Design System cho Zalo Mini App & Desktop:
@@ -21,7 +22,7 @@ export default function AppModal({
   headerExtra = null,
   footer = null,
   closeLabel = "Đóng / Quay lại",
-  theme = "light",
+  theme = "auto",
   maxWidthClass = "max-w-lg",
   maxHeightClass = "max-h-[90vh]",
   zIndexClass = "",
@@ -30,6 +31,7 @@ export default function AppModal({
   showCloseX = true,
   children
 }) {
+  const { isDark: globalDark } = useTheme();
   const visible = open !== undefined ? Boolean(open) : Boolean(isOpen);
   const { zIndex, isTopModal } = useModalStack(visible, 100);
   const dialogCardRef = useRef(null);
@@ -42,7 +44,7 @@ export default function AppModal({
 
   if (!visible || typeof document === "undefined") return null;
 
-  const isDark = theme === "dark";
+  const isDark = theme === "auto" ? globalDark : theme === "dark";
   const zMatch = String(zIndexClass || "").match(/z-\[(\d+)\]/);
   const minExplicitZ = zMatch ? Number(zMatch[1]) : 0;
   const effectiveZIndex = Math.max(zIndex, minExplicitZ);

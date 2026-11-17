@@ -5,10 +5,11 @@ const {
     generateToken, 
     logAuditEvent,
     getAccountantPermissions,
-    invalidateUserCache
+    invalidateUserCache,
+    SAFE_EMPLOYEE_FIELDS
 } = require('../middlewares/authMiddleware');
 const { verifyZaloAccessToken } = require('../utils/zaloAdapter');
-const { recordEmployeeDeviceActivity } = require('../utils/deviceIdentityHelper');
+const { recordEmployeeDeviceActivity, sanitizeSingleDeviceModelName } = require('../utils/deviceIdentityHelper');
 const { 
     hashPassword, 
     comparePassword, 
@@ -291,32 +292,39 @@ class AuthService {
         }
     }
 
-    async employeeLogin(ma_nv, password, ip_address = '', { zalo_user_id = null, zalo_access_token = null, zalo_token = null, device_id = null, device_name = null, device_info = null, user_agent = '' } = {}) {
-        if (!ma_nv || !password) {
+    async employeeLogin(identifierInput, password, ip_address = '', { zalo_user_id = null, zalo_access_token = null, zalo_token = null, device_id = null, device_name = null, device_info = null, user_agent = '' } = {}) {
+        const cleanId = String(identifierInput || '').trim();
+        if (!cleanId || !password) {
             return { success: false, statusCode: 400, message: GENERIC_LOGIN_ERROR };
         }
 
         const normalizedIp = normalizeClientIp(ip_address);
-        const compositeKey = `composite:${ma_nv}:${normalizedIp}`;
-        const rateLimitBlocked = await this._checkLoginRateLimits(ma_nv, normalizedIp, 'unknown');
+        const compositeKey = `composite:${cleanId}:${normalizedIp}`;
+        const rateLimitBlocked = await this._checkLoginRateLimits(cleanId, normalizedIp, 'unknown');
         if (rateLimitBlocked) {
             return rateLimitBlocked;
         }
 
-        const results = await query('SELECT * FROM employees WHERE ma_nv = ?', [ma_nv]);
+        const results = await query(
+            'SELECT * FROM employees WHERE ma_nv = ? OR LOWER(login_username) = LOWER(?) OR phone = ? OR dien_thoai = ? LIMIT 1',
+            [cleanId, cleanId, cleanId, cleanId]
+        );
         if (!results || results.length === 0) {
             // V5 Unified Auto-Routing Login: Tự động kiểm tra bảng admins nếu không tìm thấy trong bảng employees
-            const adminRows = await query('SELECT username FROM admins WHERE LOWER(username) = LOWER(?) LIMIT 1', [String(ma_nv).trim()]);
+            const adminRows = await query(
+                'SELECT username FROM admins WHERE LOWER(username) = LOWER(?) OR LOWER(login_username) = LOWER(?) OR phone = ? LIMIT 1',
+                [cleanId, cleanId, cleanId]
+            );
             if (adminRows && adminRows.length > 0) {
                 return await this.adminLogin(adminRows[0].username, password, ip_address, {
-                    skipPreCheck: adminRows[0].username === ma_nv
+                    skipPreCheck: adminRows[0].username === cleanId
                 });
             }
 
-            await this._recordLoginFailure(ma_nv, normalizedIp);
+            await this._recordLoginFailure(cleanId, normalizedIp);
 
             await logAuditEvent({
-                actor_id: ma_nv,
+                actor_id: cleanId,
                 actor_role: 'unknown',
                 action: 'LOGIN_FAILED',
                 resource: 'auth',
@@ -328,11 +336,12 @@ class AuthService {
         }
 
         const emp = results[0];
+        const ma_nv = emp.ma_nv;
 
         // So sánh mật khẩu trước khi kiểm tra trạng thái khóa (chống Account Enumeration qua mã 403)
         const storedPass = emp.password;
         if (!storedPass || !isBcryptHash(storedPass)) {
-            await this._recordLoginFailure(ma_nv, normalizedIp);
+            await this._recordLoginFailure(cleanId, normalizedIp);
 
             await logAuditEvent({
                 actor_id: ma_nv,
@@ -349,7 +358,7 @@ class AuthService {
         const isMatch = await comparePasswordAsync(password, storedPass);
 
         if (!isMatch) {
-            await this._recordLoginFailure(ma_nv, normalizedIp);
+            await this._recordLoginFailure(cleanId, normalizedIp);
 
             await logAuditEvent({
                 actor_id: ma_nv,
@@ -373,8 +382,11 @@ class AuthService {
             };
         }
 
-        // ✅ Đăng nhập thành công → Reset rate limiter cho composite key này
+        // ✅ Đăng nhập thành công → Reset rate limiter cho composite key & ghi nhận IP tin cậy
         await resetCompositeAttemptsDb(compositeKey);
+        if (ma_nv !== cleanId) {
+            await resetCompositeAttemptsDb(`composite:${ma_nv}:${normalizedIp}`).catch(() => {});
+        }
         await recordKnownLegitIp(ma_nv, normalizedIp);
 
         // V6 Zero-Password Zalo Auto-Login: CHỈ liên kết zalo_user_id khi có access token đã được server Zalo xác thực
@@ -415,6 +427,9 @@ class AuthService {
 
         const safeEmp = sanitizeUserResponse(emp);
         safeEmp.role = role;
+        safeEmp.phone = emp.phone || emp.dien_thoai || null;
+        safeEmp.login_username = emp.login_username || emp.phone || emp.ma_nv;
+        safeEmp.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
         if (isPureAdmin) {
             safeEmp.bound_device_id = null;
             safeEmp.bound_device_name = null;
@@ -423,6 +438,8 @@ class AuthService {
             safeEmp.device_binding_enforced = false;
             safeEmp.pending_device_id = null;
             safeEmp.pending_device_name = null;
+        } else if (safeEmp.bound_device_name) {
+            safeEmp.bound_device_name = sanitizeSingleDeviceModelName(safeEmp.bound_device_name);
         }
         if (role === 'accountant') {
             safeEmp.dynamic_permissions = await getAccountantPermissions();
@@ -538,6 +555,9 @@ class AuthService {
 
         const safeEmp = sanitizeUserResponse(emp);
         safeEmp.role = role;
+        safeEmp.phone = emp.phone || emp.dien_thoai || null;
+        safeEmp.login_username = emp.login_username || emp.phone || emp.ma_nv;
+        safeEmp.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
         if (isPureAdmin) {
             safeEmp.bound_device_id = null;
             safeEmp.bound_device_name = null;
@@ -546,6 +566,8 @@ class AuthService {
             safeEmp.device_binding_enforced = false;
             safeEmp.pending_device_id = null;
             safeEmp.pending_device_name = null;
+        } else if (safeEmp.bound_device_name) {
+            safeEmp.bound_device_name = sanitizeSingleDeviceModelName(safeEmp.bound_device_name);
         }
         if (role === 'accountant') {
             safeEmp.dynamic_permissions = await getAccountantPermissions();
@@ -580,26 +602,30 @@ class AuthService {
     }
 
     async adminLogin(username, password, ip_address = '', { skipPreCheck = false } = {}) {
-        if (!username || !password) {
+        const cleanAdminId = String(username || '').trim();
+        if (!cleanAdminId || !password) {
             return { success: false, message: GENERIC_LOGIN_ERROR };
         }
 
         // Rate limit theo (admin username, IP), IP rộng & phân tán nhiều IP — dùng chung helper với employeeLogin
         const normalizedIp = normalizeClientIp(ip_address);
-        const adminAcctKey = `composite:${username}:${normalizedIp}`;
+        const adminAcctKey = `composite:${cleanAdminId}:${normalizedIp}`;
         if (!skipPreCheck) {
-            const rateLimitBlocked = await this._checkLoginRateLimits(username, normalizedIp, 'admin');
+            const rateLimitBlocked = await this._checkLoginRateLimits(cleanAdminId, normalizedIp, 'admin');
             if (rateLimitBlocked) {
                 return rateLimitBlocked;
             }
         }
 
-        const results = await query('SELECT * FROM admins WHERE username = ?', [username]);
+        const results = await query(
+            'SELECT * FROM admins WHERE LOWER(username) = LOWER(?) OR LOWER(login_username) = LOWER(?) OR phone = ? LIMIT 1',
+            [cleanAdminId, cleanAdminId, cleanAdminId]
+        );
         if (!results || results.length === 0) {
-            await this._recordLoginFailure(username, normalizedIp);
+            await this._recordLoginFailure(cleanAdminId, normalizedIp);
 
             await logAuditEvent({
-                actor_id: username,
+                actor_id: cleanAdminId,
                 actor_role: 'admin',
                 action: 'ADMIN_LOGIN_FAILED',
                 resource: 'auth',
@@ -613,10 +639,10 @@ class AuthService {
         const admin = results[0];
         const storedPass = admin.password;
         if (!storedPass || !isBcryptHash(storedPass)) {
-            await this._recordLoginFailure(username, normalizedIp);
+            await this._recordLoginFailure(cleanAdminId, normalizedIp);
 
             await logAuditEvent({
-                actor_id: username,
+                actor_id: admin.username,
                 actor_role: 'admin',
                 action: 'ADMIN_LOGIN_FAILED',
                 resource: 'auth',
@@ -630,10 +656,10 @@ class AuthService {
         const isMatch = await comparePasswordAsync(password, storedPass);
 
         if (!isMatch) {
-            await this._recordLoginFailure(username, normalizedIp);
+            await this._recordLoginFailure(cleanAdminId, normalizedIp);
 
             await logAuditEvent({
-                actor_id: username,
+                actor_id: admin.username,
                 actor_role: 'admin',
                 action: 'ADMIN_LOGIN_FAILED',
                 resource: 'auth',
@@ -646,10 +672,16 @@ class AuthService {
 
         // ✅ Đăng nhập thành công → Reset rate limiter cho composite key & ghi nhận IP tin cậy
         await resetCompositeAttemptsDb(adminAcctKey);
-        await recordKnownLegitIp(username, normalizedIp);
+        if (admin.username !== cleanAdminId) {
+            await resetCompositeAttemptsDb(`composite:${admin.username}:${normalizedIp}`).catch(() => {});
+        }
+        await recordKnownLegitIp(admin.username, normalizedIp);
 
         const safeAdmin = sanitizeUserResponse(admin);
         safeAdmin.role = 'admin';
+        safeAdmin.login_username = admin.login_username || admin.username;
+        safeAdmin.phone = admin.phone || null;
+        safeAdmin.theme_preference = admin.theme_preference === 'dark' ? 'dark' : 'light';
 
         const token = generateToken({
             id: admin.id,
@@ -730,36 +762,39 @@ class AuthService {
         return { success: true };
     }
 
-    async changePassword(ma_nv, old_password, new_password, current_user = null) {
+    async changePassword(ma_nv, old_password, new_password, current_user = null, options = {}) {
         if (!ma_nv) {
             return { success: false, statusCode: 400, message: 'Thiếu mã nhân viên cần đổi mật khẩu!' };
         }
-        // Kiểm tra quyền: Chỉ chính nhân viên hoặc admin mới được đổi mật khẩu
-        if (current_user && current_user.role !== 'admin' && current_user.ma_nv !== ma_nv) {
+        const currentActorId = current_user ? (current_user.ma_nv || current_user.username) : null;
+        // Kiểm tra quyền: Chỉ chính chủ tài khoản hoặc admin mới được đổi mật khẩu
+        if (current_user && current_user.role !== 'admin' && currentActorId !== ma_nv) {
             return { success: false, statusCode: 403, message: 'Bạn không có quyền thay đổi mật khẩu của nhân viên khác!' };
         }
 
-        const results = await query('SELECT password FROM employees WHERE ma_nv = ?', [ma_nv]);
+        const results = await query(`SELECT ${SAFE_EMPLOYEE_FIELDS}, password FROM employees WHERE ma_nv = ?`, [ma_nv]);
         let isPureAdmin = false;
-        let currentPass = null;
+        let accountRow = null;
         if (results && results.length > 0) {
-            currentPass = results[0].password;
-        } else if (current_user && current_user.role === 'admin') {
-            const admResults = await query('SELECT password FROM admins WHERE username = ?', [ma_nv]);
+            accountRow = results[0];
+        } else if (!current_user || current_user.role === 'admin') {
+            const admResults = await query('SELECT id, username, ho_ten, password, phone, login_username, theme_preference, must_change_password, token_version FROM admins WHERE username = ?', [ma_nv]);
             if (admResults && admResults.length > 0) {
-                currentPass = admResults[0].password;
+                accountRow = admResults[0];
                 isPureAdmin = true;
             }
         }
-        if (!currentPass) {
+        if (!accountRow || !accountRow.password) {
             return { success: false, statusCode: 404, message: 'Không tìm thấy tài khoản' };
         }
+        const currentPass = accountRow.password;
         if (!isBcryptHash(currentPass)) {
             return { success: false, statusCode: 400, message: 'Mật khẩu hiện tại không hợp lệ hoặc chưa được mã hóa an toàn!' };
         }
-        
-        // Nếu không phải admin thì bắt buộc phải nhập đúng mật khẩu cũ (dùng bcrypt compare qua Worker Threads)
-        if (!current_user || current_user.role !== 'admin') {
+
+        // Non-admin bắt buộc nhập mật khẩu cũ; admin chỉ kiểm tra nếu đang cung cấp mật khẩu cũ hoặc tự sửa tài khoản của mình
+        const isSelfAction = Boolean(current_user && currentActorId === ma_nv);
+        if (!current_user || current_user.role !== 'admin' || (isSelfAction && old_password !== undefined && old_password !== null && old_password !== '')) {
             if (!old_password || typeof old_password !== 'string') {
                 return { success: false, statusCode: 400, message: 'Vui lòng nhập mật khẩu cũ!' };
             }
@@ -769,29 +804,255 @@ class AuthService {
             }
         }
 
-        const policyCheck = validatePasswordPolicy(new_password, ma_nv);
-        if (!policyCheck.valid) {
-            return { success: false, statusCode: 400, message: policyCheck.message };
+        const { normalizePhone, normalizeUsername, assertUniqueLoginIdentity } = require('./employeeService');
+        const hasNewPassword = typeof new_password === 'string' && new_password.length > 0;
+        const hasNewUsername = options && options.new_username !== undefined;
+        const hasPhone = options && options.phone !== undefined;
+
+        if (!hasNewPassword && !hasNewUsername && !hasPhone) {
+            return { success: false, statusCode: 400, message: 'Vui lòng nhập mật khẩu mới!' };
         }
 
-        // Mã hóa mật khẩu mới bằng bcrypt trước khi lưu & tăng token_version để thu hồi JWT cũ tức thì
-        const hashedNew = hashPassword(new_password);
+        let hashedNew = null;
+        if (hasNewPassword) {
+            const policyCheck = validatePasswordPolicy(new_password, ma_nv);
+            if (!policyCheck.valid) {
+                return { success: false, statusCode: 400, message: policyCheck.message };
+            }
+            hashedNew = hashPassword(new_password);
+        }
+
+        const nextUsername = hasNewUsername ? normalizeUsername(options.new_username) : undefined;
+        const nextPhone = hasPhone ? normalizePhone(options.phone) : undefined;
+
+        if (hasNewUsername && !nextUsername) {
+            return { success: false, statusCode: 400, message: 'Tên tài khoản đăng nhập không được để trống!' };
+        }
+
+        if (hasNewUsername || hasPhone) {
+            try {
+                await assertUniqueLoginIdentity({
+                    phone: hasPhone ? nextPhone : null,
+                    login_username: hasNewUsername ? nextUsername : null,
+                    excludeMaNv: isPureAdmin ? null : ma_nv,
+                    excludeAdminUsername: isPureAdmin ? ma_nv : null
+                });
+            } catch (uniqErr) {
+                return {
+                    success: false,
+                    statusCode: uniqErr.statusCode || 409,
+                    message: uniqErr.message || 'Tài khoản hoặc số điện thoại đã được sử dụng!'
+                };
+            }
+        }
+
+        const setParts = [];
+        const params = [];
+        if (hashedNew) {
+            setParts.push('password = ?', 'must_change_password = 0', 'token_version = COALESCE(token_version, 1) + 1');
+            params.push(hashedNew);
+        }
+        if (hasNewUsername) {
+            setParts.push('login_username = ?');
+            params.push(nextUsername);
+        }
+        if (hasPhone) {
+            setParts.push('phone = ?');
+            params.push(nextPhone);
+            if (!isPureAdmin) {
+                setParts.push('dien_thoai = ?');
+                params.push(nextPhone);
+            }
+        }
+
         if (isPureAdmin) {
-            await query('UPDATE admins SET password = ?, must_change_password = 0, token_version = COALESCE(token_version, 1) + 1 WHERE username = ?', [hashedNew, ma_nv]);
+            params.push(ma_nv);
+            await query(`UPDATE admins SET ${setParts.join(', ')} WHERE username = ?`, params);
         } else {
-            await query('UPDATE employees SET password = ?, must_change_password = 0, token_version = COALESCE(token_version, 1) + 1 WHERE ma_nv = ?', [hashedNew, ma_nv]);
+            params.push(ma_nv);
+            await query(`UPDATE employees SET ${setParts.join(', ')} WHERE ma_nv = ?`, params);
         }
         invalidateUserCache(ma_nv);
 
         await logAuditEvent({
-            actor_id: current_user ? (current_user.ma_nv || current_user.username) : ma_nv,
+            actor_id: currentActorId || ma_nv,
             actor_role: current_user ? current_user.role : 'worker',
-            action: 'CHANGE_PASSWORD',
+            action: hashedNew ? 'CHANGE_PASSWORD' : 'UPDATE_ACCOUNT_CREDENTIALS',
             resource: isPureAdmin ? 'admins' : 'employees',
-            details: { target_ma_nv: ma_nv, token_revoked: true }
+            details: { target_ma_nv: ma_nv, token_revoked: Boolean(hashedNew), updated_username: hasNewUsername || false, updated_phone: hasPhone || false }
         });
 
-        return { success: true, message: 'Đổi mật khẩu thành công!' };
+        let freshUser = null;
+        let freshToken = null;
+        if (!current_user || isSelfAction) {
+            freshUser = await this.getProfile({
+                ...(current_user || {}),
+                ma_nv: isPureAdmin ? undefined : ma_nv,
+                username: isPureAdmin ? ma_nv : undefined,
+                role: isPureAdmin ? 'admin' : resolveUserRole(accountRow)
+            });
+            if (freshUser) {
+                const tv = Number(accountRow.token_version || 1) + (hashedNew ? 1 : 0);
+                if (isPureAdmin) {
+                    freshToken = generateToken({
+                        id: accountRow.id,
+                        username: accountRow.username,
+                        role: 'admin',
+                        ho_ten: freshUser.ho_ten,
+                        token_version: tv
+                    });
+                } else {
+                    freshToken = generateToken({
+                        id: accountRow.ma_nv,
+                        ma_nv: accountRow.ma_nv,
+                        role: freshUser.role,
+                        ho_ten: freshUser.ho_ten,
+                        token_version: tv
+                    });
+                }
+            }
+        }
+
+        return {
+            success: true,
+            message: hashedNew ? 'Đổi mật khẩu thành công!' : 'Cập nhật tài khoản thành công!',
+            ...(freshUser ? { data: freshUser } : {}),
+            ...(freshToken ? { token: freshToken } : {})
+        };
+    }
+
+    async updateAccountCredentials(current_user, { old_password, new_password, new_username, phone } = {}) {
+        if (!current_user) {
+            return { success: false, statusCode: 401, message: 'Chưa đăng nhập!' };
+        }
+        const targetId = current_user.ma_nv || current_user.username;
+        if (!targetId) {
+            return { success: false, statusCode: 400, message: 'Không xác định được tài khoản hiện tại!' };
+        }
+        if (!old_password || typeof old_password !== 'string') {
+            return { success: false, statusCode: 400, message: 'Vui lòng nhập mật khẩu hiện tại để xác thực!' };
+        }
+
+        const empRows = current_user.ma_nv
+            ? await query(`SELECT ${SAFE_EMPLOYEE_FIELDS}, password FROM employees WHERE ma_nv = ?`, [current_user.ma_nv])
+            : [];
+        let isPureAdmin = false;
+        let accountRow = (empRows && empRows[0]) || null;
+        if (!accountRow && current_user.username) {
+            const admRows = await query(
+                'SELECT id, username, ho_ten, password, phone, login_username, theme_preference, must_change_password, token_version FROM admins WHERE username = ?',
+                [current_user.username]
+            );
+            if (admRows && admRows[0]) {
+                accountRow = admRows[0];
+                isPureAdmin = true;
+            }
+        }
+        if (!accountRow) {
+            return { success: false, statusCode: 404, message: 'Không tìm thấy tài khoản!' };
+        }
+        if (!isBcryptHash(accountRow.password)) {
+            return { success: false, statusCode: 400, message: 'Mật khẩu tài khoản chưa đạt chuẩn bảo mật!' };
+        }
+
+        const okPass = await comparePasswordAsync(old_password, accountRow.password);
+        if (!okPass) {
+            return { success: false, statusCode: 400, message: 'Mật khẩu hiện tại không chính xác!' };
+        }
+
+        const opts = {};
+        if (new_username !== undefined) opts.new_username = new_username;
+        if (phone !== undefined) opts.phone = phone;
+        const passToSet = typeof new_password === 'string' && new_password.length > 0 ? new_password : null;
+
+        if (!passToSet && new_username === undefined && phone === undefined) {
+            return { success: false, statusCode: 400, message: 'Vui lòng nhập thông tin mới cần cập nhật!' };
+        }
+
+        return this.changePassword(
+            isPureAdmin ? accountRow.username : accountRow.ma_nv,
+            old_password,
+            passToSet,
+            current_user,
+            opts
+        );
+    }
+
+    async updateThemePreference(current_user, rawTheme) {
+        if (!current_user) {
+            return { success: false, statusCode: 401, message: 'Chưa đăng nhập!' };
+        }
+        const normalizedTheme = String(rawTheme || '').trim().toLowerCase();
+        if (normalizedTheme !== 'light' && normalizedTheme !== 'dark') {
+            return { success: false, statusCode: 400, message: 'Giao diện không hợp lệ (chỉ nhận light hoặc dark)!' };
+        }
+
+        if (current_user.ma_nv) {
+            await query('UPDATE employees SET theme_preference = ? WHERE ma_nv = ?', [normalizedTheme, current_user.ma_nv]);
+            invalidateUserCache(current_user.ma_nv);
+        } else if (current_user.username) {
+            await query('UPDATE admins SET theme_preference = ? WHERE username = ?', [normalizedTheme, current_user.username]);
+            invalidateUserCache(current_user.username);
+        } else {
+            return { success: false, statusCode: 400, message: 'Không xác định được tài khoản!' };
+        }
+
+        return {
+            success: true,
+            data: { theme_preference: normalizedTheme }
+        };
+    }
+
+    async getProfile(current_user) {
+        if (!current_user) return null;
+        if (current_user.ma_nv) {
+            const rows = await query(`SELECT ${SAFE_EMPLOYEE_FIELDS} FROM employees WHERE ma_nv = ? LIMIT 1`, [current_user.ma_nv]);
+            if (rows && rows.length > 0) {
+                const emp = rows[0];
+                const role = resolveUserRole(emp);
+                const safe = sanitizeUserResponse(emp);
+                safe.role = role;
+                safe.phone = emp.phone || emp.dien_thoai || null;
+                safe.login_username = emp.login_username || emp.phone || emp.ma_nv;
+                safe.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
+                if (role === 'admin') {
+                    safe.bound_device_id = null;
+                    safe.bound_device_name = null;
+                    safe.known_devices = [];
+                    safe.multi_device_alert = false;
+                    safe.device_binding_enforced = false;
+                    safe.pending_device_id = null;
+                    safe.pending_device_name = null;
+                } else if (safe.bound_device_name) {
+                    safe.bound_device_name = sanitizeSingleDeviceModelName(safe.bound_device_name);
+                }
+                if (role === 'accountant') {
+                    safe.dynamic_permissions = await getAccountantPermissions();
+                }
+                return safe;
+            }
+        }
+        const admKey = current_user.username || current_user.ma_nv;
+        if (admKey) {
+            const admRows = await query(
+                'SELECT id, username, ho_ten, phone, login_username, theme_preference, must_change_password FROM admins WHERE username = ? LIMIT 1',
+                [admKey]
+            );
+            if (admRows && admRows.length > 0) {
+                const adm = admRows[0];
+                const safeAdm = sanitizeUserResponse(adm);
+                safeAdm.role = 'admin';
+                safeAdm.phone = adm.phone || null;
+                safeAdm.login_username = adm.login_username || adm.username;
+                safeAdm.theme_preference = adm.theme_preference === 'dark' ? 'dark' : 'light';
+                safeAdm.must_change_password = Boolean(adm.must_change_password);
+                safeAdm.bound_device_id = null;
+                safeAdm.bound_device_name = null;
+                safeAdm.known_devices = [];
+                return safeAdm;
+            }
+        }
+        return current_user;
     }
 
     async forcePasswordChange(ma_nv, current_user = null) {

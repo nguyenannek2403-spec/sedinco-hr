@@ -17,7 +17,9 @@ export const zmpAdapter = {
   vibrate: (...args) => realSdkAdapter.vibrate(...args),
   getNetworkType: (...args) => realSdkAdapter.getNetworkType(...args),
   keepScreenOn: (...args) => realSdkAdapter.keepScreenOn(...args),
-  saveFile: (...args) => realSdkAdapter.saveFile(...args)
+  saveFile: (...args) => realSdkAdapter.saveFile(...args),
+  getStorage: (...args) => realSdkAdapter.getStorage(...args),
+  setStorage: (...args) => realSdkAdapter.setStorage(...args)
 };
 
 export default zmpAdapter;

@@ -10,6 +10,7 @@ import {
 import { BrowserRouter, Routes } from "react-router-dom";
 
 import HomePage from "../pages/index";
+import { ThemeProvider, useTheme } from "../context/ThemeContext";
 
 // Error Boundary to prevent blank screens on uncaught render errors
 class ErrorBoundary extends React.Component {
@@ -158,29 +159,41 @@ const SmartRouter = ({ children }) => {
   );
 };
 
-const Layout = () => {
-  let theme = "light";
-  if (isZaloEnvironment()) {
-    try {
-      const info = getSystemInfo();
-      if (info?.zaloTheme) {
-        theme = info.zaloTheme;
-      }
-    } catch (e) {
-      theme = "light";
+const ThemedApp = () => {
+  const { theme, setTheme } = useTheme();
+
+  React.useEffect(() => {
+    if (isZaloEnvironment()) {
+      try {
+        const hasSaved = typeof localStorage !== "undefined" && localStorage.getItem("sedinco_theme_mode");
+        if (!hasSaved) {
+          const info = getSystemInfo();
+          if (info?.zaloTheme === "dark" || info?.zaloTheme === "light") {
+            setTheme(info.zaloTheme, { persistRemote: false });
+          }
+        }
+      } catch (e) {}
     }
-  }
+  }, [setTheme]);
 
   return (
+    <App theme={theme}>
+      <SnackbarProvider>
+        <SmartRouter>
+          <Route path="/" element={<HomePage />} />
+          <Route path="*" element={<HomePage />} />
+        </SmartRouter>
+      </SnackbarProvider>
+    </App>
+  );
+};
+
+const Layout = () => {
+  return (
     <ErrorBoundary>
-      <App theme={theme}>
-        <SnackbarProvider>
-          <SmartRouter>
-            <Route path="/" element={<HomePage />} />
-            <Route path="*" element={<HomePage />} />
-          </SmartRouter>
-        </SnackbarProvider>
-      </App>
+      <ThemeProvider>
+        <ThemedApp />
+      </ThemeProvider>
     </ErrorBoundary>
   );
 };

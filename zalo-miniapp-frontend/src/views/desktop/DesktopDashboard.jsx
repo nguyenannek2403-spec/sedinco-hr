@@ -185,7 +185,7 @@ export default function DesktopDashboard({
   const mgmtInitialFilter = focusTarget?.category === "device" ? "alerts" : "all";
 
   return (
-    <div className="flex h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden font-sans relative">
+    <div className="flex h-[100dvh] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden font-sans relative transition-colors duration-200">
       {/* Sidebar Trái (Tự động chuyển thành Drawer Portal + Bottom Nav khi mở trên điện thoại < 1024px) */}
       <DesktopSidebar
         currentTab={effectiveTab}
@@ -231,60 +231,10 @@ export default function DesktopDashboard({
           }}
         />
 
-        {/* THANH TÓM TẮT QUÂN SỐ THỜI GIAN THỰC TRONG NGÀY (BẤM ĐỂ XEM CHI TIẾT NHÂN SỰ) */}
-        {alertsSummary?.headcount_today && (
-          <div className="bg-slate-900/95 border-b border-slate-800 px-3 sm:px-6 py-2 flex items-center gap-2 overflow-x-auto touch-scroll-x shrink-0 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setLiveBoardModal({ open: true, initialTab: "present" })}
-              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 shrink-0 whitespace-nowrap cursor-pointer transition"
-            >
-              👥 Quân số: <strong className="text-white">{alertsSummary.headcount_today.total_employees}</strong>
-            </button>
-            <button
-              type="button"
-              onClick={() => setLiveBoardModal({ open: true, initialTab: "present" })}
-              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 shrink-0 whitespace-nowrap cursor-pointer transition"
-            >
-              🟢 Có mặt: <strong>{alertsSummary.headcount_today.present}</strong>
-            </button>
-            <button
-              type="button"
-              onClick={() => setLiveBoardModal({ open: true, initialTab: "late" })}
-              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500/40 text-amber-300 shrink-0 whitespace-nowrap cursor-pointer transition"
-            >
-              🟡 Đi muộn: <strong>{alertsSummary.headcount_today.late}</strong>
-            </button>
-            <button
-              type="button"
-              onClick={() => setLiveBoardModal({ open: true, initialTab: "field_work" })}
-              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-orange-950/70 hover:bg-orange-900/80 border border-orange-500/40 text-orange-300 shrink-0 whitespace-nowrap cursor-pointer transition"
-            >
-              🚧 Công trình: <strong>{alertsSummary.headcount_today.field_work}</strong>
-            </button>
-            <button
-              type="button"
-              onClick={() => setLiveBoardModal({ open: true, initialTab: "leave" })}
-              className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/40 text-purple-300 shrink-0 whitespace-nowrap cursor-pointer transition"
-            >
-              🟣 Nghỉ phép: <strong>{alertsSummary.headcount_today.leave}</strong>
-            </button>
-            {Array.isArray(alertsSummary.headcount_today?.live_board?.absent_list) && (
-              <button
-                type="button"
-                onClick={() => setLiveBoardModal({ open: true, initialTab: "absent" })}
-                className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-950/70 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 shrink-0 whitespace-nowrap cursor-pointer transition"
-              >
-                ⚪ Chưa chấm: <strong>{alertsSummary.headcount_today.live_board.absent_list.length}</strong>
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Tab Content with Suspense Loading */}
         <main
           data-scroll-container="desktop"
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:p-6 pb-8 bg-slate-900/60"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:p-6 pb-8 bg-slate-100/80 dark:bg-slate-900/60 transition-colors duration-200"
         >
           <div key={effectiveTab} className="animate-tab-enter">
           <Suspense
@@ -345,7 +295,7 @@ export default function DesktopDashboard({
               resolvedRole === ROLES.ADMIN ? (
                 <div className="space-y-4">
                   {/* Thanh Phân mục Trung tâm Quản trị */}
-                  <div className="bg-slate-900/95 border border-slate-700/80 rounded-2xl p-2 flex flex-wrap gap-2 shadow-lg">
+                  <div className="bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-2 flex flex-wrap gap-2 shadow-sm dark:shadow-lg">
                     <button
                       type="button"
                       data-subtab="employees"
@@ -353,7 +303,7 @@ export default function DesktopDashboard({
                       className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
                         managementSubTab === "employees"
                           ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                          : "bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white"
+                          : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                       }`}
                     >
                       <Users size={16} className="shrink-0" />
@@ -371,7 +321,7 @@ export default function DesktopDashboard({
                       className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
                         managementSubTab === "payroll"
                           ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                          : "bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white"
+                          : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                       }`}
                     >
                       <DollarSign size={16} className="shrink-0" />
@@ -389,7 +339,7 @@ export default function DesktopDashboard({
                       className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
                         managementSubTab === "audit_logs"
                           ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                          : "bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white"
+                          : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                       }`}
                     >
                       <ShieldAlert size={16} className="shrink-0" />
@@ -411,6 +361,8 @@ export default function DesktopDashboard({
                       showToast={showToast}
                       initialFilter={mgmtInitialFilter}
                       focusTarget={focusTarget}
+                      alertsSummary={alertsSummary}
+                      onOpenLiveBoard={(initialTab = "present") => setLiveBoardModal({ open: true, initialTab })}
                       pendingDeviceCount={alertsSummary?.pending_device_count || 0}
                       onRefreshAlerts={fetchAlertsSummary}
                     />
@@ -451,6 +403,8 @@ export default function DesktopDashboard({
                   showToast={showToast}
                   initialFilter="all"
                   focusTarget={focusTarget}
+                  alertsSummary={alertsSummary}
+                  onOpenLiveBoard={(initialTab = "present") => setLiveBoardModal({ open: true, initialTab })}
                   pendingDeviceCount={alertsSummary?.pending_device_count || 0}
                   onRefreshAlerts={fetchAlertsSummary}
                 />
@@ -460,7 +414,7 @@ export default function DesktopDashboard({
             {/* 5. Cài Đặt Hệ Thống (Công ty & GPS, Phân quyền Kế toán, Lịch nghỉ lễ) */}
             {effectiveTab === "settings" && resolvedRole === ROLES.ADMIN && (
               <div className="space-y-4">
-                <div className="bg-slate-900/95 border border-slate-700/80 rounded-2xl p-2 flex flex-wrap gap-2 shadow-lg">
+                <div className="bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-2 flex flex-wrap gap-2 shadow-sm dark:shadow-lg">
                   <button
                     type="button"
                     data-subtab="company"
@@ -468,7 +422,7 @@ export default function DesktopDashboard({
                     className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
                       settingsSubTab === "company"
                         ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white"
+                        : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                     }`}
                   >
                     <Building2 size={16} className="shrink-0" />
@@ -481,7 +435,7 @@ export default function DesktopDashboard({
                     className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
                       settingsSubTab === "permissions"
                         ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white"
+                        : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                     }`}
                   >
                     <ShieldCheck size={16} className="shrink-0" />
@@ -494,7 +448,7 @@ export default function DesktopDashboard({
                     className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
                       settingsSubTab === "holidays"
                         ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white"
+                        : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                     }`}
                   >
                     <Gift size={16} className="shrink-0" />
@@ -527,25 +481,30 @@ export default function DesktopDashboard({
             {effectiveTab === "profile" && (
               resolvedRole === ROLES.ADMIN ? (
                 <div className="max-w-lg mx-auto">
-                  <div className="bg-slate-900 border border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
                     <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border-2 border-amber-400/60 flex items-center justify-center shrink-0">
-                        <ShieldCheck className="w-8 h-8 text-amber-300" />
+                      <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-500/20 border-2 border-amber-300 dark:border-amber-400/60 flex items-center justify-center shrink-0">
+                        <ShieldCheck className="w-8 h-8 text-amber-600 dark:text-amber-300" />
                       </div>
                       <div className="min-w-0 flex-1 space-y-1">
-                        <h3 className="text-lg font-black text-white break-words leading-snug">
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white break-words leading-snug">
                           {currentUser?.ho_ten || "Ban Giám Đốc"}
                         </h3>
-                        <div className="text-xs font-mono font-bold text-emerald-400">
-                          Tài khoản: {currentUser?.ma_nv || "admin"}
+                        <div className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                          Tài khoản: {currentUser?.login_username || currentUser?.username || currentUser?.ma_nv || "admin"}
                         </div>
+                        {currentUser?.phone && (
+                          <div className="text-xs text-slate-600 dark:text-slate-300 font-semibold">
+                            SĐT: {currentUser.phone}
+                          </div>
+                        )}
                         <span className="inline-block px-2.5 py-0.5 rounded-lg bg-amber-400 text-slate-950 text-xs font-black">
                           {ROLE_LABELS[ROLES.ADMIN]}
                         </span>
                       </div>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                       Tài khoản Quản trị viên chỉ dùng để điều hành, duyệt công/đơn từ và cấu hình hệ thống; không tính lương, không chấm công và không khóa thiết bị cá nhân.
                     </div>
 
@@ -553,11 +512,10 @@ export default function DesktopDashboard({
                       {typeof onChangePasswordRequest === "function" && (
                         <AppButton
                           variant="secondary"
-                          tone="dark"
                           icon={Key}
                           onClick={onChangePasswordRequest}
                         >
-                          Đổi mật khẩu
+                          Tài khoản &amp; Mật khẩu
                         </AppButton>
                       )}
                       {typeof onLogout === "function" && (

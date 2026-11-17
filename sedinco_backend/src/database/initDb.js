@@ -418,6 +418,49 @@ async function initDatabase() {
             UNIQUE KEY uniq_payroll_period (month, year)
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
 
+        // V18: Account Phone/Custom Username & Persistent Theme Preference + Cleanup Legacy Multi-Model Device Names
+        await query("ALTER TABLE employees ADD COLUMN phone VARCHAR(30) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN login_username VARCHAR(100) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN theme_preference VARCHAR(15) NOT NULL DEFAULT 'light'").catch(() => {});
+        await query("ALTER TABLE admins ADD COLUMN phone VARCHAR(30) NULL").catch(() => {});
+        await query("ALTER TABLE admins ADD COLUMN login_username VARCHAR(100) NULL").catch(() => {});
+        await query("ALTER TABLE admins ADD COLUMN theme_preference VARCHAR(15) NOT NULL DEFAULT 'light'").catch(() => {});
+        await query("UPDATE employees SET phone = NULL WHERE phone = ''").catch(() => {});
+        await query("UPDATE employees SET login_username = NULL WHERE login_username = ''").catch(() => {});
+        await query("UPDATE admins SET phone = NULL WHERE phone = ''").catch(() => {});
+        await query("UPDATE admins SET login_username = NULL WHERE login_username = ''").catch(() => {});
+        await query("CREATE UNIQUE INDEX idx_emp_login_username ON employees (login_username)").catch(() => {});
+        await query("CREATE UNIQUE INDEX idx_emp_phone ON employees (phone)").catch(() => {});
+        await query("CREATE UNIQUE INDEX idx_adm_login_username ON admins (login_username)").catch(() => {});
+        await query("CREATE UNIQUE INDEX idx_adm_phone ON admins (phone)").catch(() => {});
+
+        // V18 Device Model Single-Name Normalization in DB
+        try {
+            const { sanitizeSingleDeviceModelName, safeParseKnownDevices } = require('../utils/deviceIdentityHelper');
+            const dirtyRows = await query(
+                "SELECT ma_nv, bound_device_name, pending_device_name, known_devices_json FROM employees WHERE bound_device_name LIKE '%/%' OR pending_device_name LIKE '%/%' OR known_devices_json LIKE '%/%' OR bound_device_name = 'Thiết bị di động' OR known_devices_json LIKE '%Thiết bị di động%'"
+            ).catch(() => []);
+            for (const row of dirtyRows || []) {
+                const nextBound = row.bound_device_name ? sanitizeSingleDeviceModelName(row.bound_device_name) : row.bound_device_name;
+                const nextPending = row.pending_device_name ? sanitizeSingleDeviceModelName(row.pending_device_name) : row.pending_device_name;
+                let nextKnownJson = row.known_devices_json;
+                if (row.known_devices_json) {
+                    const arr = safeParseKnownDevices(row.known_devices_json);
+                    if (arr.length > 0) {
+                        const cleanedArr = arr.map((d) => ({
+                            ...d,
+                            device_name: d?.device_name ? sanitizeSingleDeviceModelName(d.device_name) : 'Thiết bị không rõ'
+                        }));
+                        nextKnownJson = JSON.stringify(cleanedArr);
+                    }
+                }
+                await query(
+                    'UPDATE employees SET bound_device_name = ?, pending_device_name = ?, known_devices_json = ? WHERE ma_nv = ?',
+                    [nextBound, nextPending, nextKnownJson, row.ma_nv]
+                ).catch(() => {});
+            }
+        } catch {}
+
         // Khởi tạo Điểm 1 mặc định trong allowed_locations từ latitude/longitude hiện tại nếu chưa có
         const csRows = await query("SELECT id, latitude, longitude, radius_meters, allowed_locations FROM company_settings LIMIT 1").catch(() => []);
         if (csRows && csRows.length > 0) {

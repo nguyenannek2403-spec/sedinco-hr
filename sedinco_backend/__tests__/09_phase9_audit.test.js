@@ -46,7 +46,11 @@ const SPEC_W = 'P9_SPEC_1';
 const ACC1 = 'P9_ACC_1';
 const ADM1 = 'P9_ADM_1';
 const PURE_ADM = 'P9_PURE_ADM';
-const CREATED_IDS = new Set([W1, W2, LOCK_W, SPEC_W, ACC1, ADM1, 'P9_RBAC_TEMP', 'P9_ATT_EMP']);
+const P9_PHONE_TEST = '0909888777';
+const P9_PHONE_TEST_2 = '0908777666';
+const P9_USER_W = 'p9_v18_worker';
+const P9_USER_A = 'p9_v18_admin';
+const CREATED_IDS = new Set([W1, W2, LOCK_W, SPEC_W, ACC1, ADM1, 'P9_RBAC_TEMP', 'P9_ATT_EMP', 'P9_V18_EMP1']);
 const CREATED_ADMINS = new Set([PURE_ADM]);
 const CREATED_REQ_IDS = new Set();
 const CREATED_OT_IDS = new Set();
@@ -60,7 +64,10 @@ async function cleanupPhase9Data() {
     const empIds = [...CREATED_IDS];
     const empPh = empIds.map(() => '?').join(',');
     const admIds = [...CREATED_ADMINS];
-    const allActors = [...empIds, ...admIds, 'P9_UNKNOWN_USER', "' OR '1'='1", 'admin\'--', '" UNION SELECT 1,2--', 'O\'Neil;--'];
+    const allActors = [
+        ...empIds, ...admIds, P9_PHONE_TEST, P9_PHONE_TEST_2, P9_USER_W, P9_USER_A,
+        'P9_UNKNOWN_USER', "' OR '1'='1", 'admin\'--', '" UNION SELECT 1,2--', 'O\'Neil;--'
+    ];
     const actPh = allActors.map(() => '?').join(',');
 
     if (CREATED_REQ_IDS.size > 0) {
@@ -82,7 +89,7 @@ async function cleanupPhase9Data() {
     await query(`DELETE FROM idempotency_keys WHERE actor_id IN (${actPh}) OR actor_id LIKE ? OR key_hash LIKE 'LOC_TOKEN_%'`, [...allActors, 'P9_%']);
     await query(`DELETE FROM login_rate_limits WHERE identifier IN (${actPh}) OR identifier LIKE ? OR key_name LIKE ?`, [...allActors, 'P9_%', '%P9_%']);
     await query(`DELETE FROM audit_logs WHERE actor_id IN (${actPh}) OR actor_id LIKE ? OR details LIKE ?`, [...allActors, 'P9_%', '%P9_%']);
-    await query('DELETE FROM employees WHERE ma_nv LIKE ?', ['P9_%']);
+    await query('DELETE FROM employees WHERE ma_nv LIKE ? OR phone IN (?, ?)', ['P9_%', P9_PHONE_TEST, P9_PHONE_TEST_2]);
     await query('DELETE FROM admins WHERE username LIKE ?', ['P9_%']);
     invalidatePermissionCache();
 }
@@ -847,9 +854,9 @@ test('P9-SEC-LOGIN-01: Special/Unicode passwords, SQLi, Account Enumeration (P1 
 // =========================================================================
 // GROUP 4: COMPLETE 132-ROUTE RBAC, 1:1 16-KEY PERMISSION MATRIX & SOD
 // =========================================================================
-test('P9-RBAC-ALL: Route Inventory (133 Routes), Auth Boundaries, 16-Key 1:1 Matrix & SoD Verification', async () => {
+test('P9-RBAC-ALL: Route Inventory (135 Routes), Auth Boundaries, 16-Key 1:1 Matrix & SoD Verification', async () => {
     const routes = listExpressRoutes(app);
-    assert.equal(routes.length, 133, `Expected 133 Express routes, observed ${routes.length}`);
+    assert.equal(routes.length, 135, `Expected 135 Express routes, observed ${routes.length}`);
 
     const publicWhitelist = new Set([
         'GET /api/health',
@@ -1208,4 +1215,178 @@ test('P9-V17-01: Pure Manager Role Isolation & Deep-Link Actionable Alerts Summa
     const absentIds = (notif?.headcount_today?.live_board?.absent_list || []).map((x) => x.ma_nv);
     assert.ok(!absentIds.includes(ADM1), 'Admin must not appear in live_board absent_list');
 });
+
+test('P9-8: V18 Phone/Custom Login, 3-Role Credentials Self-Service, 1-Click Attendance, Persistent Theme & Exact Device Model', async () => {
+    const {
+        resolveFriendlyDeviceName,
+        sanitizeSingleDeviceModelName,
+        UNKNOWN_DEVICE_LABEL
+    } = require('../src/utils/deviceIdentityHelper');
+
+    // 1. Admin creates employee with Phone -> defaults login_username = phone -> duplicate returns 409
+    const createRes = await apiRequest(baseUrl, 'POST', '/api/employees', {
+        token: admToken,
+        body: {
+            ma_nv: 'P9_V18_EMP1',
+            ho_ten: 'V18 Phone Login Worker',
+            chuc_danh: 'Thợ cơ khí',
+            phone: P9_PHONE_TEST,
+            password: '123456',
+            must_change_password: 0
+        }
+    });
+    assert.ok([200, 201].includes(createRes.status), `Create employee with phone failed: ${createRes.raw}`);
+    assert.equal(createRes.json?.login_username, P9_PHONE_TEST, 'login_username must default to phone when omitted');
+
+    // Duplicate phone rejection (409)
+    const dupPhoneRes = await apiRequest(baseUrl, 'POST', '/api/employees', {
+        token: admToken,
+        body: {
+            ma_nv: 'P9_V18_DUP',
+            ho_ten: 'Duplicate Phone',
+            chuc_danh: 'Thử nghiệm',
+            phone: P9_PHONE_TEST
+        }
+    });
+    assert.equal(dupPhoneRes.status, 409, 'Duplicate phone across employees must reject with 409');
+
+    // 2. Worker logs in using Phone number (identifier = P9_PHONE_TEST)
+    const phoneLogin = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: { username: P9_PHONE_TEST, password: '123456' }
+    });
+    assert.equal(phoneLogin.status, 200, `Worker login by phone failed: ${phoneLogin.raw}`);
+    assert.equal(phoneLogin.json?.data?.ma_nv, 'P9_V18_EMP1');
+    assert.equal(phoneLogin.json?.data?.login_username, P9_PHONE_TEST);
+    assert.equal(phoneLogin.json?.data?.theme_preference, 'light');
+    const v18WkrToken = phoneLogin.json?.data?.token;
+
+    // 3. Worker self-updates login_username & phone & password via PUT /api/account/credentials
+    const updWkr = await apiRequest(baseUrl, 'PUT', '/api/account/credentials', {
+        token: v18WkrToken,
+        body: {
+            old_password: '123456',
+            new_username: P9_USER_W,
+            phone: P9_PHONE_TEST_2,
+            new_password: 'V18NewPass!99'
+        }
+    });
+    assert.equal(updWkr.status, 200, `Worker PUT /api/account/credentials failed: ${updWkr.raw}`);
+    assert.ok(updWkr.json?.token, 'Updated credentials must return a fresh valid token');
+    assert.equal(updWkr.json?.data?.login_username, P9_USER_W);
+    assert.equal(updWkr.json?.data?.phone, P9_PHONE_TEST_2);
+
+    // Prior JWT before password change must be revoked (401)
+    const staleCheck = await apiRequest(baseUrl, 'GET', '/api/me', { token: v18WkrToken });
+    assert.equal(staleCheck.status, 401, 'Prior JWT must be revoked after password update via /account/credentials');
+
+    // New username + new password login succeeds, AND still supports ma_nv
+    const customUserLogin = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: { identifier: P9_USER_W, password: 'V18NewPass!99' }
+    });
+    assert.equal(customUserLogin.status, 200, `Login via updated custom login_username failed: ${customUserLogin.raw}`);
+    const v18FreshWkrToken = customUserLogin.json?.data?.token;
+
+    const maNvLogin = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: { ma_nv: 'P9_V18_EMP1', password: 'V18NewPass!99' }
+    });
+    assert.equal(maNvLogin.status, 200, 'Login via ma_nv fallback must remain intact');
+
+    // Pure Admin (admins table) self-updates credentials via PUT /api/account/credentials
+    const pureAdmLogin = await apiRequest(baseUrl, 'POST', '/api/admin/login', {
+        body: { username: PURE_ADM, password: 'QaAdmin@2026!' }
+    });
+    assert.equal(pureAdmLogin.status, 200);
+    const pureAdmToken = pureAdmLogin.json?.data?.token;
+
+    const updAdm = await apiRequest(baseUrl, 'PUT', '/api/account/credentials', {
+        token: pureAdmToken,
+        body: {
+            old_password: 'QaAdmin@2026!',
+            new_username: P9_USER_A,
+            new_password: 'QaAdminNew!2026'
+        }
+    });
+    assert.equal(updAdm.status, 200, `Pure Admin PUT /api/account/credentials failed: ${updAdm.raw}`);
+    const pureAdmCustomLogin = await apiRequest(baseUrl, 'POST', '/api/login', {
+        body: { identifier: P9_USER_A, password: 'QaAdminNew!2026' }
+    });
+    assert.equal(pureAdmCustomLogin.status, 200, 'Pure Admin must be able to login via custom login_username');
+    const updatedPureAdmToken = pureAdmCustomLogin.json?.data?.token;
+
+    // Accountant conflict check (cannot steal admin's login_username -> 409)
+    const conflictAcc = await apiRequest(baseUrl, 'PUT', '/api/account/credentials', {
+        token: accToken,
+        body: {
+            old_password: 'QaPass@2026!',
+            new_username: P9_USER_A
+        }
+    });
+    assert.equal(conflictAcc.status, 409, 'Cross-table login_username duplicate must return 409');
+
+    // 4. Persistent Light / Dark Theme API for employees & pure admins
+    const badTheme = await apiRequest(baseUrl, 'PUT', '/api/account/theme', {
+        token: v18FreshWkrToken,
+        body: { theme_preference: 'neon' }
+    });
+    assert.equal(badTheme.status, 400);
+
+    const setDarkWkr = await apiRequest(baseUrl, 'PUT', '/api/account/theme', {
+        token: v18FreshWkrToken,
+        body: { theme_preference: 'dark' }
+    });
+    assert.equal(setDarkWkr.status, 200);
+    assert.equal(setDarkWkr.json?.data?.theme_preference, 'dark');
+
+    const meDarkWkr = await apiRequest(baseUrl, 'GET', '/api/me', { token: v18FreshWkrToken });
+    assert.equal(meDarkWkr.status, 200);
+    assert.equal(meDarkWkr.json?.data?.theme_preference, 'dark');
+
+    const setDarkAdm = await apiRequest(baseUrl, 'PUT', '/api/account/theme', {
+        token: updatedPureAdmToken,
+        body: { theme_preference: 'dark' }
+    });
+    assert.equal(setDarkAdm.status, 200);
+    const reloginAdmTheme = await apiRequest(baseUrl, 'GET', '/api/me', { token: updatedPureAdmToken });
+    assert.equal(reloginAdmTheme.status, 200);
+    assert.equal(reloginAdmTheme.json?.data?.theme_preference, 'dark');
+
+    // 5. 1-Click Attendance Edit WITHOUT mandatory reason
+    const oneClickAtt = await apiRequest(baseUrl, 'POST', '/api/attendance/update', {
+        token: updatedPureAdmToken,
+        headers: { 'X-Idempotency-Key': `p9-v18-att-${Date.now()}` },
+        body: {
+            ma_nv: 'P9_V18_EMP1',
+            dateStr: `${TEST_YEAR}-05-12`,
+            day: 12,
+            month: 5,
+            year: TEST_YEAR,
+            status: '1'
+        }
+    });
+    assert.equal(oneClickAtt.status, 200, `1-click attendance update without reason failed: ${oneClickAtt.raw}`);
+    const [attRow] = await query(
+        'SELECT status FROM attendance_logs WHERE employee_id = ? AND record_date = ?',
+        ['P9_V18_EMP1', `${TEST_YEAR}-05-12`]
+    );
+    assert.equal(attRow?.status, '1', '1-click attendance log must persist status "1"');
+
+    // 6. Single-Model Device Name Normalization (Zero '/' and zero generic 'Thiết bị di động')
+    assert.equal(
+        resolveFriendlyDeviceName({ screenWidth: 375, screenHeight: 667, pixelRatio: 2, platform: 'iOS', userAgent: 'iPhone' }),
+        'iPhone 8'
+    );
+    assert.equal(
+        resolveFriendlyDeviceName({ screenWidth: 390, screenHeight: 844, pixelRatio: 3, platform: 'iOS', userAgent: 'iPhone' }),
+        'iPhone 13'
+    );
+    assert.equal(
+        resolveFriendlyDeviceName({ model: 'iPhone15,4', platform: 'iOS', userAgent: 'iPhone' }),
+        'iPhone 15'
+    );
+    assert.equal(sanitizeSingleDeviceModelName('iPhone 12 / 13 / 14'), 'iPhone 13');
+    assert.equal(sanitizeSingleDeviceModelName('iPhone 8 / SE'), 'iPhone 8');
+    assert.equal(sanitizeSingleDeviceModelName('Thiết bị di động'), UNKNOWN_DEVICE_LABEL);
+    assert.equal(resolveFriendlyDeviceName({}), UNKNOWN_DEVICE_LABEL);
+});
+
 

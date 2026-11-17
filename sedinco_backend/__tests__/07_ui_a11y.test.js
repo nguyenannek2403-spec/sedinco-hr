@@ -672,16 +672,16 @@ async function dismissToastIfVisible(session) {
 async function loginThroughAuthView(session, maNv, password) {
     await waitForCondition(
         session,
-        `Boolean(document.querySelector('input[placeholder*="Nhập Mã NV"]'))`,
+        `Boolean(document.querySelector('input[placeholder*="NV001"]'))`,
         8000,
         `AuthView login form visible for ${maNv}`
     );
-    await setReactInputValue(session, { selector: 'input[placeholder*="Nhập Mã NV"]', value: maNv, inTopModal: false });
+    await setReactInputValue(session, { selector: 'input[placeholder*="NV001"]', value: maNv, inTopModal: false });
     await setReactInputValue(session, { selector: 'input[type="password"], input[placeholder*="mật khẩu"]', value: password, inTopModal: false });
     await clickInPage(session, { selector: 'button[type="submit"]', inTopModal: false });
     await waitForCondition(
         session,
-        `!document.querySelector('input[placeholder*="Nhập Mã NV"]')`,
+        `!document.querySelector('input[placeholder*="NV001"]')`,
         10000,
         `Dashboard loaded after login for ${maNv}`
     );
@@ -702,7 +702,7 @@ async function logoutViaConfirmDialog(session, buttonText = 'Đăng xuất') {
     await clickInPage(session, { text: 'Đăng xuất', inTopModal: true });
     await waitForCondition(
         session,
-        `Boolean(document.querySelector('input[placeholder*="Nhập Mã NV"]'))`,
+        `Boolean(document.querySelector('input[placeholder*="NV001"]'))`,
         8000,
         'Returned to AuthView after logout confirm'
     );
@@ -756,9 +756,9 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // Snapshot DB baseline & max IDs so all UI test mutations are 100% restored in finally
         settingsSnap = await snapshotSettings();
         coreUsersBefore = await query(
-            "SELECT ma_nv, ho_ten, chuc_danh, role, status, is_locked, password, must_change_password, bound_device_id, bound_device_name, pending_device_id, pending_device_name, device_change_reason, device_binding_mode, known_devices_json, multi_device_alert, token_version FROM employees WHERE ma_nv IN ('NV001','NV002','NV003')"
+            "SELECT ma_nv, ho_ten, chuc_danh, role, status, is_locked, password, must_change_password, phone, login_username, theme_preference, bound_device_id, bound_device_name, pending_device_id, pending_device_name, device_change_reason, device_binding_mode, known_devices_json, multi_device_alert, token_version FROM employees WHERE ma_nv IN ('NV001','NV002','NV003')"
         );
-        adminBefore = await query('SELECT username, password, must_change_password, token_version FROM admins WHERE username = "admin"');
+        adminBefore = await query('SELECT username, password, must_change_password, phone, login_username, theme_preference, token_version FROM admins WHERE username = "admin"');
         for (const tbl of ['attendance_logs', 'requests', 'ot_registrations', 'payroll_periods', 'period_locks', 'public_holidays', 'audit_logs']) {
             const [r] = await query(`SELECT COALESCE(MAX(id), 0) as m FROM ${tbl}`);
             maxIds[tbl] = Number(r?.m || 0);
@@ -850,11 +850,19 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await setViewportAndScale(session, 360, 780, 200);
         await inspectPhysicsAndGeometry(session, 'AuthView @ 360x780 (200% Elderly Scale)', { expectModal: false, testScrollBleed: false });
         await setViewportAndScale(session, 360, 780, 100);
+        // Test Light/Dark toggle on AuthView & restore Light
+        await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
+        await sleep(160);
+        const darkEnabledOnAuth = await session.evaluate(`document.documentElement.classList.contains('dark') && document.documentElement.getAttribute('zaui-theme') === 'dark'`);
+        assert.ok(darkEnabledOnAuth, 'ThemeToggleButton must activate dark class and zaui-theme="dark"');
+        await inspectPhysicsAndGeometry(session, 'AuthView @ 360x780 (Dark Mode)', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
+        await sleep(140);
 
         // Eye toggle & negative wrong-password feedback
         await clickInPage(session, { selector: 'button[aria-label*="mật khẩu"]', inTopModal: false });
         allowExpected4xx = true;
-        await setReactInputValue(session, { selector: 'input[placeholder*="Nhập Mã NV"]', value: 'NV003', inTopModal: false });
+        await setReactInputValue(session, { selector: 'input[placeholder*="NV001"]', value: 'NV003', inTopModal: false });
         await setReactInputValue(session, { selector: 'input[placeholder*="mật khẩu"]', value: 'WrongPass999!', inTopModal: false });
         await clickInPage(session, { selector: 'button[type="submit"]', inTopModal: false });
         await sleep(500);
@@ -1013,9 +1021,9 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await dismissModalIfOpen(session);
         await dismissToastIfVisible(session);
 
-        // Open Password Change modal (inspect geometry + close cleanly without mutating token_version mid-flow)
-        await clickInPage(session, { text: 'Đổi mật khẩu', inTopModal: false });
-        await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Password Change modal opened');
+        // Open Account & Security modal (inspect geometry + login_username/phone fields + close cleanly)
+        await clickInPage(session, { text: 'Tài khoản & Mật khẩu', inTopModal: false });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Account & Security modal opened');
         await inspectPhysicsAndGeometry(session, 'Worker ForcePasswordChangeModal', { expectModal: true });
         await dismissModalIfOpen(session);
 
@@ -1029,30 +1037,9 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await loginThroughAuthView(session, 'NV002', '123456');
         await inspectPhysicsAndGeometry(session, 'Accountant Dashboard Initial', { expectModal: false, testScrollBleed: false });
 
-        // 2A: Headcount LiveAttendanceBoardModal + Nested Proxy Check-in Child Modal (z100 -> z110)
-        await clickInPage(session, { text: 'Quân số:', inTopModal: false });
-        await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 5000, 'LiveAttendanceBoardModal opened');
-        await inspectPhysicsAndGeometry(session, 'Accountant LiveAttendanceBoardModal', { expectModal: true });
-        for (const filterTab of ['Đi muộn', 'Công trình', 'Nghỉ phép', 'Tổng nhân sự']) {
-            await session.evaluate(`(() => {
-                const top = document.querySelector('[data-modal-root="true"]');
-                const b = top ? Array.from(top.querySelectorAll('button')).find((x) => (x.innerText || '').includes(${JSON.stringify(filterTab)})) : null;
-                if (b) b.click();
-            })()`);
-            await sleep(160);
-        }
-        // Open nested Child Proxy Check-in modal
-        await clickInPage(session, { text: 'Chấm công hộ', inTopModal: true });
-        await waitForCondition(session, `document.querySelectorAll('[data-modal-root="true"]').length >= 2`, 4000, 'Nested Proxy Check-in modal stacked above LiveAttendanceBoardModal');
-        await inspectPhysicsAndGeometry(session, 'Accountant Nested Proxy Modal (Stack 2)', { expectModal: true });
-        // Verify backdrop modal behind child is marked inert
-        const parentInertOk = await session.evaluate(`(() => {
-            const ms = Array.from(document.querySelectorAll('[data-modal-root="true"]'))
-                .sort((a, b) => Number(getComputedStyle(a).zIndex || 0) - Number(getComputedStyle(b).zIndex || 0));
-            return ms.length >= 2 && Number(getComputedStyle(ms[1]).zIndex) > Number(getComputedStyle(ms[0]).zIndex);
-        })()`);
-        assert.ok(parentInertOk, 'Nested Proxy modal z-index must exceed parent LiveAttendanceBoardModal z-index');
-        await dismissModalIfOpen(session);
+        // Verify V18: Global headcount strip is NOT on Accountant matrix dashboard
+        const hasGlobalHeadcountOnMatrix = await session.evaluate(`Boolean(document.querySelector('[data-testid="employee-hub-headcount-bar"]'))`);
+        assert.equal(hasGlobalHeadcountOnMatrix, false, 'Headcount bar must NOT render globally outside Employee Management hub');
 
         // 2B: DesktopHeader Bell Alert AppModal
         await clickInPage(session, { selector: 'button[aria-label="Trung tâm cảnh báo và thông báo"]', inTopModal: false });
@@ -1095,9 +1082,14 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             if (clickedDay10) {
                 await waitForCondition(session, `document.querySelectorAll('[data-modal-root="true"]').length >= 2`, 4000, 'Nested Sửa công modal stacked');
                 await inspectPhysicsAndGeometry(session, 'Accountant Nested Sửa Công Modal (Stack 2)', { expectModal: true });
+                const hasReasonTextarea = await session.evaluate(`(() => {
+                    const top = Array.from(document.querySelectorAll('[data-modal-root="true"]'))
+                        .sort((a, b) => Number(getComputedStyle(b).zIndex || 0) - Number(getComputedStyle(a).zIndex || 0))[0];
+                    return top ? Boolean(top.querySelector('textarea')) : false;
+                })()`);
+                assert.equal(hasReasonTextarea, false, 'V18 1-Click Attendance Edit modal must NOT have Reason textarea');
                 await clickInPage(session, { text: 'Đủ công (1)', inTopModal: true }).catch(() => {});
-                await setReactInputValue(session, { selector: 'textarea', value: 'Kiểm thử sửa công V15', inTopModal: true }).catch(() => {});
-                await clickInPage(session, { text: 'Lưu thay đổi', inTopModal: true }).catch(() => {});
+                await clickInPage(session, { text: 'Lưu thay đổi', inTopModal: true });
                 await sleep(350);
             }
             await dismissModalIfOpen(session);
@@ -1167,9 +1159,33 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await dismissModalIfOpen(session);
         }
 
-        // 2F: Management Tab (Accountant views Trung tâm Nhân sự 360° & opens Hồ sơ 360°)
+        // 2F: Management Tab (Exclusive Headcount Bar + LiveAttendanceBoardModal + Hồ sơ 360°)
         await openDesktopTabViaDrawer('management', 'Accountant');
         await inspectPhysicsAndGeometry(session, 'Accountant Tab: management', { expectModal: false, testScrollBleed: false });
+        const hasExclusiveHeadcountBar = await session.evaluate(`Boolean(document.querySelector('[data-testid="employee-hub-headcount-bar"]'))`);
+        assert.ok(hasExclusiveHeadcountBar, 'EmployeeManagementTab must exclusively render headcount bar');
+        await clickInPage(session, { text: 'Xem bảng live chi tiết', inTopModal: false });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 5000, 'LiveAttendanceBoardModal opened from Employee Hub');
+        await inspectPhysicsAndGeometry(session, 'Accountant LiveAttendanceBoardModal', { expectModal: true });
+        for (const filterTab of ['Đi muộn', 'Công trình', 'Nghỉ phép', 'Tổng nhân sự']) {
+            await session.evaluate(`(() => {
+                const top = document.querySelector('[data-modal-root="true"]');
+                const b = top ? Array.from(top.querySelectorAll('button')).find((x) => (x.innerText || '').includes(${JSON.stringify(filterTab)})) : null;
+                if (b) b.click();
+            })()`);
+            await sleep(160);
+        }
+        await clickInPage(session, { text: 'Chấm công hộ', inTopModal: true });
+        await waitForCondition(session, `document.querySelectorAll('[data-modal-root="true"]').length >= 2`, 4000, 'Nested Proxy Check-in modal stacked above LiveAttendanceBoardModal');
+        await inspectPhysicsAndGeometry(session, 'Accountant Nested Proxy Modal (Stack 2)', { expectModal: true });
+        const parentInertOk = await session.evaluate(`(() => {
+            const ms = Array.from(document.querySelectorAll('[data-modal-root="true"]'))
+                .sort((a, b) => Number(getComputedStyle(a).zIndex || 0) - Number(getComputedStyle(b).zIndex || 0));
+            return ms.length >= 2 && Number(getComputedStyle(ms[1]).zIndex) > Number(getComputedStyle(ms[0]).zIndex);
+        })()`);
+        assert.ok(parentInertOk, 'Nested Proxy modal z-index must exceed parent LiveAttendanceBoardModal z-index');
+        await dismissModalIfOpen(session);
+
         const hasDeviceLabel = await session.evaluate(`(document.body.innerText || '').includes(' : ')`);
         assert.ok(hasDeviceLabel, 'Employee cards in Trung tâm Nhân sự 360° must display "[Tên nhân viên] : [Tên thiết bị]"');
         const hasEmpDetail = await session.evaluate(`(() => {
@@ -1254,7 +1270,10 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             `(document.body.innerText || '').includes('Tài khoản mới tạo') || !document.querySelector('[data-modal-root="true"]')`,
             6000,
             'Add Employee modal transitioned to created credentials or closed'
-        );
+        ).catch(async (e) => {
+            const modalDump = await session.evaluate(`document.querySelector('[data-modal-root="true"]')?.innerText || 'NO_MODAL'`).catch(() => '');
+            throw new Error(`${e.message} | modal=${modalDump.slice(0, 300)} | 4xx=${JSON.stringify(unexpected4xx)} | 5xx=${JSON.stringify(server5xx)}`);
+        });
         const hasCredsModal = await session.evaluate(`Boolean(document.querySelector('[data-modal-root="true"]'))`);
         if (hasCredsModal) {
             await inspectPhysicsAndGeometry(session, 'Admin Created Employee Credentials Modal', { expectModal: true });
@@ -1397,13 +1416,15 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await query(
                 `UPDATE employees SET
                     ho_ten = ?, chuc_danh = ?, role = ?, status = ?, is_locked = ?,
-                    password = ?, must_change_password = ?, bound_device_id = ?, bound_device_name = ?,
+                    password = ?, must_change_password = ?, phone = ?, login_username = ?, theme_preference = ?,
+                    bound_device_id = ?, bound_device_name = ?,
                     pending_device_id = ?, pending_device_name = ?, device_change_reason = ?,
                     device_binding_mode = ?, known_devices_json = ?, multi_device_alert = ?, token_version = ?
                  WHERE ma_nv = ?`,
                 [
                     emp.ho_ten, emp.chuc_danh, emp.role, emp.status, emp.is_locked,
-                    emp.password, emp.must_change_password, emp.bound_device_id, emp.bound_device_name,
+                    emp.password, emp.must_change_password, emp.phone, emp.login_username, emp.theme_preference || 'light',
+                    emp.bound_device_id, emp.bound_device_name,
                     emp.pending_device_id, emp.pending_device_name, emp.device_change_reason,
                     emp.device_binding_mode, emp.known_devices_json, emp.multi_device_alert, emp.token_version,
                     emp.ma_nv
@@ -1412,8 +1433,8 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         }
         for (const adm of adminBefore || []) {
             await query(
-                'UPDATE admins SET password = ?, must_change_password = ?, token_version = ? WHERE username = ?',
-                [adm.password, adm.must_change_password, adm.token_version, adm.username]
+                'UPDATE admins SET password = ?, must_change_password = ?, phone = ?, login_username = ?, theme_preference = ?, token_version = ? WHERE username = ?',
+                [adm.password, adm.must_change_password, adm.phone, adm.login_username, adm.theme_preference || 'light', adm.token_version, adm.username]
             ).catch(() => {});
         }
         if (settingsSnap) {

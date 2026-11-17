@@ -20,6 +20,7 @@ import { ROLES, ROLE_LABELS } from "../constants/roles";
 import useLockBodyScroll from "../hooks/useLockBodyScroll";
 
 import CompanyLogo from "./CompanyLogo";
+import { useTheme } from "../context/ThemeContext";
 
 export function getSidebarMenuItems({
   activeRole,
@@ -121,7 +122,7 @@ export function DesktopMobileBottomNav({
 
   return (
     <nav
-      className="lg:hidden shrink-0 z-40 w-full bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 px-2 pt-1.5 flex items-center justify-around shadow-2xl"
+      className="lg:hidden shrink-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-2 pt-1.5 flex items-center justify-around shadow-2xl transition-colors duration-200"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
     >
       {mobileBottomItems.map((item) => {
@@ -134,8 +135,8 @@ export function DesktopMobileBottomNav({
             onClick={() => handleSelect(item.id)}
             className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl transition-all ${
               isActive
-                ? "text-blue-300 font-bold bg-blue-500/10"
-                : "text-slate-300 hover:text-white font-medium"
+                ? "text-blue-600 dark:text-blue-300 font-bold bg-blue-50 dark:bg-blue-500/10"
+                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium"
             }`}
           >
             <Icon className="w-5 h-5" />
@@ -147,9 +148,9 @@ export function DesktopMobileBottomNav({
         type="button"
         onClick={onOpenMobileMenu}
         aria-label="Mở menu đầy đủ"
-        className="flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl text-slate-200 hover:text-white font-bold"
+        className="flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white font-bold"
       >
-        <Menu className="w-5 h-5 text-amber-400" />
+        <Menu className="w-5 h-5 text-amber-500 dark:text-amber-400" />
         <span className="text-xs leading-tight">Menu</span>
       </button>
     </nav>
@@ -173,6 +174,7 @@ export default function DesktopSidebar({
   showMobileBottomNav = true
 }) {
   useLockBodyScroll(Boolean(isMobileMenuOpen), 90);
+  const { isDark } = useTheme();
 
   const menuItems = getSidebarMenuItems({
     activeRole,
@@ -191,16 +193,16 @@ export default function DesktopSidebar({
     <>
       {/* 1. Header Sidebar: Logo & Thông tin công ty */}
       <div
-        className="p-4 sm:p-5 border-b-2 border-slate-800 flex items-center justify-between"
+        className="p-4 sm:p-5 border-b-2 border-slate-200 dark:border-slate-800 flex items-center justify-between"
         style={isMobileDrawer ? { paddingTop: "calc(env(safe-area-inset-top, 0px) + 14px)" } : undefined}
       >
-        <CompanyLogo size="small" theme="dark" layout="horizontal" showSubtitle={!isMobileDrawer} />
+        <CompanyLogo size="small" theme={isDark ? "dark" : "light"} layout="horizontal" showSubtitle={!isMobileDrawer} />
         {isMobileDrawer && (
           <button
             type="button"
             onClick={onCloseMobileMenu}
             aria-label="Đóng"
-            className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center"
+            className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center"
           >
             <X size={20} />
           </button>
@@ -208,15 +210,15 @@ export default function DesktopSidebar({
       </div>
 
       {/* 2. Hiển thị Phân Hệ Xác Thực Chuẩn (RBAC Độc Lập) */}
-      <div className="px-4 pt-3 pb-2 border-b border-slate-800 space-y-2">
-        <div className="flex items-center justify-between px-3 py-2 rounded-2xl bg-slate-800/80 border border-slate-700">
-          <span className="text-xs font-bold text-slate-400">Phân hệ:</span>
+      <div className="px-4 pt-3 pb-2 border-b border-slate-200 dark:border-slate-800 space-y-2">
+        <div className="flex items-center justify-between px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Phân hệ:</span>
           <span className={`text-xs font-black px-2.5 py-1 rounded-xl border ${
             activeRole === ROLES.ADMIN
-              ? "bg-amber-400 text-slate-950 border-amber-300"
+              ? "bg-amber-400 text-slate-950 border-amber-500"
               : activeRole === ROLES.ACCOUNTANT
-              ? "bg-emerald-400 text-slate-950 border-emerald-300"
-              : "bg-blue-300 text-slate-950 border-blue-200"
+              ? "bg-emerald-400 text-slate-950 border-emerald-500"
+              : "bg-blue-200 text-slate-950 border-blue-300"
           }`}>
             {ROLE_LABELS[activeRole]}
           </span>
@@ -237,19 +239,19 @@ export default function DesktopSidebar({
               onClick={() => handleSelect(item.id)}
               className={`w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-black transition-all cursor-pointer border-2 ${
                 isActive
-                  ? "bg-blue-600 text-white border-white shadow-lg shadow-blue-600/30"
-                  : "text-slate-200 border-slate-800 hover:border-slate-600 hover:bg-slate-800/80"
+                  ? "bg-blue-600 text-white border-blue-500 dark:border-white shadow-lg shadow-blue-600/25"
+                  : "text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800/80"
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <Icon size={18} className={`shrink-0 ${isActive ? "text-white" : "text-slate-400"}`} />
+                <Icon size={18} className={`shrink-0 ${isActive ? "text-white" : "text-slate-500 dark:text-slate-400"}`} />
                 <span className="truncate">{item.label}</span>
               </div>
 
               {item.badge && (
                 <span
                   className={`text-xs px-2.5 py-0.5 rounded-full font-black border shrink-0 ${
-                    item.badgeColor || (isActive ? "bg-white/20 text-white border-white/40" : "bg-slate-800 text-slate-200 border-slate-700")
+                    item.badgeColor || (isActive ? "bg-white/20 text-white border-white/40" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700")
                   }`}
                 >
                   {item.badge}
@@ -262,11 +264,11 @@ export default function DesktopSidebar({
 
       {/* 4. Footer Sidebar: Người Dùng & Nút Đăng Xuất */}
       <div
-        className="p-4 border-t-2 border-slate-800 bg-slate-950/60 space-y-3"
+        className="p-4 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-3"
         style={isMobileDrawer ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" } : undefined}
       >
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-2xl border-2 border-slate-600 shadow-sm overflow-hidden shrink-0 bg-slate-800">
+          <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-2xl border-2 border-slate-300 dark:border-slate-600 shadow-sm overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-800">
             <img
               src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
               alt="Avatar"
@@ -274,12 +276,14 @@ export default function DesktopSidebar({
             />
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-black text-sm text-white break-words leading-snug">{currentUser?.ho_ten}</h4>
-            <p className="text-xs text-blue-300 font-semibold leading-snug break-words">{currentUser?.chuc_danh || "Ban Quản Trị"}</p>
+            <h4 className="font-black text-sm text-slate-900 dark:text-white break-words leading-snug">{currentUser?.ho_ten}</h4>
+            <p className="text-xs text-blue-600 dark:text-blue-300 font-semibold leading-snug break-words">{currentUser?.chuc_danh || "Ban Quản Trị"}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-xs text-emerald-400 font-mono font-bold">Mã: {currentUser?.ma_nv}</span>
-              <span className="text-xs text-slate-500">•</span>
-              <span className="text-xs text-slate-300 truncate font-semibold">{ROLE_LABELS[activeRole]}</span>
+              <span className="text-xs text-emerald-700 dark:text-emerald-400 font-mono font-bold">
+                TK: {currentUser?.login_username || currentUser?.ma_nv}
+              </span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">•</span>
+              <span className="text-xs text-slate-600 dark:text-slate-300 truncate font-semibold">{ROLE_LABELS[activeRole]}</span>
             </div>
           </div>
         </div>
@@ -292,7 +296,7 @@ export default function DesktopSidebar({
                 if (onCloseMobileMenu) onCloseMobileMenu();
                 onClearCache();
               }}
-              className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-600 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 hover:text-white transition-all cursor-pointer whitespace-nowrap"
+              className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer whitespace-nowrap"
               title="Làm mới bộ nhớ đệm"
             >
               <RotateCcw size={14} className="shrink-0" />
@@ -319,7 +323,7 @@ export default function DesktopSidebar({
   return (
     <>
       {/* Desktop Sidebar (chỉ hiển thị từ màn hình >= 1024px) */}
-      <aside className="hidden lg:flex w-72 bg-slate-900 text-slate-200 flex-col justify-between shrink-0 h-screen sticky top-0 border-r-2 border-slate-800 select-none">
+      <aside className="hidden lg:flex w-72 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex-col justify-between shrink-0 h-screen sticky top-0 border-r-2 border-slate-200 dark:border-slate-800 select-none transition-colors duration-200">
         {renderSidebarBody(false)}
       </aside>
 
@@ -339,7 +343,7 @@ export default function DesktopSidebar({
             }}
           >
             <div
-              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
+              className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm"
               onClick={onCloseMobileMenu}
               onWheel={(e) => {
                 e.preventDefault();
@@ -350,7 +354,7 @@ export default function DesktopSidebar({
                 e.stopPropagation();
               }}
             />
-            <aside className="relative z-10 w-[84vw] max-w-[320px] bg-slate-900 text-slate-200 flex flex-col justify-between h-full border-r border-slate-700 shadow-2xl">
+            <aside className="relative z-10 w-[84vw] max-w-[320px] bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex flex-col justify-between h-full border-r border-slate-200 dark:border-slate-700 shadow-2xl">
               {renderSidebarBody(true)}
             </aside>
           </div>,

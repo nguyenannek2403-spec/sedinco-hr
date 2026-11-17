@@ -125,3 +125,21 @@ test('CONTRACT-05: V17 Pure Manager isolation (no Role Switcher) & 7 Zalo SDK AP
     assert.match(adapter, /type:\s*["']oneShot["']/, 'realSdkAdapter.js vibrate must use Zalo SDK { type: "oneShot", milliseconds } schema');
 });
 
+test('CONTRACT-06: V18 Account/Theme/1-Click Attendance/Exclusive Headcount/Single-Model Device ID', () => {
+    const matrix = fs.readFileSync(path.join(FE_SRC, 'components/AttendanceMatrixTable.jsx'), 'utf8');
+    assert.ok(!matrix.includes('Lý do điều chỉnh'), 'AttendanceMatrixTable must NOT require Lý do điều chỉnh textarea (1-click edit)');
+
+    const deskDash = fs.readFileSync(path.join(FE_SRC, 'views/desktop/DesktopDashboard.jsx'), 'utf8');
+    assert.ok(!deskDash.includes('headcount_today.total_employees'), 'DesktopDashboard must NOT render global headcount strip');
+
+    const empTab = fs.readFileSync(path.join(FE_SRC, 'views/desktop/EmployeeManagementTab.jsx'), 'utf8');
+    assert.ok(empTab.includes('employee-hub-headcount-bar'), 'EmployeeManagementTab must exclusively host headcount KPI bar');
+
+    const feDevice = fs.readFileSync(path.join(FE_SRC, 'utils/deviceIdentity.js'), 'utf8');
+    const beDevice = fs.readFileSync(path.join(BE_SRC, 'utils/deviceIdentityHelper.js'), 'utf8');
+    for (const forbidden of ['"iPhone 12 / 13 / 14"', '"iPhone 8 / SE"', '"Xiaomi / Redmi"']) {
+        assert.ok(!feDevice.includes(forbidden), `FE deviceIdentity.js must not contain multi-model slash entry: ${forbidden}`);
+        assert.ok(!beDevice.includes(forbidden.replace(/"/g, "'")), `BE deviceIdentityHelper.js must not contain multi-model slash entry: ${forbidden}`);
+    }
+});
+

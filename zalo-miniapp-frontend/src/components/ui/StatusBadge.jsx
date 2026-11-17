@@ -3,6 +3,7 @@ import {
   getAttendanceStatusInfo,
   getRequestStatusInfo
 } from "../../utils/viLabels";
+import { useTheme } from "../../context/ThemeContext";
 
 const REQUEST_SYMBOLS = {
   approved: "✓",
@@ -75,10 +76,12 @@ export default function StatusBadge({
   value,
   labelOverride = null,
   symbolOverride = null,
-  dark = false,
+  dark = "auto",
   showSymbol = true,
   className = ""
 }) {
+  const { isDark: globalDark } = useTheme();
+  const isDark = dark === "auto" ? globalDark : Boolean(dark);
   const raw = value !== undefined ? value : status;
   let symbol = "";
   let label = "";
@@ -95,7 +98,7 @@ export default function StatusBadge({
     const info = getRequestStatusInfo(key);
     symbol = symbolOverride || REQUEST_SYMBOLS[key] || "⏳";
     label = labelOverride || info.label;
-    if (dark) {
+    if (isDark) {
       badgeClass =
         key === "approved"
           ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
@@ -112,17 +115,17 @@ export default function StatusBadge({
     const meta = EMPLOYEE_STATUS_MAP[key];
     symbol = symbolOverride || meta.symbol;
     label = labelOverride || meta.label;
-    badgeClass = dark ? meta.darkClass : meta.lightClass;
+    badgeClass = isDark ? meta.darkClass : meta.lightClass;
   } else if (type === "payroll_period" || type === "payment") {
     const key = String(raw || (type === "payment" ? "UNPAID" : "DRAFT")).trim().toUpperCase();
     const meta = PAYROLL_PERIOD_MAP[key] || PAYROLL_PERIOD_MAP.DRAFT;
     symbol = symbolOverride || meta.symbol;
     label = labelOverride || meta.label;
-    badgeClass = dark ? meta.darkClass : meta.lightClass;
+    badgeClass = isDark ? meta.darkClass : meta.lightClass;
   } else {
     symbol = symbolOverride || "•";
     label = labelOverride || String(raw || "");
-    badgeClass = dark
+    badgeClass = isDark
       ? "bg-slate-800 text-slate-200 border-slate-700"
       : "bg-slate-100 text-slate-700 border-slate-200";
   }

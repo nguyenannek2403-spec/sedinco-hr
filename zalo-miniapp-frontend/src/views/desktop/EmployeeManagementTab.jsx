@@ -17,7 +17,9 @@ import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
-  RotateCcw
+  RotateCcw,
+  Phone,
+  ExternalLink
 } from "lucide-react";
 import { safeGet, safePost, safePut } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
@@ -26,7 +28,9 @@ import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import {
   computeDeviceShortTag,
   formatEmployeeDeviceLabel,
-  parseKnownDevices
+  parseKnownDevices,
+  sanitizeSingleDeviceModelName,
+  UNKNOWN_DEVICE_LABEL
 } from "../../utils/deviceIdentity";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import {
@@ -70,7 +74,8 @@ function getEmployeeDeviceSummary(emp) {
   const hasPendingChange = Boolean(emp.pending_device_id);
   const primaryId = emp.bound_device_id || (known[0] && known[0].device_id) || "";
   const primaryMatch = known.find((d) => d.device_id === primaryId) || known[0] || null;
-  const primaryName = emp.bound_device_name || primaryMatch?.device_name || (primaryId ? "Thiết bị di động" : "");
+  const rawPrimaryName = emp.bound_device_name || primaryMatch?.device_name || (primaryId ? UNKNOWN_DEVICE_LABEL : "");
+  const primaryName = rawPrimaryName ? sanitizeSingleDeviceModelName(rawPrimaryName) : "";
   const primaryTag = primaryMatch?.short_tag || (primaryId ? computeDeviceShortTag(primaryId) : "");
 
   return {
@@ -92,6 +97,8 @@ export default function EmployeeManagementTab({
   showToast,
   initialFilter = "all",
   focusTarget = null,
+  alertsSummary = {},
+  onOpenLiveBoard,
   onRefreshAlerts,
   activeRole,
   dynamicPerms = {}
@@ -104,6 +111,7 @@ export default function EmployeeManagementTab({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [quickFilter, setQuickFilter] = useState(initialFilter || "all"); // 'all' | 'active' | 'alerts' | 'locked'
+  const [todayFilter, setTodayFilter] = useState("all"); // 'all' | 'present' | 'late' | 'field_work' | 'leave' | 'absent'
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [selectedDepartment, setSelectedDepartment] = useState("ALL");
@@ -115,7 +123,10 @@ export default function EmployeeManagementTab({
     ho_ten: "",
     chuc_danh: "",
     department: "Khối Công trình",
+    phone: "",
     dien_thoai: "",
+    login_username: "",
+    password: "123456",
     email: "",
     role: "worker",
     shift_type: "FULL_DAY",
@@ -203,7 +214,9 @@ export default function EmployeeManagementTab({
       ho_ten: emp.ho_ten || "",
       chuc_danh: emp.chuc_danh || "",
       department: emp.department || "Khối Công trình",
-      dien_thoai: emp.dien_thoai || "",
+      phone: emp.phone || emp.dien_thoai || "",
+      dien_thoai: emp.phone || emp.dien_thoai || "",
+      login_username: emp.login_username || emp.phone || emp.ma_nv || "",
       email: emp.email || "",
       role: emp.role || "worker",
       shift_type: emp.shift_type || "FULL_DAY",
@@ -222,7 +235,7 @@ export default function EmployeeManagementTab({
 
   useEffect(() => {
     if (!focusTarget?.ts || focusTarget.ts === lastFocusTsRef.current) return;
-    if (focusTarget.subTab !== "employees" && focusTarget.category !== "device" && focusTarget.tab !== "management") return;
+    if (focusTarget.subTab !== "employees" && focusTarget.category !== "device") return;
     if (focusTarget.category === "device") {
       setQuickFilter("alerts");
     }
@@ -245,10 +258,12 @@ export default function EmployeeManagementTab({
     if (submittingRef.current) return;
     setFormError("");
     const targetMaNv = String(form.ma_nv || "").trim().toUpperCase();
+    const cleanPhone = String(form.phone || form.dien_thoai || "").trim();
+    const cleanLoginUser = String(form.login_username || "").trim() || cleanPhone || targetMaNv;
     const cleanName = String(form.ho_ten || "").trim();
     const cleanTitle = String(form.chuc_danh || "").trim();
-    if (!targetMaNv) {
-      setFormError("Vui lòng nhập Mã nhân viên (VD: NV025)!");
+    if (!targetMaNv && !cleanPhone) {
+      setFormError("Vui lòng nhập Mã nhân viên hoặc Số điện thoại!");
       return;
     }
     if (!cleanName) {
@@ -269,24 +284,35 @@ export default function EmployeeManagementTab({
         luong_cb: isTargetAdmin ? 0 : form.luong_cb,
         has_insurance: isTargetAdmin ? false : form.has_insurance,
         ma_nv: targetMaNv,
+        phone: cleanPhone || null,
+        dien_thoai: cleanPhone || "",
+        login_username: cleanLoginUser || null,
+        password: String(form.password || "").trim() || undefined,
         ho_ten: cleanName,
         chuc_danh: cleanTitle,
         custom_start_time: isTargetAdmin ? null : (form.custom_start_time || null),
         custom_end_time: isTargetAdmin ? null : (form.custom_end_time || null)
       });
       if (res?.success) {
+        const finalId = res.ma_nv || targetMaNv;
         if (!isTargetAdmin && (targetShift !== "FULL_DAY" || form.custom_start_time || form.custom_end_time)) {
-          await safePut(`/employees/${targetMaNv}/shift`, {
+          await safePut(`/employees/${finalId}/shift`, {
             shift_type: targetShift,
             custom_start_time: form.custom_start_time || null,
             custom_end_time: form.custom_end_time || null
           }).catch(() => {});
         }
-        if (showToast) showToast(`Thêm nhân viên ${targetMaNv} thành công!`, "success");
+        if (showToast) {
+          showToast(
+            `Thêm nhân viên ${cleanName} (${finalId}) thành công! Tài khoản đăng nhập: ${res.login_username || cleanLoginUser}`,
+            "success"
+          );
+        }
         setIsAddModalOpen(false);
         if (res.one_time_password) {
           setCreatedCreds({
-            ma_nv: targetMaNv,
+            ma_nv: finalId,
+            login_username: res.login_username || cleanLoginUser,
             ho_ten: cleanName,
             password: res.one_time_password
           });
@@ -296,7 +322,10 @@ export default function EmployeeManagementTab({
           ho_ten: "",
           chuc_danh: "",
           department: "Khối Công trình",
+          phone: "",
           dien_thoai: "",
+          login_username: "",
+          password: "123456",
           email: "",
           role: "worker",
           shift_type: "FULL_DAY",
@@ -312,7 +341,7 @@ export default function EmployeeManagementTab({
         if (showToast) showToast(msg, "error");
       }
     } catch (err) {
-      const msg = err.message || "Lỗi tạo mới nhân sự.";
+      const msg = err?.data?.message || err.message || "Lỗi tạo mới nhân sự.";
       setFormError(msg);
       if (showToast) showToast(msg, "error");
     } finally {
@@ -330,11 +359,15 @@ export default function EmployeeManagementTab({
     }
     setSavingDetail(true);
     try {
+      const cleanDetailPhone = String(detailForm.phone ?? detailForm.dien_thoai ?? "").trim();
+      const cleanDetailUser = String(detailForm.login_username || "").trim();
       const payload = {
         ho_ten: String(detailForm.ho_ten || "").trim(),
         chuc_danh: detailForm.chuc_danh,
         department: detailForm.department,
-        dien_thoai: detailForm.dien_thoai,
+        phone: cleanDetailPhone,
+        dien_thoai: cleanDetailPhone,
+        login_username: cleanDetailUser || cleanDetailPhone || detailEmp.ma_nv,
         email: detailForm.email,
         shift_type: detailForm.shift_type,
         annual_leave_quota: Number(detailForm.annual_leave_quota) || 12,
@@ -478,12 +511,29 @@ export default function EmployeeManagementTab({
     ])
   );
 
-  // Thống kê nhanh 4 nhóm
+  // Thống kê nhanh 4 nhóm + Trạng thái Điểm Danh Hôm Nay (Độc quyền tại Khu vực 1 Trung tâm Nhân sự)
   const totalCount = employees.length;
   const activeCount = employees.filter((e) => !e.is_locked && e.status !== "inactive").length;
   const lockedCount = employees.filter((e) => Boolean(e.is_locked || e.status === "inactive")).length;
   const alertEmployees = employees.filter((e) => getEmployeeDeviceSummary(e).hasAnyAlert);
   const alertCount = alertEmployees.length;
+
+  const headcountToday = alertsSummary?.headcount_today || null;
+  const liveBoard = headcountToday?.live_board || {};
+  const presentSet = new Set((liveBoard.present_list || []).map((x) => x.ma_nv));
+  const lateSet = new Set((liveBoard.late_list || []).map((x) => x.ma_nv));
+  const fieldSet = new Set((liveBoard.field_work_list || []).map((x) => x.ma_nv));
+  const leaveSet = new Set((liveBoard.leave_list || []).map((x) => x.ma_nv));
+  const absentSet = new Set((liveBoard.absent_list || []).map((x) => x.ma_nv));
+
+  const getEmployeeTodayBadge = (maNv) => {
+    if (fieldSet.has(maNv)) return { label: "🚧 Công trình", cls: "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-500/40" };
+    if (lateSet.has(maNv)) return { label: "🟡 Đi muộn", cls: "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/40" };
+    if (presentSet.has(maNv)) return { label: "🟢 Có mặt", cls: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/40" };
+    if (leaveSet.has(maNv)) return { label: "🟣 Nghỉ phép", cls: "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/40" };
+    if (absentSet.has(maNv)) return { label: "⚪ Chưa chấm", cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600" };
+    return null;
+  };
 
   const filtered = employees.filter((e) => {
     const isLocked = Boolean(e.is_locked || e.status === "inactive");
@@ -492,6 +542,12 @@ export default function EmployeeManagementTab({
     if (quickFilter === "locked" && !isLocked) return false;
     if (quickFilter === "alerts" && !devSummary.hasAnyAlert) return false;
 
+    if (todayFilter === "present" && !presentSet.has(e.ma_nv)) return false;
+    if (todayFilter === "late" && !lateSet.has(e.ma_nv)) return false;
+    if (todayFilter === "field_work" && !fieldSet.has(e.ma_nv)) return false;
+    if (todayFilter === "leave" && !leaveSet.has(e.ma_nv)) return false;
+    if (todayFilter === "absent" && !absentSet.has(e.ma_nv)) return false;
+
     const empDept = e.department || "Khối Công trình";
     if (selectedDepartment !== "ALL" && empDept !== selectedDepartment) return false;
 
@@ -499,6 +555,8 @@ export default function EmployeeManagementTab({
     if (!q) return true;
     return (
       String(e.ma_nv || "").toLowerCase().includes(q) ||
+      String(e.login_username || "").toLowerCase().includes(q) ||
+      String(e.phone || e.dien_thoai || "").toLowerCase().includes(q) ||
       String(e.ho_ten || "").toLowerCase().includes(q) ||
       String(e.chuc_danh || "").toLowerCase().includes(q) ||
       String(e.department || "").toLowerCase().includes(q) ||
@@ -510,19 +568,114 @@ export default function EmployeeManagementTab({
 
   return (
     <div className="space-y-4 pb-8">
-      {/* 1. 4 Thẻ Lọc Nhanh Trung Tâm Nhân Sự 360° */}
+      {/* 1. KHU VỰC 1 ĐỘC QUYỀN: QUÂN SỐ THỜI GIAN THỰC & THẺ LỌC NHANH NHÂN SỰ 360° */}
+      {headcountToday && (
+        <div
+          data-testid="employee-hub-headcount-bar"
+          className="bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 shadow-sm space-y-2.5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+              📊 Quân số điểm danh hôm nay ({headcountToday.date || "Hôm nay"}) — Bấm để lọc nhanh nhân sự
+            </span>
+            {typeof onOpenLiveBoard === "function" && (
+              <button
+                type="button"
+                onClick={() => onOpenLiveBoard(todayFilter === "all" ? "present" : todayFilter)}
+                className="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/15 dark:hover:bg-blue-500/25 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-300 text-xs font-bold cursor-pointer transition"
+              >
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                <span>Xem bảng live chi tiết</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto touch-scroll-x pb-0.5 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setTodayFilter("all")}
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+                todayFilter === "all"
+                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                  : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+              }`}
+            >
+              👥 Quân số: <strong>{headcountToday.total_employees}</strong>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTodayFilter((p) => (p === "present" ? "all" : "present"))}
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+                todayFilter === "present"
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                  : "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/80 border-emerald-200 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+              }`}
+            >
+              🟢 Có mặt: <strong>{headcountToday.present}</strong>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTodayFilter((p) => (p === "late" ? "all" : "late"))}
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+                todayFilter === "late"
+                  ? "bg-amber-500 text-slate-950 border-amber-500 shadow-sm"
+                  : "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-300"
+              }`}
+            >
+              🟡 Đi muộn: <strong>{headcountToday.late}</strong>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTodayFilter((p) => (p === "field_work" ? "all" : "field_work"))}
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+                todayFilter === "field_work"
+                  ? "bg-orange-600 text-white border-orange-600 shadow-sm"
+                  : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/70 dark:hover:bg-orange-900/80 border-orange-200 dark:border-orange-500/40 text-orange-800 dark:text-orange-300"
+              }`}
+            >
+              🚧 Công trình: <strong>{headcountToday.field_work}</strong>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTodayFilter((p) => (p === "leave" ? "all" : "leave"))}
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+                todayFilter === "leave"
+                  ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                  : "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/70 dark:hover:bg-purple-900/80 border-purple-200 dark:border-purple-500/40 text-purple-800 dark:text-purple-300"
+              }`}
+            >
+              🟣 Nghỉ phép: <strong>{headcountToday.leave}</strong>
+            </button>
+            {Array.isArray(liveBoard?.absent_list) && (
+              <button
+                type="button"
+                onClick={() => setTodayFilter((p) => (p === "absent" ? "all" : "absent"))}
+                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+                  todayFilter === "absent"
+                    ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                    : "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/70 dark:hover:bg-rose-900/80 border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300"
+                }`}
+              >
+                ⚪ Chưa chấm: <strong>{liveBoard.absent_list.length}</strong>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4 Thẻ Lọc Nhanh Trạng Thái Tài Khoản & Thiết Bị */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <button
           type="button"
           onClick={() => setQuickFilter("all")}
           className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
             quickFilter === "all"
-              ? "bg-blue-600/25 border-blue-400 text-white shadow-lg shadow-blue-900/30"
-              : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800"
+              ? "bg-blue-600 text-white border-blue-600 shadow-md"
+              : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <div className="text-xs font-semibold opacity-90">👥 Tất cả nhân sự</div>
-          <div className="text-xl font-black mt-0.5 text-white">{totalCount}</div>
+          <div className="text-xl font-black mt-0.5">{totalCount}</div>
         </button>
 
         <button
@@ -530,12 +683,12 @@ export default function EmployeeManagementTab({
           onClick={() => setQuickFilter("active")}
           className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
             quickFilter === "active"
-              ? "bg-emerald-600/25 border-emerald-400 text-white shadow-lg shadow-emerald-900/30"
-              : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800"
+              ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
+              : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
-          <div className="text-xs font-semibold text-emerald-300">🟢 Đang làm việc</div>
-          <div className="text-xl font-black mt-0.5 text-white">{activeCount}</div>
+          <div className={`text-xs font-semibold ${quickFilter === "active" ? "text-emerald-50" : "text-emerald-700 dark:text-emerald-300"}`}>🟢 Đang làm việc</div>
+          <div className="text-xl font-black mt-0.5">{activeCount}</div>
         </button>
 
         <button
@@ -543,14 +696,14 @@ export default function EmployeeManagementTab({
           onClick={() => setQuickFilter("alerts")}
           className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
             quickFilter === "alerts"
-              ? "bg-rose-600/30 border-rose-400 text-white shadow-lg shadow-rose-900/30"
+              ? "bg-rose-600 text-white border-rose-600 shadow-md"
               : alertCount > 0
-              ? "bg-rose-950/50 border-rose-500/50 text-rose-100 hover:bg-rose-950/80"
-              : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800"
+              ? "bg-rose-50 dark:bg-rose-950/50 border-rose-300 dark:border-rose-500/50 text-rose-800 dark:text-rose-100 hover:bg-rose-100 dark:hover:bg-rose-950/80"
+              : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
-          <div className="text-xs font-semibold text-rose-300">🚨 Đa thiết bị / Đổi máy</div>
-          <div className="text-xl font-black mt-0.5 text-white">{alertCount}</div>
+          <div className={`text-xs font-semibold ${quickFilter === "alerts" ? "text-rose-50" : "text-rose-700 dark:text-rose-300"}`}>🚨 Đa thiết bị / Đổi máy</div>
+          <div className="text-xl font-black mt-0.5">{alertCount}</div>
         </button>
 
         <button
@@ -558,25 +711,25 @@ export default function EmployeeManagementTab({
           onClick={() => setQuickFilter("locked")}
           className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
             quickFilter === "locked"
-              ? "bg-amber-600/25 border-amber-400 text-white shadow-lg shadow-amber-900/30"
-              : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800"
+              ? "bg-amber-500 text-slate-950 border-amber-500 shadow-md"
+              : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
-          <div className="text-xs font-semibold text-amber-300">🔒 Đang khóa</div>
-          <div className="text-xl font-black mt-0.5 text-white">{lockedCount}</div>
+          <div className={`text-xs font-semibold ${quickFilter === "locked" ? "text-slate-900" : "text-amber-700 dark:text-amber-300"}`}>🔒 Đang khóa</div>
+          <div className="text-xl font-black mt-0.5">{lockedCount}</div>
         </button>
       </div>
 
       {/* 2. Thanh Công Cụ Tìm Kiếm, Lọc Bộ Phận & Thao Tác */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4 shadow-xl space-y-3">
+      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-lg font-bold leading-snug text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-400 shrink-0" />
+            <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
               <span>Trung tâm Nhân sự &amp; Thiết bị 360°</span>
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-              Đang hiển thị <strong className="text-white">{filtered.length}</strong> / {totalCount} nhân sự
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-300 mt-0.5">
+              Đang hiển thị <strong className="text-slate-900 dark:text-white">{filtered.length}</strong> / {totalCount} nhân sự
             </p>
           </div>
 
@@ -584,10 +737,9 @@ export default function EmployeeManagementTab({
             {isAdmin && (
               <AppButton
                 variant="ghost"
-                tone="dark"
                 icon={Key}
                 onClick={handleBatchForcePassword}
-                className="bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-300 text-xs px-3 py-2"
+                className="bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 border border-amber-300 dark:border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs px-3 py-2"
               >
                 Yêu cầu đổi MK
               </AppButton>
@@ -600,14 +752,13 @@ export default function EmployeeManagementTab({
                   setFormError("");
                   setIsAddModalOpen(true);
                 }}
-                className="text-xs px-3.5 py-2 shadow-lg shadow-blue-600/30"
+                className="text-xs px-3.5 py-2 shadow-lg shadow-blue-600/25"
               >
                 Thêm nhân viên
               </AppButton>
             )}
             <AppButton
               variant="secondary"
-              tone="dark"
               icon={RefreshCw}
               loading={loading}
               onClick={fetchEmployees}
@@ -624,8 +775,8 @@ export default function EmployeeManagementTab({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm tên, mã NV, bộ phận, tên máy..."
-              className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Tìm SĐT, tài khoản, tên, mã NV, bộ phận, tên máy..."
+              className="w-full min-h-[44px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -633,7 +784,7 @@ export default function EmployeeManagementTab({
             aria-label="Lọc theo bộ phận"
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="min-h-[44px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="ALL">🏢 Tất cả bộ phận</option>
             {availableDepartments.map((dept) => (
@@ -647,54 +798,66 @@ export default function EmployeeManagementTab({
 
       {/* 3. Danh Sách Thẻ Nhân Viên Trực Quan */}
       {loading ? (
-        <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4">
-          <SkeletonList rows={4} dark label="Đang tải danh sách nhân sự..." />
+        <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4">
+          <SkeletonList rows={4} label="Đang tải danh sách nhân sự..." />
         </div>
       ) : error ? (
-        <div className="bg-slate-800/80 border border-rose-500/40 rounded-2xl p-6 text-center text-rose-300 text-sm flex items-center justify-center gap-2">
+        <div className="bg-rose-50 dark:bg-slate-800/80 border border-rose-200 dark:border-rose-500/40 rounded-2xl p-6 text-center text-rose-700 dark:text-rose-300 text-sm flex items-center justify-center gap-2">
           <AlertCircle className="w-5 h-5 shrink-0" />
           <span>{error}</span>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4">
-          <EmptyState dark icon={Users} title="Không tìm thấy nhân viên nào khớp với bộ lọc." />
+        <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4">
+          <EmptyState icon={Users} title="Không tìm thấy nhân viên nào khớp với bộ lọc." />
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
           {filtered.map((emp) => {
             const isLocked = Boolean(emp.is_locked || emp.status === "inactive");
             const devSummary = getEmployeeDeviceSummary(emp);
+            const todayBadge = getEmployeeTodayBadge(emp.ma_nv);
+            const displayPhone = emp.phone || emp.dien_thoai;
+            const displayLogin = emp.login_username || displayPhone || emp.ma_nv;
 
             return (
               <div
                 key={emp.ma_nv}
-                className={`perf-list-item bg-slate-800/85 border rounded-2xl p-4 shadow-xl space-y-3 transition ${
-                  devSummary.hasAnyAlert ? "border-rose-500/60" : "border-slate-700/80"
+                className={`perf-list-item bg-white dark:bg-slate-800/85 border rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3 transition ${
+                  devSummary.hasAnyAlert ? "border-rose-400 dark:border-rose-500/60" : "border-slate-200 dark:border-slate-700/80"
                 }`}
               >
                 {/* Dòng 1: Họ tên + Mã NV + Vai trò + Trạng thái */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-bold text-base text-white break-words leading-snug">
+                      <span className="font-bold text-base text-slate-900 dark:text-white break-words leading-snug">
                         {emp.ho_ten}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-xs font-mono font-bold text-blue-300">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-blue-700 dark:text-blue-300">
                         {emp.ma_nv}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 text-xs font-semibold">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-200 text-xs font-semibold">
                         {ROLE_LABELS[emp.role] || "Nhân viên"}
                       </span>
+                      {todayBadge && (
+                        <span className={`px-2 py-0.5 rounded-md border text-xs font-semibold ${todayBadge.cls}`}>
+                          {todayBadge.label}
+                        </span>
+                      )}
                     </div>
 
-                    {/* Dòng 2: Bộ phận, Chức danh & Ca làm việc (ẩn ca với Quản trị viên) */}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
-                      <span className="inline-flex items-center gap-1 text-cyan-300 font-medium">
+                    {/* Dòng 2: Tài khoản (SĐT), Bộ phận, Chức danh & Ca làm việc */}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+                      <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-mono font-semibold">
+                        <Phone className="w-3.5 h-3.5 shrink-0" />
+                        <span>TK: {displayLogin}{displayPhone && displayPhone !== displayLogin ? ` (${displayPhone})` : ""}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-cyan-700 dark:text-cyan-300 font-medium">
                         <Building2 className="w-3.5 h-3.5 shrink-0" />
                         <span>{emp.department || "Khối Công trình"} • {emp.chuc_danh || "Nhân viên"}</span>
                       </span>
                       {emp.role !== "admin" && (
-                        <span className="inline-flex items-center gap-1 text-indigo-300 font-medium">
+                        <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-300 font-medium">
                           <Clock className="w-3.5 h-3.5 shrink-0" />
                           <span>{getShiftWindowText(emp)}</span>
                         </span>
@@ -702,23 +865,23 @@ export default function EmployeeManagementTab({
                     </div>
                   </div>
 
-                  <StatusBadge type="employee" status={isLocked ? "locked" : "active"} dark />
+                  <StatusBadge type="employee" status={isLocked ? "locked" : "active"} />
                 </div>
 
                 {/* Dòng 3: Hiển thị Thiết bị (chỉ áp dụng với Nhân viên & Kế toán, ẩn với Quản trị viên) */}
                 {emp.role !== "admin" && (
-                  <div className="px-3 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 min-w-0">
-                      <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span className="font-bold text-emerald-200 break-words">
+                      <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="font-bold text-emerald-800 dark:text-emerald-200 break-words">
                         📱 {devSummary.primaryLabel}
                       </span>
                     </div>
                     <span
                       className={`px-2 py-0.5 rounded-md font-semibold shrink-0 ${
                         emp.device_binding_mode === "enforced"
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                          : "bg-slate-800 text-slate-300 border border-slate-700"
+                          ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
+                          : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
                       }`}
                     >
                       {emp.device_binding_mode === "enforced" ? "🔒 Khóa 1 máy" : "Ghi nhận"}
@@ -728,14 +891,14 @@ export default function EmployeeManagementTab({
 
                 {/* Băng cảnh báo đỏ nếu phát hiện >= 2 thiết bị dùng chung tài khoản hoặc yêu cầu đổi máy */}
                 {devSummary.hasMultiAlert && (
-                  <div className="p-3 rounded-xl bg-rose-950/75 border border-rose-500/70 text-xs text-rose-100 space-y-2">
-                    <div className="flex items-start gap-2 font-bold text-rose-200 leading-snug">
-                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/75 border border-rose-300 dark:border-rose-500/70 text-xs text-rose-800 dark:text-rose-100 space-y-2">
+                    <div className="flex items-start gap-2 font-bold text-rose-900 dark:text-rose-200 leading-snug">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
                       <span>
                         🚨 Phát hiện {Math.max(2, devSummary.known.length)} thiết bị dùng chung tài khoản:{" "}
                         {devSummary.known.length >= 2
                           ? devSummary.known
-                              .map((d) => `${d.device_name || "Thiết bị"} (#${d.short_tag || computeDeviceShortTag(d.device_id)})`)
+                              .map((d) => `${sanitizeSingleDeviceModelName(d.device_name || UNKNOWN_DEVICE_LABEL)} (#${d.short_tag || computeDeviceShortTag(d.device_id)})`)
                               .join(" & ")
                           : "Đã ghi nhận đăng nhập từ máy thứ 2"}
                       </span>
@@ -744,12 +907,12 @@ export default function EmployeeManagementTab({
                 )}
 
                 {devSummary.hasPendingChange && (
-                  <div className="p-3 rounded-xl bg-amber-950/65 border border-amber-500/60 text-xs text-amber-100 space-y-1">
-                    <div className="font-bold text-amber-200">
-                      📱 Yêu cầu đổi sang máy mới: {emp.pending_device_name || emp.pending_device_id}
+                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/65 border border-amber-300 dark:border-amber-500/60 text-xs text-amber-900 dark:text-amber-100 space-y-1">
+                    <div className="font-bold text-amber-950 dark:text-amber-200">
+                      📱 Yêu cầu đổi sang máy mới: {sanitizeSingleDeviceModelName(emp.pending_device_name || emp.pending_device_id)}
                     </div>
                     {emp.device_change_reason && (
-                      <div className="text-amber-100/90">Lý do: {emp.device_change_reason}</div>
+                      <div className="opacity-90">Lý do: {emp.device_change_reason}</div>
                     )}
                   </div>
                 )}
@@ -757,11 +920,11 @@ export default function EmployeeManagementTab({
                 {/* Thanh Hành Động Nhanh trên Thẻ */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                   {emp.role === "admin" ? (
-                    <span className="text-xs text-amber-300 font-semibold">
+                    <span className="text-xs text-amber-700 dark:text-amber-300 font-semibold">
                       🛡️ Quản trị điều hành (Không tính lương)
                     </span>
                   ) : (
-                    <span className="text-xs sm:text-sm text-slate-200 font-mono font-semibold whitespace-nowrap">
+                    <span className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 font-mono font-semibold whitespace-nowrap">
                       Lương CB: {Number(emp.luong_cb || 0).toLocaleString("vi-VN")} đ
                     </span>
                   )}
@@ -782,14 +945,13 @@ export default function EmployeeManagementTab({
                     {isAdmin && emp.role !== "admin" && (
                       <AppButton
                         variant="secondary"
-                        tone="dark"
                         icon={isLocked ? Unlock : Lock}
                         onClick={() => handleToggleLock(emp)}
                         aria-label={isLocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}
                         className={`min-w-[44px] px-3 py-2 text-xs ${
                           isLocked
-                            ? "!border-emerald-500/40 !text-emerald-300"
-                            : "!border-rose-500/40 !text-rose-300"
+                            ? "!border-emerald-500/50 !text-emerald-700 dark:!text-emerald-300"
+                            : "!border-rose-500/50 !text-rose-700 dark:!text-rose-300"
                         }`}
                       >
                         {isLocked ? "Mở khóa" : "Khóa"}
@@ -829,21 +991,19 @@ export default function EmployeeManagementTab({
       <AppModal
         open={Boolean(createdCreds)}
         onClose={() => setCreatedCreds(null)}
-        theme="dark"
         maxWidthClass="max-w-sm"
         title="Tài khoản mới tạo"
         closeLabel="Đóng / Quay lại"
       >
         {createdCreds && (
           <div className="p-5 space-y-4">
-            <p className="text-sm text-slate-200 leading-relaxed">
-              Đã tạo tài khoản cho <strong>{createdCreds.ho_ten}</strong> ({createdCreds.ma_nv}). Vui lòng gửi mật khẩu tạm thời bên dưới cho nhân viên:
+            <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+              Đã tạo tài khoản cho <strong>{createdCreds.ho_ten}</strong> (TK: <strong>{createdCreds.login_username || createdCreds.ma_nv}</strong> • Mã: {createdCreds.ma_nv}). Vui lòng gửi mật khẩu tạm thời bên dưới cho nhân viên:
             </p>
-            <div className="p-3 bg-slate-950 border border-slate-700 rounded-xl flex items-center justify-between gap-2">
-              <code className="text-base font-mono font-bold text-emerald-400 break-all">{createdCreds.password}</code>
+            <div className="p-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl flex items-center justify-between gap-2">
+              <code className="text-base font-mono font-bold text-emerald-700 dark:text-emerald-400 break-all">{createdCreds.password}</code>
               <AppButton
                 variant="secondary"
-                tone="dark"
                 icon={Copy}
                 onClick={() => {
                   navigator.clipboard?.writeText(createdCreds.password);
@@ -854,7 +1014,7 @@ export default function EmployeeManagementTab({
                 Sao chép
               </AppButton>
             </div>
-            <p className="text-xs text-amber-300 leading-relaxed">
+            <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
               Nhân viên sẽ được yêu cầu đổi mật khẩu mới ngay khi đăng nhập lần đầu.
             </p>
           </div>
@@ -866,15 +1026,13 @@ export default function EmployeeManagementTab({
         open={isAddModalOpen}
         onClose={() => !isSubmitting && setIsAddModalOpen(false)}
         disableClose={isSubmitting}
-        theme="dark"
         maxWidthClass="max-w-md"
         title="Thêm nhân viên mới"
-        icon={<Plus className="w-4 h-4 text-blue-400 shrink-0" />}
+        icon={<Plus className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />}
         footer={
           <div className="flex gap-2.5">
             <AppButton
               variant="secondary"
-              tone="dark"
               disabled={isSubmitting}
               onClick={() => setIsAddModalOpen(false)}
               className="flex-1"
@@ -896,53 +1054,104 @@ export default function EmployeeManagementTab({
       >
         <form id="add-employee-form" onSubmit={handleAddEmployee} className="p-5 space-y-3">
           {formError && (
-            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-sm leading-snug">
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-200 text-sm leading-snug">
               {formError}
             </div>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-slate-200 mb-1">Mã nhân viên</label>
-              <input
-                type="text"
-                required
-                value={form.ma_nv}
-                onChange={(e) => setForm({ ...form, ma_nv: e.target.value.toUpperCase() })}
-                placeholder="VD: NV025"
-                className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+
+          <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-3">
+            <div className="text-xs font-black uppercase tracking-wide text-blue-700 dark:text-blue-300">
+              Tài khoản đăng nhập mặc định (Số điện thoại)
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                  Số điện thoại (Tài khoản mặc định)
+                </label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => {
+                    const nextPhone = e.target.value;
+                    setForm((prev) => ({
+                      ...prev,
+                      phone: nextPhone,
+                      dien_thoai: nextPhone
+                    }));
+                  }}
+                  placeholder="VD: 0905123456"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                  Tài khoản tùy chỉnh (nếu khác SĐT)
+                </label>
+                <input
+                  type="text"
+                  value={form.login_username}
+                  onChange={(e) => setForm({ ...form, login_username: e.target.value })}
+                  placeholder={form.phone ? form.phone : "Mặc định lấy SĐT hoặc Mã NV"}
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-200 mb-1">Họ và tên</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                Mật khẩu khởi tạo (Mặc định: 123456)
+              </label>
               <input
                 type="text"
-                required
-                value={form.ho_ten}
-                onChange={(e) => setForm({ ...form, ho_ten: e.target.value })}
-                placeholder="Nguyễn Văn A"
-                className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="123456 (bỏ trống để tự sinh ngẫu nhiên)"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-semibold text-slate-200 mb-1">Chức danh</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Mã nhân viên</label>
+              <input
+                type="text"
+                value={form.ma_nv}
+                onChange={(e) => setForm({ ...form, ma_nv: e.target.value.toUpperCase() })}
+                placeholder="VD: NV025"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Họ và tên</label>
+              <input
+                type="text"
+                required
+                value={form.ho_ten}
+                onChange={(e) => setForm({ ...form, ho_ten: e.target.value })}
+                placeholder="Nguyễn Văn A"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Chức danh</label>
               <input
                 type="text"
                 required
                 value={form.chuc_danh}
                 onChange={(e) => setForm({ ...form, chuc_danh: e.target.value })}
                 placeholder="Kỹ thuật / Nhân viên kho"
-                className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-200 mb-1">Khối / Bộ phận</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Khối / Bộ phận</label>
               <select
                 value={form.department || "Khối Công trình"}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
-                className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {DEPARTMENT_OPTIONS.map((dept) => (
                   <option key={dept} value={dept}>
@@ -955,7 +1164,7 @@ export default function EmployeeManagementTab({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-semibold text-slate-200 mb-1">Vai trò</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Vai trò</label>
               <select
                 value={form.role}
                 onChange={(e) => {
@@ -966,7 +1175,7 @@ export default function EmployeeManagementTab({
                     ...(r === "admin" ? { luong_cb: 0, has_insurance: false } : {})
                   });
                 }}
-                className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="worker">Nhân viên</option>
                 <option value="accountant">Kế toán</option>
@@ -975,7 +1184,7 @@ export default function EmployeeManagementTab({
             </div>
             {form.role !== "admin" && (
               <div>
-                <label className="block text-sm font-semibold text-slate-200 mb-1">Lương cơ bản (đ)</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Lương cơ bản (đ)</label>
                 <input
                   type="number"
                   required
@@ -983,7 +1192,7 @@ export default function EmployeeManagementTab({
                   step={100000}
                   value={form.luong_cb}
                   onChange={(e) => setForm({ ...form, luong_cb: Number(e.target.value) })}
-                  className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             )}
@@ -991,11 +1200,11 @@ export default function EmployeeManagementTab({
 
           {form.role !== "admin" && (
             <div>
-              <label className="block text-sm font-semibold text-slate-200 mb-1">Ca làm việc mặc định</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Ca làm việc mặc định</label>
               <select
                 value={form.shift_type || "FULL_DAY"}
                 onChange={(e) => setForm({ ...form, shift_type: e.target.value })}
-                className="w-full min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {SHIFT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -1018,17 +1227,15 @@ export default function EmployeeManagementTab({
           }
         }}
         disableClose={savingDetail || resolvingDevice}
-        theme="dark"
         maxWidthClass="max-w-2xl"
         maxHeightClass="max-h-[92vh]"
         title="Hồ Sơ Kiểm Soát Nhân Sự 360°"
         subtitle={detailEmp ? `${detailEmp.ho_ten} (${detailEmp.ma_nv})` : ""}
-        icon={<ShieldCheck className="w-5 h-5 text-blue-400 shrink-0" />}
+        icon={<ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />}
         footer={
           <div className="flex gap-2.5">
             <AppButton
               variant="secondary"
-              tone="dark"
               disabled={savingDetail || resolvingDevice}
               onClick={() => {
                 setDetailEmp(null);
@@ -1060,44 +1267,69 @@ export default function EmployeeManagementTab({
             className="p-4 sm:p-5 space-y-5"
           >
             {/* KHU VỰC 1: THÔNG TIN & CHẾ ĐỘ ĐÃI NGỘ */}
-            <section className="space-y-3 bg-slate-950/60 border border-slate-700/80 rounded-2xl p-4">
-              <h3 className="text-sm font-black text-blue-300 uppercase tracking-wide flex items-center gap-2">
+            <section className="space-y-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
+              <h3 className="text-sm font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide flex items-center gap-2">
                 <Users className="w-4 h-4 shrink-0" />
                 <span>1. Thông tin &amp; Chế độ đãi ngộ</span>
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Họ và tên</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Họ và tên</label>
                   <input
                     type="text"
                     required
                     disabled={!canEditEmployees}
                     value={detailForm.ho_ten}
                     onChange={(e) => setDetailForm((p) => ({ ...p, ho_ten: e.target.value }))}
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base text-white disabled:opacity-60"
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Chức danh</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Chức danh</label>
                   <input
                     type="text"
                     disabled={!canEditEmployees}
                     value={detailForm.chuc_danh}
                     onChange={(e) => setDetailForm((p) => ({ ...p, chuc_danh: e.target.value }))}
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base text-white disabled:opacity-60"
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Khối / Bộ phận công tác</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Số điện thoại</label>
+                  <input
+                    type="tel"
+                    disabled={!canEditEmployees}
+                    value={detailForm.phone}
+                    onChange={(e) => setDetailForm((p) => ({ ...p, phone: e.target.value, dien_thoai: e.target.value }))}
+                    placeholder="09xx..."
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Tài khoản đăng nhập</label>
+                  <input
+                    type="text"
+                    disabled={!canEditEmployees}
+                    value={detailForm.login_username}
+                    onChange={(e) => setDetailForm((p) => ({ ...p, login_username: e.target.value }))}
+                    placeholder="SĐT hoặc Mã NV"
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Khối / Bộ phận công tác</label>
                   <select
                     disabled={!canEditEmployees}
                     value={detailForm.department}
                     onChange={(e) => setDetailForm((p) => ({ ...p, department: e.target.value }))}
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base text-white disabled:opacity-60"
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
                   >
                     {availableDepartments.map((dept) => (
                       <option key={dept} value={dept}>
@@ -1108,7 +1340,7 @@ export default function EmployeeManagementTab({
                 </div>
                 {detailEmp.role !== "admin" && (
                   <div>
-                    <label className="block text-sm font-semibold text-slate-200 mb-1">Quỹ phép năm (ngày)</label>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Quỹ phép năm (ngày)</label>
                     <input
                       type="number"
                       min={0}
@@ -1116,46 +1348,33 @@ export default function EmployeeManagementTab({
                       disabled={!canEditEmployees}
                       value={detailForm.annual_leave_quota}
                       onChange={(e) => setDetailForm((p) => ({ ...p, annual_leave_quota: Number(e.target.value) || 0 }))}
-                      className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Số điện thoại</label>
-                  <input
-                    type="tel"
-                    disabled={!canEditEmployees}
-                    value={detailForm.dien_thoai}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, dien_thoai: e.target.value }))}
-                    placeholder="09xx..."
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base text-white disabled:opacity-60"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-1">Email</label>
-                  <input
-                    type="email"
-                    disabled={!canEditEmployees}
-                    value={detailForm.email}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, email: e.target.value }))}
-                    placeholder="email@congty.vn"
-                    className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base text-white disabled:opacity-60"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Email</label>
+                <input
+                  type="email"
+                  disabled={!canEditEmployees}
+                  value={detailForm.email}
+                  onChange={(e) => setDetailForm((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="email@congty.vn"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
+                />
               </div>
 
               {detailEmp.role === "admin" ? (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/40 text-xs sm:text-sm text-amber-200 leading-relaxed">
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/40 text-xs sm:text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
                   Tài khoản Quản trị viên chỉ dùng để điều hành hệ thống; không áp dụng bảng lương, phép năm, ca chấm công hay khóa thiết bị cá nhân.
                 </div>
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-semibold text-slate-200 mb-1">Lương cơ bản (đ)</label>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Lương cơ bản (đ)</label>
                       <input
                         type="number"
                         min={0}
@@ -1163,11 +1382,11 @@ export default function EmployeeManagementTab({
                         disabled={!canEditEmployees}
                         value={detailForm.luong_cb}
                         onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Number(e.target.value) || 0 }))}
-                        className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-300 disabled:opacity-60"
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-700 dark:text-emerald-300 disabled:opacity-60"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-slate-200 mb-1">Phụ cấp ăn trưa (đ)</label>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp ăn trưa (đ)</label>
                       <input
                         type="number"
                         min={0}
@@ -1175,14 +1394,14 @@ export default function EmployeeManagementTab({
                         disabled={!canEditEmployees}
                         value={detailForm.phu_cap_an_trua}
                         onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Number(e.target.value) || 0 }))}
-                        className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-semibold text-slate-200 mb-1">Phụ cấp xăng xe (đ)</label>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp xăng xe (đ)</label>
                       <input
                         type="number"
                         min={0}
@@ -1190,11 +1409,11 @@ export default function EmployeeManagementTab({
                         disabled={!canEditEmployees}
                         value={detailForm.phu_cap_xang_xe}
                         onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Number(e.target.value) || 0 }))}
-                        className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-slate-200 mb-1">Phụ cấp nhà ở / khác (đ)</label>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp nhà ở / khác (đ)</label>
                       <input
                         type="number"
                         min={0}
@@ -1202,12 +1421,12 @@ export default function EmployeeManagementTab({
                         disabled={!canEditEmployees}
                         value={detailForm.phu_cap_nha_o}
                         onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Number(e.target.value) || 0 }))}
-                        className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-white disabled:opacity-60"
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
                       />
                     </div>
                   </div>
 
-                  <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer">
+                  <label className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 cursor-pointer">
                     <input
                       type="checkbox"
                       disabled={!canEditEmployees}
@@ -1215,7 +1434,7 @@ export default function EmployeeManagementTab({
                       onChange={(e) => setDetailForm((p) => ({ ...p, has_insurance: e.target.checked }))}
                       className="w-5 h-5 rounded text-blue-600"
                     />
-                    <span className="text-sm font-semibold text-slate-200">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                       Có tham gia đóng Bảo hiểm xã hội bắt buộc
                     </span>
                   </label>
@@ -1223,20 +1442,19 @@ export default function EmployeeManagementTab({
               )}
             </section>
 
-            {/* KHU VỰC 2: CA LÀM VIỆC & GIỜ RIÊNG (ẩn với Quản trị viên) */}
+            {/* KHU VỰC 2: CA LÀM VIỆC & GIỜ RIÊNG */}
             {detailEmp.role !== "admin" && (
-              <section className="space-y-3 bg-slate-950/60 border border-slate-700/80 rounded-2xl p-4">
+              <section className="space-y-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-black text-indigo-300 uppercase tracking-wide flex items-center gap-2">
+                <h3 className="text-sm font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wide flex items-center gap-2">
                   <Clock className="w-4 h-4 shrink-0" />
                   <span>2. Ca làm việc &amp; Giờ riêng</span>
                 </h3>
                 {canEditEmployees && (detailForm.custom_start_time || detailForm.custom_end_time) && (
                   <AppButton
                     variant="ghost"
-                    tone="dark"
                     onClick={() => setDetailForm((p) => ({ ...p, custom_start_time: "", custom_end_time: "" }))}
-                    className="text-xs text-amber-300 border-amber-500/40 px-2.5 py-1.5"
+                    className="text-xs text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40 px-2.5 py-1.5"
                   >
                     Dùng giờ chuẩn
                   </AppButton>
@@ -1244,12 +1462,12 @@ export default function EmployeeManagementTab({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-200 mb-1">Ca làm việc chuẩn</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Ca làm việc chuẩn</label>
                 <select
                   disabled={!canEditEmployees}
                   value={detailForm.shift_type || "FULL_DAY"}
                   onChange={(e) => setDetailForm((p) => ({ ...p, shift_type: e.target.value }))}
-                  className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base text-white disabled:opacity-60"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
                 >
                   {SHIFT_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -1259,63 +1477,62 @@ export default function EmployeeManagementTab({
                 </select>
               </div>
 
-              <div className="divide-y divide-slate-800 border border-slate-700 rounded-xl bg-slate-900 overflow-hidden">
-                <FormRow dark label="Giờ vào ca riêng">
+              <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 overflow-hidden">
+                <FormRow label="Giờ vào ca riêng">
                   <input
                     type="time"
                     disabled={!canEditEmployees}
                     value={detailForm.custom_start_time || ""}
                     onChange={(e) => setDetailForm((p) => ({ ...p, custom_start_time: e.target.value }))}
-                    className="w-32 sm:w-36 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center"
+                    className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center"
                   />
                 </FormRow>
-                <FormRow dark label="Giờ tan ca riêng">
+                <FormRow label="Giờ tan ca riêng">
                   <input
                     type="time"
                     disabled={!canEditEmployees}
                     value={detailForm.custom_end_time || ""}
                     onChange={(e) => setDetailForm((p) => ({ ...p, custom_end_time: e.target.value }))}
-                    className="w-32 sm:w-36 bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-white text-center"
+                    className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center"
                   />
                 </FormRow>
               </div>
             </section>
             )}
 
-            {/* KHU VỰC 3: KIỂM SOÁT THIẾT BỊ & CHỐNG DÙNG CHUNG TÀI KHOẢN (ẩn với Quản trị viên) */}
+            {/* KHU VỰC 3: KIỂM SOÁT THIẾT BỊ & CHỐNG DÙNG CHUNG TÀI KHOẢN */}
             {detailEmp.role !== "admin" && (
-            <section className="space-y-3 bg-slate-950/60 border border-slate-700/80 rounded-2xl p-4">
+            <section className="space-y-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-black text-emerald-300 uppercase tracking-wide flex items-center gap-2">
+                <h3 className="text-sm font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wide flex items-center gap-2">
                   <Smartphone className="w-4 h-4 shrink-0" />
                   <span>3. Kiểm soát Thiết bị &amp; Chống dùng chung</span>
                 </h3>
                 <span
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
                     detailEmp.device_binding_mode === "enforced"
-                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                      : "bg-slate-800 text-slate-300 border border-slate-700"
+                      ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
+                      : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
                   }`}
                 >
                   {detailEmp.device_binding_mode === "enforced" ? "🔒 Đang khóa cứng 1 máy" : "Chế độ ghi nhận cảnh báo"}
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-xs sm:text-sm space-y-1">
-                <div className="text-slate-400 font-semibold">Thiết bị chính hiện tại:</div>
-                <div className="font-bold text-emerald-300 break-words">
+              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm space-y-1">
+                <div className="text-slate-500 dark:text-slate-400 font-semibold">Thiết bị chính hiện tại:</div>
+                <div className="font-bold text-emerald-700 dark:text-emerald-300 break-words">
                   📱 {detailDevSummary.primaryLabel}
                 </div>
               </div>
 
-              {/* Yêu cầu đổi máy mới từ nhân viên */}
               {detailDevSummary.hasPendingChange && (
-                <div className="p-3.5 rounded-xl bg-amber-950/60 border border-amber-500/60 space-y-2.5 text-xs">
-                  <div className="font-bold text-amber-200">
-                    📱 Nhân viên yêu cầu đổi sang máy mới: {detailEmp.pending_device_name || detailEmp.pending_device_id}
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-500/60 space-y-2.5 text-xs">
+                  <div className="font-bold text-amber-900 dark:text-amber-200">
+                    📱 Nhân viên yêu cầu đổi sang máy mới: {sanitizeSingleDeviceModelName(detailEmp.pending_device_name || detailEmp.pending_device_id)}
                   </div>
                   {detailEmp.device_change_reason && (
-                    <div className="text-amber-100">Lý do: {detailEmp.device_change_reason}</div>
+                    <div className="text-amber-800 dark:text-amber-100">Lý do: {detailEmp.device_change_reason}</div>
                   )}
                   {isAdmin && (
                     <div className="flex flex-wrap gap-2">
@@ -1330,11 +1547,10 @@ export default function EmployeeManagementTab({
                       </AppButton>
                       <AppButton
                         variant="secondary"
-                        tone="dark"
                         icon={XCircle}
                         loading={resolvingDevice}
                         onClick={() => handlePendingDeviceDecision(detailEmp, "reject")}
-                        className="text-xs !border-rose-500/40 !text-rose-300"
+                        className="text-xs !border-rose-500/40 !text-rose-700 dark:!text-rose-300"
                       >
                         Từ chối
                       </AppButton>
@@ -1343,10 +1559,9 @@ export default function EmployeeManagementTab({
                 </div>
               )}
 
-              {/* Danh sách tất cả các thiết bị đã đăng nhập / chấm công */}
               {detailDevSummary.known.length > 0 && (
                 <div className="space-y-2">
-                  <div className="text-xs font-bold text-slate-300">
+                  <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
                     Lịch sử thiết bị đăng nhập ({detailDevSummary.known.length} máy):
                   </div>
                   {detailDevSummary.known.map((dev, idx) => {
@@ -1357,27 +1572,26 @@ export default function EmployeeManagementTab({
                         key={dev.device_id || idx}
                         className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 text-xs ${
                           isPrimary
-                            ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-100"
-                            : "bg-rose-950/40 border-rose-500/50 text-rose-100"
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/50 text-emerald-900 dark:text-emerald-100"
+                            : "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-500/50 text-rose-900 dark:text-rose-100"
                         }`}
                       >
                         <div className="min-w-0 flex-1 space-y-0.5">
                           <div className="font-bold break-words">
-                            {formatEmployeeDeviceLabel(detailEmp.ho_ten, dev.device_name || "Thiết bị di động", tag, true)}
+                            {formatEmployeeDeviceLabel(detailEmp.ho_ten, dev.device_name || UNKNOWN_DEVICE_LABEL, tag, true)}
                             {isPrimary && (
-                              <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-200 text-xs">
+                              <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-200 dark:bg-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs">
                                 Máy chính
                               </span>
                             )}
                           </div>
-                          <div className="text-slate-300">
+                          <div className="text-slate-600 dark:text-slate-300">
                             Đăng nhập {dev.login_count || 1} lần {dev.ip ? `• IP: ${dev.ip}` : ""}
                           </div>
                         </div>
                         {isAdmin && (
                           <AppButton
                             variant={isPrimary ? "primary" : "secondary"}
-                            tone="dark"
                             loading={resolvingDevice}
                             onClick={() => handleResolveDevices(detailEmp, "lock_primary", dev)}
                             className="text-xs px-3 py-1.5 shrink-0"
@@ -1406,7 +1620,6 @@ export default function EmployeeManagementTab({
                   )}
                   <AppButton
                     variant="secondary"
-                    tone="dark"
                     icon={RotateCcw}
                     loading={resolvingDevice}
                     onClick={() => handleResolveDevices(detailEmp, "reset_devices")}
@@ -1421,44 +1634,44 @@ export default function EmployeeManagementTab({
 
             {/* KHU VỰC 4: QUYỀN HẠN & BẢO MẬT TÀI KHOẢN */}
             {isAdmin && detailEmp.role !== "admin" && (
-              <section className="space-y-3 bg-slate-950/60 border border-slate-700/80 rounded-2xl p-4">
-                <h3 className="text-sm font-black text-amber-300 uppercase tracking-wide flex items-center gap-2">
+              <section className="space-y-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
+                <h3 className="text-sm font-black text-amber-700 dark:text-amber-300 uppercase tracking-wide flex items-center gap-2">
                   <Key className="w-4 h-4 shrink-0" />
                   <span>4. Quyền hạn &amp; Bảo mật tài khoản</span>
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-200 mb-1">Vai trò phân quyền</label>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Vai trò phân quyền</label>
                     <select
                       value={detailForm.role || "worker"}
                       onChange={(e) => setDetailForm((p) => ({ ...p, role: e.target.value }))}
-                      className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base text-white"
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white"
                     >
                       <option value="worker">Nhân viên</option>
                       <option value="accountant">Kế toán</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-200 mb-1">Đặt lại mật khẩu mới (tùy chọn)</label>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Đặt lại mật khẩu mới (tùy chọn)</label>
                     <input
                       type="text"
                       value={detailForm.new_password}
                       onChange={(e) => setDetailForm((p) => ({ ...p, new_password: e.target.value }))}
                       placeholder="Bỏ trống nếu giữ nguyên..."
-                      className="w-full min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-base text-white placeholder-slate-500"
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                     />
                   </div>
                 </div>
 
-                <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer">
+                <label className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={Boolean(detailForm.keep_logs)}
                     onChange={(e) => setDetailForm((p) => ({ ...p, keep_logs: e.target.checked }))}
                     className="w-5 h-5 rounded text-blue-600"
                   />
-                  <span className="text-sm font-semibold text-slate-200">
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     Lưu giữ toàn bộ nhật ký hoạt động của nhân viên này (không tự động dọn dẹp)
                   </span>
                 </label>
@@ -1466,10 +1679,9 @@ export default function EmployeeManagementTab({
                 <div className="pt-1">
                   <AppButton
                     variant="secondary"
-                    tone="dark"
                     icon={Boolean(detailEmp.is_locked || detailEmp.status === "inactive") ? Unlock : Lock}
                     onClick={() => handleToggleLock(detailEmp)}
-                    className="w-full text-xs !border-rose-500/40 !text-rose-200"
+                    className="w-full text-xs !border-rose-500/40 !text-rose-700 dark:!text-rose-200"
                   >
                     {Boolean(detailEmp.is_locked || detailEmp.status === "inactive")
                       ? "Mở khóa tài khoản nhân viên này"

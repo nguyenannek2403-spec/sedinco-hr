@@ -587,14 +587,14 @@ export default function OneTouchCheckIn({
         <button
           type="button"
           onClick={() => onOpenFixCheckoutRequest && onOpenFixCheckoutRequest(forgottenCheckout)}
-          className="w-full p-3.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border-2 border-amber-400/70 text-left flex items-start gap-2.5 shadow-lg transition cursor-pointer"
+          className="w-full p-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 border-2 border-amber-400/70 text-left flex items-start gap-2.5 shadow-sm dark:shadow-lg transition cursor-pointer"
         >
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
           <div className="flex-1 min-w-0 text-xs leading-relaxed">
-            <p className="font-black text-amber-200">
+            <p className="font-black text-amber-900 dark:text-amber-200">
               ⚠️ Phát hiện ngày {forgottenCheckout.short_date} bạn có chấm công Vào ({String(forgottenCheckout.check_in_time).slice(0, 5)}) nhưng quên bấm Giờ Ra!
             </p>
-            <span className="inline-block mt-1 font-black text-amber-300 underline">
+            <span className="inline-block mt-1 font-black text-amber-700 dark:text-amber-300 underline">
               👉 Bấm vào đây để gửi đơn bổ sung giờ ra 1 chạm
             </span>
           </div>
@@ -605,19 +605,19 @@ export default function OneTouchCheckIn({
       <div
         className={`w-full px-3.5 py-2.5 rounded-2xl border text-xs font-bold flex flex-col gap-1.5 shadow-sm ${
           locationFriendlyBadge.mode === "in_range"
-            ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-200"
+            ? "bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-200"
             : locationFriendlyBadge.mode === "wifi_office"
-            ? "bg-blue-950/70 border-blue-500/40 text-blue-200"
+            ? "bg-blue-50 dark:bg-blue-950/70 border-blue-200 dark:border-blue-500/40 text-blue-800 dark:text-blue-200"
             : locationFriendlyBadge.mode === "out_of_range"
-            ? "bg-amber-950/70 border-amber-500/40 text-amber-200"
-            : "bg-slate-900/90 border-slate-700 text-slate-300"
+            ? "bg-amber-50 dark:bg-amber-950/70 border-amber-200 dark:border-amber-500/40 text-amber-900 dark:text-amber-200"
+            : "bg-white dark:bg-slate-900/90 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
         }`}
       >
         <div className="flex items-center gap-2">
           {locationFriendlyBadge.mode === "wifi_office" ? (
-            <Wifi className="w-4 h-4 text-blue-400 shrink-0" />
+            <Wifi className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
           ) : (
-            <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+            <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           )}
           <span className="flex-1 min-w-0 leading-snug">{locationFriendlyBadge.text}</span>
         </div>
@@ -625,10 +625,10 @@ export default function OneTouchCheckIn({
           <span
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${
               !networkBadge.online || networkBadge.networkType === "none"
-                ? "bg-rose-500/20 border-rose-400/50 text-rose-200"
+                ? "bg-rose-100 dark:bg-rose-500/20 border-rose-300 dark:border-rose-400/50 text-rose-800 dark:text-rose-200"
                 : networkBadge.networkType === "wifi"
-                ? "bg-emerald-500/15 border-emerald-400/40 text-emerald-200"
-                : "bg-sky-500/15 border-sky-400/40 text-sky-200"
+                ? "bg-emerald-100 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-400/40 text-emerald-800 dark:text-emerald-200"
+                : "bg-sky-100 dark:bg-sky-500/15 border-sky-300 dark:border-sky-400/40 text-sky-800 dark:text-sky-200"
             }`}
           >
             {!networkBadge.online || networkBadge.networkType === "none"
@@ -644,29 +644,29 @@ export default function OneTouchCheckIn({
 
       {/* F4: THÔNG BÁO NỘI BỘ CÔNG TY */}
       {companyMeta?.announcement_text && String(companyMeta.announcement_text).trim() && (
-        <div className="w-full bg-amber-500/15 border border-amber-400/50 rounded-2xl px-3.5 py-2.5 text-left space-y-1 shadow-sm">
+        <div className="w-full bg-amber-50 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-400/50 rounded-2xl px-3.5 py-2.5 text-left space-y-1 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-amber-200">📢 Thông báo từ Công ty</span>
+            <span className="text-xs font-bold text-amber-800 dark:text-amber-200">📢 Thông báo từ Công ty</span>
             {companyMeta.announcement_updated_at && (
-              <span className="text-xs text-amber-100/90 whitespace-nowrap shrink-0">
+              <span className="text-xs text-amber-700/90 dark:text-amber-100/90 whitespace-nowrap shrink-0">
                 {new Date(companyMeta.announcement_updated_at).toLocaleDateString("vi-VN")}
               </span>
             )}
           </div>
-          <p className="text-xs text-amber-50 leading-relaxed whitespace-pre-line">
+          <p className="text-xs text-amber-900 dark:text-amber-50 leading-relaxed whitespace-pre-line">
             {companyMeta.announcement_text}
           </p>
         </div>
       )}
 
       {/* 3. THẺ TÓM TẮT CÔNG HÔM NAY & CA CHUẨN */}
-      <div className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5 text-xs shadow-md">
+      <div className="w-full bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 space-y-2.5 text-xs shadow-sm dark:shadow-md">
         <div className="flex items-center justify-between gap-2.5">
           <div className="flex-1 min-w-0">
-            <span className="text-slate-300 font-medium block">
+            <span className="text-slate-600 dark:text-slate-300 font-medium block">
               Hôm nay ({new Date().toLocaleDateString("vi-VN")}):
             </span>
-            <span className="font-bold text-emerald-400 text-sm block mt-0.5 leading-snug">
+            <span className="font-bold text-emerald-700 dark:text-emerald-400 text-sm block mt-0.5 leading-snug">
               {effectiveToday?.check_out_time
                 ? `Vào ${effectiveToday.check_in_time?.slice(0, 5)} • Ra ${effectiveToday.check_out_time?.slice(0, 5)}`
                 : effectiveToday?.check_in_time
@@ -674,23 +674,23 @@ export default function OneTouchCheckIn({
                 : "Chưa chấm công vào ca"}
             </span>
             {effectiveToday?.location_name && (
-              <span className="block text-xs text-slate-300 mt-0.5 truncate">
+              <span className="block text-xs text-slate-600 dark:text-slate-300 mt-0.5 truncate">
                 📍 {effectiveToday.location_name}
               </span>
             )}
             {effectiveToday?.proxy_by && (
-              <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/40 text-blue-200 text-xs font-semibold">
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-200 text-xs font-semibold">
                 Quản lý chấm hộ{effectiveToday.proxy_note ? `: ${effectiveToday.proxy_note}` : ""}
               </span>
             )}
           </div>
-          <div className="text-right bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700 shrink-0">
-            <span className="text-xs text-slate-300 font-medium block whitespace-nowrap">Công tháng này</span>
-            <span className="text-base font-bold text-blue-400 whitespace-nowrap">{monthlyCount} ngày</span>
+          <div className="text-right bg-slate-50 dark:bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
+            <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block whitespace-nowrap">Công tháng này</span>
+            <span className="text-base font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">{monthlyCount} ngày</span>
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-800 space-y-2 text-xs text-slate-300">
+        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2 text-xs text-slate-600 dark:text-slate-300">
           <div className="flex flex-wrap items-center justify-between gap-1.5">
             <span>
               {(() => {
@@ -719,7 +719,7 @@ export default function OneTouchCheckIn({
                 return (
                   <>
                     Ca làm việc của bạn hôm nay:{" "}
-                    <strong className="text-slate-100 whitespace-nowrap">
+                    <strong className="text-slate-900 dark:text-slate-100 whitespace-nowrap">
                       {effStart} – {effEnd}
                     </strong>
                   </>
@@ -728,12 +728,12 @@ export default function OneTouchCheckIn({
             </span>
             <div className="flex items-center gap-1">
               {Number(effectiveToday?.late_minutes) > 0 && (
-                <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-semibold whitespace-nowrap">
+                <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold whitespace-nowrap">
                   Muộn {effectiveToday.late_minutes}p
                 </span>
               )}
               {Number(effectiveToday?.ot_hours) > 0 && (
-                <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold whitespace-nowrap">
+                <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 font-semibold whitespace-nowrap">
                   OT +{effectiveToday.ot_hours}h
                 </span>
               )}
@@ -741,15 +741,15 @@ export default function OneTouchCheckIn({
           </div>
 
           <div className="grid grid-cols-2 gap-2 pt-1">
-            <div className="bg-slate-800/60 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
-              <span className="text-xs text-slate-300 block">Đúng giờ tháng này</span>
-              <span className="text-xs font-bold text-emerald-300">
+            <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl px-2.5 py-1.5">
+              <span className="text-xs text-slate-500 dark:text-slate-300 block">Đúng giờ tháng này</span>
+              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
                 {attendanceSummary?.on_time_count || 0} ngày
               </span>
             </div>
-            <div className="bg-slate-800/60 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
-              <span className="text-xs text-slate-300 block">Đi trễ tháng này</span>
-              <span className="text-xs font-bold text-amber-300">
+            <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl px-2.5 py-1.5">
+              <span className="text-xs text-slate-500 dark:text-slate-300 block">Đi trễ tháng này</span>
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
                 {attendanceSummary?.late_count || 0} lần ({attendanceSummary?.total_late_minutes || 0} phút)
               </span>
             </div>
@@ -761,7 +761,6 @@ export default function OneTouchCheckIn({
       <AppModal
         open={stage === STAGES.SECURITY_FRAUD}
         onClose={() => setStage(STAGES.IDLE)}
-        theme="dark"
         zIndexClass="z-[100]"
         title="Cảnh báo an ninh chấm công"
         maxWidthClass="max-w-sm"
@@ -776,14 +775,14 @@ export default function OneTouchCheckIn({
         }
       >
         <div className="p-6 space-y-4 text-center">
-          <div className="w-20 h-20 rounded-full bg-rose-600/20 border-2 border-rose-500 text-rose-500 flex items-center justify-center mx-auto shadow-lg shadow-rose-600/30">
+          <div className="w-20 h-20 rounded-full bg-rose-100 dark:bg-rose-600/20 border-2 border-rose-500 text-rose-600 dark:text-rose-500 flex items-center justify-center mx-auto shadow-lg shadow-rose-600/20">
             <ShieldAlert size={44} />
           </div>
-          <p className="text-xs text-white font-semibold leading-relaxed bg-rose-950/80 border border-rose-500/40 rounded-2xl p-3.5">
+          <p className="text-xs text-rose-900 dark:text-white font-semibold leading-relaxed bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-500/40 rounded-2xl p-3.5">
             Hệ thống phát hiện dấu hiệu giả mạo vị trí hoặc thiết bị chưa được cấp phép. Thông báo đã được gửi trực tiếp tới Quản lý!
           </p>
           {fraudDetails && (
-            <p className="text-xs text-rose-200 bg-slate-950 p-3 rounded-xl border border-slate-800 leading-relaxed">
+            <p className="text-xs text-rose-700 dark:text-rose-200 bg-slate-100 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 leading-relaxed">
               {fraudDetails}
             </p>
           )}
@@ -816,10 +815,10 @@ export default function OneTouchCheckIn({
         }
       >
         <div className="p-6 text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-sm border border-blue-100">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto shadow-sm border border-blue-100 dark:border-blue-500/30">
             <MapPin size={32} />
           </div>
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Sedinco HR sử dụng vị trí thực tế để xác nhận bạn đang ở chi nhánh/kho hàng hoặc tại công trình để chấm công nhanh gọn.
           </p>
         </div>
@@ -829,7 +828,6 @@ export default function OneTouchCheckIn({
       <div className="w-full">
         <AppButton
           variant={isFieldWorkMode ? "warning" : "secondary"}
-          tone={isFieldWorkMode ? "light" : "dark"}
           fullWidth
           icon={HardHat}
           onClick={() => {
@@ -842,8 +840,8 @@ export default function OneTouchCheckIn({
           }}
           className={`text-xs font-black rounded-2xl border-2 ${
             isFieldWorkMode
-              ? "border-amber-300 shadow-lg shadow-amber-500/20"
-              : "!bg-slate-800/90 hover:!bg-slate-800 !text-amber-300 !border-amber-500/40"
+              ? "border-amber-400 shadow-lg shadow-amber-500/20"
+              : "!bg-amber-50 hover:!bg-amber-100 dark:!bg-slate-800/90 dark:hover:!bg-slate-800 !text-amber-800 dark:!text-amber-300 !border-amber-300 dark:!border-amber-500/40"
           }`}
         >
           {isFieldWorkMode
@@ -852,14 +850,13 @@ export default function OneTouchCheckIn({
         </AppButton>
 
         {isFieldWorkMode && (
-          <div className="mt-2.5 bg-amber-950/35 border border-amber-500/40 rounded-2xl p-3.5 space-y-2.5 text-xs">
+          <div className="mt-2.5 bg-amber-50 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-500/40 rounded-2xl p-3.5 space-y-2.5 text-xs">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-black text-amber-200 uppercase">
+              <span className="font-black text-amber-800 dark:text-amber-200 uppercase">
                 Thông tin công trình đã xác nhận:
               </span>
               <AppButton
                 variant="secondary"
-                tone="dark"
                 onClick={() => {
                   setFieldModalError("");
                   setShowFieldWorkModal(true);
@@ -869,10 +866,10 @@ export default function OneTouchCheckIn({
                 Chỉnh sửa
               </AppButton>
             </div>
-            <p className="text-sm font-semibold text-white break-words bg-slate-950/60 border border-slate-700 rounded-xl px-3 py-2">
+            <p className="text-sm font-semibold text-slate-900 dark:text-white break-words bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
               {fieldNote}
             </p>
-            <p className="text-xs text-emerald-300 font-semibold">
+            <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">
               {capturedPhoto ? "✅ Đã đính kèm ảnh chụp hiện trường" : "⚠️ Chưa có ảnh hiện trường"}
             </p>
           </div>
@@ -883,16 +880,14 @@ export default function OneTouchCheckIn({
       <AppModal
         open={showFieldWorkModal}
         onClose={() => setShowFieldWorkModal(false)}
-        theme="dark"
         title="Chấm công Đi công trình"
         subtitle="Nhập tên công trình & chụp ảnh hiện trường"
-        icon={<HardHat className="w-5 h-5 text-amber-400 shrink-0" />}
+        icon={<HardHat className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />}
         maxWidthClass="max-w-md"
         footer={
           <div className="flex gap-2.5">
             <AppButton
               variant="secondary"
-              tone="dark"
               onClick={() => setShowFieldWorkModal(false)}
               className="flex-1"
             >
@@ -922,15 +917,15 @@ export default function OneTouchCheckIn({
       >
         <div className="p-4 space-y-3.5 text-sm">
           {fieldModalError && (
-            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs font-semibold flex items-start gap-2">
-              <AlertTriangle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-200 text-xs font-semibold flex items-start gap-2">
+              <AlertTriangle size={16} className="text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
               <span>{fieldModalError}</span>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-bold text-amber-200 uppercase mb-1.5">
-              Tên công trình / khách hàng <span className="text-rose-400">*</span>
+            <label className="block text-xs font-bold text-amber-800 dark:text-amber-200 uppercase mb-1.5">
+              Tên công trình / khách hàng <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -940,35 +935,33 @@ export default function OneTouchCheckIn({
                 if (fieldModalError) setFieldModalError("");
               }}
               placeholder="VD: Giao gạch công trình Hòa Xuân / Gặp anh Minh..."
-              className="w-full min-h-[46px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400"
+              className="w-full min-h-[46px] bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400"
             />
           </div>
 
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-700 space-y-2.5">
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-700 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-slate-200">
-                Ảnh xác thực hiện trường <span className="text-rose-400">*</span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                Ảnh xác thực hiện trường <span className="text-rose-500">*</span>
               </span>
               {capturedPhoto && (
-                <span className="text-xs font-bold text-emerald-400">✅ Đã có ảnh</span>
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">✅ Đã có ảnh</span>
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <AppButton
                 variant="secondary"
-                tone="dark"
                 icon={Camera}
                 onClick={() => handlePickFieldPhoto(["camera"])}
-                className="!text-emerald-300 text-xs"
+                className="!text-emerald-700 dark:!text-emerald-300 text-xs"
               >
                 📷 Chụp ảnh Camera
               </AppButton>
               <AppButton
                 variant="secondary"
-                tone="dark"
                 icon={ImageIcon}
                 onClick={() => handlePickFieldPhoto(["album"])}
-                className="!text-sky-300 text-xs"
+                className="!text-sky-700 dark:!text-sky-300 text-xs"
               >
                 🖼️ Chọn ảnh thư viện
               </AppButton>

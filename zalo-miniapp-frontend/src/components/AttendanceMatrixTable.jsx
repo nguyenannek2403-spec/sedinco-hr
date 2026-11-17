@@ -59,7 +59,6 @@ export default function AttendanceMatrixTable({
   const [editingCell, setEditingCell] = useState(null); // { emp, dayIndex, currentStatus }
   const [selectedStatus, setSelectedStatus] = useState("1");
   const [otHours, setOtHours] = useState(2);
-  const [editReason, setEditReason] = useState("");
   const [editError, setEditError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLockModal, setShowLockModal] = useState(false);
@@ -230,16 +229,11 @@ export default function AttendanceMatrixTable({
     });
     setSelectedStatus(currentVal || "1");
     setOtHours(2);
-    setEditReason("");
     setEditError("");
   };
 
   const handleSaveCellAttendance = async () => {
     if (!editingCell || savingCellRef.current) return;
-    if (!editReason.trim()) {
-      setEditError("Vui lòng nhập lý do điều chỉnh công (Bắt buộc theo quy chế kiểm toán).");
-      return;
-    }
 
     savingCellRef.current = true;
     setIsSubmitting(true);
@@ -256,15 +250,14 @@ export default function AttendanceMatrixTable({
         status: selectedStatus || "1",
         hours: selectedStatus === "OT" || selectedStatus === "1/OT" ? otHours : 0,
         ot_hours: selectedStatus === "OT" || selectedStatus === "1/OT" ? otHours : 0,
-        isDelete: !selectedStatus,
-        reason: editReason.trim()
+        isDelete: !selectedStatus
       }, { idempotencyKey });
 
       if (onRecordAuditLog) {
         onRecordAuditLog(
           "Điều chỉnh ngày công",
           `Sửa công ngày ${editingCell.dayNum}/${month}/${year} của ${editingCell.emp.ho_ten} (${editingCell.emp.ma_nv}) thành [${selectedStatus || "Xóa công"}]`,
-          editReason.trim()
+          "Quản trị viên cập nhật bảng công"
         );
       }
 
@@ -853,26 +846,9 @@ export default function AttendanceMatrixTable({
               </div>
             )}
 
-            <div>
-              <label className="block text-slate-800 font-black mb-1.5">
-                Lý do điều chỉnh <span className="text-rose-600">* (Bắt buộc)</span>
-              </label>
-              <textarea
-                required
-                rows={2}
-                value={editReason}
-                onChange={(e) => {
-                  setEditReason(e.target.value);
-                  if (editError) setEditError("");
-                }}
-                placeholder="Ví dụ: Nhân viên đi công trình quên bấm chấm công..."
-                className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl outline-none font-semibold text-slate-900 resize-none text-sm focus:border-blue-600"
-              />
-            </div>
-
             {editError && (
-              <div className="p-3 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-800 text-xs flex items-center gap-2 font-bold">
-                <AlertTriangle size={16} className="shrink-0 text-rose-600" />
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2 font-bold">
+                <AlertTriangle size={16} className="shrink-0 text-rose-600 dark:text-rose-400" />
                 <span>{editError}</span>
               </div>
             )}

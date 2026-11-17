@@ -107,7 +107,7 @@ export default function ConfirmDialog({
     >
       <div className="px-5 py-4 space-y-3">
         {message && (
-          <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line break-words">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line break-words">
             {message}
           </p>
         )}
@@ -115,7 +115,7 @@ export default function ConfirmDialog({
         {showInput && (
           <div className="space-y-1.5">
             {inputLabel && (
-              <label className="block text-xs font-semibold text-slate-700">{inputLabel}</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">{inputLabel}</label>
             )}
             <textarea
               rows={3}
@@ -125,10 +125,10 @@ export default function ConfirmDialog({
                 if (validationError) setValidationError("");
               }}
               placeholder={inputPlaceholder}
-              className="w-full p-3 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              className="w-full p-3 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-800"
             />
             {validationError && (
-              <p className="text-xs font-medium text-rose-600">{validationError}</p>
+              <p className="text-xs font-medium text-rose-600 dark:text-rose-400">{validationError}</p>
             )}
           </div>
         )}

@@ -27,7 +27,7 @@ class AttendanceController {
 
     async updateAttendance(req, res, next) {
         try {
-            const { ma_nv, check_in_time, check_out_time } = req.body;
+            const { ma_nv, check_in_time, check_out_time, reason } = req.body;
             const { dateStr, status, hours, isDelete } = req.validatedAttendance;
 
             await attendanceService.updateAttendanceDaily({
@@ -38,6 +38,7 @@ class AttendanceController {
                 isDelete,
                 check_in_time,
                 check_out_time,
+                reason,
                 current_user: req.user
             });
 

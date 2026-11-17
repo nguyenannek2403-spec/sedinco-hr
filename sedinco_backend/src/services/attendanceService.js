@@ -361,7 +361,7 @@ class AttendanceService {
         return { success: true, message: `Đã mở lại kỳ công Tháng ${m}/${y} thành công!` };
     }
 
-    async updateAttendanceDaily({ ma_nv, dateStr, status, hours, isDelete, check_in_time, check_out_time, current_user = null }) {
+    async updateAttendanceDaily({ ma_nv, dateStr, status, hours, isDelete, check_in_time, check_out_time, reason = null, current_user = null }) {
         // 1. Phân tách nhiệm vụ (SoD P0): Không vai trò nào (worker, accountant, admin) được tự sửa công của chính mình!
         if (current_user) {
             const userRole = current_user.role;
@@ -427,6 +427,10 @@ class AttendanceService {
             }
         }
 
+        const cleanReason = (reason && String(reason).trim())
+            ? String(reason).trim().slice(0, 255)
+            : 'Quản trị viên cập nhật bảng công';
+
         if (isDelete) {
             await query('DELETE FROM attendance_logs WHERE employee_id=? AND record_date=?', [ma_nv, dateStr]);
             if (current_user) {
@@ -435,7 +439,7 @@ class AttendanceService {
                     actor_role: current_user.role || 'unknown',
                     action: 'DELETE_ATTENDANCE',
                     resource: 'attendance',
-                    details: { ma_nv, record_date: dateStr }
+                    details: { ma_nv, record_date: dateStr, reason: cleanReason }
                 });
             }
             return { success: true };
@@ -458,7 +462,7 @@ class AttendanceService {
                 actor_role: current_user.role || 'unknown',
                 action: 'UPDATE_ATTENDANCE',
                 resource: 'attendance',
-                details: { target_ma_nv: ma_nv, dateStr, status, hours }
+                details: { target_ma_nv: ma_nv, dateStr, status, hours, reason: cleanReason }
             });
         }
 

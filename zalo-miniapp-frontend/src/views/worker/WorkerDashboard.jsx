@@ -14,6 +14,7 @@ import WorkerHistoryTab from "./WorkerHistoryTab";
 import WorkerRequestsTab from "./WorkerRequestsTab";
 import WorkerProfileTab from "./WorkerProfileTab";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
+import { ThemeToggleButton } from "../../context/ThemeContext";
 
 export default function WorkerDashboard({
   currentUser,
@@ -26,11 +27,11 @@ export default function WorkerDashboard({
 
   return (
     <div
-      className="w-full h-[100dvh] bg-slate-950 text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden"
+      className="w-full h-[100dvh] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden transition-colors duration-200"
     >
-      {/* Top Mobile Header - Chuẩn hóa 3 vùng cân đối: Trái (Trở về/Logo) - Giữa (Họ tên + Mã NV) - Phải (Đăng xuất) */}
+      {/* Top Mobile Header - Chuẩn hóa cân đối & hỗ trợ Sáng/Tối */}
       <header
-        className="shrink-0 z-40 w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3.5 pb-2.5 flex items-center justify-between gap-2.5 shadow-sm"
+        className="shrink-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 pb-2.5 flex items-center justify-between gap-2 shadow-sm transition-colors duration-200"
         style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
       >
         {/* Trái: Nút Trở về (ở tab phụ) hoặc Logo Sedinco */}
@@ -39,13 +40,13 @@ export default function WorkerDashboard({
             <button
               type="button"
               onClick={() => setActiveTab("checkin")}
-              className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 flex items-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0"
+              className="min-h-[44px] px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 flex items-center gap-1 text-xs font-bold whitespace-nowrap shrink-0"
             >
               <ArrowLeft className="w-4 h-4 shrink-0" />
               <span>Trở về</span>
             </button>
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-white border border-slate-700/80 flex items-center justify-center p-1 shadow-sm shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 dark:border-slate-700/80 flex items-center justify-center p-1 shadow-sm shrink-0">
               <img
                 src="/sedinco-logo.png"
                 alt="Sedinco HR"
@@ -55,26 +56,30 @@ export default function WorkerDashboard({
           )}
         </div>
 
-        {/* Giữa: Tên nhân viên nổi bật + Mã NV & Vai trò (luôn nằm ngang, không gãy dọc từng chữ) */}
+        {/* Giữa: Tên nhân viên nổi bật + Mã NV & Vai trò */}
         <div className="flex-1 min-w-0 px-1 text-left">
-          <div className="text-sm font-extrabold text-white leading-tight truncate">
+          <div className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight truncate">
             {currentUser?.ho_ten || "Nhân viên"}
           </div>
-          <div className="text-xs text-blue-300 font-semibold leading-snug truncate mt-0.5">
-            {currentUser?.ma_nv || "NV"} • {currentUser?.role === "admin" ? "Quản trị" : currentUser?.role === "accountant" ? "Kế toán" : "Nhân sự"}
+          <div className="text-xs text-blue-600 dark:text-blue-300 font-semibold leading-snug truncate mt-0.5">
+            {currentUser?.login_username || currentUser?.ma_nv || "NV"} • {currentUser?.role === "admin" ? "Quản trị" : currentUser?.role === "accountant" ? "Kế toán" : "Nhân sự"}
           </div>
         </div>
 
-        {/* Phải: Nút Đăng xuất rõ ràng kèm Icon */}
-        <button
-          type="button"
-          onClick={onLogout}
-          title="Đăng xuất"
-          className="min-h-[44px] px-3 py-2 bg-slate-800/90 hover:bg-rose-500/20 border border-slate-700 hover:border-rose-500/40 text-slate-200 hover:text-rose-300 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0"
-        >
-          <LogOut className="w-3.5 h-3.5 shrink-0" />
-          <span>Đăng xuất</span>
-        </button>
+        {/* Phải: Nút Sáng/Tối + Đăng xuất */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <ThemeToggleButton compact />
+          <button
+            type="button"
+            onClick={onLogout}
+            title="Đăng xuất"
+            aria-label="Đăng xuất"
+            className="min-h-[44px] px-2.5 py-2 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800/90 dark:hover:bg-rose-500/20 border border-slate-300 dark:border-slate-700 hover:border-rose-400 text-slate-700 hover:text-rose-700 dark:text-slate-200 dark:hover:text-rose-300 rounded-xl transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap shrink-0"
+          >
+            <LogOut className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden xs:inline sm:inline">Thoát</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Content Area */}
@@ -114,15 +119,15 @@ export default function WorkerDashboard({
 
       {/* Bottom Navigation Bar - In-flow footer, Safe Area Bottom iPhone Home Indicator & Touch Target >= 44px */}
       <nav
-        className="shrink-0 z-40 w-full bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/90 px-2 pt-1.5 flex items-center justify-around shadow-2xl"
+        className="shrink-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/90 px-2 pt-1.5 flex items-center justify-around shadow-2xl transition-colors duration-200"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
       >
         <button
           onClick={() => setActiveTab("checkin")}
           className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[68px] py-1 px-3 rounded-xl transition-all ${
             activeTab === "checkin"
-              ? "text-blue-400 font-bold bg-blue-500/10"
-              : "text-slate-400 hover:text-slate-200 font-medium"
+              ? "text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium"
           }`}
         >
           <Clock className={`w-5 h-5 ${activeTab === "checkin" ? "scale-110" : ""}`} />
@@ -133,8 +138,8 @@ export default function WorkerDashboard({
           onClick={() => setActiveTab("history")}
           className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[68px] py-1 px-3 rounded-xl transition-all ${
             activeTab === "history"
-              ? "text-blue-400 font-bold bg-blue-500/10"
-              : "text-slate-400 hover:text-slate-200 font-medium"
+              ? "text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium"
           }`}
         >
           <Calendar className={`w-5 h-5 ${activeTab === "history" ? "scale-110" : ""}`} />
@@ -145,8 +150,8 @@ export default function WorkerDashboard({
           onClick={() => setActiveTab("requests")}
           className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[68px] py-1 px-3 rounded-xl transition-all ${
             activeTab === "requests"
-              ? "text-blue-400 font-bold bg-blue-500/10"
-              : "text-slate-400 hover:text-slate-200 font-medium"
+              ? "text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium"
           }`}
         >
           <FileText className={`w-5 h-5 ${activeTab === "requests" ? "scale-110" : ""}`} />
@@ -157,8 +162,8 @@ export default function WorkerDashboard({
           onClick={() => setActiveTab("profile")}
           className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[68px] py-1 px-3 rounded-xl transition-all ${
             activeTab === "profile"
-              ? "text-blue-400 font-bold bg-blue-500/10"
-              : "text-slate-400 hover:text-slate-200 font-medium"
+              ? "text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium"
           }`}
         >
           <User className={`w-5 h-5 ${activeTab === "profile" ? "scale-110" : ""}`} />

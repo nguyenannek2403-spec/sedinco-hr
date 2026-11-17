@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { ROLES } from "../constants/roles";
 import {
   setAuthToken,
+  safeGet,
   safePost,
   setOnUnauthorizedCallback
 } from "../utils/api";
 import { resolveSession, logoutSession } from "../services/authService";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
-import { getDeviceIdentity } from "../utils/deviceIdentity";
+import { getDeviceIdentity, sanitizeSingleDeviceModelName } from "../utils/deviceIdentity";
 
 const STORAGE_USER_KEY = "sedinco_miniapp_user";
 const STORAGE_TOKEN_KEY = "sedinco_auth_token";
@@ -44,7 +45,10 @@ async function resolveZaloAndDeviceIdentity() {
   return { zalo_user_id, zalo_access_token, device_id, device_name, device_info };
 }
 
-export function useAuth() {
+export function useAuth({ onThemeSync } = {}) {
+  const onThemeSyncRef = useRef(onThemeSync);
+  onThemeSyncRef.current = onThemeSync;
+
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_USER_KEY);
@@ -124,7 +128,8 @@ export function useAuth() {
         localStorage.setItem(STORAGE_TOKEN_KEY, validToken);
 
         const safeUser = {
-          ma_nv: rawUser.ma_nv || u,
+          ma_nv: rawUser.ma_nv || rawUser.username || u,
+          username: rawUser.username || null,
           ho_ten: rawUser.ho_ten || `Nhân viên ${u}`,
           chuc_danh: rawUser.chuc_danh || "Cán bộ nhân viên",
           department: rawUser.department || "Khối Công trình",
@@ -133,18 +138,29 @@ export function useAuth() {
           custom_end_time: isPureAdmin ? null : (rawUser.custom_end_time || null),
           annual_leave_quota: isPureAdmin ? null : (rawUser.annual_leave_quota ?? 12),
           bound_device_id: isPureAdmin ? null : (rawUser.bound_device_id || null),
-          bound_device_name: isPureAdmin ? null : (rawUser.bound_device_name || device_name || null),
+          bound_device_name: isPureAdmin
+            ? null
+            : rawUser.bound_device_name
+            ? sanitizeSingleDeviceModelName(rawUser.bound_device_name)
+            : (device_name || null),
           known_devices_json: isPureAdmin ? null : (rawUser.known_devices_json || null),
           multi_device_alert: isPureAdmin ? false : Boolean(rawUser.multi_device_alert),
           device_binding_mode: isPureAdmin ? null : (rawUser.device_binding_mode || "recording"),
           avatar_url: rawUser.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
-          dien_thoai: rawUser.dien_thoai || "0905123456",
+          phone: rawUser.phone || rawUser.dien_thoai || null,
+          dien_thoai: rawUser.phone || rawUser.dien_thoai || "",
+          login_username: rawUser.login_username || rawUser.phone || rawUser.ma_nv || rawUser.username || u,
+          theme_preference: rawUser.theme_preference === "dark" ? "dark" : "light",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
           role: resolvedRole,
           dynamic_permissions: rawUser.dynamic_permissions || {},
           must_change_password: Boolean(rawUser.must_change_password),
           token: validToken
         };
+
+        if (rawUser.theme_preference) {
+          onThemeSyncRef.current?.(safeUser);
+        }
 
         const newMeta = {
           ma_nv: safeUser.ma_nv,
@@ -248,23 +264,25 @@ export function useAuth() {
     }
   }, []);
 
-  // Xử lý đăng nhập tài khoản / mật khẩu (tự động gắn zalo_user_id + device_id lần đầu)
+  // Xử lý đăng nhập bằng SĐT / Tài khoản / Mã NV (tự động gắn zalo_user_id + device_id lần đầu)
   const login = useCallback(async (rawUsername, rawPassword) => {
     if (isLoginSubmittingRef.current) return;
     setLoginError("");
 
-    let u = (rawUsername || "").trim().toUpperCase();
+    let rawIdentifier = (rawUsername || "").trim();
     let p = (rawPassword || "").trim();
 
-    if (u.includes("-") || u.includes(":")) {
-      const sep = u.includes(":") ? ":" : "-";
-      const parts = u.split(sep);
-      u = parts[0].trim();
+    if (rawIdentifier.includes("-") || rawIdentifier.includes(":")) {
+      const sep = rawIdentifier.includes(":") ? ":" : "-";
+      const parts = rawIdentifier.split(sep);
+      rawIdentifier = parts[0].trim();
       p = parts.slice(1).join(sep).trim();
     }
 
-    if (!u || !p) {
-      const err = "Vui lòng nhập đầy đủ mã nhân viên và mật khẩu!";
+    const u = rawIdentifier.toUpperCase();
+
+    if (!rawIdentifier || !p) {
+      const err = "Vui lòng nhập đầy đủ SĐT / tài khoản và mật khẩu!";
       setLoginError(err);
       throw new Error(err);
     }
@@ -295,7 +313,10 @@ export function useAuth() {
             ho_ten: acc.ho_ten || `Nhân viên ${u}`,
             chuc_danh: acc.chuc_danh || "Cán bộ nhân viên",
             avatar_url: acc.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
-            dien_thoai: acc.dien_thoai || "0905123456",
+            phone: acc.phone || acc.dien_thoai || null,
+            dien_thoai: acc.phone || acc.dien_thoai || "0905123456",
+            login_username: acc.login_username || acc.phone || acc.ma_nv,
+            theme_preference: acc.theme_preference === "dark" ? "dark" : "light",
             email: acc.email || `${u.toLowerCase()}@sedinco.vn`,
             role: resolvedRole,
             must_change_password: Boolean(acc.must_change_password),
@@ -315,10 +336,11 @@ export function useAuth() {
         }
       }
 
-      // 2. Xác thực hợp nhất với Backend REST API + Liên kết tự động Zalo ID & Device ID
+      // 2. Xác thực hợp nhất với Backend REST API (hỗ trợ SĐT / Tài khoản / Mã NV) + Liên kết Zalo ID & Device ID
       let res = await safePost("/login", {
-        ma_nv: u,
-        username: u,
+        identifier: rawIdentifier,
+        ma_nv: rawIdentifier,
+        username: rawIdentifier,
         password: p,
         zalo_user_id,
         zalo_access_token: zalo_access_token || undefined,
@@ -355,8 +377,9 @@ export function useAuth() {
         localStorage.setItem(STORAGE_TOKEN_KEY, validToken);
 
         const safeUser = {
-          ma_nv: rawUser.ma_nv || rawUser.username || u,
-          ho_ten: rawUser.ho_ten || (u === "ADMIN" ? "Ban Giám Đốc" : `Nhân viên ${u}`),
+          ma_nv: rawUser.ma_nv || rawUser.username || rawIdentifier,
+          username: rawUser.username || null,
+          ho_ten: rawUser.ho_ten || (u === "ADMIN" ? "Ban Giám Đốc" : `Nhân viên ${rawIdentifier}`),
           chuc_danh: rawUser.chuc_danh || (u === "ADMIN" ? "Tổng Giám Đốc" : "Cán bộ nhân viên"),
           department: rawUser.department || "Khối Công trình",
           shift_type: isPureAdmin ? null : (rawUser.shift_type || "FULL_DAY"),
@@ -364,12 +387,19 @@ export function useAuth() {
           custom_end_time: isPureAdmin ? null : (rawUser.custom_end_time || null),
           annual_leave_quota: isPureAdmin ? null : (rawUser.annual_leave_quota ?? 12),
           bound_device_id: isPureAdmin ? null : (rawUser.bound_device_id || null),
-          bound_device_name: isPureAdmin ? null : (rawUser.bound_device_name || device_name || null),
+          bound_device_name: isPureAdmin
+            ? null
+            : rawUser.bound_device_name
+            ? sanitizeSingleDeviceModelName(rawUser.bound_device_name)
+            : (device_name || null),
           known_devices_json: isPureAdmin ? null : (rawUser.known_devices_json || null),
           multi_device_alert: isPureAdmin ? false : Boolean(rawUser.multi_device_alert),
           device_binding_mode: isPureAdmin ? null : (rawUser.device_binding_mode || "recording"),
           avatar_url: rawUser.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
-          dien_thoai: rawUser.dien_thoai || "0905123456",
+          phone: rawUser.phone || rawUser.dien_thoai || null,
+          dien_thoai: rawUser.phone || rawUser.dien_thoai || "",
+          login_username: rawUser.login_username || rawUser.phone || rawUser.ma_nv || rawUser.username || rawIdentifier,
+          theme_preference: rawUser.theme_preference === "dark" ? "dark" : "light",
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
           role: resolvedRole,
           dynamic_permissions: rawUser.dynamic_permissions || {},
@@ -377,8 +407,12 @@ export function useAuth() {
           token: validToken
         };
 
+        if (rawUser.theme_preference) {
+          onThemeSyncRef.current?.(safeUser);
+        }
+
         // Lưu metadata liên kết Zalo 1 chạm trên thiết bị
-        if (safeUser.ma_nv && safeUser.ma_nv !== "admin") {
+        if (safeUser.ma_nv && safeUser.ma_nv !== "admin" && resolvedRole !== ROLES.ADMIN) {
           const newMeta = {
             ma_nv: safeUser.ma_nv,
             ho_ten: safeUser.ho_ten,
@@ -411,9 +445,66 @@ export function useAuth() {
     }
   }, []);
 
+  const updateCurrentUser = useCallback((updatedFields = {}, newToken = null) => {
+    setCurrentUser((prev) => {
+      if (!prev && !updatedFields) return prev;
+      const merged = {
+        ...(prev || {}),
+        ...(updatedFields || {}),
+        ...(newToken ? { token: newToken } : {})
+      };
+      if (newToken) {
+        setAuthToken(newToken);
+        try {
+          localStorage.setItem(STORAGE_TOKEN_KEY, newToken);
+        } catch {}
+      }
+      try {
+        localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(merged));
+      } catch {}
+      return merged;
+    });
+    if (updatedFields && typeof updatedFields.must_change_password === "boolean") {
+      setMustChangePassword(updatedFields.must_change_password);
+    }
+  }, []);
+
+  // Làm mới thông tin profile (phone, login_username, theme_preference, dynamic_permissions) từ /api/me khi đã có phiên
+  useEffect(() => {
+    let active = true;
+    const token = currentUser?.token || localStorage.getItem(STORAGE_TOKEN_KEY);
+    if (!currentUser || !token || String(token).startsWith("local_token_")) return () => {};
+
+    safeGet("/me")
+      .then((res) => {
+        if (!active || !res?.success || !res?.data) return;
+        const fresh = res.data;
+        updateCurrentUser({
+          ma_nv: fresh.ma_nv || fresh.username || currentUser.ma_nv,
+          username: fresh.username || currentUser.username || null,
+          ho_ten: fresh.ho_ten || currentUser.ho_ten,
+          phone: fresh.phone ?? fresh.dien_thoai ?? currentUser.phone ?? null,
+          dien_thoai: fresh.phone ?? fresh.dien_thoai ?? currentUser.dien_thoai ?? "",
+          login_username: fresh.login_username || fresh.phone || fresh.ma_nv || fresh.username || currentUser.login_username,
+          theme_preference: fresh.theme_preference === "dark" ? "dark" : "light",
+          dynamic_permissions: fresh.dynamic_permissions || currentUser.dynamic_permissions || {},
+          must_change_password: Boolean(fresh.must_change_password)
+        });
+        if (fresh.theme_preference) {
+          onThemeSyncRef.current?.(fresh);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.ma_nv, currentUser?.username, updateCurrentUser]);
+
   return {
     currentUser,
     setCurrentUser,
+    updateCurrentUser,
     activeRole,
     setActiveRole,
     mustChangePassword,

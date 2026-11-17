@@ -191,13 +191,13 @@ export default function RequestsManagementTab({
   return (
     <div className="space-y-4 pb-28">
       {/* Header and Controls */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4 shadow-sm dark:shadow-xl flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-white leading-snug flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-400 shrink-0" />
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-snug flex items-center gap-2">
+            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
             Xét duyệt đơn từ & Nghỉ phép
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
             Duyệt đơn nghỉ phép, bổ sung công, ứng lương và tăng ca của nhân viên
           </p>
         </div>
@@ -211,12 +211,12 @@ export default function RequestsManagementTab({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm mã NV, họ tên..."
-              className="w-full sm:w-48 min-h-[44px] bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full sm:w-48 min-h-[44px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           {/* Status Filter */}
-          <div className="flex flex-wrap bg-slate-900 p-1 rounded-xl border border-slate-700 text-xs gap-1">
+          <div className="flex flex-wrap bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs gap-1">
             {["all", "PENDING", "APPROVED", "REJECTED"].map(st => (
               <button
                 key={st}
@@ -225,7 +225,7 @@ export default function RequestsManagementTab({
                 className={`min-h-[44px] px-3 py-2 font-medium rounded-lg whitespace-nowrap shrink-0 transition-all ${
                   filterStatus === st
                     ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-400 hover:text-white"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
                 {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
@@ -235,7 +235,6 @@ export default function RequestsManagementTab({
 
           <AppButton
             variant="secondary"
-            tone="dark"
             icon={RefreshCw}
             loading={loading}
             onClick={fetchRequests}
@@ -262,13 +261,13 @@ export default function RequestsManagementTab({
       </div>
 
       {/* Table Data */}
-      <div className="bg-slate-800/80 border border-slate-700/70 rounded-2xl shadow-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
         {loading ? (
           <div className="p-4">
-            <SkeletonList rows={4} dark label="Đang tải dữ liệu đơn từ..." />
+            <SkeletonList rows={4} label="Đang tải dữ liệu đơn từ..." />
           </div>
         ) : error ? (
-          <div className="p-6 text-center text-rose-300 text-xs flex flex-col items-center justify-center gap-3">
+          <div className="p-6 text-center text-rose-600 dark:text-rose-300 text-xs flex flex-col items-center justify-center gap-3">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 shrink-0" />
               <span>{error}</span>
@@ -280,15 +279,14 @@ export default function RequestsManagementTab({
         ) : filtered.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              dark
               icon={FileText}
               title="Không tìm thấy đơn từ nào khớp với bộ lọc."
             />
           </div>
         ) : (
           <>
-            {/* Mobile Card View (Tối ưu cho màn hình điện thoại 360px - 430px trên Zalo Mini App) */}
-            <div className="md:hidden divide-y divide-slate-700/60">
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-slate-200 dark:divide-slate-700/60">
               {filtered.map((req) => {
                 const isPending = String(req.status).toUpperCase() === "PENDING";
                 const isOwner = req.ma_nv === currentUser?.ma_nv;
@@ -299,24 +297,24 @@ export default function RequestsManagementTab({
                   <div
                     key={req.id}
                     data-request-id={req.id}
-                    className={`perf-list-item p-4 space-y-3 ${isFocused ? "bg-amber-950/35 ring-2 ring-inset ring-amber-400" : ""}`}
+                    className={`perf-list-item p-4 space-y-3 ${isFocused ? "bg-amber-50 dark:bg-amber-950/35 ring-2 ring-inset ring-amber-400" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <span className="font-semibold text-base text-white block break-words leading-snug">
+                        <span className="font-semibold text-base text-slate-900 dark:text-white block break-words leading-snug">
                           {req.ho_ten || req.ma_nv}{" "}
-                          <span className="text-xs font-mono text-blue-400">({req.ma_nv})</span>
+                          <span className="text-xs font-mono text-blue-600 dark:text-blue-400">({req.ma_nv})</span>
                         </span>
-                        <span className="text-sm font-medium text-amber-300 block mt-1 break-words leading-snug">
+                        <span className="text-sm font-medium text-amber-700 dark:text-amber-300 block mt-1 break-words leading-snug">
                           {getRequestTypeLabel(req.request_type || req.type)} • {req.request_date || req.date || req.start_date}
                           {Number(req.advance_amount) > 0 && (
-                            <span className="inline-block ml-1.5 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-semibold whitespace-nowrap">
+                            <span className="inline-block ml-1.5 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
                               Ứng {(Number(req.advance_amount) || 0).toLocaleString("vi-VN")}đ
                             </span>
                           )}
                         </span>
                         {(req.correction_mode || req.check_in_time || req.check_out_time) && (
-                          <div className="text-xs text-cyan-300 mt-1 break-words leading-snug">
+                          <div className="text-xs text-cyan-700 dark:text-cyan-300 mt-1 break-words leading-snug">
                             {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
                             {(req.check_in_time || req.check_out_time) && (
                               <span className="ml-1 font-semibold">
@@ -328,11 +326,11 @@ export default function RequestsManagementTab({
                           </div>
                         )}
                       </div>
-                      <StatusBadge type="request" status={req.status} dark />
+                      <StatusBadge type="request" status={req.status} />
                     </div>
 
-                    <div className="text-sm text-slate-200 bg-slate-900/60 p-3 rounded-xl border border-slate-700/60 break-words leading-relaxed">
-                      <span className="text-slate-400 font-semibold">Lý do: </span>
+                    <div className="text-sm text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60 break-words leading-relaxed">
+                      <span className="text-slate-500 dark:text-slate-400 font-semibold">Lý do: </span>
                       {req.reason || "--"}
                       {req.evidence_image && (
                         <div className="mt-2">
@@ -389,7 +387,7 @@ export default function RequestsManagementTab({
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto touch-scroll-x">
               <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 border-b border-slate-700/80 text-slate-400 uppercase tracking-wider font-bold">
+              <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-400 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="p-3.5 pl-5">Mã NV / Họ Tên</th>
                   <th className="p-3.5">Loại Đơn</th>
@@ -399,7 +397,7 @@ export default function RequestsManagementTab({
                   <th className="p-3.5 text-right pr-5">Thao Tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50 text-slate-300">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700/50 text-slate-700 dark:text-slate-300">
                 {filtered.map(req => {
                   const isPending = String(req.status).toUpperCase() === "PENDING";
                   const isOwner = req.ma_nv === currentUser?.ma_nv;
@@ -411,17 +409,17 @@ export default function RequestsManagementTab({
                       key={req.id}
                       data-request-id={req.id}
                       className={`perf-list-item transition-colors ${
-                        isFocused ? "bg-amber-950/40 ring-2 ring-inset ring-amber-400" : "hover:bg-slate-700/30"
+                        isFocused ? "bg-amber-50 dark:bg-amber-950/40 ring-2 ring-inset ring-amber-400" : "hover:bg-slate-50 dark:hover:bg-slate-700/30"
                       }`}
                     >
                       <td className="p-3.5 pl-5">
-                        <div className="font-bold text-white">{req.ho_ten || req.ma_nv}</div>
-                        <div className="text-xs text-slate-400 font-mono">{req.ma_nv}</div>
+                        <div className="font-bold text-slate-900 dark:text-white">{req.ho_ten || req.ma_nv}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">{req.ma_nv}</div>
                       </td>
-                      <td className="p-3.5 font-semibold text-slate-200">
+                      <td className="p-3.5 font-semibold text-slate-800 dark:text-slate-200">
                         <div>{getRequestTypeLabel(req.request_type || req.type)}</div>
                         {(req.correction_mode || req.check_in_time || req.check_out_time) && (
-                          <div className="text-xs text-cyan-300 font-normal mt-0.5">
+                          <div className="text-xs text-cyan-700 dark:text-cyan-300 font-normal mt-0.5">
                             {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
                             {(req.check_in_time || req.check_out_time) &&
                               ` (${req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}${
@@ -430,26 +428,26 @@ export default function RequestsManagementTab({
                           </div>
                         )}
                         {Number(req.advance_amount) > 0 && (
-                          <div className="text-xs text-emerald-400 font-semibold mt-0.5">
+                          <div className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold mt-0.5">
                             Ứng: {(Number(req.advance_amount) || 0).toLocaleString("vi-VN")} đ
                           </div>
                         )}
                       </td>
-                      <td className="p-3.5 text-slate-300 font-medium whitespace-nowrap">
+                      <td className="p-3.5 text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
                         {req.request_date || req.date || req.start_date}
                       </td>
-                      <td className="p-3.5 max-w-xs break-words text-slate-300" title={req.reason}>
+                      <td className="p-3.5 max-w-xs break-words text-slate-700 dark:text-slate-300" title={req.reason}>
                         <div>{req.reason || "--"}</div>
                         {req.evidence_image && (
                           <img
                             src={req.evidence_image}
                             alt="Minh chứng"
-                            className="mt-1.5 max-h-20 rounded border border-slate-700 object-cover"
+                            className="mt-1.5 max-h-20 rounded border border-slate-200 dark:border-slate-700 object-cover"
                           />
                         )}
                       </td>
                       <td className="p-3.5">
-                        <StatusBadge type="request" status={req.status} dark />
+                        <StatusBadge type="request" status={req.status} />
                       </td>
                       <td className="p-3.5 text-right pr-5">
                         {isPending ? (

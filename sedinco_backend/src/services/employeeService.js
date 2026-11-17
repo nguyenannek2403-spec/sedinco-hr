@@ -6,8 +6,73 @@ const { hashPassword, validatePasswordPolicy } = require('../utils/passwordHelpe
 const {
     computeDeviceShortTag,
     resolveFriendlyDeviceName,
+    sanitizeSingleDeviceModelName,
     safeParseKnownDevices
 } = require('../utils/deviceIdentityHelper');
+
+function normalizePhone(raw) {
+    if (raw === undefined || raw === null) return null;
+    const trimmed = String(raw).trim().replace(/\s+/g, '');
+    if (!trimmed) return null;
+    return trimmed.slice(0, 30);
+}
+
+function normalizeUsername(raw) {
+    if (raw === undefined || raw === null) return null;
+    const trimmed = String(raw).trim();
+    if (!trimmed) return null;
+    return trimmed.slice(0, 100);
+}
+
+async function assertUniqueLoginIdentity({ phone = null, login_username = null, excludeMaNv = null, excludeAdminUsername = null } = {}) {
+    if (login_username) {
+        const cleanU = login_username.trim();
+        const empDup = await query(
+            'SELECT ma_nv FROM employees WHERE (LOWER(login_username) = LOWER(?) OR LOWER(ma_nv) = LOWER(?) OR phone = ?) AND (? IS NULL OR ma_nv != ?) LIMIT 1',
+            [cleanU, cleanU, cleanU, excludeMaNv, excludeMaNv]
+        );
+        if (empDup && empDup.length > 0) {
+            const err = new Error(`Tài khoản đăng nhập "${cleanU}" đã được sử dụng bởi nhân viên ${empDup[0].ma_nv}!`);
+            err.statusCode = 409;
+            err.code = 'DUPLICATE_USERNAME';
+            throw err;
+        }
+        const admDup = await query(
+            'SELECT username FROM admins WHERE (LOWER(username) = LOWER(?) OR LOWER(login_username) = LOWER(?) OR phone = ?) AND (? IS NULL OR username != ?) LIMIT 1',
+            [cleanU, cleanU, cleanU, excludeAdminUsername, excludeAdminUsername]
+        );
+        if (admDup && admDup.length > 0) {
+            const err = new Error(`Tài khoản đăng nhập "${cleanU}" đã tồn tại trên hệ thống!`);
+            err.statusCode = 409;
+            err.code = 'DUPLICATE_USERNAME';
+            throw err;
+        }
+    }
+
+    if (phone) {
+        const cleanP = phone.trim();
+        const phoneEmpDup = await query(
+            'SELECT ma_nv FROM employees WHERE (phone = ? OR LOWER(login_username) = LOWER(?)) AND (? IS NULL OR ma_nv != ?) LIMIT 1',
+            [cleanP, cleanP, excludeMaNv, excludeMaNv]
+        );
+        if (phoneEmpDup && phoneEmpDup.length > 0) {
+            const err = new Error(`Số điện thoại "${cleanP}" đã được gắn cho nhân viên ${phoneEmpDup[0].ma_nv}!`);
+            err.statusCode = 409;
+            err.code = 'DUPLICATE_PHONE';
+            throw err;
+        }
+        const phoneAdmDup = await query(
+            'SELECT username FROM admins WHERE (phone = ? OR LOWER(login_username) = LOWER(?) OR LOWER(username) = LOWER(?)) AND (? IS NULL OR username != ?) LIMIT 1',
+            [cleanP, cleanP, cleanP, excludeAdminUsername, excludeAdminUsername]
+        );
+        if (phoneAdmDup && phoneAdmDup.length > 0) {
+            const err = new Error(`Số điện thoại "${cleanP}" đã được sử dụng bởi tài khoản khác!`);
+            err.statusCode = 409;
+            err.code = 'DUPLICATE_PHONE';
+            throw err;
+        }
+    }
+}
 
 function normalizeOptionalTime(rawVal, label = 'Giờ làm việc riêng') {
     if (rawVal === null || rawVal === '') return null;
@@ -29,18 +94,30 @@ function normalizeOptionalTime(rawVal, label = 'Giờ làm việc riêng') {
 }
 
 const sanitizeEmployeeRecord = (emp) => {
-    if (!emp || emp.role !== 'admin') return emp;
-    return {
+    if (!emp) return emp;
+    const base = {
         ...emp,
-        bound_device_id: null,
-        bound_device_name: null,
-        pending_device_id: null,
-        pending_device_name: null,
-        device_change_reason: null,
-        known_devices_json: null,
-        multi_device_alert: 0,
-        device_binding_mode: null
+        phone: emp.phone || emp.dien_thoai || null,
+        login_username: emp.login_username || emp.phone || emp.ma_nv,
+        theme_preference: emp.theme_preference === 'dark' ? 'dark' : 'light'
     };
+    if (base.role === 'admin') {
+        return {
+            ...base,
+            bound_device_id: null,
+            bound_device_name: null,
+            pending_device_id: null,
+            pending_device_name: null,
+            device_change_reason: null,
+            known_devices_json: null,
+            multi_device_alert: 0,
+            device_binding_mode: null
+        };
+    }
+    if (base.bound_device_name) {
+        base.bound_device_name = sanitizeSingleDeviceModelName(base.bound_device_name);
+    }
+    return base;
 };
 
 class EmployeeService {
@@ -62,12 +139,30 @@ class EmployeeService {
 
     async createEmployee(data, current_user = null) {
         const {
-            ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, department, role,
+            ma_nv, ho_ten, ngay_sinh, dien_thoai, phone, login_username, email, chuc_danh, department, role,
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
             status, is_locked, custom_start_time, custom_end_time
         } = data;
+
+        const cleanPhone = normalizePhone(phone !== undefined ? phone : dien_thoai);
+        let finalMaNv = String(ma_nv || '').trim().toUpperCase().slice(0, 20);
+        if (!finalMaNv && cleanPhone) {
+            finalMaNv = `NV${cleanPhone.replace(/\D/g, '').slice(-6)}`.slice(0, 20);
+        }
+        if (!finalMaNv) {
+            const err = new Error('Vui lòng nhập Mã nhân viên hoặc Số điện thoại!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const finalLoginUsername = normalizeUsername(login_username) || cleanPhone || finalMaNv;
+
+        await assertUniqueLoginIdentity({
+            phone: cleanPhone,
+            login_username: finalLoginUsername,
+            excludeMaNv: null
+        });
 
         const cleanCustomStart = custom_start_time !== undefined ? normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng') : null;
         const cleanCustomEnd = custom_end_time !== undefined ? normalizeOptionalTime(custom_end_time, 'Giờ tan ca riêng') : null;
@@ -100,16 +195,16 @@ class EmployeeService {
 
         const sql = `
             INSERT INTO employees (
-                ma_nv, ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, department, role,
+                ma_nv, ho_ten, ngay_sinh, dien_thoai, phone, login_username, email, chuc_danh, department, role,
                 ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb, 
                 phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, 
                 thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
                 status, is_locked, password, must_change_password, custom_start_time, custom_end_time
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         const cleanDepartment = (department && String(department).trim()) ? String(department).trim().slice(0, 100) : 'Khối Công trình';
         const values = [
-            ma_nv, ho_ten, ngay_sinh || null, dien_thoai || '', email || '', chuc_danh || '', cleanDepartment, normalizedRole,
+            finalMaNv, ho_ten, ngay_sinh || null, cleanPhone || '', cleanPhone, finalLoginUsername, email || '', chuc_danh || '', cleanDepartment, normalizedRole,
             ngay_bat_dau_lam || null, ngay_chinh_thuc || null, luong_cb || 0,
             phu_cap_an_trua || 0, phu_cap_xang_xe || 0, phu_cap_nha_o || 0,
             thuong_htcv || 0, phu_cap_trach_nhiem || 0, phu_cap_tiep_khach || 0,
@@ -125,7 +220,7 @@ class EmployeeService {
             await query(sql, values);
         } catch (err) {
             if (err && (err.code === 'ER_DUP_ENTRY' || err.errno === 1062 || String(err.message || '').includes('Duplicate entry'))) {
-                const dupErr = new Error(`Mã nhân viên "${ma_nv}" đã tồn tại trên hệ thống. Vui lòng chọn mã khác!`);
+                const dupErr = new Error(`Mã nhân viên "${finalMaNv}" hoặc Số điện thoại / Tài khoản đã tồn tại trên hệ thống!`);
                 dupErr.statusCode = 409;
                 dupErr.code = 'DUPLICATE_EMPLOYEE';
                 throw dupErr;
@@ -139,25 +234,41 @@ class EmployeeService {
                 actor_role: current_user.role || 'admin',
                 action: 'CREATE_EMPLOYEE',
                 resource: 'employees',
-                details: { ma_nv, ho_ten, role: normalizedRole }
+                details: { ma_nv: finalMaNv, ho_ten, phone: cleanPhone, login_username: finalLoginUsername, role: normalizedRole }
             });
         }
 
         return { 
             success: true,
+            ma_nv: finalMaNv,
+            login_username: finalLoginUsername,
+            phone: cleanPhone,
             ...(oneTimePassword ? { one_time_password: oneTimePassword } : {})
         };
     }
 
     async updateEmployee(id, data, current_user = null) {
         const {
-            ho_ten, ngay_sinh, dien_thoai, email, chuc_danh, department, role,
+            ho_ten, ngay_sinh, dien_thoai, phone, login_username, email, chuc_danh, department, role,
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
             status, is_locked, shift_type, annual_leave_quota, keep_logs, new_password,
             custom_start_time, custom_end_time
         } = data;
+
+        const cleanPhone = phone !== undefined
+            ? normalizePhone(phone)
+            : (dien_thoai !== undefined ? normalizePhone(dien_thoai) : undefined);
+        const cleanUsername = login_username !== undefined ? normalizeUsername(login_username) : undefined;
+
+        if (cleanPhone !== undefined || cleanUsername !== undefined) {
+            await assertUniqueLoginIdentity({
+                phone: cleanPhone || null,
+                login_username: cleanUsername || null,
+                excludeMaNv: id
+            });
+        }
 
         const setClauses = [];
         const values = [];
@@ -168,7 +279,13 @@ class EmployeeService {
 
         if (ho_ten !== undefined) addField('ho_ten', ho_ten);
         if (ngay_sinh !== undefined) addField('ngay_sinh', ngay_sinh || null);
-        if (dien_thoai !== undefined) addField('dien_thoai', dien_thoai || '');
+        if (cleanPhone !== undefined) {
+            addField('phone', cleanPhone);
+            addField('dien_thoai', cleanPhone || '');
+        }
+        if (cleanUsername !== undefined) {
+            addField('login_username', cleanUsername || id);
+        }
         if (email !== undefined) addField('email', email || '');
         if (chuc_danh !== undefined) addField('chuc_danh', chuc_danh || '');
         if (ngay_bat_dau_lam !== undefined) addField('ngay_bat_dau_lam', ngay_bat_dau_lam || null);
@@ -833,5 +950,11 @@ class EmployeeService {
     }
 }
 
-module.exports = new EmployeeService();
+const employeeServiceInstance = new EmployeeService();
+employeeServiceInstance.normalizePhone = normalizePhone;
+employeeServiceInstance.normalizeUsername = normalizeUsername;
+employeeServiceInstance.assertUniqueLoginIdentity = assertUniqueLoginIdentity;
+employeeServiceInstance.sanitizeEmployeeRecord = sanitizeEmployeeRecord;
+
+module.exports = employeeServiceInstance;
 

@@ -1,4 +1,5 @@
 import React from "react";
+import { useTheme } from "../../context/ThemeContext";
 
 /**
  * Dòng cài đặt 1 hàng chuẩn iOS:
@@ -9,22 +10,25 @@ export default function FormRow({
   label,
   htmlFor,
   description = "",
-  dark = false,
+  dark = "auto",
   className = "",
   controlClassName = "",
   children
 }) {
+  const { isDark: globalDark } = useTheme();
+  const isDark = dark === "auto" ? globalDark : Boolean(dark);
+
   return (
     <div
       className={`flex items-center justify-between gap-[10px] sm:gap-3 px-[12px] sm:px-3.5 py-2.5 ${
-        dark ? "text-slate-100" : "text-slate-800"
+        isDark ? "text-slate-100" : "text-slate-800"
       } ${className}`}
     >
       <div className="flex-1 min-w-0">
         <label
           htmlFor={htmlFor}
           className={`block break-words text-sm sm:text-base font-medium leading-snug ${
-            dark ? "text-slate-200" : "text-slate-700"
+            isDark ? "text-slate-200" : "text-slate-700"
           }`}
         >
           {label}
@@ -32,7 +36,7 @@ export default function FormRow({
         {description && (
           <p
             className={`text-xs mt-0.5 leading-snug break-words ${
-              dark ? "text-slate-400" : "text-slate-500"
+              isDark ? "text-slate-400" : "text-slate-500"
             }`}
           >
             {description}
