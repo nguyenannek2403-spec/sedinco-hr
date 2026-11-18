@@ -110,6 +110,7 @@ export default function WorkerDashboard({
             <OneTouchCheckIn
               currentUser={currentUser}
               showToast={showToast}
+              onNavigateHistory={() => setActiveTab("history")}
               onOpenQuickService={(mode) => setQuickServiceMode(mode)}
               onOpenFixCheckoutRequest={(info) => setFixCheckoutInfo(info)}
               onCheckInSuccess={() => {

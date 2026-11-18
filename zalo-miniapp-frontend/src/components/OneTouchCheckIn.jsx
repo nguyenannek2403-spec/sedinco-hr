@@ -2,13 +2,11 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Clock,
   MapPin,
-  Fingerprint,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
   RotateCcw,
   ShieldAlert,
-  Send,
   Camera,
   Image as ImageIcon,
   HardHat,
@@ -22,7 +20,8 @@ import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
 import { captureDirectCameraPhoto, compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { getDeviceIdentity } from "../utils/deviceIdentity";
 import { useSpamClickGuard, SPAM_WARNING_MESSAGE } from "../hooks/useAttendanceCheckIn";
-import { AppButton, AppModal } from "./ui";
+import { useTheme } from "../context/ThemeContext";
+import { AppButton, AppModal, SedincoMascot } from "./ui";
 
 export const FEATURE_BIOMETRIC_ENABLED = false;
 
@@ -69,9 +68,12 @@ export default function OneTouchCheckIn({
   onCheckInSuccess,
   onOpenFixCheckoutRequest,
   onOpenQuickService = null,
+  onNavigateHistory = null,
   isLockedPeriod = false,
   showToast = null
 }) {
+  const { isDark } = useTheme();
+  const [lastCheckAction, setLastCheckAction] = useState(null);
   const [nowClock, setNowClock] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNowClock(new Date()), 1000);
@@ -272,6 +274,7 @@ export default function OneTouchCheckIn({
 
   const effectiveToday = liveTodayRecord || todayAttendance;
   const hasCheckedIn = Boolean(effectiveToday && effectiveToday.check_in_time);
+  const hasCheckedOut = Boolean(effectiveToday && effectiveToday.check_out_time);
   const checkinType = hasCheckedIn ? "out" : "in";
 
   useEffect(() => {
@@ -543,6 +546,7 @@ export default function OneTouchCheckIn({
         new Date().toLocaleTimeString("vi-VN", { hour12: false });
 
       setServerTimeResult(serverTime);
+      setLastCheckAction(checkinType);
       setStage(STAGES.SUCCESS);
       setIsFieldWorkMode(false);
       setFieldNote("");
@@ -647,200 +651,257 @@ export default function OneTouchCheckIn({
     }
   ];
 
-  const timeString = nowClock.toLocaleTimeString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const weekdayNames = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+  const weekdayDateLabel = `${weekdayNames[nowClock.getDay()]}, ngày ${pad2(nowClock.getDate())}/${pad2(nowClock.getMonth() + 1)}/${nowClock.getFullYear()}`;
+  const clockHHMM = `${pad2(nowClock.getHours())}:${pad2(nowClock.getMinutes())}`;
+  const clockSS = `:${pad2(nowClock.getSeconds())}`;
+  const currentMonthNum = nowClock.getMonth() + 1;
+
+  const mascotState =
+    hasCheckedOut || lastCheckAction === "out"
+      ? "waving_goodbye"
+      : hasCheckedIn || lastCheckAction === "in"
+      ? "waving_hello"
+      : "sleeping";
+
+  const isActionBusy = isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || stage === STAGES.LOCATING;
+  const checkInBtnEnabled = !hasCheckedIn && !isLockedPeriod && !isActionBusy;
+  const checkOutBtnEnabled = hasCheckedIn && !hasCheckedOut && !isLockedPeriod && !isActionBusy;
+  const confirmTimeStr =
+    hasCheckedOut || lastCheckAction === "out"
+      ? String(effectiveToday?.check_out_time || serverTimeResult || "").slice(0, 8)
+      : String(effectiveToday?.check_in_time || serverTimeResult || "").slice(0, 8);
 
   return (
-    <div className="w-full flex flex-col space-y-3.5">
-      {/* KHU VỰC 1: ZAUI HERO STRIP — ĐỒNG HỒ SỐ & TRẠNG THÁI GPS / WI-FI */}
-      <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 text-white rounded-b-[28px] px-4 pt-1.5 pb-10 space-y-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-900/45 dark:bg-slate-800/90 border border-white/25 text-xs font-bold text-white">
-            {locationFriendlyBadge.mode === "wifi_office" ? (
-              <Wifi className="w-3.5 h-3.5 text-cyan-200 shrink-0" />
-            ) : (
-              <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-            )}
-            <span className="leading-snug break-words">
-              {locationFriendlyBadge.mode === "in_range"
-                ? "Trong vùng chấm công"
-                : locationFriendlyBadge.mode === "wifi_office"
-                ? "Wi-Fi Văn phòng"
-                : locationFriendlyBadge.mode === "out_of_range"
-                ? "Ngoài vùng văn phòng"
-                : "GPS Sẵn sàng"}
-            </span>
+    <div className="w-full px-3.5 pt-3.5 flex flex-col space-y-3.5">
+      {/* KHU VỰC 1: ĐẦU TRANG — TIÊU ĐỀ HỆ THỐNG, ĐỒNG HỒ SỐ THỰC TẾ & MẶT TRỜI / MẶT TRĂNG */}
+      <div className="flex items-start justify-between gap-3 px-0.5">
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            HỆ THỐNG CHẤM CÔNG NỘI BỘ
           </div>
-
-          <div className="px-3 py-1 rounded-full bg-blue-900/45 dark:bg-slate-800/90 border border-white/25 text-xs font-mono font-bold tabular-nums text-white shrink-0">
-            {timeString}
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
+            CÔNG TY SEDINCO
+          </h1>
+          <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
+            {weekdayDateLabel}
+          </div>
+          <div className="pt-1 flex items-baseline gap-1">
+            <span className="text-4xl sm:text-5xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight leading-none">
+              {clockHHMM}
+            </span>
+            <span className="text-xl sm:text-2xl font-bold text-slate-500 dark:text-slate-400 tabular-nums leading-none">
+              {clockSS}
+            </span>
           </div>
         </div>
 
-        <p className="text-xs font-medium text-blue-50 dark:text-slate-200 leading-snug">
-          {locationFriendlyBadge.text}
-        </p>
-
-        <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-          <span
-            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border ${
-              !networkBadge.online || networkBadge.networkType === "none"
-                ? "bg-rose-900/80 border-rose-300/60 text-white"
-                : "bg-blue-900/45 dark:bg-slate-800/90 border-white/25 text-white"
-            }`}
-          >
-            {!networkBadge.online || networkBadge.networkType === "none"
-              ? "⚠️ Không có kết nối mạng"
-              : networkBadge.networkType === "wifi"
-              ? "🛜 Mạng: Wi-Fi ổn định"
-              : networkBadge.networkType === "cellular"
-              ? "📶 Mạng: 4G / Di động"
-              : "🌐 Kết nối trực tuyến"}
-          </span>
+        {/* Biểu tượng Mặt trời / Mặt trăng tỏa hào quang 3 lớp đồng tâm */}
+        <div className="shrink-0 pt-1" aria-hidden="true">
+          {isDark ? (
+            <svg viewBox="0 0 88 88" className="w-16 h-16 sm:w-20 sm:h-20 animate-sun-pulse">
+              <circle cx="44" cy="44" r="40" fill="#38BDF8" fillOpacity="0.14" />
+              <circle cx="44" cy="44" r="30" fill="#60A5FA" fillOpacity="0.24" />
+              <circle cx="44" cy="44" r="21" fill="#0EA5E9" fillOpacity="0.38" />
+              <path
+                d="M 50 30 A 15 15 0 1 0 58 51 A 12 12 0 1 1 50 30 Z"
+                fill="#E0F2FE"
+              />
+              <circle cx="56" cy="34" r="2" fill="#BAE6FD" />
+              <circle cx="61" cy="42" r="1.5" fill="#E0F2FE" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 88 88" className="w-16 h-16 sm:w-20 sm:h-20 animate-sun-pulse">
+              <circle cx="44" cy="44" r="40" fill="#FEF08A" fillOpacity="0.45" />
+              <circle cx="44" cy="44" r="30" fill="#FDE047" fillOpacity="0.58" />
+              <circle cx="44" cy="44" r="20" fill="#FACC15" />
+              <circle cx="44" cy="44" r="15" fill="#F59E0B" fillOpacity="0.35" />
+            </svg>
+          )}
         </div>
       </div>
 
-      {/* KHU VỰC 2: ZAUI FLOATING CHECK-IN HERO CARD */}
-      <div className="zaui-floating-card mx-3.5 bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 space-y-3.5">
-        {/* Shift Timeline Pill */}
-        <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-3 space-y-2">
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <span className="font-semibold text-slate-600 dark:text-slate-300">
-              Hôm nay ({new Date().toLocaleDateString("vi-VN")})
-            </span>
-            <span className="font-bold text-[#0068FF] dark:text-blue-300 whitespace-nowrap">
-              Ca: {effStart} – {effEnd}
-            </span>
+      {/* KHU VỰC 2: THẺ TÓM TẮT NHÂN VIÊN & SỐ CÔNG TRONG THÁNG (2 CỘT) */}
+      <div className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-md flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            NHÂN VIÊN
           </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-              {effectiveToday?.check_in_time ? String(effectiveToday.check_in_time).slice(0, 5) : effStart}
-            </span>
-            <div className="flex-1 h-1.5 rounded-full bg-blue-100 dark:bg-slate-700 relative overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${
-                  effectiveToday?.check_out_time
-                    ? "w-full bg-emerald-500"
-                    : effectiveToday?.check_in_time
-                    ? "w-1/2 bg-[#0068FF]"
-                    : "w-1/6 bg-slate-400"
-                }`}
-              />
-            </div>
-            <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-              {effectiveToday?.check_out_time ? String(effectiveToday.check_out_time).slice(0, 5) : effEnd}
-            </span>
+          <div className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white leading-snug break-words">
+            {currentUser?.ho_ten || "Cán bộ công nhân viên"}
           </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
-            <span className="font-bold text-emerald-700 dark:text-emerald-300 leading-snug">
-              {effectiveToday?.check_out_time
-                ? `Đã hoàn thành ca: Vào ${effectiveToday.check_in_time?.slice(0, 5)} • Ra ${effectiveToday.check_out_time?.slice(0, 5)}`
-                : effectiveToday?.check_in_time
-                ? `Đã vào ca lúc ${effectiveToday.check_in_time?.slice(0, 5)}`
-                : "Chưa chấm công vào ca"}
-            </span>
-            <div className="flex items-center gap-1">
-              {Number(effectiveToday?.late_minutes) > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold whitespace-nowrap">
-                  Muộn {effectiveToday.late_minutes}p
-                </span>
-              )}
-              {Number(effectiveToday?.ot_hours) > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 font-semibold whitespace-nowrap">
-                  OT +{effectiveToday.ot_hours}h
-                </span>
-              )}
-            </div>
+          <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 leading-snug break-words">
+            Mã: <strong className="text-slate-800 dark:text-slate-100">{currentUser?.ma_nv || "NV"}</strong> • Ca: {effStart} – {effEnd}
           </div>
+        </div>
 
-          {effectiveToday?.location_name && (
-            <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
-              📍 {effectiveToday.location_name}
-            </div>
+        <div className="text-right shrink-0 flex flex-col items-end">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            CÔNG THÁNG {currentMonthNum} 🔍
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5 whitespace-nowrap">
+            {monthlyCount} công
+          </div>
+          {typeof onNavigateHistory === "function" && (
+            <button
+              type="button"
+              onClick={onNavigateHistory}
+              className="min-h-[44px] px-2 -mr-2 inline-flex items-center justify-end text-xs font-bold text-[#0068FF] dark:text-blue-400 underline cursor-pointer hover:text-blue-700 dark:hover:text-blue-300"
+            >
+              Chi tiết
+            </button>
           )}
+        </div>
+      </div>
+
+      {/* KHU VỰC 3: SÂN KHẤU TRUNG TÂM — NHÂN VẬT HOẠT HÌNH ĐỒNG PHỤC SEDINCO */}
+      <SedincoMascot state={mascotState} interactivePreview={true} />
+
+      {/* KHU VỰC 4: KHUNG THÔNG BÁO XÁC NHẬN TRẠNG THÁI CHẤM CÔNG */}
+      {(hasCheckedIn || stage === STAGES.SUCCESS) && (
+        <div className="w-full rounded-2xl border-2 border-emerald-500 bg-emerald-50/75 dark:bg-slate-900 p-3.5 shadow-sm space-y-1">
+          <div className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 leading-snug">
+            <CheckCircle2 size={18} className="shrink-0" />
+            <span>
+              ✓ {hasCheckedOut || lastCheckAction === "out" ? "TAN CA THÀNH CÔNG" : "VÀO CA THÀNH CÔNG"}
+              {confirmTimeStr ? ` ${confirmTimeStr}` : ""}
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed break-words">
+            <strong>{currentUser?.ho_ten || "Nhân viên"}</strong> đã ghi nhận chấm công tại{" "}
+            {effectiveToday?.location_name || "Văn phòng SEDINCO"}!
+          </p>
           {effectiveToday?.proxy_by && (
             <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-200 text-xs font-semibold">
               Quản lý chấm hộ{effectiveToday.proxy_note ? `: ${effectiveToday.proxy_note}` : ""}
             </span>
           )}
         </div>
+      )}
 
-        {/* Nút Chấm Công 1 Chạm Chính */}
-        <div className="relative py-1 flex flex-col items-center">
-          <button
-            id="btn-start-checkin"
-            type="button"
-            onClick={() => handleStartCheckIn(false)}
-            disabled={isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || isLockedPeriod}
-            className={`relative w-[196px] min-h-[196px] aspect-square h-auto max-w-[82vw] p-4 rounded-full flex flex-col items-center justify-center text-white transition-all duration-200 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed border-[6px] ${
-              isLockedPeriod
-                ? "bg-slate-600 border-slate-300 opacity-70"
-                : stage === STAGES.SUCCESS
-                ? "bg-gradient-to-br from-emerald-500 to-teal-600 border-emerald-100 dark:border-emerald-300/40 shadow-emerald-500/40"
-                : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
-                ? "bg-gradient-to-br from-rose-500 to-rose-700 border-rose-100 dark:border-rose-300/40 shadow-rose-600/40"
-                : isFieldWorkMode
-                ? "bg-gradient-to-br from-amber-500 to-orange-600 border-amber-100 dark:border-amber-300/40 hover:from-amber-400 hover:to-orange-500 shadow-amber-500/40"
-                : checkinType === "in"
-                ? "bg-[#0068FF] bg-gradient-to-br from-[#0068FF] via-[#0084FF] to-[#06B6D4] border-blue-100 dark:border-blue-300/40 shadow-[0_12px_30px_-4px_rgba(0,104,255,0.45)]"
-                : "bg-indigo-600 bg-gradient-to-br from-indigo-600 to-blue-600 border-indigo-100 dark:border-indigo-300/40 shadow-[0_12px_30px_-4px_rgba(79,70,229,0.45)]"
+      {/* KHU VỰC 5: HỆ THỐNG 2 NÚT CHẤM CÔNG XẾP DỌC — VÀO CA & TAN CA */}
+      <div className="w-full space-y-2.5">
+        {/* NÚT 1: CHẤM CÔNG VÀO (VÀO CA) */}
+        <button
+          id={!hasCheckedIn ? "btn-start-checkin" : undefined}
+          type="button"
+          disabled={!checkInBtnEnabled}
+          onClick={() => handleStartCheckIn(false)}
+          className={`min-h-[68px] w-full rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left transition-transform duration-150 ${
+            !hasCheckedIn && !isLockedPeriod
+              ? isFieldWorkMode
+                ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40 cursor-pointer active:scale-[0.98]"
+                : "bg-[#0068FF] bg-gradient-to-r from-[#0068FF] to-[#2563EB] text-white border border-blue-500 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/40 cursor-pointer active:scale-[0.98]"
+              : "bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none"
+          }`}
+        >
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <span className="text-2xl leading-none shrink-0" aria-hidden="true">☀️</span>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm sm:text-base font-extrabold leading-tight break-words">
+                {!hasCheckedIn && stage === STAGES.SUBMITTING
+                  ? "ĐANG GỬI CHẤM CÔNG..."
+                  : !hasCheckedIn && stage === STAGES.LOCATING
+                  ? "ĐANG ĐỊNH VỊ GPS..."
+                  : isFieldWorkMode && !hasCheckedIn
+                  ? "CHẤM CÔNG VÀO (ĐI CÔNG TRÌNH)"
+                  : "CHẤM CÔNG VÀO (VÀO CA)"}
+              </div>
+              <div
+                className={`text-xs font-semibold mt-0.5 leading-snug ${
+                  !hasCheckedIn && !isLockedPeriod
+                    ? "text-blue-100"
+                    : "text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                {isLockedPeriod
+                  ? "Kỳ công tháng này đã chốt"
+                  : hasCheckedIn
+                  ? `Đã ghi nhận vào ca lúc ${String(effectiveToday?.check_in_time || serverTimeResult).slice(0, 5)}`
+                  : `Bắt đầu ca làm việc hôm nay (${effStart})`}
+              </div>
+            </div>
+          </div>
+          <Clock className="w-5 h-5 shrink-0 opacity-90" />
+        </button>
+
+        {/* NÚT 2: CHẤM CÔNG RA (TAN CA — VỀ THÔI!!!) */}
+        <button
+          id={hasCheckedIn ? "btn-start-checkin" : undefined}
+          type="button"
+          disabled={!checkOutBtnEnabled}
+          onClick={() => handleStartCheckIn(false)}
+          className={`min-h-[68px] w-full rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left transition-transform duration-150 ${
+            hasCheckedIn && !hasCheckedOut && !isLockedPeriod
+              ? isFieldWorkMode
+                ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40 cursor-pointer active:scale-[0.98]"
+                : "bg-indigo-600 bg-gradient-to-r from-indigo-600 to-[#0068FF] text-white border border-indigo-500 shadow-lg shadow-indigo-500/25 ring-2 ring-indigo-400/40 cursor-pointer active:scale-[0.98]"
+              : "bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none"
+          }`}
+        >
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <span className="text-2xl leading-none shrink-0" aria-hidden="true">🌙</span>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm sm:text-base font-extrabold leading-tight break-words">
+                {hasCheckedIn && !hasCheckedOut && stage === STAGES.SUBMITTING
+                  ? "ĐANG GỬI TAN CA..."
+                  : hasCheckedIn && !hasCheckedOut && stage === STAGES.LOCATING
+                  ? "ĐANG ĐỊNH VỊ GPS..."
+                  : "VỀ THÔI!!! 🏃‍♂️ (TAN CA)"}
+              </div>
+              <div
+                className={`text-xs font-semibold mt-0.5 leading-snug ${
+                  hasCheckedIn && !hasCheckedOut && !isLockedPeriod
+                    ? "text-indigo-100"
+                    : "text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                {hasCheckedOut
+                  ? `Đã hoàn thành ca làm việc (${String(effectiveToday?.check_out_time || serverTimeResult).slice(0, 5)})`
+                  : hasCheckedIn
+                  ? `Bấm để kết thúc ca làm việc (${effEnd})`
+                  : "Chưa vào ca làm việc"}
+              </div>
+            </div>
+          </div>
+          <Clock className="w-5 h-5 shrink-0 opacity-90" />
+        </button>
+      </div>
+
+      {/* KHU VỰC 6: CHÚ THÍCH VỊ TRÍ, ĐI CÔNG TRÌNH, SELFIE & THÔNG BÁO */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-sm space-y-2.5">
+        <p className="text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+          📍 Yêu cầu đứng trong bán kính cho phép tại Văn phòng / Kho SEDINCO hoặc kết nối Wi-Fi công ty.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 text-[#0068FF] dark:text-blue-300">
+            {locationFriendlyBadge.mode === "wifi_office" ? (
+              <Wifi className="w-3.5 h-3.5 shrink-0" />
+            ) : (
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
+            )}
+            <span>{locationFriendlyBadge.text}</span>
+          </span>
+          <span
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border ${
+              !networkBadge.online || networkBadge.networkType === "none"
+                ? "bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-700 text-rose-700 dark:text-rose-200"
+                : "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300"
             }`}
           >
-            <div className="mb-1.5">
-              {stage === STAGES.SUCCESS ? (
-                <CheckCircle2 size={46} className="text-white" />
-              ) : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD ? (
-                <AlertCircle size={46} className="text-white" />
-              ) : stage === STAGES.BIO_AUTH ? (
-                <Fingerprint size={46} className="text-blue-100" />
-              ) : stage === STAGES.LOCATING ? (
-                <MapPin size={46} className="text-amber-100" />
-              ) : stage === STAGES.SUBMITTING ? (
-                <Send size={42} className="text-white" />
-              ) : isFieldWorkMode ? (
-                <HardHat size={46} className="text-white" />
-              ) : (
-                <Clock size={46} className="text-white" />
-              )}
-            </div>
-
-            <span className="font-black text-lg tracking-tight uppercase leading-tight text-center px-2">
-              {stage === STAGES.SUBMITTING
-                ? "ĐANG GỬI..."
-                : stage === STAGES.LOCATING
-                ? "ĐANG ĐỊNH VỊ"
-                : stage === STAGES.SUCCESS
-                ? "HOÀN TẤT"
-                : stage === STAGES.ERROR
-                ? "BẤM THỬ LẠI"
-                : isFieldWorkMode
-                ? "ĐI CÔNG TRÌNH"
-                : checkinType === "in"
-                ? "CHẤM CÔNG VÀO"
-                : "CHẤM CÔNG RA"}
-            </span>
-
-            <span className="text-xs font-bold text-white mt-1.5 bg-slate-900/35 px-3 py-0.5 rounded-full border border-white/25">
-              {isLockedPeriod
-                ? "Kỳ công đã chốt"
-                : stage === STAGES.SUCCESS
-                ? (serverTimeResult ? `Lúc ${serverTimeResult}` : "Đã ghi nhận")
-                : isFieldWorkMode
-                ? "Kèm ảnh hiện trường"
-                : checkinType === "in"
-                ? `Vào ca (${effStart})`
-                : `Ra ca (${effEnd})`}
-            </span>
-          </button>
+            {!networkBadge.online || networkBadge.networkType === "none"
+              ? "⚠️ Mất kết nối mạng"
+              : networkBadge.networkType === "wifi"
+              ? "🛜 Wi-Fi ổn định"
+              : networkBadge.networkType === "cellular"
+              ? "📶 Mạng 4G / Di động"
+              : "🌐 Trực tuyến"}
+          </span>
         </div>
 
-        {/* Nút Chế độ Đi Công Trình & Chụp ảnh Selfie */}
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-2 pt-0.5">
           <AppButton
             variant={isFieldWorkMode ? "warning" : "secondary"}
             fullWidth
@@ -861,7 +922,7 @@ export default function OneTouchCheckIn({
           >
             {isFieldWorkMode
               ? "Đang bật: Chấm công Đi Công Trình (Bấm để tắt)"
-              : "Chấm công Đi Công Trình / Thị Trường"}
+              : "🚧 Chấm công Đi Công Trình / Thị Trường"}
           </AppButton>
 
           {isFieldWorkMode && (
@@ -921,8 +982,8 @@ export default function OneTouchCheckIn({
           </AppButton>
         </div>
 
-        {/* Trạng thái / Cảnh báo */}
-        <div className="space-y-2.5 text-center">
+        {/* Cảnh báo & Thông báo trạng thái xử lý */}
+        <div className="space-y-2 text-center">
           {spamWarning && (
             <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-left flex items-start gap-2.5">
               <AlertTriangle size={18} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
@@ -931,7 +992,7 @@ export default function OneTouchCheckIn({
           )}
 
           <div
-            className={`w-full py-2.5 px-3.5 rounded-2xl text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all border ${
+            className={`w-full py-2.5 px-3.5 rounded-2xl text-xs font-semibold inline-flex items-center justify-center gap-2 border ${
               stage === STAGES.SUCCESS
                 ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700"
                 : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
@@ -978,7 +1039,7 @@ export default function OneTouchCheckIn({
           )}
         </div>
 
-        {/* Ticket Dashed Divider + 3-Col Monthly Stats */}
+        {/* Thống kê tháng 3 cột */}
         <div className="zaui-ticket-divider" />
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl px-2 py-2">
@@ -1002,77 +1063,74 @@ export default function OneTouchCheckIn({
         </div>
       </div>
 
-      {/* KHU VỰC PHỤ: NHẮC QUÊN GIỜ RA + THÔNG BÁO + LƯỚI DỊCH VỤ NHÂN SỰ NHANH */}
-      <div className="px-3.5 space-y-3.5">
-        {forgottenCheckout && (
-          <button
-            type="button"
-            onClick={() => onOpenFixCheckoutRequest && onOpenFixCheckoutRequest(forgottenCheckout)}
-            className="w-full p-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 border border-amber-300 dark:border-amber-500/50 text-left flex items-start gap-2.5 shadow-sm transition cursor-pointer"
-          >
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-            <div className="flex-1 min-w-0 text-xs leading-relaxed">
-              <p className="font-bold text-amber-900 dark:text-amber-200">
-                ⚠️ Phát hiện ngày {forgottenCheckout.short_date} bạn có chấm công Vào ({String(forgottenCheckout.check_in_time).slice(0, 5)}) nhưng quên bấm Giờ Ra!
-              </p>
-              <span className="inline-block mt-1 font-bold text-amber-700 dark:text-amber-300 underline">
-                👉 Bấm vào đây để gửi đơn bổ sung giờ ra 1 chạm
-              </span>
-            </div>
-          </button>
-        )}
-
-        {companyMeta?.announcement_text && String(companyMeta.announcement_text).trim() && (
-          <div className="w-full bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-400/40 rounded-2xl px-4 py-3 text-left space-y-1 shadow-sm">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-amber-800 dark:text-amber-200">📢 Thông báo từ Công ty</span>
-              {companyMeta.announcement_updated_at && (
-                <span className="text-xs text-amber-700/90 dark:text-amber-100/90 whitespace-nowrap shrink-0">
-                  {new Date(companyMeta.announcement_updated_at).toLocaleDateString("vi-VN")}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-amber-900 dark:text-amber-50 leading-relaxed whitespace-pre-line">
-              {companyMeta.announcement_text}
+      {/* NHẮC QUÊN GIỜ RA + THÔNG BÁO + DỊCH VỤ NHÂN SỰ NHANH */}
+      {forgottenCheckout && (
+        <button
+          type="button"
+          onClick={() => onOpenFixCheckoutRequest && onOpenFixCheckoutRequest(forgottenCheckout)}
+          className="w-full p-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 border border-amber-300 dark:border-amber-500/50 text-left flex items-start gap-2.5 shadow-sm transition cursor-pointer"
+        >
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+          <div className="flex-1 min-w-0 text-xs leading-relaxed">
+            <p className="font-bold text-amber-900 dark:text-amber-200">
+              ⚠️ Phát hiện ngày {forgottenCheckout.short_date} bạn có chấm công Vào ({String(forgottenCheckout.check_in_time).slice(0, 5)}) nhưng quên bấm Giờ Ra!
             </p>
+            <span className="inline-block mt-1 font-bold text-amber-700 dark:text-amber-300 underline">
+              👉 Bấm vào đây để gửi đơn bổ sung giờ ra 1 chạm
+            </span>
           </div>
-        )}
+        </button>
+      )}
 
-        {/* KHU VỰC 3: ZAUI QUICK SERVICE GRID */}
-        {typeof onOpenQuickService === "function" && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Dịch vụ Nhân sự Nhanh</h3>
-              <span className="text-xs font-semibold text-[#0068FF] dark:text-blue-400">Gửi 1 chạm</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {quickServices.map((svc) => {
-                const SvcIcon = svc.icon;
-                return (
-                  <button
-                    key={svc.key}
-                    type="button"
-                    onClick={() => onOpenQuickService(svc.mode)}
-                    className="p-3 rounded-2xl bg-slate-50/90 hover:bg-blue-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex flex-col items-center justify-center text-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
-                  >
-                    <div className={`zaui-service-icon w-11 h-11 rounded-2xl border shrink-0 ${svc.iconBg}`}>
-                      <SvcIcon className="w-5 h-5" />
-                    </div>
-                    <div className="w-full min-w-0 space-y-0.5">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug break-words">
-                        {svc.label}
-                      </div>
-                      <div className="text-xs text-slate-600 dark:text-slate-300 leading-snug break-words">
-                        {svc.desc}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+      {companyMeta?.announcement_text && String(companyMeta.announcement_text).trim() && (
+        <div className="w-full bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-400/40 rounded-2xl px-4 py-3 text-left space-y-1 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-amber-800 dark:text-amber-200">📢 Thông báo từ Công ty</span>
+            {companyMeta.announcement_updated_at && (
+              <span className="text-xs text-amber-700/90 dark:text-amber-100/90 whitespace-nowrap shrink-0">
+                {new Date(companyMeta.announcement_updated_at).toLocaleDateString("vi-VN")}
+              </span>
+            )}
           </div>
-        )}
-      </div>
+          <p className="text-xs text-amber-900 dark:text-amber-50 leading-relaxed whitespace-pre-line">
+            {companyMeta.announcement_text}
+          </p>
+        </div>
+      )}
+
+      {typeof onOpenQuickService === "function" && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Dịch vụ Nhân sự Nhanh</h3>
+            <span className="text-xs font-semibold text-[#0068FF] dark:text-blue-400">Gửi 1 chạm</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {quickServices.map((svc) => {
+              const SvcIcon = svc.icon;
+              return (
+                <button
+                  key={svc.key}
+                  type="button"
+                  onClick={() => onOpenQuickService(svc.mode)}
+                  className="p-3 rounded-2xl bg-slate-50/90 hover:bg-blue-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex flex-col items-center justify-center text-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  <div className={`zaui-service-icon w-11 h-11 rounded-2xl border shrink-0 ${svc.iconBg}`}>
+                    <SvcIcon className="w-5 h-5" />
+                  </div>
+                  <div className="w-full min-w-0 space-y-0.5">
+                    <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug break-words">
+                      {svc.label}
+                    </div>
+                    <div className="text-xs text-slate-600 dark:text-slate-300 leading-snug break-words">
+                      {svc.desc}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* MODAL CẢNH BÁO ĐỎ TOÀN MÀN HÌNH KHI PHÁT HIỆN FAKE GPS / THIẾT BỊ LẠ */}
       <AppModal
