@@ -116,7 +116,7 @@ export default function WorkerProfileTab({
   return (
     <div className="p-4 pb-8 space-y-4">
       {/* Profile Header Card */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-3xl p-5 shadow-lg relative overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-lg relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="flex items-center gap-4 relative z-10">
@@ -131,35 +131,35 @@ export default function WorkerProfileTab({
             <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white break-words">{currentUser?.ho_ten || "Cán bộ công nhân viên"}</h2>
             <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold mt-0.5 leading-snug break-words">{currentUser?.chuc_danh || "Nhân viên Sedinco"}</p>
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
-              <span className="inline-block px-2.5 py-0.5 bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 rounded-md whitespace-nowrap">
+              <span className="inline-block px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-slate-700 dark:text-slate-200 rounded-md whitespace-nowrap">
                 Mã NV: {currentUser?.ma_nv}
               </span>
-              <span className="inline-block px-2.5 py-0.5 bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 text-xs font-mono font-semibold text-blue-700 dark:text-blue-300 rounded-md whitespace-nowrap">
+              <span className="inline-block px-2.5 py-0.5 bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-xs font-mono font-semibold text-blue-700 dark:text-blue-300 rounded-md whitespace-nowrap">
                 Tài khoản: {currentUser?.login_username || currentUser?.phone || currentUser?.ma_nv}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/60 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300">
-          <div className="flex items-center gap-1.5">
-            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+        <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700">
+            <Phone className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
             <span>{currentUser?.phone || currentUser?.dien_thoai || "Chưa cập nhật SĐT"}</span>
           </div>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 min-w-0">
+            <Mail className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
             <span className="break-words">{currentUser?.email || "worker@sedinco.vn"}</span>
           </div>
-          <div className="flex items-center gap-1.5 sm:col-span-2 text-sky-700 dark:text-sky-300">
+          <div className="flex items-center gap-1.5 sm:col-span-2 px-2.5 py-2 rounded-xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-500/30 text-sky-800 dark:text-sky-200">
             <Building2 className="w-3.5 h-3.5 shrink-0" />
             <span className="font-medium">Khối / Bộ phận: {currentUser?.department || "Khối Công trình"}</span>
           </div>
-          <div className="flex items-center gap-1.5 sm:col-span-2 text-indigo-700 dark:text-indigo-300">
+          <div className="flex items-center gap-1.5 sm:col-span-2 px-2.5 py-2 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-500/30 text-indigo-800 dark:text-indigo-200">
             <Clock className="w-3.5 h-3.5 shrink-0" />
             <span className="font-medium">Ca làm việc: {activeShiftLabel}</span>
           </div>
-          <div className="flex items-center gap-1.5 sm:col-span-2 text-emerald-700 dark:text-emerald-300 min-w-0">
-            <Smartphone className="w-3.5 h-3.5 shrink-0" />
+          <div className="flex items-center gap-2 sm:col-span-2 p-2.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-200 min-w-0">
+            <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span className="font-semibold break-words">
               Thiết bị: {formatEmployeeDeviceLabel(
                 currentUser?.ho_ten,
@@ -172,7 +172,7 @@ export default function WorkerProfileTab({
 
       {/* Quỹ Phép Năm */}
       {leaveBalance && (
-        <div className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/30 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
+        <div className="bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-500/40 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
               <CalendarCheck className="w-5 h-5" />
@@ -193,27 +193,27 @@ export default function WorkerProfileTab({
       )}
 
       {/* Action List */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-2 shadow-sm divide-y divide-slate-200 dark:divide-slate-700/50">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 shadow-sm divide-y divide-slate-200 dark:divide-slate-800">
         {/* Phiếu Lương + Bộ chọn kỳ lương */}
         <div className="p-3.5 space-y-2.5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <DollarSign className="w-5 h-5" />
             </div>
             <div>
               <div className="text-sm font-bold text-slate-900 dark:text-white">Phiếu Lương Điện Tử</div>
-              <div className="text-xs text-slate-500 dark:text-slate-300">Xem chi tiết công, phụ cấp, BHXH &amp; thực lĩnh</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Xem chi tiết công, phụ cấp, BHXH &amp; thực lĩnh</div>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700/70 bg-slate-50 dark:bg-slate-900/60 overflow-hidden">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
             <FormRow label="Kỳ phiếu lương" controlClassName="!max-w-[65%]">
               <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <select
                   aria-label="Chọn tháng phiếu lương"
                   value={slipMonth}
                   onChange={(e) => setSlipMonth(Number(e.target.value))}
-                  className="min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white font-bold"
+                  className="min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white font-bold"
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                     <option key={m} value={m}>T{m}</option>
@@ -223,7 +223,7 @@ export default function WorkerProfileTab({
                   aria-label="Chọn năm phiếu lương"
                   value={slipYear}
                   onChange={(e) => setSlipYear(Number(e.target.value))}
-                  className="min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white font-bold"
+                  className="min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white font-bold"
                 >
                   {[2025, 2026, 2027].map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -252,36 +252,36 @@ export default function WorkerProfileTab({
             setDeviceError("");
             setIsDeviceModalOpen(true);
           }}
-          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-700/40 rounded-xl transition-colors group cursor-pointer"
+          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-white">Yêu cầu đổi thiết bị</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">Đăng ký đổi điện thoại chấm công mới</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Đăng ký đổi điện thoại chấm công mới</div>
             </div>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-300 transition-colors shrink-0" />
+          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors shrink-0" />
         </button>
 
         {/* Tài Khoản & Mật Khẩu */}
         <button
           type="button"
           onClick={onChangePasswordRequest}
-          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-700/40 rounded-xl transition-colors group cursor-pointer"
+          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
               <Lock className="w-5 h-5" />
             </div>
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-white">Tài khoản &amp; Mật khẩu</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">Đổi tên đăng nhập, SĐT hoặc mật khẩu bảo mật</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Đổi tên đăng nhập, SĐT hoặc mật khẩu bảo mật</div>
             </div>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-300 transition-colors shrink-0" />
+          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors shrink-0" />
         </button>
       </div>
 
@@ -358,7 +358,7 @@ export default function WorkerProfileTab({
             placeholder="Nhập lý do cụ thể..."
             required
             rows={3}
-            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl p-3 text-slate-900 dark:text-white text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+            className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-2xl p-3 text-slate-900 dark:text-white text-sm placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
           />
         </form>
       </AppModal>

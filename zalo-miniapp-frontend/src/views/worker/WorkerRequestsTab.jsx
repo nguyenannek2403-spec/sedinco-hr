@@ -192,22 +192,29 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
         )}
 
         {/* Filter Tabs */}
-        <div className="flex flex-wrap bg-slate-200/80 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-300 dark:border-slate-700/60 text-xs gap-1">
-          {["all", "PENDING", "APPROVED", "REJECTED"].map((st) => (
-            <button
-              key={st}
-              type="button"
-              onClick={() => setFilterStatus(st)}
-              className={`flex-1 min-h-[44px] px-2.5 py-2 font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-                filterStatus === st
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                  : "text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-            {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
-          </button>
-        ))}
-      </div>
+        <div
+          data-filter-group="worker-requests-filter"
+          className="flex flex-wrap bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-xl text-xs gap-1"
+        >
+          {["all", "PENDING", "APPROVED", "REJECTED"].map((st) => {
+            const active = filterStatus === st;
+            return (
+              <button
+                key={st}
+                type="button"
+                data-active={active ? "true" : "false"}
+                onClick={() => setFilterStatus(st)}
+                className={`flex-1 min-h-[44px] px-2.5 py-2 font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                  active
+                    ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                    : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                }`}
+              >
+                {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
+              </button>
+            );
+          })}
+        </div>
 
       {/* Requests List */}
       <div className="space-y-3">

@@ -98,10 +98,18 @@ export default function HolidaysTab({ showToast }) {
     }
   };
 
+  const getHolidayDaysCount = (startStr, endStr) => {
+    if (!startStr || !endStr) return 1;
+    const s = new Date(`${String(startStr).slice(0, 10)}T00:00:00`);
+    const e = new Date(`${String(endStr).slice(0, 10)}T00:00:00`);
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || e < s) return 1;
+    return Math.round((e - s) / 86400000) + 1;
+  };
+
   return (
     <div className="space-y-4 max-w-4xl pb-28">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4 shadow-sm dark:shadow-xl flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-xl flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white flex items-center gap-2">
             <Gift className="w-5 h-5 text-rose-500 dark:text-rose-400 shrink-0" />
@@ -133,7 +141,7 @@ export default function HolidaysTab({ showToast }) {
       </div>
 
       {/* List */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
         {loading ? (
           <div className="p-4">
             <SkeletonList rows={3} label="Đang tải dữ liệu ngày lễ..." />
@@ -158,25 +166,33 @@ export default function HolidaysTab({ showToast }) {
           </div>
         ) : (
           <div className="overflow-x-auto touch-scroll-x">
-            <table className="w-full min-w-[640px] text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 font-semibold">
+            <table className="w-full min-w-[680px] text-left text-xs">
+              <thead className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
                 <tr>
                   <th className="p-3.5 pl-5 min-w-[200px] whitespace-nowrap">Tên dịp lễ</th>
                   <th className="p-3.5 whitespace-nowrap">Từ ngày</th>
                   <th className="p-3.5 whitespace-nowrap">Đến ngày</th>
+                  <th className="p-3.5 whitespace-nowrap">Số ngày</th>
                   <th className="p-3.5 whitespace-nowrap">Hệ số lương</th>
                   <th className="p-3.5 text-right pr-5 whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700/50 text-slate-700 dark:text-slate-300">
-                {holidays.map((h) => (
-                  <tr key={h.id} className="perf-list-item hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
+                {holidays.map((h) => {
+                  const daysCount = getHolidayDaysCount(h.start_date, h.end_date);
+                  return (
+                  <tr key={h.id} className="perf-list-item hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
                     <td className="p-3.5 pl-5 min-w-[200px] font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
                       <span>{h.holiday_name || h.name}</span>
                     </td>
                     <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.start_date}</td>
                     <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.end_date}</td>
+                    <td className="p-3.5 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/40 text-indigo-700 dark:text-indigo-300 font-bold text-xs">
+                        {daysCount} ngày
+                      </span>
+                    </td>
                     <td className="p-3.5 whitespace-nowrap">
                       <StatusBadge
                         type="attendance"
@@ -189,13 +205,14 @@ export default function HolidaysTab({ showToast }) {
                         variant="ghost"
                         icon={Trash2}
                         onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
-                        className="min-w-[44px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/15"
+                        className="min-w-[44px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
                         title="Xóa"
                         aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
                       />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -256,18 +273,18 @@ export default function HolidaysTab({ showToast }) {
               placeholder="Ví dụ: Tết Dương Lịch"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full min-h-[44px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+              className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
             />
           </div>
 
-          <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-900/90 overflow-hidden">
+          <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
             <FormRow label="Từ ngày">
               <input
                 type="date"
                 required
                 value={form.start_date}
                 onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                className="w-36 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-slate-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="w-36 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-slate-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
             </FormRow>
             <FormRow label="Đến ngày">
@@ -276,7 +293,7 @@ export default function HolidaysTab({ showToast }) {
                 required
                 value={form.end_date}
                 onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                className="w-36 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-slate-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="w-36 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-slate-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
             </FormRow>
           </div>

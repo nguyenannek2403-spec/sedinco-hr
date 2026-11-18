@@ -36,6 +36,7 @@ export default function RequestsManagementTab({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterType, setFilterType] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -180,24 +181,32 @@ export default function RequestsManagementTab({
 
   const filtered = requests.filter(r => {
     const matchStatus = filterStatus === "all" || String(r.status).toUpperCase() === filterStatus.toUpperCase();
+    const rawType = String(r.request_type || r.type || "").toUpperCase();
+    const matchType =
+      filterType === "all" ||
+      (filterType === "LEAVE" && (rawType === "P" || rawType === "KP" || rawType.includes("LEAVE"))) ||
+      (filterType === "CORRECTION" && rawType.includes("ATTENDANCE_CORRECTION")) ||
+      (filterType === "OT" && rawType === "OT") ||
+      (filterType === "ADVANCE" && rawType.includes("ADVANCE"));
     const query = debouncedSearch.trim().toLowerCase();
     const matchSearch = !query ||
       String(r.ma_nv || "").toLowerCase().includes(query) ||
       String(r.ho_ten || "").toLowerCase().includes(query) ||
       String(r.reason || "").toLowerCase().includes(query);
-    return matchStatus && matchSearch;
+    return matchStatus && matchType && matchSearch;
   });
 
   return (
     <div className="space-y-4 pb-28">
       {/* Header and Controls */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4 shadow-sm dark:shadow-xl flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-snug flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
             Xét duyệt đơn từ & Nghỉ phép
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
             Duyệt đơn nghỉ phép, bổ sung công, ứng lương và tăng ca của nhân viên
           </p>
         </div>
@@ -205,32 +214,39 @@ export default function RequestsManagementTab({
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           {/* Search box */}
           <div className="relative flex-1 sm:flex-initial min-w-[180px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm mã NV, họ tên..."
-              className="w-full sm:w-48 min-h-[44px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full sm:w-48 min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           {/* Status Filter */}
-          <div className="flex flex-wrap bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs gap-1">
-            {["all", "PENDING", "APPROVED", "REJECTED"].map(st => (
-              <button
-                key={st}
-                type="button"
-                onClick={() => setFilterStatus(st)}
-                className={`min-h-[44px] px-3 py-2 font-medium rounded-lg whitespace-nowrap shrink-0 transition-all ${
-                  filterStatus === st
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
-              </button>
-            ))}
+          <div
+            data-filter-group="admin-requests-filter"
+            className="flex flex-wrap bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-xl text-xs gap-1"
+          >
+            {["all", "PENDING", "APPROVED", "REJECTED"].map(st => {
+              const active = filterStatus === st;
+              return (
+                <button
+                  key={st}
+                  type="button"
+                  data-active={active ? "true" : "false"}
+                  onClick={() => setFilterStatus(st)}
+                  className={`min-h-[44px] px-3 py-2 font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                    active
+                      ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                      : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                  }`}
+                >
+                  {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
+                </button>
+              );
+            })}
           </div>
 
           <AppButton
@@ -258,10 +274,42 @@ export default function RequestsManagementTab({
             </AppButton>
           )}
         </div>
+        </div>
+
+        {/* Bộ lọc loại đơn */}
+        <div
+          data-filter-group="admin-request-type-filter"
+          className="flex flex-wrap items-center gap-1 bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-xl text-xs"
+        >
+          {[
+            { id: "all", label: "Mọi loại đơn" },
+            { id: "LEAVE", label: "Nghỉ phép / KL" },
+            { id: "CORRECTION", label: "Bổ sung công" },
+            { id: "OT", label: "Đăng ký OT" },
+            { id: "ADVANCE", label: "Ứng lương" }
+          ].map((t) => {
+            const active = filterType === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                data-active={active ? "true" : "false"}
+                onClick={() => setFilterType(t.id)}
+                className={`min-h-[44px] px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  active
+                    ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                    : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Table Data */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
         {loading ? (
           <div className="p-4">
             <SkeletonList rows={4} label="Đang tải dữ liệu đơn từ..." />
@@ -314,7 +362,7 @@ export default function RequestsManagementTab({
                           )}
                         </span>
                         {(req.correction_mode || req.check_in_time || req.check_out_time) && (
-                          <div className="text-xs text-cyan-700 dark:text-cyan-300 mt-1 break-words leading-snug">
+                          <div className="inline-block text-xs text-cyan-800 dark:text-cyan-200 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-500/40 px-2.5 py-1 rounded-lg mt-1.5 break-words leading-snug">
                             {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
                             {(req.check_in_time || req.check_out_time) && (
                               <span className="ml-1 font-semibold">
@@ -329,15 +377,15 @@ export default function RequestsManagementTab({
                       <StatusBadge type="request" status={req.status} />
                     </div>
 
-                    <div className="text-sm text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60 break-words leading-relaxed">
-                      <span className="text-slate-500 dark:text-slate-400 font-semibold">Lý do: </span>
+                    <div className="text-sm text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200 dark:border-slate-700 break-words leading-relaxed">
+                      <span className="text-slate-500 dark:text-slate-300 font-semibold">Lý do: </span>
                       {req.reason || "--"}
                       {req.evidence_image && (
-                        <div className="mt-2">
+                        <div className="mt-2.5 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                           <img
                             src={req.evidence_image}
                             alt="Ảnh minh chứng"
-                            className="max-h-36 rounded-lg border border-slate-700 object-cover"
+                            className="max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-cover"
                           />
                         </div>
                       )}
@@ -345,11 +393,11 @@ export default function RequestsManagementTab({
 
                     {isPending && (
                       isOwner ? (
-                        <div className="text-xs text-amber-400 italic font-semibold leading-snug">
+                        <div className="text-xs text-amber-700 dark:text-amber-300 italic font-semibold leading-snug">
                           (Đơn của bạn — Cần quản lý khác xét duyệt)
                         </div>
                       ) : !canApproveRequest(req) ? (
-                        <div className="text-xs text-slate-400 italic font-medium leading-snug">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 italic font-medium leading-snug">
                           (Chế độ chỉ xem — Chưa được cấp quyền phê duyệt đơn từ)
                         </div>
                       ) : (
@@ -419,7 +467,7 @@ export default function RequestsManagementTab({
                       <td className="p-3.5 font-semibold text-slate-800 dark:text-slate-200">
                         <div>{getRequestTypeLabel(req.request_type || req.type)}</div>
                         {(req.correction_mode || req.check_in_time || req.check_out_time) && (
-                          <div className="text-xs text-cyan-700 dark:text-cyan-300 font-normal mt-0.5">
+                          <div className="inline-block text-xs text-cyan-800 dark:text-cyan-200 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-500/40 px-2 py-0.5 rounded-md font-normal mt-1">
                             {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
                             {(req.check_in_time || req.check_out_time) &&
                               ` (${req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}${
@@ -439,11 +487,13 @@ export default function RequestsManagementTab({
                       <td className="p-3.5 max-w-xs break-words text-slate-700 dark:text-slate-300" title={req.reason}>
                         <div>{req.reason || "--"}</div>
                         {req.evidence_image && (
-                          <img
-                            src={req.evidence_image}
-                            alt="Minh chứng"
-                            className="mt-1.5 max-h-20 rounded border border-slate-200 dark:border-slate-700 object-cover"
-                          />
+                          <div className="mt-1.5 inline-block p-1 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            <img
+                              src={req.evidence_image}
+                              alt="Minh chứng"
+                              className="max-h-20 rounded border border-slate-200 dark:border-slate-700 object-cover"
+                            />
+                          </div>
                         )}
                       </td>
                       <td className="p-3.5">
@@ -452,11 +502,11 @@ export default function RequestsManagementTab({
                       <td className="p-3.5 text-right pr-5">
                         {isPending ? (
                           isOwner ? (
-                            <span className="text-xs text-amber-400 italic font-semibold">
+                            <span className="text-xs text-amber-700 dark:text-amber-300 italic font-semibold">
                               (Đơn của bạn — Cần quản lý khác duyệt)
                             </span>
                           ) : !canApproveRequest(req) ? (
-                            <span className="text-xs text-slate-400 italic font-medium">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 italic font-medium">
                               (Chỉ xem — Chưa cấp quyền duyệt)
                             </span>
                           ) : (

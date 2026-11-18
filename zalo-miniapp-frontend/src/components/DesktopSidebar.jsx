@@ -122,7 +122,8 @@ export function DesktopMobileBottomNav({
 
   return (
     <nav
-      className="lg:hidden shrink-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-2 pt-1.5 flex items-center justify-around shadow-2xl transition-colors duration-200"
+      data-filter-group="mobile-bottom-nav"
+      className="lg:hidden shrink-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-2 pt-1.5 flex items-center justify-around gap-1 shadow-2xl transition-colors duration-200"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
     >
       {mobileBottomItems.map((item) => {
@@ -132,11 +133,12 @@ export function DesktopMobileBottomNav({
           <button
             key={item.id}
             type="button"
+            data-active={isActive ? "true" : "false"}
             onClick={() => handleSelect(item.id)}
-            className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl transition-all ${
+            className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
               isActive
-                ? "text-blue-600 dark:text-blue-300 font-bold bg-blue-50 dark:bg-blue-500/10"
-                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium"
+                ? "bg-blue-600 text-white dark:bg-blue-600 dark:text-white font-bold shadow-sm ring-1 ring-blue-500/50"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/80 font-medium"
             }`}
           >
             <Icon className="w-5 h-5" />
@@ -148,7 +150,7 @@ export function DesktopMobileBottomNav({
         type="button"
         onClick={onOpenMobileMenu}
         aria-label="Mở menu đầy đủ"
-        className="flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white font-bold"
+        className="flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2 rounded-xl text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 font-bold cursor-pointer"
       >
         <Menu className="w-5 h-5 text-amber-500 dark:text-amber-400" />
         <span className="text-xs leading-tight">Menu</span>
@@ -226,7 +228,10 @@ export default function DesktopSidebar({
       </div>
 
       {/* 3. Danh Sách Menu Điều Hướng */}
-      <nav className="p-3 sm:p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area space-y-1.5">
+      <nav
+        data-filter-group="sidebar-menu"
+        className="p-3 sm:p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area space-y-1.5"
+      >
         {menuItems.map(item => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
@@ -235,12 +240,13 @@ export default function DesktopSidebar({
               key={item.id}
               type="button"
               data-tab={item.id}
+              data-active={isActive ? "true" : "false"}
               title={item.label}
               onClick={() => handleSelect(item.id)}
               className={`w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-black transition-all cursor-pointer border-2 ${
                 isActive
-                  ? "bg-blue-600 text-white border-blue-500 dark:border-white shadow-lg shadow-blue-600/25"
-                  : "text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800/80"
+                  ? "bg-blue-600 text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 ring-1 ring-blue-500/50 shadow-lg shadow-blue-600/25"
+                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800/80"
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -264,10 +270,10 @@ export default function DesktopSidebar({
 
       {/* 4. Footer Sidebar: Người Dùng & Nút Đăng Xuất */}
       <div
-        className="p-4 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-3"
+        className="p-4 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 space-y-3"
         style={isMobileDrawer ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" } : undefined}
       >
-        <div className="flex items-center gap-3">
+        <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
           <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-2xl border-2 border-slate-300 dark:border-slate-600 shadow-sm overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-800">
             <img
               src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}

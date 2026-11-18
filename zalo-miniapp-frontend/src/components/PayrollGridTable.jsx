@@ -766,7 +766,7 @@ export default function PayrollGridTable({
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold border-b-2 border-slate-300 dark:border-slate-700 text-xs">
-                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 min-w-[160px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)] whitespace-nowrap">Cán bộ nhân sự</th>
+                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 min-w-[160px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)] whitespace-nowrap">Cán bộ nhân sự</th>
                 <th className="p-3.5 text-right whitespace-nowrap">Lương CB (HĐ)</th>
                 <th className="p-3.5 text-center whitespace-nowrap">Công TT</th>
                 <th className="p-3.5 text-right whitespace-nowrap">Lương công</th>
@@ -805,13 +805,19 @@ export default function PayrollGridTable({
                   return (
                     <tr
                       key={empId || idx}
-                      className={`transition-colors ${
+                      className={`group transition-colors ${
                         confirmStatus === "DISPUTED"
-                          ? "bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100/70 dark:hover:bg-rose-950/50"
-                          : "hover:bg-emerald-50/40 dark:hover:bg-slate-800/60"
+                          ? "bg-rose-50 hover:bg-rose-100 dark:bg-[#2a1219] dark:hover:bg-[#381822]"
+                          : "bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800"
                       }`}
                     >
-                      <td className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-white dark:bg-slate-900 z-10 min-w-[160px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+                      <td
+                        className={`p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 z-10 min-w-[160px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)] ${
+                          confirmStatus === "DISPUTED"
+                            ? "bg-rose-50 group-hover:bg-rose-100 dark:bg-[#2a1219] dark:group-hover:bg-[#381822]"
+                            : "bg-white group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800"
+                        }`}
+                      >
                         <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm truncate">{item.ho_ten}</div>
                         <div className="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 mt-0.5">
                           <span className="font-mono text-blue-700 dark:text-blue-300 font-semibold">{empId}</span>
@@ -904,7 +910,7 @@ export default function PayrollGridTable({
             {filteredList.length > 0 && (
               <tfoot>
                 <tr className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-t-2 border-slate-300 dark:border-slate-700 font-bold">
-                  <td className="p-4 pl-5 text-xs whitespace-nowrap sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">Tổng cộng ({filteredList.length} NV):</td>
+                  <td className="p-4 pl-5 text-xs whitespace-nowrap sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">Tổng cộng ({filteredList.length} NV):</td>
                   <td className="p-4 text-right text-sm whitespace-nowrap">
                     {filteredList.reduce((acc, c) => acc + (Number(c.baseSalary) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>

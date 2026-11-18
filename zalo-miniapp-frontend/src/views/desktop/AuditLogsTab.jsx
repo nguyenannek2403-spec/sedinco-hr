@@ -32,6 +32,8 @@ export default function AuditLogsTab({ currentUser, showToast, onRefreshAlerts, 
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [retentionDays, setRetentionDays] = useState(30);
   const [cleaning, setCleaning] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   const lastFocusTsRef = useRef(0);
   const pinLockRef = useRef(false);
@@ -350,25 +352,33 @@ const formatDetails = (rawDetails, action = "") => {
     );
   });
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedEmp, category, startDate, endDate, pinnedOnly, debouncedSearch]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedLogs = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   const selectedEmpObj = employees.find((e) => e.ma_nv === selectedEmp);
 
   return (
     <div className="space-y-4">
       {/* Header & Cấu hình Tự động Xóa Dữ liệu Quá hạn (Auto-Retention Cleanup) */}
-      <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               Nhật ký hoạt động & Kiểm tra chấm công
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
               Ghi vết thời gian thực theo từng mã nhân viên • Tự động dọn dẹp dữ liệu định kỳ
             </p>
           </div>
 
           {/* Chu kỳ tự động xóa nhật ký quá hạn */}
-          <div className="flex flex-wrap items-center gap-2 bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 p-2 rounded-xl">
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-2 rounded-xl">
             <span className="text-xs font-bold text-slate-600 dark:text-slate-300 pl-1">Tự xóa sau:</span>
             <select
               value={retentionDays}
@@ -377,7 +387,7 @@ const formatDetails = (rawDetails, action = "") => {
                 setRetentionDays(val);
                 handleRunCleanup(val);
               }}
-              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-xs font-black text-amber-700 dark:text-amber-300"
+              className="min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-xs font-black text-amber-700 dark:text-amber-300"
             >
               <option value={15}>15 ngày</option>
               <option value={30}>30 ngày</option>
@@ -398,12 +408,44 @@ const formatDetails = (rawDetails, action = "") => {
           </div>
         </div>
 
+        {/* Bộ lọc nhanh Nhóm hành vi (Segmented Pill Track) */}
+        <div
+          data-filter-group="audit-category-filter"
+          className="flex flex-wrap items-center gap-1 bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-xl text-xs"
+        >
+          {[
+            { id: "", label: "Tất cả nhóm" },
+            { id: "fraud", label: "🚨 Gian lận / Bất thường" },
+            { id: "attendance", label: "⏱️ Chấm công" },
+            { id: "requests", label: "📝 Đơn từ & OT" },
+            { id: "payroll", label: "💰 Bảng lương" },
+            { id: "auth_device", label: "🔐 Đăng nhập & Máy" }
+          ].map((grp) => {
+            const active = category === grp.id;
+            return (
+              <button
+                key={grp.id || "all"}
+                type="button"
+                data-active={active ? "true" : "false"}
+                onClick={() => setCategory(grp.id)}
+                className={`min-h-[44px] px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  active
+                    ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                    : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                }`}
+              >
+                {grp.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Thanh Bộ Lọc Đa Chiều */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-700/60">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
           <select
             value={selectedEmp}
             onChange={(e) => setSelectedEmp(e.target.value)}
-            className="min-h-[46px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold"
+            className="min-h-[46px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold"
           >
             <option value="">👤 Tất cả nhân sự ({employees.length})</option>
             {employees.map((emp) => (
@@ -416,7 +458,7 @@ const formatDetails = (rawDetails, action = "") => {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="min-h-[46px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold"
+            className="min-h-[46px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold"
           >
             <option value="">📂 Tất cả loại hành động</option>
             <option value="fraud">🚨 Cảnh báo chấm công bất thường (Sai vị trí / Thiết bị lạ)</option>
@@ -426,13 +468,13 @@ const formatDetails = (rawDetails, action = "") => {
             <option value="auth_device">🔐 Đăng nhập & Đổi thiết bị</option>
           </select>
 
-          <div className="divide-y divide-slate-200 dark:divide-slate-800 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden">
+          <div className="divide-y divide-slate-200 dark:divide-slate-700 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl overflow-hidden">
             <FormRow label="Từ ngày" className="py-1.5 px-3">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-36 sm:w-40 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-900 dark:text-white text-center"
+                className="w-36 sm:w-40 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-900 dark:text-white text-center"
               />
             </FormRow>
             <FormRow label="Đến ngày" className="py-1.5 px-3">
@@ -440,19 +482,19 @@ const formatDetails = (rawDetails, action = "") => {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-36 sm:w-40 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-900 dark:text-white text-center"
+                className="w-36 sm:w-40 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-900 dark:text-white text-center"
               />
             </FormRow>
           </div>
 
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm mã NV, nội dung..."
-              className="w-full min-h-[46px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
+              className="w-full min-h-[46px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-3 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400"
             />
           </div>
 
@@ -460,10 +502,10 @@ const formatDetails = (rawDetails, action = "") => {
             <button
               type="button"
               onClick={() => setPinnedOnly(!pinnedOnly)}
-              className={`flex-1 min-h-[46px] py-2.5 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
+              className={`flex-1 min-h-[46px] py-2.5 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition cursor-pointer ${
                 pinnedOnly
-                  ? "bg-amber-100 dark:bg-amber-500/20 border-amber-400 text-amber-800 dark:text-amber-300"
-                  : "bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 shadow-sm"
+                  : "bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
               }`}
             >
               <Pin className="w-3.5 h-3.5" />
@@ -482,7 +524,7 @@ const formatDetails = (rawDetails, action = "") => {
         </div>
 
         {selectedEmpObj && (
-          <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-500/40 flex flex-wrap items-center justify-between gap-2">
+          <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/40 flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs">
               <span className="font-black text-slate-900 dark:text-white">
                 Nhân sự đang chọn: {selectedEmpObj.ho_ten} ({selectedEmpObj.ma_nv})
@@ -494,10 +536,10 @@ const formatDetails = (rawDetails, action = "") => {
             <button
               type="button"
               onClick={() => handleToggleKeepEmployeeLogs(selectedEmpObj.ma_nv, selectedEmpObj.keep_logs)}
-              className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-black border flex items-center gap-1.5 transition ${
+              className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-black border flex items-center gap-1.5 transition cursor-pointer ${
                 selectedEmpObj.keep_logs
                   ? "bg-emerald-600 text-white border-emerald-400 shadow-md"
-                  : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
               }`}
             >
               <Lock className="w-3.5 h-3.5" />
@@ -512,7 +554,7 @@ const formatDetails = (rawDetails, action = "") => {
       </div>
 
       {/* Bảng Danh Sách Nhật Ký Kiểm Toán & Cảnh Báo Đỏ */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
         {loading ? (
           <div className="p-4">
             <SkeletonList rows={4} label="Đang tải dữ liệu giám sát hoạt động..." />
@@ -527,9 +569,10 @@ const formatDetails = (rawDetails, action = "") => {
             <EmptyState icon={ShieldCheck} title="Không có bản ghi hoạt động nào khớp với bộ lọc hiện tại." />
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto touch-scroll-x">
             <table className="w-full min-w-[860px] text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-400 uppercase tracking-wider font-bold">
+              <thead className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="p-3.5 pl-4">Thời Gian</th>
                   <th className="p-3.5">Nhân Viên</th>
@@ -538,8 +581,8 @@ const formatDetails = (rawDetails, action = "") => {
                   <th className="p-3.5 text-center">Bảo Toàn & Xử Lý</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700/50 text-slate-700 dark:text-slate-200">
-                {filtered.map((log, idx) => {
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
+                {paginatedLogs.map((log, idx) => {
                   const isFraud = log.action === "CRITICAL_FRAUD" || log.resource === "attendance_security";
                   const isPinned = Boolean(log.is_pinned);
                   const isKeepEmp = Boolean(log.keep_logs);
@@ -554,10 +597,10 @@ const formatDetails = (rawDetails, action = "") => {
                         isFocused
                           ? "bg-rose-100 dark:bg-rose-900/75 ring-2 ring-inset ring-amber-400"
                           : isFraud
-                          ? "bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/40"
+                          ? "bg-rose-50/90 dark:bg-rose-950/55 hover:bg-rose-100 dark:hover:bg-rose-900/50"
                           : isPinned
-                          ? "bg-amber-50 dark:bg-amber-950/25 hover:bg-amber-100 dark:hover:bg-amber-900/20"
-                          : "hover:bg-slate-50 dark:hover:bg-slate-700/30"
+                          ? "bg-amber-50/90 dark:bg-amber-950/35 hover:bg-amber-100 dark:hover:bg-amber-900/35"
+                          : "bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/70"
                       }`}
                     >
                       <td className="p-3.5 pl-4 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
@@ -604,10 +647,10 @@ const formatDetails = (rawDetails, action = "") => {
                           <button
                             type="button"
                             onClick={() => handleTogglePin(log)}
-                            className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition ${
+                            className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition cursor-pointer ${
                               isPinned
                                 ? "bg-amber-500 text-slate-950 border-amber-400 font-black"
-                                : "bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700"
                             }`}
                             title="📌 Ghim giữ lại lịch sử này vĩnh viễn"
                           >
@@ -620,10 +663,10 @@ const formatDetails = (rawDetails, action = "") => {
                             <button
                               type="button"
                               onClick={() => handleToggleKeepEmployeeLogs(log.actor_id, isKeepEmp)}
-                              className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition ${
+                              className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition cursor-pointer ${
                                 isKeepEmp
                                   ? "bg-indigo-600 text-white border-indigo-400"
-                                  : "bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700"
                               }`}
                               title="🔒 Giữ toàn bộ lịch sử của nhân viên này"
                             >
@@ -637,7 +680,7 @@ const formatDetails = (rawDetails, action = "") => {
                             <button
                               type="button"
                               onClick={() => handleToggleLockAccount(log.actor_id, isEmpLocked)}
-                              className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-black border flex items-center gap-1 transition ${
+                              className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-black border flex items-center gap-1 transition cursor-pointer ${
                                 isEmpLocked
                                   ? "bg-slate-700 text-emerald-300 border-emerald-500/40"
                                   : "bg-rose-600 hover:bg-rose-500 text-white border-rose-400"
@@ -655,6 +698,34 @@ const formatDetails = (rawDetails, action = "") => {
               </tbody>
             </table>
           </div>
+
+          {/* Thanh phân trang & Tổng kết bản ghi */}
+          <div className="bg-slate-50 dark:bg-slate-950/80 border-t border-slate-200 dark:border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <span>
+              Hiển thị <strong className="text-slate-900 dark:text-white">{paginatedLogs.length}</strong> /{" "}
+              <strong className="text-slate-900 dark:text-white">{filtered.length}</strong> bản ghi • Trang{" "}
+              <strong className="text-slate-900 dark:text-white">{safePage}/{totalPages}</strong>
+            </span>
+            <div className="flex items-center gap-2">
+              <AppButton
+                variant="secondary"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 text-xs"
+              >
+                Trang trước
+              </AppButton>
+              <AppButton
+                variant="secondary"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 text-xs"
+              >
+                Trang sau
+              </AppButton>
+            </div>
+          </div>
+          </>
         )}
       </div>
     </div>

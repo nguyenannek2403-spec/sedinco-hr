@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useLayoutEffect, useState } from "react";
 import {
   Clock,
   Smartphone,
@@ -12,10 +12,10 @@ import {
   DollarSign,
   ArrowLeft,
   LogOut,
-  KeyRound
+  KeyRound,
+  X
 } from "lucide-react";
 import { ROLE_LABELS, ROLES } from "../constants/roles";
-import { AppModal } from "./ui";
 import { ThemeToggleButton } from "../context/ThemeContext";
 
 export default function DesktopHeader({
@@ -36,6 +36,27 @@ export default function DesktopHeader({
   onOpenMobileMenu
 }) {
   const [showAlertPanel, setShowAlertPanel] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!showAlertPanel || typeof document === "undefined") return undefined;
+    document.documentElement.classList.add("body-modal-open");
+    document.body.classList.add("body-modal-open");
+    const bgContainers = document.querySelectorAll(
+      "#app main, #app [data-scroll-container], #app .overflow-y-auto"
+    );
+    const lockedEls = [];
+    bgContainers.forEach((el) => {
+      if (!el.closest?.('[data-modal-root="true"]')) {
+        el.classList.add("bg-scroll-locked");
+        lockedEls.push(el);
+      }
+    });
+    return () => {
+      document.documentElement.classList.remove("body-modal-open");
+      document.body.classList.remove("body-modal-open");
+      lockedEls.forEach((el) => el.classList.remove("bg-scroll-locked"));
+    };
+  }, [showAlertPanel]);
 
   const fraudCount = Number(alertsSummary?.fraud_count) || 0;
   const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
@@ -143,7 +164,9 @@ export default function DesktopHeader({
 
   return (
     <header
-      className="bg-white/95 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-[10px] sm:px-6 lg:px-8 pb-2.5 flex items-center justify-between gap-[6px] sm:gap-2 sticky top-0 z-40 select-none shadow-sm transition-colors duration-200"
+      className={`bg-white/95 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-[10px] sm:px-6 lg:px-8 pb-2.5 flex items-center justify-between gap-[6px] sm:gap-2 sticky top-0 select-none shadow-sm transition-colors duration-200 ${
+        showAlertPanel ? "z-[125]" : "z-40"
+      }`}
       style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
     >
       {/* Trái: Nút Menu Mobile + Nút Trở về trên tab phụ + Tiêu đề tab */}
@@ -286,104 +309,161 @@ export default function DesktopHeader({
           </button>
         )}
 
-        {/* Modal Trung tâm Thông báo & Cảnh báo 1 chạm (Render qua AppModal Portal) */}
-        <AppModal
-          open={showAlertPanel}
-          onClose={() => setShowAlertPanel(false)}
-          title={`Thông báo & Cảnh báo (${totalBellCount})`}
-          subtitle="Chạm vào mục bất kỳ để mở thẳng nơi xử lý"
-          icon={<ShieldAlert className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />}
-          maxWidthClass="max-w-lg"
-        >
-          <div className="p-4 space-y-2.5">
-            {visibleAlerts.length === 0 ? (
-              <p className="text-xs text-slate-500 dark:text-slate-300 py-6 text-center">
-                Hệ thống ổn định. Không có cảnh báo vị trí/thiết bị, khiếu nại lương hay đơn từ nào đang chờ xử lý.
-              </p>
-            ) : (
-              <div className="space-y-2.5">
-                {visibleAlerts.map((alert) => {
-                  const styleMap = {
-                    fraud: {
-                      card: "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/70 dark:hover:bg-rose-900/70 border-rose-200 dark:border-rose-500/50",
-                      title: "text-rose-800 dark:text-rose-200",
-                      action: "Xem & Khóa →",
-                      Icon: ShieldAlert,
-                      iconColor: "text-rose-600 dark:text-rose-400"
-                    },
-                    device: {
-                      card: "bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900/70 border-indigo-200 dark:border-indigo-500/50",
-                      title: "text-indigo-800 dark:text-indigo-200",
-                      action: "Mở 360° →",
-                      Icon: Smartphone,
-                      iconColor: "text-indigo-600 dark:text-indigo-300"
-                    },
-                    salary_dispute: {
-                      card: "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/70 border-amber-200 dark:border-amber-500/50",
-                      title: "text-amber-900 dark:text-amber-200",
-                      action: "Xem phiếu →",
-                      Icon: DollarSign,
-                      iconColor: "text-amber-600 dark:text-amber-300"
-                    },
-                    pending_request: {
-                      card: "bg-blue-50 hover:bg-blue-100 dark:bg-slate-800/90 dark:hover:bg-slate-700/90 border-blue-200 dark:border-blue-500/40",
-                      title: "text-blue-800 dark:text-blue-200",
-                      action: "Duyệt đơn →",
-                      Icon: FileText,
-                      iconColor: "text-blue-600 dark:text-blue-300"
-                    }
-                  };
-                  const theme = styleMap[alert.category] || {
-                    card: "bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-600",
-                    title: "text-slate-900 dark:text-white",
-                    action: "Mở xử lý →",
-                    Icon: AlertTriangle,
-                    iconColor: "text-amber-600 dark:text-amber-300"
-                  };
-                  const IconComp = theme.Icon;
-
-                  return (
-                    <button
-                      key={alert.id}
-                      type="button"
-                      data-alert-item={alert.id}
-                      data-alert-category={alert.category}
-                      onClick={() => {
-                        setShowAlertPanel(false);
-                        if (typeof onNavigateAlert === "function") {
-                          onNavigateAlert(alert);
-                        } else if (setCurrentTab && alert.target_tab) {
-                          setCurrentTab(alert.target_tab);
-                        }
-                      }}
-                      className={`w-full min-h-[52px] text-left p-3.5 rounded-xl border space-y-1 transition cursor-pointer ${theme.card}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className={`text-xs font-black flex items-center gap-1.5 leading-snug ${theme.title}`}>
-                          <IconComp size={14} className={`${theme.iconColor} shrink-0`} />
-                          <span>{alert.title}</span>
-                        </span>
-                        <span className={`text-xs font-bold underline shrink-0 whitespace-nowrap ${theme.title}`}>
-                          {theme.action}
-                        </span>
-                      </div>
-                      {alert.description && (
-                        <p className="text-xs text-slate-600 dark:text-slate-200/90 leading-relaxed pl-5">
-                          {alert.description}
-                        </p>
-                      )}
-                      {alert.created_at && (
-                        <div className="text-xs text-slate-400 pl-5">
-                          {new Date(alert.created_at).toLocaleString("vi-VN")}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
+        {/* Popover Trung tâm Thông báo & Cảnh báo 1 chạm (Cân đối trên Mobile 320px-430px & Desktop) */}
+        {showAlertPanel && (
+          <>
+            <div
+              className="fixed top-0 right-0 bottom-0 left-0 z-[120] bg-slate-950/35 dark:bg-slate-950/60"
+              aria-hidden="true"
+              onClick={() => setShowAlertPanel(false)}
+              onWheel={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onTouchMove={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            />
+            <div
+              data-testid="notification-popover"
+              data-modal-root="true"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Thông báo & Cảnh báo (${totalBellCount})`}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => {
+                if (!e.target?.closest?.(".modal-scroll-area")) e.preventDefault();
+                e.stopPropagation();
+              }}
+              className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+64px)] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[380px] z-[125] max-h-[75vh] flex flex-col rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in"
+            >
+              {/* Popover Header */}
+              <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
+                      Thông báo &amp; Cảnh báo ({totalBellCount})
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug truncate">
+                      Chạm vào mục bất kỳ để mở thẳng nơi xử lý
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAlertPanel(false)}
+                  aria-label="Đóng"
+                  className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/80 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                >
+                  <X size={18} />
+                </button>
               </div>
-            )}
-          </div>
-        </AppModal>
+
+              {/* Popover Scroll Body */}
+              <div className="flex-1 min-h-0 overflow-y-auto modal-scroll-area p-3.5 space-y-2.5 bg-white dark:bg-slate-900">
+                {visibleAlerts.length === 0 ? (
+                  <p className="text-xs text-slate-600 dark:text-slate-300 py-6 text-center leading-relaxed">
+                    Hệ thống ổn định. Không có cảnh báo vị trí/thiết bị, khiếu nại lương hay đơn từ nào đang chờ xử lý.
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {visibleAlerts.map((alert) => {
+                      const styleMap = {
+                        fraud: {
+                          card: "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/75 dark:hover:bg-rose-900/80 border-rose-200 dark:border-rose-500/50",
+                          title: "text-rose-800 dark:text-rose-200",
+                          action: "Xem & Khóa →",
+                          Icon: ShieldAlert,
+                          iconColor: "text-rose-600 dark:text-rose-400"
+                        },
+                        device: {
+                          card: "bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/75 dark:hover:bg-indigo-900/80 border-indigo-200 dark:border-indigo-500/50",
+                          title: "text-indigo-800 dark:text-indigo-200",
+                          action: "Mở 360° →",
+                          Icon: Smartphone,
+                          iconColor: "text-indigo-600 dark:text-indigo-300"
+                        },
+                        salary_dispute: {
+                          card: "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/75 dark:hover:bg-amber-900/80 border-amber-200 dark:border-amber-500/50",
+                          title: "text-amber-900 dark:text-amber-200",
+                          action: "Xem phiếu →",
+                          Icon: DollarSign,
+                          iconColor: "text-amber-600 dark:text-amber-300"
+                        },
+                        pending_request: {
+                          card: "bg-blue-50 hover:bg-blue-100 dark:bg-slate-800/95 dark:hover:bg-slate-700/95 border-blue-200 dark:border-blue-500/40",
+                          title: "text-blue-800 dark:text-blue-200",
+                          action: "Duyệt đơn →",
+                          Icon: FileText,
+                          iconColor: "text-blue-600 dark:text-blue-300"
+                        }
+                      };
+                      const theme = styleMap[alert.category] || {
+                        card: "bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-600",
+                        title: "text-slate-900 dark:text-white",
+                        action: "Mở xử lý →",
+                        Icon: AlertTriangle,
+                        iconColor: "text-amber-600 dark:text-amber-300"
+                      };
+                      const IconComp = theme.Icon;
+
+                      return (
+                        <button
+                          key={alert.id}
+                          type="button"
+                          data-alert-item={alert.id}
+                          data-alert-category={alert.category}
+                          onClick={() => {
+                            setShowAlertPanel(false);
+                            if (typeof onNavigateAlert === "function") {
+                              onNavigateAlert(alert);
+                            } else if (setCurrentTab && alert.target_tab) {
+                              setCurrentTab(alert.target_tab);
+                            }
+                          }}
+                          className={`w-full min-h-[52px] text-left p-3.5 rounded-xl border space-y-1 transition cursor-pointer ${theme.card}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className={`text-xs font-black flex items-center gap-1.5 leading-snug ${theme.title}`}>
+                              <IconComp size={14} className={`${theme.iconColor} shrink-0`} />
+                              <span>{alert.title}</span>
+                            </span>
+                            <span className={`text-xs font-bold underline shrink-0 whitespace-nowrap ${theme.title}`}>
+                              {theme.action}
+                            </span>
+                          </div>
+                          {alert.description && (
+                            <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed pl-5">
+                              {alert.description}
+                            </p>
+                          )}
+                          {alert.created_at && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400 pl-5">
+                              {new Date(alert.created_at).toLocaleString("vi-VN")}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Popover Footer */}
+              <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowAlertPanel(false)}
+                  className="w-full min-h-[44px] py-2 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 text-xs font-bold cursor-pointer transition-colors"
+                >
+                  Đóng / Quay lại
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </header>
   );

@@ -572,7 +572,7 @@ export default function EmployeeManagementTab({
       {headcountToday && (
         <div
           data-testid="employee-hub-headcount-bar"
-          className="bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 shadow-sm space-y-2.5"
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 shadow-sm space-y-2.5"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
@@ -582,7 +582,7 @@ export default function EmployeeManagementTab({
               <button
                 type="button"
                 onClick={() => onOpenLiveBoard(todayFilter === "all" ? "present" : todayFilter)}
-                className="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/15 dark:hover:bg-blue-500/25 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-300 text-xs font-bold cursor-pointer transition"
+                className="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-200 text-xs font-bold cursor-pointer transition"
               >
                 <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                 <span>Xem bảng live chi tiết</span>
@@ -590,24 +590,29 @@ export default function EmployeeManagementTab({
             )}
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto touch-scroll-x pb-0.5 text-xs font-semibold">
+          <div
+            data-filter-group="headcount-today-filter"
+            className="flex items-center gap-2 overflow-x-auto touch-scroll-x p-1 rounded-xl bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 text-xs font-semibold"
+          >
             <button
               type="button"
+              data-active={todayFilter === "all" ? "true" : "false"}
               onClick={() => setTodayFilter("all")}
               className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "all"
-                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                  : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                  ? "bg-blue-600 text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 ring-2 ring-blue-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+                  : "bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
               }`}
             >
               👥 Quân số: <strong>{headcountToday.total_employees}</strong>
             </button>
             <button
               type="button"
+              data-active={todayFilter === "present" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "present" ? "all" : "present"))}
               className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "present"
-                  ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                  ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 ring-2 ring-emerald-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
                   : "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/80 border-emerald-200 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
               }`}
             >
@@ -615,10 +620,11 @@ export default function EmployeeManagementTab({
             </button>
             <button
               type="button"
+              data-active={todayFilter === "late" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "late" ? "all" : "late"))}
               className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "late"
-                  ? "bg-amber-500 text-slate-950 border-amber-500 shadow-sm"
+                  ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 ring-2 ring-amber-400/50 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
                   : "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-300"
               }`}
             >
@@ -626,10 +632,11 @@ export default function EmployeeManagementTab({
             </button>
             <button
               type="button"
+              data-active={todayFilter === "field_work" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "field_work" ? "all" : "field_work"))}
               className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "field_work"
-                  ? "bg-orange-600 text-white border-orange-600 shadow-sm"
+                  ? "bg-orange-600 text-white border-orange-500 dark:bg-orange-600 dark:text-white dark:border-orange-400 ring-2 ring-orange-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
                   : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/70 dark:hover:bg-orange-900/80 border-orange-200 dark:border-orange-500/40 text-orange-800 dark:text-orange-300"
               }`}
             >
@@ -637,10 +644,11 @@ export default function EmployeeManagementTab({
             </button>
             <button
               type="button"
+              data-active={todayFilter === "leave" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "leave" ? "all" : "leave"))}
               className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "leave"
-                  ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                  ? "bg-purple-600 text-white border-purple-500 dark:bg-purple-600 dark:text-white dark:border-purple-400 ring-2 ring-purple-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
                   : "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/70 dark:hover:bg-purple-900/80 border-purple-200 dark:border-purple-500/40 text-purple-800 dark:text-purple-300"
               }`}
             >
@@ -649,10 +657,11 @@ export default function EmployeeManagementTab({
             {Array.isArray(liveBoard?.absent_list) && (
               <button
                 type="button"
+                data-active={todayFilter === "absent" ? "true" : "false"}
                 onClick={() => setTodayFilter((p) => (p === "absent" ? "all" : "absent"))}
                 className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                   todayFilter === "absent"
-                    ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                    ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 ring-2 ring-rose-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
                     : "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/70 dark:hover:bg-rose-900/80 border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300"
                 }`}
               >
@@ -664,27 +673,32 @@ export default function EmployeeManagementTab({
       )}
 
       {/* 4 Thẻ Lọc Nhanh Trạng Thái Tài Khoản & Thiết Bị */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      <div
+        data-filter-group="employee-quick-filter"
+        className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
+      >
         <button
           type="button"
+          data-active={quickFilter === "all" ? "true" : "false"}
           onClick={() => setQuickFilter("all")}
           className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
             quickFilter === "all"
-              ? "bg-blue-600 text-white border-blue-600 shadow-md"
-              : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              ? "bg-blue-600 text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 ring-2 ring-blue-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
-          <div className="text-xs font-semibold opacity-90">👥 Tất cả nhân sự</div>
+          <div className="text-xs font-semibold opacity-95">👥 Tất cả nhân sự</div>
           <div className="text-xl font-black mt-0.5">{totalCount}</div>
         </button>
 
         <button
           type="button"
+          data-active={quickFilter === "active" ? "true" : "false"}
           onClick={() => setQuickFilter("active")}
           className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
             quickFilter === "active"
-              ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
-              : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 ring-2 ring-emerald-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <div className={`text-xs font-semibold ${quickFilter === "active" ? "text-emerald-50" : "text-emerald-700 dark:text-emerald-300"}`}>🟢 Đang làm việc</div>
@@ -693,13 +707,14 @@ export default function EmployeeManagementTab({
 
         <button
           type="button"
+          data-active={quickFilter === "alerts" ? "true" : "false"}
           onClick={() => setQuickFilter("alerts")}
           className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
             quickFilter === "alerts"
-              ? "bg-rose-600 text-white border-rose-600 shadow-md"
+              ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 ring-2 ring-rose-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
               : alertCount > 0
-              ? "bg-rose-50 dark:bg-rose-950/50 border-rose-300 dark:border-rose-500/50 text-rose-800 dark:text-rose-100 hover:bg-rose-100 dark:hover:bg-rose-950/80"
-              : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              ? "bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-500/50 text-rose-800 dark:text-rose-100 hover:bg-rose-100 dark:hover:bg-rose-950/80"
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <div className={`text-xs font-semibold ${quickFilter === "alerts" ? "text-rose-50" : "text-rose-700 dark:text-rose-300"}`}>🚨 Đa thiết bị / Đổi máy</div>
@@ -708,27 +723,28 @@ export default function EmployeeManagementTab({
 
         <button
           type="button"
+          data-active={quickFilter === "locked" ? "true" : "false"}
           onClick={() => setQuickFilter("locked")}
           className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
             quickFilter === "locked"
-              ? "bg-amber-500 text-slate-950 border-amber-500 shadow-md"
-              : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 ring-2 ring-amber-400/50 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
-          <div className={`text-xs font-semibold ${quickFilter === "locked" ? "text-slate-900" : "text-amber-700 dark:text-amber-300"}`}>🔒 Đang khóa</div>
+          <div className={`text-xs font-semibold ${quickFilter === "locked" ? "text-slate-950" : "text-amber-700 dark:text-amber-300"}`}>🔒 Đang khóa</div>
           <div className="text-xl font-black mt-0.5">{lockedCount}</div>
         </button>
       </div>
 
       {/* 2. Thanh Công Cụ Tìm Kiếm, Lọc Bộ Phận & Thao Tác */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
               <span>Trung tâm Nhân sự &amp; Thiết bị 360°</span>
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-300 mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
               Đang hiển thị <strong className="text-slate-900 dark:text-white">{filtered.length}</strong> / {totalCount} nhân sự
             </p>
           </div>
@@ -739,7 +755,7 @@ export default function EmployeeManagementTab({
                 variant="ghost"
                 icon={Key}
                 onClick={handleBatchForcePassword}
-                className="bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 border border-amber-300 dark:border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs px-3 py-2"
+                className="bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 border border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-200 text-xs px-3 py-2"
               >
                 Yêu cầu đổi MK
               </AppButton>
@@ -770,13 +786,13 @@ export default function EmployeeManagementTab({
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[180px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm SĐT, tài khoản, tên, mã NV, bộ phận, tên máy..."
-              className="w-full min-h-[44px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -784,7 +800,7 @@ export default function EmployeeManagementTab({
             aria-label="Lọc theo bộ phận"
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[44px] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="ALL">🏢 Tất cả bộ phận</option>
             {availableDepartments.map((dept) => (
@@ -798,16 +814,16 @@ export default function EmployeeManagementTab({
 
       {/* 3. Danh Sách Thẻ Nhân Viên Trực Quan */}
       {loading ? (
-        <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
           <SkeletonList rows={4} label="Đang tải danh sách nhân sự..." />
         </div>
       ) : error ? (
-        <div className="bg-rose-50 dark:bg-slate-800/80 border border-rose-200 dark:border-rose-500/40 rounded-2xl p-6 text-center text-rose-700 dark:text-rose-300 text-sm flex items-center justify-center gap-2">
+        <div className="bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-500/40 rounded-2xl p-6 text-center text-rose-700 dark:text-rose-200 text-sm flex items-center justify-center gap-2">
           <AlertCircle className="w-5 h-5 shrink-0" />
           <span>{error}</span>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
           <EmptyState icon={Users} title="Không tìm thấy nhân viên nào khớp với bộ lọc." />
         </div>
       ) : (
@@ -822,8 +838,8 @@ export default function EmployeeManagementTab({
             return (
               <div
                 key={emp.ma_nv}
-                className={`perf-list-item bg-white dark:bg-slate-800/85 border rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3 transition ${
-                  devSummary.hasAnyAlert ? "border-rose-400 dark:border-rose-500/60" : "border-slate-200 dark:border-slate-700/80"
+                className={`perf-list-item bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3 transition ${
+                  devSummary.hasAnyAlert ? "border-rose-400 dark:border-rose-500/70" : "border-slate-200 dark:border-slate-800"
                 }`}
               >
                 {/* Dòng 1: Họ tên + Mã NV + Vai trò + Trạng thái */}
@@ -833,10 +849,10 @@ export default function EmployeeManagementTab({
                       <span className="font-bold text-base text-slate-900 dark:text-white break-words leading-snug">
                         {emp.ho_ten}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-blue-700 dark:text-blue-300">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-blue-700 dark:text-blue-300">
                         {emp.ma_nv}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-200 text-xs font-semibold">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/35 text-indigo-700 dark:text-indigo-200 text-xs font-semibold">
                         {ROLE_LABELS[emp.role] || "Nhân viên"}
                       </span>
                       {todayBadge && (
@@ -870,10 +886,10 @@ export default function EmployeeManagementTab({
 
                 {/* Dòng 3: Hiển thị Thiết bị (chỉ áp dụng với Nhân viên & Kế toán, ẩn với Quản trị viên) */}
                 {emp.role !== "admin" && (
-                  <div className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="px-3 py-2.5 rounded-xl bg-emerald-50/70 dark:bg-slate-800/95 border border-emerald-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 min-w-0">
                       <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span className="font-bold text-emerald-800 dark:text-emerald-200 break-words">
+                      <span className="font-bold text-emerald-900 dark:text-emerald-200 break-words">
                         📱 {devSummary.primaryLabel}
                       </span>
                     </div>
@@ -881,7 +897,7 @@ export default function EmployeeManagementTab({
                       className={`px-2 py-0.5 rounded-md font-semibold shrink-0 ${
                         emp.device_binding_mode === "enforced"
                           ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
-                          : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
+                          : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600"
                       }`}
                     >
                       {emp.device_binding_mode === "enforced" ? "🔒 Khóa 1 máy" : "Ghi nhận"}
@@ -891,7 +907,7 @@ export default function EmployeeManagementTab({
 
                 {/* Băng cảnh báo đỏ nếu phát hiện >= 2 thiết bị dùng chung tài khoản hoặc yêu cầu đổi máy */}
                 {devSummary.hasMultiAlert && (
-                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/75 border border-rose-300 dark:border-rose-500/70 text-xs text-rose-800 dark:text-rose-100 space-y-2">
+                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-500/70 text-xs text-rose-800 dark:text-rose-100 space-y-2">
                     <div className="flex items-start gap-2 font-bold text-rose-900 dark:text-rose-200 leading-snug">
                       <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
                       <span>
@@ -1080,7 +1096,7 @@ export default function EmployeeManagementTab({
                     }));
                   }}
                   placeholder="VD: 0905123456"
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -1092,7 +1108,7 @@ export default function EmployeeManagementTab({
                   value={form.login_username}
                   onChange={(e) => setForm({ ...form, login_username: e.target.value })}
                   placeholder={form.phone ? form.phone : "Mặc định lấy SĐT hoặc Mã NV"}
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -1105,7 +1121,7 @@ export default function EmployeeManagementTab({
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 placeholder="123456 (bỏ trống để tự sinh ngẫu nhiên)"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -1118,7 +1134,7 @@ export default function EmployeeManagementTab({
                 value={form.ma_nv}
                 onChange={(e) => setForm({ ...form, ma_nv: e.target.value.toUpperCase() })}
                 placeholder="VD: NV025"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
@@ -1129,7 +1145,7 @@ export default function EmployeeManagementTab({
                 value={form.ho_ten}
                 onChange={(e) => setForm({ ...form, ho_ten: e.target.value })}
                 placeholder="Nguyễn Văn A"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -1143,7 +1159,7 @@ export default function EmployeeManagementTab({
                 value={form.chuc_danh}
                 onChange={(e) => setForm({ ...form, chuc_danh: e.target.value })}
                 placeholder="Kỹ thuật / Nhân viên kho"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
@@ -1151,7 +1167,7 @@ export default function EmployeeManagementTab({
               <select
                 value={form.department || "Khối Công trình"}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
-                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {DEPARTMENT_OPTIONS.map((dept) => (
                   <option key={dept} value={dept}>
@@ -1175,7 +1191,7 @@ export default function EmployeeManagementTab({
                     ...(r === "admin" ? { luong_cb: 0, has_insurance: false } : {})
                   });
                 }}
-                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="worker">Nhân viên</option>
                 <option value="accountant">Kế toán</option>
@@ -1192,7 +1208,7 @@ export default function EmployeeManagementTab({
                   step={100000}
                   value={form.luong_cb}
                   onChange={(e) => setForm({ ...form, luong_cb: Number(e.target.value) })}
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             )}
@@ -1204,7 +1220,7 @@ export default function EmployeeManagementTab({
               <select
                 value={form.shift_type || "FULL_DAY"}
                 onChange={(e) => setForm({ ...form, shift_type: e.target.value })}
-                className="w-full min-h-[44px] bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {SHIFT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -1267,7 +1283,7 @@ export default function EmployeeManagementTab({
             className="p-4 sm:p-5 space-y-5"
           >
             {/* KHU VỰC 1: THÔNG TIN & CHẾ ĐỘ ĐÃI NGỘ */}
-            <section className="space-y-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
+            <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
               <h3 className="text-sm font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide flex items-center gap-2">
                 <Users className="w-4 h-4 shrink-0" />
                 <span>1. Thông tin &amp; Chế độ đãi ngộ</span>
@@ -1282,7 +1298,7 @@ export default function EmployeeManagementTab({
                     disabled={!canEditEmployees}
                     value={detailForm.ho_ten}
                     onChange={(e) => setDetailForm((p) => ({ ...p, ho_ten: e.target.value }))}
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -1292,7 +1308,7 @@ export default function EmployeeManagementTab({
                     disabled={!canEditEmployees}
                     value={detailForm.chuc_danh}
                     onChange={(e) => setDetailForm((p) => ({ ...p, chuc_danh: e.target.value }))}
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -1306,7 +1322,7 @@ export default function EmployeeManagementTab({
                     value={detailForm.phone}
                     onChange={(e) => setDetailForm((p) => ({ ...p, phone: e.target.value, dien_thoai: e.target.value }))}
                     placeholder="09xx..."
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -1317,7 +1333,7 @@ export default function EmployeeManagementTab({
                     value={detailForm.login_username}
                     onChange={(e) => setDetailForm((p) => ({ ...p, login_username: e.target.value }))}
                     placeholder="SĐT hoặc Mã NV"
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -1329,7 +1345,7 @@ export default function EmployeeManagementTab({
                     disabled={!canEditEmployees}
                     value={detailForm.department}
                     onChange={(e) => setDetailForm((p) => ({ ...p, department: e.target.value }))}
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
+                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                   >
                     {availableDepartments.map((dept) => (
                       <option key={dept} value={dept}>
@@ -1348,7 +1364,7 @@ export default function EmployeeManagementTab({
                       disabled={!canEditEmployees}
                       value={detailForm.annual_leave_quota}
                       onChange={(e) => setDetailForm((p) => ({ ...p, annual_leave_quota: Number(e.target.value) || 0 }))}
-                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                     />
                   </div>
                 )}
@@ -1362,12 +1378,12 @@ export default function EmployeeManagementTab({
                   value={detailForm.email}
                   onChange={(e) => setDetailForm((p) => ({ ...p, email: e.target.value }))}
                   placeholder="email@congty.vn"
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               </div>
 
               {detailEmp.role === "admin" ? (
-                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/40 text-xs sm:text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-500/40 text-xs sm:text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
                   Tài khoản Quản trị viên chỉ dùng để điều hành hệ thống; không áp dụng bảng lương, phép năm, ca chấm công hay khóa thiết bị cá nhân.
                 </div>
               ) : (
@@ -1382,7 +1398,7 @@ export default function EmployeeManagementTab({
                         disabled={!canEditEmployees}
                         value={detailForm.luong_cb}
                         onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Number(e.target.value) || 0 }))}
-                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-700 dark:text-emerald-300 disabled:opacity-60"
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-700 dark:text-emerald-300 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -1394,7 +1410,7 @@ export default function EmployeeManagementTab({
                         disabled={!canEditEmployees}
                         value={detailForm.phu_cap_an_trua}
                         onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Number(e.target.value) || 0 }))}
-                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -1409,7 +1425,7 @@ export default function EmployeeManagementTab({
                         disabled={!canEditEmployees}
                         value={detailForm.phu_cap_xang_xe}
                         onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Number(e.target.value) || 0 }))}
-                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -1421,12 +1437,12 @@ export default function EmployeeManagementTab({
                         disabled={!canEditEmployees}
                         value={detailForm.phu_cap_nha_o}
                         onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Number(e.target.value) || 0 }))}
-                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:opacity-60"
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                       />
                     </div>
                   </div>
 
-                  <label className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 cursor-pointer">
+                  <label className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 cursor-pointer">
                     <input
                       type="checkbox"
                       disabled={!canEditEmployees}
@@ -1444,7 +1460,7 @@ export default function EmployeeManagementTab({
 
             {/* KHU VỰC 2: CA LÀM VIỆC & GIỜ RIÊNG */}
             {detailEmp.role !== "admin" && (
-              <section className="space-y-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
+              <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wide flex items-center gap-2">
                   <Clock className="w-4 h-4 shrink-0" />
@@ -1467,7 +1483,7 @@ export default function EmployeeManagementTab({
                   disabled={!canEditEmployees}
                   value={detailForm.shift_type || "FULL_DAY"}
                   onChange={(e) => setDetailForm((p) => ({ ...p, shift_type: e.target.value }))}
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:opacity-60"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                 >
                   {SHIFT_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -1477,14 +1493,14 @@ export default function EmployeeManagementTab({
                 </select>
               </div>
 
-              <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 overflow-hidden">
+              <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 overflow-hidden">
                 <FormRow label="Giờ vào ca riêng">
                   <input
                     type="time"
                     disabled={!canEditEmployees}
                     value={detailForm.custom_start_time || ""}
                     onChange={(e) => setDetailForm((p) => ({ ...p, custom_start_time: e.target.value }))}
-                    className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center"
+                    className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400"
                   />
                 </FormRow>
                 <FormRow label="Giờ tan ca riêng">
@@ -1493,7 +1509,7 @@ export default function EmployeeManagementTab({
                     disabled={!canEditEmployees}
                     value={detailForm.custom_end_time || ""}
                     onChange={(e) => setDetailForm((p) => ({ ...p, custom_end_time: e.target.value }))}
-                    className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center"
+                    className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400"
                   />
                 </FormRow>
               </div>
@@ -1502,7 +1518,7 @@ export default function EmployeeManagementTab({
 
             {/* KHU VỰC 3: KIỂM SOÁT THIẾT BỊ & CHỐNG DÙNG CHUNG TÀI KHOẢN */}
             {detailEmp.role !== "admin" && (
-            <section className="space-y-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
+            <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wide flex items-center gap-2">
                   <Smartphone className="w-4 h-4 shrink-0" />
@@ -1634,7 +1650,7 @@ export default function EmployeeManagementTab({
 
             {/* KHU VỰC 4: QUYỀN HẠN & BẢO MẬT TÀI KHOẢN */}
             {isAdmin && detailEmp.role !== "admin" && (
-              <section className="space-y-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
+              <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
                 <h3 className="text-sm font-black text-amber-700 dark:text-amber-300 uppercase tracking-wide flex items-center gap-2">
                   <Key className="w-4 h-4 shrink-0" />
                   <span>4. Quyền hạn &amp; Bảo mật tài khoản</span>
@@ -1646,7 +1662,7 @@ export default function EmployeeManagementTab({
                     <select
                       value={detailForm.role || "worker"}
                       onChange={(e) => setDetailForm((p) => ({ ...p, role: e.target.value }))}
-                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white"
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white"
                     >
                       <option value="worker">Nhân viên</option>
                       <option value="accountant">Kế toán</option>
@@ -1659,12 +1675,12 @@ export default function EmployeeManagementTab({
                       value={detailForm.new_password}
                       onChange={(e) => setDetailForm((p) => ({ ...p, new_password: e.target.value }))}
                       placeholder="Bỏ trống nếu giữ nguyên..."
-                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400"
                     />
                   </div>
                 </div>
 
-                <label className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 cursor-pointer">
+                <label className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={Boolean(detailForm.keep_logs)}

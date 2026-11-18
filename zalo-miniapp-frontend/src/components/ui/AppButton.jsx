@@ -3,21 +3,21 @@ import { Loader2 } from "lucide-react";
 
 const VARIANT_CLASSES = {
   primary:
-    "bg-blue-600 hover:bg-blue-700 text-white border border-blue-700 shadow-sm",
+    "bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white border border-blue-700 dark:border-blue-400/80 shadow-sm",
   secondary:
-    "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-100 dark:border-slate-600",
+    "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100 dark:border-slate-600 shadow-xs",
   "secondary-dark":
-    "bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600",
+    "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 shadow-xs",
   success:
-    "bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700 shadow-sm",
+    "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-700 dark:border-emerald-400/80 shadow-sm",
   danger:
-    "bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 shadow-sm",
+    "bg-rose-600 hover:bg-rose-700 dark:bg-rose-600 dark:hover:bg-rose-500 text-white border border-rose-700 dark:border-rose-400/80 shadow-sm",
   warning:
-    "bg-amber-500 hover:bg-amber-600 text-slate-950 border border-amber-600 shadow-sm",
+    "bg-amber-500 hover:bg-amber-600 dark:bg-amber-500 dark:hover:bg-amber-400 text-slate-950 border border-amber-600 dark:border-amber-400 shadow-sm",
   ghost:
-    "bg-transparent hover:bg-slate-100 text-slate-700 border border-transparent dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700",
+    "bg-slate-50/80 hover:bg-slate-100 text-slate-700 border border-slate-200/90 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-slate-100 dark:border-slate-600",
   "ghost-dark":
-    "bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700"
+    "bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-600"
 };
 
 /**

@@ -421,21 +421,28 @@ export default function SmartLeaveRequestModal({
                 <div className="mt-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                   Bằng số: {formatVnd(parsedAdvanceNum)}
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {QUICK_ADVANCE_AMOUNTS.map((amt) => (
-                    <button
-                      key={amt}
-                      type="button"
-                      onClick={() => setAdvanceAmount(String(amt))}
-                      className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer whitespace-nowrap ${
-                        parsedAdvanceNum === amt
-                          ? "bg-emerald-600 text-white border-emerald-700"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
-                      }`}
-                    >
-                      {amt.toLocaleString("vi-VN")} đ
-                    </button>
-                  ))}
+                <div
+                  data-filter-group="quick-advance-amounts"
+                  className="grid grid-cols-2 gap-2 mt-2 p-1.5 rounded-xl bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800"
+                >
+                  {QUICK_ADVANCE_AMOUNTS.map((amt) => {
+                    const active = parsedAdvanceNum === amt;
+                    return (
+                      <button
+                        key={amt}
+                        type="button"
+                        data-active={active ? "true" : "false"}
+                        onClick={() => setAdvanceAmount(String(amt))}
+                        className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer whitespace-nowrap ${
+                          active
+                            ? "bg-blue-600 text-white border-blue-500 shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                            : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
+                        }`}
+                      >
+                        {amt.toLocaleString("vi-VN")} đ
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -476,21 +483,28 @@ export default function SmartLeaveRequestModal({
                   />
                 </FormRow>
               </div>
-              <div className="grid grid-cols-4 gap-2">
-                {[2, 3, 4, 8].map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => setOtHours(String(h))}
-                    className={`min-h-[44px] px-2 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
-                      Number(otHours) === h
-                        ? "bg-violet-600 text-white border-violet-700"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
-                    }`}
-                  >
-                    {h} giờ
-                  </button>
-                ))}
+              <div
+                data-filter-group="quick-ot-hours"
+                className="grid grid-cols-4 gap-2 p-1.5 rounded-xl bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800"
+              >
+                {[2, 3, 4, 8].map((h) => {
+                  const active = Number(otHours) === h;
+                  return (
+                    <button
+                      key={h}
+                      type="button"
+                      data-active={active ? "true" : "false"}
+                      onClick={() => setOtHours(String(h))}
+                      className={`min-h-[44px] px-2 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                        active
+                          ? "bg-blue-600 text-white border-blue-500 shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                          : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
+                      }`}
+                    >
+                      {h} giờ
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : isCompensation ? (
@@ -516,25 +530,29 @@ export default function SmartLeaveRequestModal({
                 <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
                   Tình huống cần giải trình
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div
+                  data-filter-group="correction-modes"
+                  className="grid grid-cols-2 gap-2 p-1.5 rounded-xl bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800"
+                >
                   {CORRECTION_MODES.map((m) => {
                     const active = correctionMode === m.value;
                     return (
                       <button
                         key={m.value}
                         type="button"
+                        data-active={active ? "true" : "false"}
                         onClick={() => {
                           setErrorMessage("");
                           setCorrectionMode(m.value);
                         }}
                         className={`min-h-[60px] p-2.5 rounded-xl border-2 text-left transition active:scale-[0.98] cursor-pointer ${
                           active
-                            ? "bg-amber-50 dark:bg-amber-950/60 border-amber-500 text-amber-950 dark:text-amber-200 shadow-sm"
-                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80"
+                            ? "bg-blue-600 text-white border-blue-500 shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                         }`}
                       >
                         <div className="text-xs font-bold leading-snug">{m.label}</div>
-                        <div className={`text-xs mt-0.5 leading-snug ${active ? "text-amber-800 dark:text-amber-300" : "text-slate-600 dark:text-slate-300"}`}>{m.desc}</div>
+                        <div className={`text-xs mt-0.5 leading-snug ${active ? "text-blue-100" : "text-slate-500 dark:text-slate-400"}`}>{m.desc}</div>
                       </button>
                     );
                   })}

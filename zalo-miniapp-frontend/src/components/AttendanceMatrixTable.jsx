@@ -461,16 +461,20 @@ export default function AttendanceMatrixTable({
       )}
 
       {/* Thanh chuyển chế độ xem Mobile-First & Chú giải */}
-      <div className="px-4 sm:px-5 py-3 bg-slate-100 dark:bg-slate-800/80 border-b-2 border-slate-200 dark:border-slate-800 space-y-2.5">
+      <div className="px-4 sm:px-5 py-3 bg-slate-50 dark:bg-slate-900/90 border-b-2 border-slate-200 dark:border-slate-800 space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="inline-flex p-1 bg-slate-200/80 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700">
+          <div
+            data-filter-group="matrix-view-mode"
+            className="inline-flex p-1 bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-xl gap-1"
+          >
             <button
               type="button"
+              data-active={viewMode === "cards" ? "true" : "false"}
               onClick={() => setViewMode("cards")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
                 viewMode === "cards"
-                  ? "bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 shadow-sm"
-                  : "text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                  ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
               }`}
             >
               <List size={15} />
@@ -478,11 +482,12 @@ export default function AttendanceMatrixTable({
             </button>
             <button
               type="button"
+              data-active={viewMode === "matrix" ? "true" : "false"}
               onClick={() => setViewMode("matrix")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
                 viewMode === "matrix"
-                  ? "bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 shadow-sm"
-                  : "text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                  ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
               }`}
             >
               <LayoutGrid size={15} />
@@ -598,7 +603,7 @@ export default function AttendanceMatrixTable({
         <table className="w-full border-collapse text-xs text-left">
           <thead>
             <tr className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-b-2 border-slate-300 dark:border-slate-700 uppercase font-black sticky top-0 z-10">
-              <th className="p-2.5 sm:p-3.5 pl-3 sm:pl-4 sticky left-0 bg-slate-100 dark:bg-slate-800 z-20 min-w-[140px] sm:min-w-[190px] max-w-[155px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+              <th className="p-2.5 sm:p-3.5 pl-3 sm:pl-4 sticky left-0 bg-slate-100 dark:bg-slate-800 z-20 min-w-[140px] sm:min-w-[190px] max-w-[155px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">
                 Nhân Sự
               </th>
               {dayNumbers.map(d => {
@@ -648,9 +653,9 @@ export default function AttendanceMatrixTable({
                 const countOT = days.filter(d => String(d).includes("OT")).length;
 
                 return (
-                  <tr key={emp.ma_nv || empIdx} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                    {/* Cột cố định: Tên & Mã NV */}
-                    <td className="p-2.5 sm:p-3 pl-3 sm:pl-4 sticky left-0 bg-white dark:bg-slate-900 z-10 min-w-[140px] sm:min-w-[190px] max-w-[165px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+                  <tr key={emp.ma_nv || empIdx} className="group bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    {/* Cột cố định: Tên & Mã NV (Đặc 100% chống nhìn xuyên) */}
+                    <td className="p-2.5 sm:p-3 pl-3 sm:pl-4 sticky left-0 bg-white group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 z-10 min-w-[140px] sm:min-w-[190px] max-w-[165px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">
                       <div className="font-black text-slate-900 dark:text-white text-xs sm:text-sm leading-tight break-words">{emp.ho_ten}</div>
                       <div className="text-xs text-blue-700 dark:text-blue-300 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
                     </td>

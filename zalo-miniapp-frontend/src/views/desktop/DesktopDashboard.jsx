@@ -295,15 +295,19 @@ export default function DesktopDashboard({
               resolvedRole === ROLES.ADMIN ? (
                 <div className="space-y-4">
                   {/* Thanh Phân mục Trung tâm Quản trị */}
-                  <div className="bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-2 flex flex-wrap gap-2 shadow-sm dark:shadow-lg">
+                  <div
+                    data-filter-group="management-subtabs"
+                    className="bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 shadow-sm"
+                  >
                     <button
                       type="button"
                       data-subtab="employees"
+                      data-active={managementSubTab === "employees" ? "true" : "false"}
                       onClick={() => setManagementSubTab("employees")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
+                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                         managementSubTab === "employees"
-                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                          : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                          ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                          : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
                       }`}
                     >
                       <Users size={16} className="shrink-0" />
@@ -317,11 +321,12 @@ export default function DesktopDashboard({
                     <button
                       type="button"
                       data-subtab="payroll"
+                      data-active={managementSubTab === "payroll" ? "true" : "false"}
                       onClick={() => setManagementSubTab("payroll")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
+                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                         managementSubTab === "payroll"
-                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                          : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                          ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                          : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
                       }`}
                     >
                       <DollarSign size={16} className="shrink-0" />
@@ -335,11 +340,12 @@ export default function DesktopDashboard({
                     <button
                       type="button"
                       data-subtab="audit_logs"
+                      data-active={managementSubTab === "audit_logs" ? "true" : "false"}
                       onClick={() => setManagementSubTab("audit_logs")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
+                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                         managementSubTab === "audit_logs"
-                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                          : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                          ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                          : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
                       }`}
                     >
                       <ShieldAlert size={16} className="shrink-0" />
@@ -414,15 +420,19 @@ export default function DesktopDashboard({
             {/* 5. Cài Đặt Hệ Thống (Công ty & GPS, Phân quyền Kế toán, Lịch nghỉ lễ) */}
             {effectiveTab === "settings" && resolvedRole === ROLES.ADMIN && (
               <div className="space-y-4">
-                <div className="bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-2 flex flex-wrap gap-2 shadow-sm dark:shadow-lg">
+                <div
+                  data-filter-group="settings-subtabs"
+                  className="bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 shadow-sm"
+                >
                   <button
                     type="button"
                     data-subtab="company"
+                    data-active={settingsSubTab === "company" ? "true" : "false"}
                     onClick={() => setSettingsSubTab("company")}
-                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
+                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       settingsSubTab === "company"
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                        ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                        : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
                     }`}
                   >
                     <Building2 size={16} className="shrink-0" />
@@ -431,11 +441,12 @@ export default function DesktopDashboard({
                   <button
                     type="button"
                     data-subtab="permissions"
+                    data-active={settingsSubTab === "permissions" ? "true" : "false"}
                     onClick={() => setSettingsSubTab("permissions")}
-                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
+                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       settingsSubTab === "permissions"
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                        ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                        : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
                     }`}
                   >
                     <ShieldCheck size={16} className="shrink-0" />
@@ -444,11 +455,12 @@ export default function DesktopDashboard({
                   <button
                     type="button"
                     data-subtab="holidays"
+                    data-active={settingsSubTab === "holidays" ? "true" : "false"}
                     onClick={() => setSettingsSubTab("holidays")}
-                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition ${
+                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       settingsSubTab === "holidays"
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                        ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                        : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
                     }`}
                   >
                     <Gift size={16} className="shrink-0" />

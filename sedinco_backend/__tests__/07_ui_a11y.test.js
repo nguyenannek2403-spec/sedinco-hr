@@ -641,6 +641,7 @@ async function inspectPhysicsAndGeometry(session, label, { expectModal = false, 
     } else {
         const lightScheme = await session.evaluate(`getComputedStyle(document.documentElement).colorScheme`);
         assert.equal(lightScheme, 'light', `[${label}] V19 LAW-3 FAIL: Light mode colorScheme must be "light", got "${lightScheme}"`);
+        await auditDarkModeSurfaceAndContrast(session, label, { lightPass: true });
         await session.evaluate(`(() => {
             if (typeof window.__setSedincoTheme === 'function') window.__setSedincoTheme('dark');
             else document.documentElement.classList.add('dark');
@@ -657,7 +658,8 @@ async function inspectPhysicsAndGeometry(session, label, { expectModal = false, 
     return audit;
 }
 
-async function auditDarkModeSurfaceAndContrast(session, viewName) {
+async function auditDarkModeSurfaceAndContrast(session, viewName, options = {}) {
+    const modeLabel = options.lightPass ? 'LIGHT' : 'DARK';
     const res = await session.evaluate(`(() => {
         const rootCs = getComputedStyle(document.documentElement);
         const colorScheme = rootCs.colorScheme;
@@ -686,6 +688,8 @@ async function auditDarkModeSurfaceAndContrast(session, viewName) {
             };
         };
 
+        const colorDist = (c1, c2) => Math.abs(c1.r - c2.r) + Math.abs(c1.g - c2.g) + Math.abs(c1.b - c2.b);
+
         const relLuminance = ({ r, g, b }) => {
             const toLin = (v) => {
                 const c = v / 255;
@@ -701,7 +705,7 @@ async function auditDarkModeSurfaceAndContrast(session, viewName) {
                 chain.unshift(parseRgba(getComputedStyle(cur).backgroundColor));
                 cur = cur.parentElement;
             }
-            let acc = { r: 9, g: 13, b: 22, a: 1 }; // #090d16 base dark canvas
+            let acc = isDarkRoot ? { r: 9, g: 13, b: 22, a: 1 } : { r: 248, g: 250, b: 252, a: 1 };
             for (const c of chain) {
                 if (c.a > 0.001) acc = compositeOver(c, acc);
             }
@@ -727,59 +731,125 @@ async function auditDarkModeSurfaceAndContrast(session, viewName) {
 
         const whiteViolations = [];
         const contrastViolations = [];
+        const tabContrastViolations = [];
+        const stickyTransparencyViolations = [];
+        const popoverBoundViolations = [];
         const seen = new Set();
 
         for (const scope of scopes) {
-            const allEls = [scope, ...Array.from(scope.querySelectorAll('*'))];
-            for (const el of allEls) {
-                if (seen.has(el)) continue;
-                seen.add(el);
-                const tag = el.tagName;
-                if (['IMG', 'SVG', 'PATH', 'CIRCLE', 'RECT', 'LINE', 'POLYLINE', 'POLYGON', 'VIDEO', 'CANVAS', 'SCRIPT', 'STYLE'].includes(tag)) continue;
-                if (el.closest('svg')) continue;
-                if (!isVisible(el)) continue;
+            if (isDarkRoot) {
+                const allEls = [scope, ...Array.from(scope.querySelectorAll('*'))];
+                for (const el of allEls) {
+                    if (seen.has(el)) continue;
+                    seen.add(el);
+                    const tag = el.tagName;
+                    if (['IMG', 'SVG', 'PATH', 'CIRCLE', 'RECT', 'LINE', 'POLYLINE', 'POLYGON', 'VIDEO', 'CANVAS', 'SCRIPT', 'STYLE'].includes(tag)) continue;
+                    if (el.closest('svg')) continue;
+                    if (!isVisible(el)) continue;
 
-                const cs = getComputedStyle(el);
-                const bg = parseRgba(cs.backgroundColor);
-                const rect = el.getBoundingClientRect();
-                const inSwitch = Boolean(el.closest('[role="switch"]')) && rect.width <= 48 && rect.height <= 48;
+                    const cs = getComputedStyle(el);
+                    const bg = parseRgba(cs.backgroundColor);
+                    const rect = el.getBoundingClientRect();
+                    const inSwitch = Boolean(el.closest('[role="switch"]')) && rect.width <= 48 && rect.height <= 48;
 
-                // Law 1: Zero Blinding White Box in Dark Mode
-                if (!inSwitch && bg.a > 0.85 && bg.r > 235 && bg.g > 235 && bg.b > 235) {
-                    whiteViolations.push({
-                        tag,
-                        cls: String(el.className || '').slice(0, 140),
-                        text: (el.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 40),
-                        bg: cs.backgroundColor,
-                        w: Math.round(rect.width),
-                        h: Math.round(rect.height)
-                    });
-                }
-
-                // Law 2: Zero Dark-on-Dark Unreadable Text
-                const isFormControl = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
-                const directText = Array.from(el.childNodes)
-                    .filter((n) => n.nodeType === 3)
-                    .map((n) => n.textContent || '')
-                    .join('')
-                    .trim();
-
-                if (!directText && !isFormControl) continue;
-                const tc = parseRgba(cs.color);
-                if (tc.a > 0.1 && tc.r < 65 && tc.g < 75 && tc.b < 95) {
-                    const effBg = resolveEffectiveBg(el);
-                    const bgLum = relLuminance(effBg);
-                    if (bgLum < 0.15) {
-                        contrastViolations.push({
+                    // Law 1: Zero Blinding White Box in Dark Mode
+                    if (!inSwitch && bg.a > 0.85 && bg.r > 235 && bg.g > 235 && bg.b > 235) {
+                        whiteViolations.push({
                             tag,
                             cls: String(el.className || '').slice(0, 140),
-                            text: (directText || el.value || el.getAttribute('placeholder') || '').slice(0, 40),
-                            color: cs.color,
-                            effBg: 'rgb(' + Math.round(effBg.r) + ',' + Math.round(effBg.g) + ',' + Math.round(effBg.b) + ')',
-                            bgLum: Number(bgLum.toFixed(3))
+                            text: (el.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 40),
+                            bg: cs.backgroundColor,
+                            w: Math.round(rect.width),
+                            h: Math.round(rect.height)
                         });
                     }
+
+                    // Law 2: Zero Dark-on-Dark Unreadable Text
+                    const isFormControl = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+                    const directText = Array.from(el.childNodes)
+                        .filter((n) => n.nodeType === 3)
+                        .map((n) => n.textContent || '')
+                        .join('')
+                        .trim();
+
+                    if (!directText && !isFormControl) continue;
+                    const tc = parseRgba(cs.color);
+                    if (tc.a > 0.1 && tc.r < 65 && tc.g < 75 && tc.b < 95) {
+                        const effBg = resolveEffectiveBg(el);
+                        const bgLum = relLuminance(effBg);
+                        if (bgLum < 0.15) {
+                            contrastViolations.push({
+                                tag,
+                                cls: String(el.className || '').slice(0, 140),
+                                text: (directText || el.value || el.getAttribute('placeholder') || '').slice(0, 40),
+                                color: cs.color,
+                                effBg: 'rgb(' + Math.round(effBg.r) + ',' + Math.round(effBg.g) + ',' + Math.round(effBg.b) + ')',
+                                bgLum: Number(bgLum.toFixed(3))
+                            });
+                        }
+                    }
                 }
+            }
+
+            // Law 4: Active vs Inactive Tab / Filter Pill Contrast
+            const filterGroups = Array.from(scope.querySelectorAll('[data-filter-group]')).filter(isVisible);
+            for (const grp of filterGroups) {
+                const actives = Array.from(grp.querySelectorAll('[data-active="true"]')).filter(isVisible);
+                const inactives = Array.from(grp.querySelectorAll('[data-active="false"]')).filter(isVisible);
+                if (actives.length === 0 || inactives.length === 0) continue;
+
+                const actEl = actives[0];
+                const inactEl = inactives[0];
+                const actBg = resolveEffectiveBg(actEl);
+                const inactBg = resolveEffectiveBg(inactEl);
+                const grpBg = resolveEffectiveBg(grp);
+                const actBorder = parseRgba(getComputedStyle(actEl).borderTopColor);
+                const inactBorder = parseRgba(getComputedStyle(inactEl).borderTopColor);
+
+                const bgVsInactive = colorDist(actBg, inactBg);
+                const bgVsTrack = colorDist(actBg, grpBg);
+                const borderDiff = (actBorder.a > 0.5 && inactBorder.a > 0.5) ? colorDist(actBorder, inactBorder) : 0;
+
+                if ((bgVsInactive <= 35 && borderDiff <= 35) || (bgVsTrack <= 35 && borderDiff <= 35)) {
+                    tabContrastViolations.push({
+                        group: grp.getAttribute('data-filter-group'),
+                        activeText: (actEl.innerText || '').trim().slice(0, 30),
+                        inactiveText: (inactEl.innerText || '').trim().slice(0, 30),
+                        bgVsInactive: Math.round(bgVsInactive),
+                        bgVsTrack: Math.round(bgVsTrack),
+                        borderDiff: Math.round(borderDiff)
+                    });
+                }
+            }
+
+            // Law 5: 100% Opaque Sticky Cells (alpha === 1)
+            const stickyCells = Array.from(scope.querySelectorAll('th.sticky, td.sticky')).filter(isVisible);
+            for (const cell of stickyCells) {
+                const cs = getComputedStyle(cell);
+                const bg = parseRgba(cs.backgroundColor);
+                if (bg.a < 0.999) {
+                    stickyTransparencyViolations.push({
+                        tag: cell.tagName,
+                        text: (cell.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 35),
+                        bg: cs.backgroundColor,
+                        alpha: bg.a
+                    });
+                }
+            }
+        }
+
+        // Law 6: Notification Popover Viewport Bounds at <= 430px (especially 360px)
+        const notifPopover = document.querySelector('[data-testid="notification-popover"]');
+        if (notifPopover && isVisible(notifPopover) && window.innerWidth <= 430) {
+            const pr = notifPopover.getBoundingClientRect();
+            const minMargin = 8;
+            if (pr.left < minMargin || pr.right > window.innerWidth - minMargin) {
+                popoverBoundViolations.push({
+                    vw: window.innerWidth,
+                    left: Math.round(pr.left),
+                    right: Math.round(pr.right),
+                    width: Math.round(pr.width)
+                });
             }
         }
 
@@ -787,21 +857,41 @@ async function auditDarkModeSurfaceAndContrast(session, viewName) {
             isDarkRoot,
             colorScheme,
             whiteViolations: whiteViolations.slice(0, 8),
-            contrastViolations: contrastViolations.slice(0, 8)
+            contrastViolations: contrastViolations.slice(0, 8),
+            tabContrastViolations: tabContrastViolations.slice(0, 8),
+            stickyTransparencyViolations: stickyTransparencyViolations.slice(0, 8),
+            popoverBoundViolations: popoverBoundViolations.slice(0, 4)
         };
     })()`);
 
-    assert.ok(res.isDarkRoot, `[${viewName}] Dark audit must run with html.dark active`);
-    assert.equal(res.colorScheme, 'dark', `[${viewName}] V19 LAW-3 FAIL: Dark mode colorScheme must be "dark", got "${res.colorScheme}"`);
+    if (!options.lightPass) {
+        assert.ok(res.isDarkRoot, `[${viewName}] Dark audit must run with html.dark active`);
+        assert.equal(res.colorScheme, 'dark', `[${viewName}] V19 LAW-3 FAIL: Dark mode colorScheme must be "dark", got "${res.colorScheme}"`);
+        assert.equal(
+            res.whiteViolations.length,
+            0,
+            `[${viewName}] V19 LAW-1 FAIL (White Box in Dark Mode): ${JSON.stringify(res.whiteViolations)}`
+        );
+        assert.equal(
+            res.contrastViolations.length,
+            0,
+            `[${viewName}] V19 LAW-2 FAIL (Dark Text on Dark Bg): ${JSON.stringify(res.contrastViolations)}`
+        );
+    }
     assert.equal(
-        res.whiteViolations.length,
+        res.tabContrastViolations.length,
         0,
-        `[${viewName}] V19 LAW-1 FAIL (White Box in Dark Mode): ${JSON.stringify(res.whiteViolations)}`
+        `[${viewName} - ${modeLabel}] V20 LAW-4 FAIL (Active vs Inactive Tab Contrast): ${JSON.stringify(res.tabContrastViolations)}`
     );
     assert.equal(
-        res.contrastViolations.length,
+        res.stickyTransparencyViolations.length,
         0,
-        `[${viewName}] V19 LAW-2 FAIL (Dark Text on Dark Bg): ${JSON.stringify(res.contrastViolations)}`
+        `[${viewName} - ${modeLabel}] V20 LAW-5 FAIL (Non-Opaque Sticky Cell): ${JSON.stringify(res.stickyTransparencyViolations)}`
+    );
+    assert.equal(
+        res.popoverBoundViolations.length,
+        0,
+        `[${viewName} - ${modeLabel}] V20 LAW-6 FAIL (Notification Popover Bounds): ${JSON.stringify(res.popoverBoundViolations)}`
     );
 }
 
@@ -1289,9 +1379,13 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await dismissModalIfOpen(session);
         }
 
-        // 2D: Requests Management — Approve NV003 pending OT registration via ConfirmDialog
+        // 2D: Requests Management — Interactive Filter Pills + Approve NV003 pending OT registration
         await openDesktopTabViaDrawer('requests', 'Accountant');
-        await inspectPhysicsAndGeometry(session, 'Accountant Tab: requests', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: '[data-filter-group="admin-requests-filter"] button', text: 'Chờ duyệt', inTopModal: false });
+        await sleep(200);
+        await inspectPhysicsAndGeometry(session, 'Accountant Tab: requests (Filter Chờ duyệt)', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: '[data-filter-group="admin-requests-filter"] button', text: 'Tất cả', inTopModal: false });
+        await sleep(200);
         const hasApproveBtn = await session.evaluate(`Array.from(document.querySelectorAll('#app button')).some((b) => (b.innerText || '').trim() === 'Phê duyệt')`);
         if (hasApproveBtn) {
             await clickInPage(session, { text: 'Phê duyệt', exact: true, inTopModal: false });
@@ -1418,10 +1512,10 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await waitForNoBlockingLoading(session);
         }
 
-        // 3A-Bell: Test Deep-Link 1-tap from Header Bell -> Opens SalarySlipModal on Disputed NV003 Slip directly
+        // 3A-Bell: Test Deep-Link 1-tap from Header Bell Popover at 360px -> Opens SalarySlipModal on Disputed NV003 Slip directly
         await clickInPage(session, { selector: 'button[data-bell-button="true"]', inTopModal: false });
-        await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Admin Bell Alert modal opened');
-        await inspectPhysicsAndGeometry(session, 'Admin Header Deep-Link Bell Modal', { expectModal: true });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="notification-popover"]'))`, 4000, 'Admin Bell Alert Popover opened at 360px');
+        await inspectPhysicsAndGeometry(session, 'Admin Header Deep-Link Bell Popover @ 360px', { expectModal: true });
         const clickedDisputeAlert = await session.evaluate(`(() => {
             const btn = document.querySelector('[data-modal-root="true"] button[data-alert-category="salary_dispute"]');
             if (btn) { btn.click(); return true; }
@@ -1469,7 +1563,13 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         }
         await dismissToastIfVisible(session);
 
-        // Test Quick Filter "Đa thiết bị / Đổi máy" & open unified Modal 360° to resolve device change inside 1 window
+        // Test Headcount KPI Pill active ring & Quick Filter "Đa thiết bị / Đổi máy" & open unified Modal 360°
+        await clickInPage(session, { selector: '[data-filter-group="headcount-today-filter"] button', text: 'Có mặt:', inTopModal: false });
+        await sleep(220);
+        await inspectPhysicsAndGeometry(session, 'Admin 360 Headcount Pill Filter Active (Có mặt)', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: '[data-filter-group="headcount-today-filter"] button', text: 'Quân số:', inTopModal: false });
+        await sleep(200);
+
         await clickInPage(session, { text: 'Đa thiết bị / Đổi máy', inTopModal: false });
         await sleep(250);
         await inspectPhysicsAndGeometry(session, 'Admin 360 Filter: Đa thiết bị / Đổi máy', { expectModal: false, testScrollBleed: false });
@@ -1533,9 +1633,18 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await dismissToastIfVisible(session);
         }
 
-        // 3D: Trung tâm Quản trị (Phân mục C: Nhật ký & An ninh)
+        // 3D: Trung tâm Quản trị (Phân mục C: Nhật ký & An ninh) — Filter Category Pill + Pinned Toggle
         await openAdminSubTab('management', 'audit_logs');
         await inspectPhysicsAndGeometry(session, 'Admin SubTab: management -> audit_logs', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: '[data-filter-group="audit-category-filter"] button', text: 'Chấm công', inTopModal: false });
+        await sleep(250);
+        await clickInPage(session, { text: 'Đã ghim', inTopModal: false });
+        await sleep(250);
+        await inspectPhysicsAndGeometry(session, 'Admin AuditLogsTab (Filtered Category + Pinned)', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { text: 'Đã ghim', inTopModal: false });
+        await sleep(180);
+        await clickInPage(session, { selector: '[data-filter-group="audit-category-filter"] button', text: 'Tất cả nhóm', inTopModal: false });
+        await sleep(220);
 
         // 3E: Cài đặt Hệ thống — Phân quyền Kế toán (semantic <button role="switch">)
         await openAdminSubTab('settings', 'permissions');

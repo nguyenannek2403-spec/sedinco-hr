@@ -286,8 +286,55 @@ html.dark textarea {
   color-scheme: dark;
 }
 
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled,
+input[readonly],
+textarea[readonly] {
+  background-color: #f1f5f9;
+  color: #64748b;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+.border-dashed {
+  border-color: #cbd5e1;
+  background-color: rgba(248, 250, 252, 0.7);
+}
+
 /* Lớp Bảo Vệ Toàn Cục Chế Độ Tối (4-Level Elevation & Semantic Tint Safety Net) */
 html.dark {
+  input::placeholder,
+  textarea::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+  }
+
+  input:disabled,
+  select:disabled,
+  textarea:disabled,
+  input[readonly],
+  textarea[readonly] {
+    background-color: rgba(15, 23, 42, 0.9);
+    color: #94a3b8;
+    border-color: #1e293b;
+  }
+
+  .border-dashed {
+    border-color: #475569;
+    background-color: rgba(30, 41, 59, 0.5);
+  }
+
+  .border-dashed:hover {
+    background-color: #1e293b;
+  }
+
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([class*="bg-"]),
   select:not([class*="bg-"]),
   textarea:not([class*="bg-"]) {
@@ -301,25 +348,25 @@ html.dark {
     color: inherit;
   }
 
-  /* Tầng 1: Nền thẻ chính, bảng & cột cố định chưa khai báo dark:bg- */
-  .bg-white:not([class*="dark:bg-"]):not([role="switch"] *),
-  .bg-white\/95:not([class*="dark:bg-"]):not([role="switch"] *),
-  .bg-white\/90:not([class*="dark:bg-"]):not([role="switch"] *),
-  .bg-white\/80:not([class*="dark:bg-"]):not([role="switch"] *) {
+  /* Tầng 1: Nền thẻ chính, bảng & cột cố định chưa khai báo dark:bg- (trừ switch & pill filter group) */
+  .bg-white:not([class*="dark:bg-"]):not([role="switch"] *):not([data-filter-group] *):not([data-active]),
+  .bg-white\/95:not([class*="dark:bg-"]):not([role="switch"] *):not([data-filter-group] *):not([data-active]),
+  .bg-white\/90:not([class*="dark:bg-"]):not([role="switch"] *):not([data-filter-group] *):not([data-active]),
+  .bg-white\/80:not([class*="dark:bg-"]):not([role="switch"] *):not([data-filter-group] *):not([data-active]) {
     background-color: var(--surface-1);
     color: #f1f5f9;
   }
 
   /* Tầng 2: Nền thẻ con, tiêu đề bảng & nền xám nhạt chưa khai báo dark:bg- */
-  .bg-slate-50:not([class*="dark:bg-"]),
-  .bg-slate-50\/90:not([class*="dark:bg-"]),
-  .bg-slate-50\/80:not([class*="dark:bg-"]),
-  .bg-slate-50\/70:not([class*="dark:bg-"]),
-  .bg-slate-50\/60:not([class*="dark:bg-"]),
-  .bg-slate-50\/50:not([class*="dark:bg-"]),
-  .bg-slate-100:not([class*="dark:bg-"]),
-  .bg-slate-200:not([class*="dark:bg-"]),
-  .bg-slate-200\/80:not([class*="dark:bg-"]),
+  .bg-slate-50:not([class*="dark:bg-"]):not([data-filter-group] *):not([data-active]),
+  .bg-slate-50\/90:not([class*="dark:bg-"]):not([data-filter-group] *):not([data-active]),
+  .bg-slate-50\/80:not([class*="dark:bg-"]):not([data-filter-group] *):not([data-active]),
+  .bg-slate-50\/70:not([class*="dark:bg-"]):not([data-filter-group] *):not([data-active]),
+  .bg-slate-50\/60:not([class*="dark:bg-"]):not([data-filter-group] *):not([data-active]),
+  .bg-slate-50\/50:not([class*="dark:bg-"]):not([data-filter-group] *):not([data-active]),
+  .bg-slate-100:not([class*="dark:bg-"]):not([data-filter-group]):not([data-filter-group] *):not([data-active]),
+  .bg-slate-200:not([class*="dark:bg-"]):not([data-filter-group]):not([data-filter-group] *):not([data-active]),
+  .bg-slate-200\/80:not([class*="dark:bg-"]):not([data-filter-group]):not([data-filter-group] *):not([data-active]),
   .bg-gray-50:not([class*="dark:bg-"]),
   .bg-gray-100:not([class*="dark:bg-"]) {
     background-color: var(--surface-2);
