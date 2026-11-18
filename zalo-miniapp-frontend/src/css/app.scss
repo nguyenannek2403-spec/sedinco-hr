@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
   --zalo-safe-top: env(safe-area-inset-top, 0px);
   --zalo-safe-bottom: env(safe-area-inset-bottom, 0px);
   --zalo-capsule-width: 96px;
@@ -12,6 +13,13 @@
   --brand-success: #059669;
   --brand-danger: #e11d48;
   --brand-warning: #d97706;
+
+  /* 4-Level Surface Elevation Palette (Light) */
+  --surface-0: #f8fafc;
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #ffffff;
+
   --surface-base: #f8fafc;
   --surface-card: #ffffff;
   --surface-muted: #f1f5f9;
@@ -26,8 +34,15 @@
 
 html.dark,
 [zaui-theme="dark"] {
+  color-scheme: dark;
+  /* 4-Level Surface Elevation Palette (Dark) */
+  --surface-0: #090d16;
+  --surface-1: #0f172a;
+  --surface-2: #1e293b;
+  --surface-3: #1e293b;
+
   --surface-base: #090d16;
-  --surface-card: #111827;
+  --surface-card: #0f172a;
   --surface-muted: #1e293b;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
@@ -254,4 +269,172 @@ html.dark select option,
 html:not(.dark) select option {
   background-color: #ffffff;
   color: #0f172a;
+}
+
+html:not(.dark),
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+  color-scheme: light;
+}
+
+html.dark,
+[zaui-theme="dark"],
+html.dark input,
+html.dark select,
+html.dark textarea {
+  color-scheme: dark;
+}
+
+/* Lớp Bảo Vệ Toàn Cục Chế Độ Tối (4-Level Elevation & Semantic Tint Safety Net) */
+html.dark {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([class*="bg-"]),
+  select:not([class*="bg-"]),
+  textarea:not([class*="bg-"]) {
+    background-color: var(--surface-3);
+    color: #f8fafc;
+    border-color: #475569;
+  }
+
+  th:not([class*="bg-"]),
+  td:not([class*="bg-"]) {
+    color: inherit;
+  }
+
+  /* Tầng 1: Nền thẻ chính, bảng & cột cố định chưa khai báo dark:bg- */
+  .bg-white:not([class*="dark:bg-"]):not([role="switch"] *),
+  .bg-white\/95:not([class*="dark:bg-"]):not([role="switch"] *),
+  .bg-white\/90:not([class*="dark:bg-"]):not([role="switch"] *),
+  .bg-white\/80:not([class*="dark:bg-"]):not([role="switch"] *) {
+    background-color: var(--surface-1);
+    color: #f1f5f9;
+  }
+
+  /* Tầng 2: Nền thẻ con, tiêu đề bảng & nền xám nhạt chưa khai báo dark:bg- */
+  .bg-slate-50:not([class*="dark:bg-"]),
+  .bg-slate-50\/90:not([class*="dark:bg-"]),
+  .bg-slate-50\/80:not([class*="dark:bg-"]),
+  .bg-slate-50\/70:not([class*="dark:bg-"]),
+  .bg-slate-50\/60:not([class*="dark:bg-"]),
+  .bg-slate-50\/50:not([class*="dark:bg-"]),
+  .bg-slate-100:not([class*="dark:bg-"]),
+  .bg-slate-200:not([class*="dark:bg-"]),
+  .bg-slate-200\/80:not([class*="dark:bg-"]),
+  .bg-gray-50:not([class*="dark:bg-"]),
+  .bg-gray-100:not([class*="dark:bg-"]) {
+    background-color: var(--surface-2);
+    color: #e2e8f0;
+  }
+
+  /* Nền ngữ nghĩa Pastel -> Nền tối trong suốt chống lóa */
+  .bg-blue-50:not([class*="dark:bg-"]),
+  .bg-blue-50\/70:not([class*="dark:bg-"]),
+  .bg-blue-100:not([class*="dark:bg-"]) {
+    background-color: rgba(23, 37, 84, 0.65);
+  }
+  .bg-emerald-50:not([class*="dark:bg-"]),
+  .bg-emerald-50\/60:not([class*="dark:bg-"]),
+  .bg-emerald-50\/50:not([class*="dark:bg-"]),
+  .bg-emerald-50\/40:not([class*="dark:bg-"]),
+  .bg-emerald-100:not([class*="dark:bg-"]),
+  .bg-emerald-100\/70:not([class*="dark:bg-"]) {
+    background-color: rgba(2, 44, 34, 0.65);
+  }
+  .bg-teal-50\/60:not([class*="dark:bg-"]),
+  .bg-teal-100:not([class*="dark:bg-"]),
+  .bg-teal-100\/70:not([class*="dark:bg-"]) {
+    background-color: rgba(4, 47, 46, 0.65);
+  }
+  .bg-amber-50:not([class*="dark:bg-"]),
+  .bg-amber-50\/80:not([class*="dark:bg-"]),
+  .bg-amber-50\/70:not([class*="dark:bg-"]),
+  .bg-amber-50\/60:not([class*="dark:bg-"]),
+  .bg-amber-100:not([class*="dark:bg-"]),
+  .bg-amber-100\/80:not([class*="dark:bg-"]),
+  .bg-amber-100\/70:not([class*="dark:bg-"]) {
+    background-color: rgba(69, 26, 3, 0.6);
+  }
+  .bg-rose-50:not([class*="dark:bg-"]),
+  .bg-rose-50\/70:not([class*="dark:bg-"]),
+  .bg-rose-50\/30:not([class*="dark:bg-"]),
+  .bg-rose-100:not([class*="dark:bg-"]),
+  .bg-rose-100\/60:not([class*="dark:bg-"]),
+  .bg-red-50:not([class*="dark:bg-"]) {
+    background-color: rgba(76, 5, 25, 0.6);
+  }
+  .bg-purple-50:not([class*="dark:bg-"]),
+  .bg-indigo-50:not([class*="dark:bg-"]),
+  .bg-indigo-50\/60:not([class*="dark:bg-"]),
+  .bg-indigo-100:not([class*="dark:bg-"]),
+  .bg-indigo-100\/70:not([class*="dark:bg-"]),
+  .bg-violet-50:not([class*="dark:bg-"]) {
+    background-color: rgba(46, 16, 101, 0.6);
+  }
+  .bg-sky-50:not([class*="dark:bg-"]),
+  .bg-sky-100:not([class*="dark:bg-"]) {
+    background-color: rgba(8, 47, 73, 0.65);
+  }
+
+  /* Viền nhạt -> Viền tối đồng bộ */
+  .border-slate-100:not([class*="dark:border-"]),
+  .border-slate-200:not([class*="dark:border-"]),
+  .border-slate-200\/80:not([class*="dark:border-"]),
+  .border-slate-300:not([class*="dark:border-"]) {
+    border-color: #334155;
+  }
+
+  /* Chữ tối chưa có dark:text- -> Chữ sáng dễ đọc */
+  .text-slate-900:not([class*="dark:text-"]),
+  .text-gray-900:not([class*="dark:text-"]) {
+    color: #f8fafc;
+  }
+  .text-slate-800:not([class*="dark:text-"]),
+  .text-gray-800:not([class*="dark:text-"]) {
+    color: #e2e8f0;
+  }
+  .text-slate-700:not([class*="dark:text-"]),
+  .text-slate-600:not([class*="dark:text-"]),
+  .text-gray-700:not([class*="dark:text-"]) {
+    color: #cbd5e1;
+  }
+  .text-blue-700:not([class*="dark:text-"]),
+  .text-blue-800:not([class*="dark:text-"]),
+  .text-blue-900:not([class*="dark:text-"]) {
+    color: #93c5fd;
+  }
+  .text-emerald-700:not([class*="dark:text-"]),
+  .text-emerald-800:not([class*="dark:text-"]),
+  .text-emerald-900:not([class*="dark:text-"]),
+  .text-emerald-950:not([class*="dark:text-"]) {
+    color: #6ee7b7;
+  }
+  .text-teal-900:not([class*="dark:text-"]),
+  .text-teal-950:not([class*="dark:text-"]) {
+    color: #5eead4;
+  }
+  .text-amber-700:not([class*="dark:text-"]),
+  .text-amber-800:not([class*="dark:text-"]),
+  .text-amber-900:not([class*="dark:text-"]),
+  .text-amber-950:not([class*="dark:text-"]) {
+    color: #fcd34d;
+  }
+  .text-rose-700:not([class*="dark:text-"]),
+  .text-rose-800:not([class*="dark:text-"]),
+  .text-rose-900:not([class*="dark:text-"]),
+  .text-rose-950:not([class*="dark:text-"]),
+  .text-red-600:not([class*="dark:text-"]),
+  .text-red-700:not([class*="dark:text-"]) {
+    color: #fda4af;
+  }
+  .text-purple-700:not([class*="dark:text-"]),
+  .text-indigo-700:not([class*="dark:text-"]),
+  .text-indigo-800:not([class*="dark:text-"]),
+  .text-indigo-900:not([class*="dark:text-"]),
+  .text-indigo-950:not([class*="dark:text-"]),
+  .text-violet-700:not([class*="dark:text-"]) {
+    color: #c4b5fd;
+  }
+  .text-sky-700:not([class*="dark:text-"]) {
+    color: #7dd3fc;
+  }
 }

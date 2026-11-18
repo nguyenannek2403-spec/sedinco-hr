@@ -414,64 +414,64 @@ export default function PayrollGridTable({
         </div>
 
         {/* KPI 2: Tổng Số Nhân Sự */}
-        <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-slate-300 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border-2 border-slate-300 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-600 font-semibold">Tổng số nhân sự</span>
-            <div className="p-2 bg-blue-50 text-blue-700 rounded-xl border-2 border-blue-200 shrink-0">
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Tổng số nhân sự</span>
+            <div className="p-2 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded-xl border-2 border-blue-200 dark:border-blue-800/70 shrink-0">
               <Users size={20} />
             </div>
           </div>
           <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-bold text-slate-900">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
               {totalEmployees} nhân sự
             </span>
-            <span className="text-xs text-emerald-700 block mt-1 font-medium">100% hồ sơ hoàn tất</span>
+            <span className="text-xs text-emerald-700 dark:text-emerald-300 block mt-1 font-medium">100% hồ sơ hoàn tất</span>
           </div>
         </div>
 
         {/* KPI 3: Tổng Ngày Công Thực Tế */}
-        <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-slate-300 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border-2 border-slate-300 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-600 font-semibold">Tổng ngày công thực tế</span>
-            <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl border-2 border-indigo-200 shrink-0">
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Tổng ngày công thực tế</span>
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-xl border-2 border-indigo-200 dark:border-indigo-800/70 shrink-0">
               <TrendingUp size={20} />
             </div>
           </div>
           <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-bold text-slate-900">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
               {totalWorkDays.toFixed(1)} công
             </span>
-            <span className="text-xs text-slate-500 font-medium block mt-1">Định mức chuẩn 26.0 ngày</span>
+            <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block mt-1">Định mức chuẩn 26.0 ngày</span>
           </div>
         </div>
 
         {/* KPI 4: Bình Quân Thu Nhập */}
-        <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-slate-300 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border-2 border-slate-300 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-600 font-semibold">Thu nhập bình quân</span>
-            <div className="p-2 bg-amber-50 text-amber-700 rounded-xl border-2 border-amber-200 shrink-0">
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Thu nhập bình quân</span>
+            <div className="p-2 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-xl border-2 border-amber-200 dark:border-amber-800/70 shrink-0">
               <Award size={20} />
             </div>
           </div>
           <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-bold text-slate-900">
+            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
               {averageIncome > 0 ? `${(averageIncome / 1000000).toFixed(1)} tr` : "0 tr"}
             </span>
-            <span className="text-xs text-slate-500 font-medium block mt-1">Bình quân thực nhận / người</span>
+            <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block mt-1">Bình quân thực nhận / người</span>
           </div>
         </div>
 
       </div>
 
       {/* Bảng Chi Tiết Toàn Bộ Nhân Sự */}
-      <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         
         {/* Header Tác Vụ */}
-        <div className="p-4 sm:p-5 border-b-2 border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+        <div className="p-4 sm:p-5 border-b-2 border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-800/60">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <DollarSign className="text-emerald-600 shrink-0" size={22} />
-              <h3 className="font-bold text-lg leading-snug text-slate-900">
+              <DollarSign className="text-emerald-600 dark:text-emerald-400 shrink-0" size={22} />
+              <h3 className="font-bold text-lg leading-snug text-slate-900 dark:text-white">
                 Bảng thanh toán tiền lương &amp; phụ cấp
               </h3>
               {periodStatus && (
@@ -483,12 +483,12 @@ export default function PayrollGridTable({
                 </div>
               )}
             </div>
-            <p className="text-sm text-slate-600 leading-relaxed">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
               Tự động tính công chuẩn, tăng ca, thưởng/phạt/tạm ứng và BHXH
             </p>
             {periodStatus?.status === "REJECTED" && periodStatus?.rejected_reason && (
-              <div className="inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5 text-rose-600" />
+              <div className="inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70 text-rose-800 dark:text-rose-200 text-xs font-semibold">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-300" />
                 <span>Lý do trả lại chỉnh sửa: {periodStatus.rejected_reason}</span>
               </div>
             )}
@@ -496,23 +496,23 @@ export default function PayrollGridTable({
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Bộ chọn tháng/năm */}
-            <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl px-1.5 py-0.5 shadow-sm">
+            <div className="flex items-center bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-1.5 py-0.5 shadow-sm">
               <button
                 type="button"
                 onClick={() => onMonthChange(month > 1 ? month - 1 : 12, month > 1 ? year : year - 1)}
-                className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer flex items-center justify-center"
+                className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer flex items-center justify-center"
                 title="Tháng trước"
                 aria-label="Tháng trước"
               >
                 <ChevronLeft size={18} />
               </button>
-              <span className="font-bold text-sm px-2.5 text-slate-900 whitespace-nowrap">
+              <span className="font-bold text-sm px-2.5 text-slate-900 dark:text-white whitespace-nowrap">
                 Tháng {month}/{year}
               </span>
               <button
                 type="button"
                 onClick={() => onMonthChange(month < 12 ? month + 1 : 1, month < 12 ? year : year + 1)}
-                className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer flex items-center justify-center"
+                className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer flex items-center justify-center"
                 title="Tháng sau"
                 aria-label="Tháng sau"
               >
@@ -524,7 +524,7 @@ export default function PayrollGridTable({
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 shadow-sm text-slate-800"
+              className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-emerald-600 dark:focus:border-emerald-400 shadow-sm text-slate-800 dark:text-slate-100"
             >
               <option value="ALL">🏢 Tất cả bộ phận</option>
               {availableDepartments.map((dept) => (
@@ -542,7 +542,7 @@ export default function PayrollGridTable({
                 placeholder="Tìm nhân sự, chức vụ, mã NV..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-600 shadow-sm"
+                className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-emerald-600 dark:focus:border-emerald-400 shadow-sm"
               />
             </div>
 
@@ -562,7 +562,7 @@ export default function PayrollGridTable({
             )}
 
             {isAdmin && (
-              <span className="inline-flex items-center px-3 py-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold whitespace-nowrap">
+              <span className="inline-flex items-center px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 text-xs font-bold whitespace-nowrap">
                 Chế độ Giám sát (Giám đốc)
               </span>
             )}
@@ -654,7 +654,7 @@ export default function PayrollGridTable({
         </div>
 
         {payrollError && (
-          <div className="mx-4 mt-4 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-xl text-rose-800 text-xs sm:text-sm font-bold flex items-center justify-between gap-2">
+          <div className="mx-4 mt-4 p-3.5 bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-700 rounded-xl text-rose-800 dark:text-rose-200 text-xs sm:text-sm font-bold flex items-center justify-between gap-2">
             <span>{payrollError}</span>
             <AppButton
               variant="danger"
@@ -668,9 +668,9 @@ export default function PayrollGridTable({
 
         {/* Thông báo khi kỳ lương bật hiển thị số dư thực lĩnh âm */}
         {filteredList.some(item => Number(item.netSalary) < 0) && (
-          <div className="mb-4 p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-amber-900 text-xs flex items-center justify-between">
+          <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-300 dark:border-amber-700 rounded-xl text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+              <AlertTriangle size={18} className="text-amber-600 dark:text-amber-300 shrink-0" />
               <div>
                 <strong>Lưu ý đối soát thực lĩnh âm:</strong> Phát hiện nhân viên có số dư thực lĩnh âm trong kỳ (tổng khấu trừ bảo hiểm / tạm ứng vượt thu nhập). Vui lòng đối chiếu trước khi chốt chi trả.
               </div>
@@ -679,7 +679,7 @@ export default function PayrollGridTable({
         )}
 
         {/* Mobile Cards View (Tối ưu cho Zalo Mini App < 768px) */}
-        <div className="md:hidden divide-y divide-slate-200">
+        <div className="md:hidden divide-y divide-slate-200 dark:divide-slate-800">
           {isLoading ? (
             <div className="p-4">
               <SkeletonList rows={3} label="Đang tải bảng lương..." />
@@ -698,37 +698,37 @@ export default function PayrollGridTable({
               return (
                 <div
                   key={empId || idx}
-                  className={`perf-list-item p-4 space-y-3 ${confirmStatus === "DISPUTED" ? "bg-rose-50" : "bg-white"}`}
+                  className={`perf-list-item p-4 space-y-3 ${confirmStatus === "DISPUTED" ? "bg-rose-50 dark:bg-rose-950/40" : "bg-white dark:bg-slate-900"}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-bold text-slate-900 text-sm truncate">{item.ho_ten}</div>
-                      <div className="text-xs text-slate-500 font-mono">
+                      <div className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.ho_ten}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-300 font-mono">
                         {empId} • {item.totalWorkDays} công
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="font-bold text-base text-emerald-700 whitespace-nowrap">
+                      <div className="font-bold text-base text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                         {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
                       </div>
-                      <div className="text-xs text-slate-600 font-medium">Thực lĩnh</div>
+                      <div className="text-xs text-slate-600 dark:text-slate-300 font-medium">Thực lĩnh</div>
                     </div>
                   </div>
 
                   {(bonusAmt > 0 || penaltyAmt > 0 || advAmt > 0) && (
                     <div className="flex flex-wrap gap-1.5 text-xs">
                       {bonusAmt > 0 && (
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-semibold whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
                           +Thưởng {bonusAmt.toLocaleString("vi-VN")} đ
                         </span>
                       )}
                       {penaltyAmt > 0 && (
-                        <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-semibold whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-semibold whitespace-nowrap">
                           -Phạt {penaltyAmt.toLocaleString("vi-VN")} đ
                         </span>
                       )}
                       {advAmt > 0 && (
-                        <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-semibold whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 font-semibold whitespace-nowrap">
                           -Ứng {advAmt.toLocaleString("vi-VN")} đ
                         </span>
                       )}
@@ -741,7 +741,7 @@ export default function PayrollGridTable({
                         variant="ghost"
                         icon={SlidersHorizontal}
                         onClick={() => handleOpenAdjustmentModal(item)}
-                        className="bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 text-xs"
+                        className="bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 text-xs"
                       >
                         Thưởng / Phạt / Ứng
                       </AppButton>
@@ -765,31 +765,31 @@ export default function PayrollGridTable({
         <div className="hidden md:block overflow-x-auto touch-scroll-x">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-100 text-slate-800 font-semibold border-b-2 border-slate-300 text-xs">
-                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-slate-100 z-10 min-w-[160px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)] whitespace-nowrap">Cán bộ nhân sự</th>
+              <tr className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold border-b-2 border-slate-300 dark:border-slate-700 text-xs">
+                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 min-w-[160px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)] whitespace-nowrap">Cán bộ nhân sự</th>
                 <th className="p-3.5 text-right whitespace-nowrap">Lương CB (HĐ)</th>
                 <th className="p-3.5 text-center whitespace-nowrap">Công TT</th>
                 <th className="p-3.5 text-right whitespace-nowrap">Lương công</th>
                 <th className="p-3.5 text-right whitespace-nowrap">Phụ cấp</th>
                 <th className="p-3.5 text-right whitespace-nowrap">Tăng ca (OT)</th>
                 <th className="p-3.5 text-right whitespace-nowrap">Thưởng / Phạt / Ứng</th>
-                <th className="p-3.5 text-right text-rose-700 whitespace-nowrap">Trích BHXH</th>
-                <th className="p-3.5 text-right text-emerald-900 font-bold whitespace-nowrap">Thực lĩnh (Net)</th>
+                <th className="p-3.5 text-right text-rose-700 dark:text-rose-300 whitespace-nowrap">Trích BHXH</th>
+                <th className="p-3.5 text-right text-emerald-900 dark:text-emerald-300 font-bold whitespace-nowrap">Thực lĩnh (Net)</th>
                 <th className="p-3.5 text-center whitespace-nowrap">Xác nhận</th>
                 <th className="p-3.5 text-center pr-5 whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} className="py-16 text-center text-slate-500">
-                    <RefreshCw size={28} className="mx-auto mb-2 animate-spin text-emerald-600" />
+                  <td colSpan={11} className="py-16 text-center text-slate-500 dark:text-slate-300">
+                    <RefreshCw size={28} className="mx-auto mb-2 animate-spin text-emerald-600 dark:text-emerald-400" />
                     <p className="text-sm font-semibold">Đang tải và tính toán dữ liệu bảng lương...</p>
                   </td>
                 </tr>
               ) : filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-16 text-center text-slate-500">
+                  <td colSpan={11} className="py-16 text-center text-slate-500 dark:text-slate-300">
                     <FileText size={36} className="mx-auto mb-2 text-slate-400" />
                     <p className="text-sm font-semibold">Không có dữ liệu tiền lương trong kỳ tháng {month}/{year}.</p>
                   </td>
@@ -806,54 +806,56 @@ export default function PayrollGridTable({
                     <tr
                       key={empId || idx}
                       className={`transition-colors ${
-                        confirmStatus === "DISPUTED" ? "bg-rose-50 hover:bg-rose-100/70" : "hover:bg-emerald-50/40"
+                        confirmStatus === "DISPUTED"
+                          ? "bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100/70 dark:hover:bg-rose-950/50"
+                          : "hover:bg-emerald-50/40 dark:hover:bg-slate-800/60"
                       }`}
                     >
-                      <td className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-white z-10 min-w-[160px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
-                        <div className="font-bold text-slate-900 text-xs sm:text-sm truncate">{item.ho_ten}</div>
-                        <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5">
-                          <span className="font-mono text-blue-700 font-semibold">{empId}</span>
+                      <td className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-white dark:bg-slate-900 z-10 min-w-[160px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+                        <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm truncate">{item.ho_ten}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 mt-0.5">
+                          <span className="font-mono text-blue-700 dark:text-blue-300 font-semibold">{empId}</span>
                         </div>
                       </td>
-                      <td className="p-3.5 text-right font-semibold text-slate-800 text-sm whitespace-nowrap">
+                      <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">
                         {Number(item.baseSalary || 0).toLocaleString("vi-VN")} đ
                       </td>
                       <td className="p-3.5 text-center whitespace-nowrap">
-                        <span className="inline-block px-2.5 py-1 rounded-xl bg-blue-100 text-blue-900 font-bold text-xs border border-blue-300">
+                        <span className="inline-block px-2.5 py-1 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 font-bold text-xs border border-blue-300 dark:border-blue-800/70">
                           {item.totalWorkDays} công
                         </span>
                       </td>
-                      <td className="p-3.5 text-right font-semibold text-slate-800 text-sm whitespace-nowrap">
+                      <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">
                         {Number(item.salaryByWork || 0).toLocaleString("vi-VN")} đ
                       </td>
-                      <td className="p-3.5 text-right font-semibold text-slate-800 text-sm whitespace-nowrap">
+                      <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">
                         {Number(item.totalAllowance || 0).toLocaleString("vi-VN")} đ
                       </td>
-                      <td className="p-3.5 text-right font-semibold text-indigo-800 text-sm whitespace-nowrap">
+                      <td className="p-3.5 text-right font-semibold text-indigo-800 dark:text-indigo-300 text-sm whitespace-nowrap">
                         +{Number(item.otAmount || 0).toLocaleString("vi-VN")} đ
                       </td>
                       <td className="p-3.5 text-right text-xs whitespace-nowrap">
                         {netAdj === 0 && bonusAmt === 0 && penaltyAmt === 0 && advAmt === 0 ? (
-                          <span className="text-slate-400">0 đ</span>
+                          <span className="text-slate-400 dark:text-slate-400">0 đ</span>
                         ) : (
                           <div className="space-y-0.5">
-                            {bonusAmt > 0 && <div className="text-emerald-700 font-semibold">+{bonusAmt.toLocaleString("vi-VN")} Thưởng</div>}
-                            {penaltyAmt > 0 && <div className="text-rose-700 font-semibold">-{penaltyAmt.toLocaleString("vi-VN")} Phạt</div>}
-                            {advAmt > 0 && <div className="text-amber-700 font-semibold">-{advAmt.toLocaleString("vi-VN")} Ứng</div>}
+                            {bonusAmt > 0 && <div className="text-emerald-700 dark:text-emerald-300 font-semibold">+{bonusAmt.toLocaleString("vi-VN")} Thưởng</div>}
+                            {penaltyAmt > 0 && <div className="text-rose-700 dark:text-rose-300 font-semibold">-{penaltyAmt.toLocaleString("vi-VN")} Phạt</div>}
+                            {advAmt > 0 && <div className="text-amber-700 dark:text-amber-300 font-semibold">-{advAmt.toLocaleString("vi-VN")} Ứng</div>}
                           </div>
                         )}
                       </td>
-                      <td className="p-3.5 text-right font-semibold text-rose-700 text-sm whitespace-nowrap">
+                      <td className="p-3.5 text-right font-semibold text-rose-700 dark:text-rose-300 text-sm whitespace-nowrap">
                         -{Number(item.insuranceDeduction || item.totalInsurance || 0).toLocaleString("vi-VN")} đ
                       </td>
                       <td className="p-3.5 text-right font-bold text-base whitespace-nowrap">
-                        <span className="text-emerald-800">
+                        <span className="text-emerald-800 dark:text-emerald-300">
                           {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
                         </span>
                       </td>
                       <td className="p-3.5 text-center whitespace-nowrap">
                         {confirmStatus === "CONFIRMED" ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 font-semibold text-xs border border-emerald-300">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 font-semibold text-xs border border-emerald-300 dark:border-emerald-800/70">
                             Đã xác nhận
                           </span>
                         ) : confirmStatus === "DISPUTED" ? (
@@ -866,7 +868,7 @@ export default function PayrollGridTable({
                             Khiếu nại (Xem)
                           </button>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-medium text-xs border border-slate-300">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium text-xs border border-slate-300 dark:border-slate-700">
                             Chờ xác nhận
                           </span>
                         )}
@@ -877,7 +879,7 @@ export default function PayrollGridTable({
                             <button
                               type="button"
                               onClick={() => handleOpenAdjustmentModal(item)}
-                              className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold border border-amber-300 transition-all cursor-pointer whitespace-nowrap"
+                              className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 text-xs font-semibold border border-amber-300 dark:border-amber-700 transition-all cursor-pointer whitespace-nowrap"
                               title="Thưởng / Phạt / Tạm ứng"
                             >
                               <SlidersHorizontal size={14} />
@@ -887,7 +889,7 @@ export default function PayrollGridTable({
                           <button
                             type="button"
                             onClick={() => setSelectedSlipItem(item)}
-                            className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-900 text-xs font-semibold border border-slate-300 hover:border-emerald-600 transition-all cursor-pointer whitespace-nowrap"
+                            className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-emerald-100 dark:bg-slate-800 dark:hover:bg-emerald-950/60 text-slate-800 dark:text-slate-100 hover:text-emerald-900 dark:hover:text-emerald-300 text-xs font-semibold border border-slate-300 dark:border-slate-600 hover:border-emerald-600 transition-all cursor-pointer whitespace-nowrap"
                           >
                             <Eye size={14} />
                             <span>Chi tiết</span>
@@ -901,12 +903,12 @@ export default function PayrollGridTable({
             </tbody>
             {filteredList.length > 0 && (
               <tfoot>
-                <tr className="bg-slate-100 text-slate-900 border-t-2 border-slate-300 font-bold">
-                  <td className="p-4 pl-5 text-xs whitespace-nowrap">Tổng cộng ({filteredList.length} NV):</td>
+                <tr className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-t-2 border-slate-300 dark:border-slate-700 font-bold">
+                  <td className="p-4 pl-5 text-xs whitespace-nowrap sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">Tổng cộng ({filteredList.length} NV):</td>
                   <td className="p-4 text-right text-sm whitespace-nowrap">
                     {filteredList.reduce((acc, c) => acc + (Number(c.baseSalary) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-center text-blue-800 text-sm whitespace-nowrap">
+                  <td className="p-4 text-center text-blue-800 dark:text-blue-300 text-sm whitespace-nowrap">
                     {totalWorkDays.toFixed(1)} công
                   </td>
                   <td className="p-4 text-right text-sm whitespace-nowrap">
@@ -915,10 +917,10 @@ export default function PayrollGridTable({
                   <td className="p-4 text-right text-sm whitespace-nowrap">
                     {filteredList.reduce((acc, c) => acc + (Number(c.totalAllowance) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-right text-indigo-800 text-sm whitespace-nowrap">
+                  <td className="p-4 text-right text-indigo-800 dark:text-indigo-300 text-sm whitespace-nowrap">
                     +{filteredList.reduce((acc, c) => acc + (Number(c.otAmount) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-right text-slate-800 text-xs whitespace-nowrap">
+                  <td className="p-4 text-right text-slate-800 dark:text-slate-200 text-xs whitespace-nowrap">
                     {(
                       filteredList.reduce(
                         (acc, c) =>
@@ -927,10 +929,10 @@ export default function PayrollGridTable({
                       )
                     ).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-right text-rose-700 text-sm whitespace-nowrap">
+                  <td className="p-4 text-right text-rose-700 dark:text-rose-300 text-sm whitespace-nowrap">
                     -{filteredList.reduce((acc, c) => acc + (Number(c.insuranceDeduction || c.totalInsurance) || 0), 0).toLocaleString("vi-VN")} đ
                   </td>
-                  <td className="p-4 text-right text-emerald-800 text-base whitespace-nowrap">
+                  <td className="p-4 text-right text-emerald-800 dark:text-emerald-300 text-base whitespace-nowrap">
                     {totalNetSalary.toLocaleString("vi-VN")} đ
                   </td>
                   <td className="p-4 text-center"></td>
@@ -981,12 +983,12 @@ export default function PayrollGridTable({
             className="p-4 space-y-4"
           >
             {adjError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 text-xs font-semibold">
                 {adjError}
               </div>
             )}
 
-            <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
+            <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
               <FormRow label="Tiền thưởng thêm (VNĐ)">
                 <input
                   type="number"
@@ -994,7 +996,7 @@ export default function PayrollGridTable({
                   step={50000}
                   value={adjForm.bonus_amount}
                   onChange={(e) => setAdjForm((f) => ({ ...f, bonus_amount: Number(e.target.value) || 0 }))}
-                  className="w-36 min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-emerald-700 text-right focus:outline-none focus:border-emerald-600"
+                  className="w-36 min-h-[44px] px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-emerald-700 dark:text-emerald-300 text-right focus:outline-none focus:border-emerald-600"
                 />
               </FormRow>
               <FormRow label="Khấu trừ phạt (VNĐ)">
@@ -1004,7 +1006,7 @@ export default function PayrollGridTable({
                   step={50000}
                   value={adjForm.penalty_amount}
                   onChange={(e) => setAdjForm((f) => ({ ...f, penalty_amount: Number(e.target.value) || 0 }))}
-                  className="w-36 min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-rose-700 text-right focus:outline-none focus:border-rose-500"
+                  className="w-36 min-h-[44px] px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-rose-700 dark:text-rose-300 text-right focus:outline-none focus:border-rose-500"
                 />
               </FormRow>
               <FormRow label="Tạm ứng đã trừ (VNĐ)">
@@ -1014,19 +1016,19 @@ export default function PayrollGridTable({
                   step={50000}
                   value={adjForm.advance_deduction}
                   onChange={(e) => setAdjForm((f) => ({ ...f, advance_deduction: Number(e.target.value) || 0 }))}
-                  className="w-36 min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-amber-800 text-right focus:outline-none focus:border-amber-500"
+                  className="w-36 min-h-[44px] px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-amber-800 dark:text-amber-300 text-right focus:outline-none focus:border-amber-500"
                 />
               </FormRow>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Ghi chú điều chỉnh (hiển thị trên phiếu lương)</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Ghi chú điều chỉnh (hiển thị trên phiếu lương)</label>
               <textarea
                 rows={2}
                 value={adjForm.adjustment_note}
                 onChange={(e) => setAdjForm((f) => ({ ...f, adjustment_note: e.target.value }))}
                 placeholder="Ví dụ: Thưởng hoàn thành vượt tiến độ công trình..."
-                className="w-full px-3 py-2 border-2 border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-600 leading-relaxed"
+                className="w-full px-3 py-2 border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-600 leading-relaxed"
               />
             </div>
           </form>
@@ -1067,13 +1069,13 @@ export default function PayrollGridTable({
       >
         <form id="payroll-reject-form" onSubmit={handleSubmitRejectPayroll} className="p-4 space-y-3">
           {rejectError && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 text-xs font-semibold">
               {rejectError}
             </div>
           )}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Lý do cần Kế toán rà soát, chỉnh sửa lại <span className="text-rose-600">*</span>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
+              Lý do cần Kế toán rà soát, chỉnh sửa lại <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <textarea
               rows={3}
@@ -1081,7 +1083,7 @@ export default function PayrollGridTable({
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="Ví dụ: Kiểm tra lại số giờ tăng ca công trình A của NV003..."
-              className="w-full px-3 py-2.5 border-2 border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-rose-500 leading-relaxed"
+              className="w-full px-3 py-2.5 border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-rose-500 leading-relaxed"
             />
           </div>
         </form>

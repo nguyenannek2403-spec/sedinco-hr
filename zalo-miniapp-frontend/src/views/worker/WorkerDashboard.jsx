@@ -46,7 +46,7 @@ export default function WorkerDashboard({
               <span>Trở về</span>
             </button>
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 dark:border-slate-700/80 flex items-center justify-center p-1 shadow-sm shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 flex items-center justify-center p-1 shadow-sm shrink-0">
               <img
                 src="/sedinco-logo.png"
                 alt="Sedinco HR"

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { safePut, getAuthToken } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 
@@ -11,6 +11,7 @@ function normalizeThemeMode(val) {
 function readInitialTheme() {
   if (typeof window === "undefined") return "light";
   try {
+    if (document.documentElement.classList.contains("dark")) return "dark";
     const attr = document.documentElement.getAttribute("zaui-theme");
     if (attr === "dark" || attr === "light") return attr;
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
@@ -23,9 +24,15 @@ function applyThemeToDom(mode) {
   if (typeof document === "undefined") return;
   const isDark = mode === "dark";
   try {
-    document.documentElement.classList.toggle("dark", isDark);
-    document.documentElement.setAttribute("zaui-theme", mode);
-    document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+    const root = document.documentElement;
+    if (isDark) {
+      root.classList.add("dark");
+      root.style.colorScheme = "dark";
+    } else {
+      root.classList.remove("dark");
+      root.style.colorScheme = "light";
+    }
+    root.setAttribute("zaui-theme", mode);
     if (document.body) {
       document.body.classList.toggle("dark", isDark);
       document.body.setAttribute("data-theme", mode);
@@ -47,6 +54,8 @@ const ThemeContext = createContext({
 
 export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState(() => readInitialTheme());
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   useEffect(() => {
     applyThemeToDom(theme);
@@ -69,6 +78,7 @@ export function ThemeProvider({ children }) {
 
   const setTheme = useCallback((nextRaw, { persistRemote = true } = {}) => {
     const next = normalizeThemeMode(nextRaw);
+    themeRef.current = next;
     setThemeState(next);
     applyThemeToDom(next);
     try {
@@ -79,6 +89,35 @@ export function ThemeProvider({ children }) {
       safePut("/account/theme", { theme_preference: next }).catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return undefined;
+    window.__setSedincoTheme = (nextMode) => setTheme(nextMode, { persistRemote: false });
+
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      const hasDarkClass = root.classList.contains("dark");
+      const domMode = hasDarkClass ? "dark" : "light";
+      if (domMode !== themeRef.current) {
+        themeRef.current = domMode;
+        root.setAttribute("zaui-theme", domMode);
+        root.style.colorScheme = domMode;
+        if (document.body) {
+          document.body.classList.toggle("dark", hasDarkClass);
+          document.body.setAttribute("data-theme", domMode);
+        }
+        setThemeState(domMode);
+      }
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ["class", "zaui-theme"] });
+
+    return () => {
+      observer.disconnect();
+      if (window.__setSedincoTheme) {
+        delete window.__setSedincoTheme;
+      }
+    };
+  }, [setTheme]);
 
   const toggleTheme = useCallback(() => {
     setThemeState((prev) => {

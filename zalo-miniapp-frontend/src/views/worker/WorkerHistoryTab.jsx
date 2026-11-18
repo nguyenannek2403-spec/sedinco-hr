@@ -19,7 +19,7 @@ const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 function getHeatmapCellStyle(log, dayNum, isFuture, isSunday = false) {
   if (isFuture) {
     return {
-      cellClass: "bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/60 text-slate-400",
+      cellClass: "bg-slate-100 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800/70 text-slate-500 dark:text-slate-400",
       dotClass: "bg-slate-400 dark:bg-slate-600",
       shortCode: "",
       badgeText: "Chưa tới",
@@ -102,7 +102,7 @@ function getHeatmapCellStyle(log, dayNum, isFuture, isSunday = false) {
     };
   }
   return {
-    cellClass: "bg-slate-800/70 border-slate-700 text-slate-200",
+    cellClass: "bg-slate-100 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200",
     dotClass: "bg-slate-500",
     shortCode: st || "·",
     badgeText: st || "Khác",
@@ -490,8 +490,8 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
             </div>
 
             {selectedDayDetail.log?.location_name && (
-              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-2 text-slate-300">
-                <MapPin size={15} className="text-blue-400 shrink-0" />
+              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                <MapPin size={15} className="text-blue-600 dark:text-blue-400 shrink-0" />
                 <span className="break-words">{selectedDayDetail.log.location_name}</span>
               </div>
             )}

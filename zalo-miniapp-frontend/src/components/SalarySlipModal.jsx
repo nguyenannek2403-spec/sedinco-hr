@@ -331,28 +331,28 @@ export default function SalarySlipModal({
       }
     >
         {/* Nội dung Phiếu Lương */}
-        <div className="p-4 sm:p-6 space-y-4 text-slate-800">
+        <div className="p-4 sm:p-6 space-y-4 text-slate-800 dark:text-slate-100">
           {/* Quốc hiệu & Tiêu đề công ty */}
-          <div className="border-b-2 border-slate-800 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div className="border-b-2 border-slate-800 dark:border-slate-700 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>
-              <h2 className="text-sm sm:text-base font-black text-slate-900 uppercase">
+              <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white uppercase">
                 CÔNG TY CỔ PHẦN SEDINCO
               </h2>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
                 Hệ thống Quản trị Nhân sự &amp; Phiếu lương Điện tử
               </p>
             </div>
             <div className="sm:text-right flex sm:flex-col items-center sm:items-end gap-2">
-              <span className="inline-block px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-extrabold uppercase">
+              <span className="inline-block px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70 rounded-full text-xs font-extrabold uppercase">
                 Kỳ Lương: Tháng {thang}/{nam}
               </span>
               {confirmStatus === "CONFIRMED" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-transparent dark:border-emerald-800/70 text-xs font-black">
                   <CheckCircle2 size={12} /> Đã xác nhận đúng lương
                 </span>
               )}
               {confirmStatus === "DISPUTED" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-xs font-black">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-transparent dark:border-rose-800/70 text-xs font-black">
                   <AlertTriangle size={12} /> Đang khiếu nại sai lương
                 </span>
               )}
@@ -360,75 +360,75 @@ export default function SalarySlipModal({
           </div>
 
           {/* Thông tin nhân sự */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-800/70 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
             <div>
-              <span className="text-slate-600 block text-xs uppercase font-semibold">
+              <span className="text-slate-600 dark:text-slate-400 block text-xs uppercase font-semibold">
                 Mã Nhân Viên
               </span>
-              <span className="font-mono font-bold text-slate-900 text-sm">
+              <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">
                 {maNv}
               </span>
             </div>
             <div>
-              <span className="text-slate-600 block text-xs uppercase font-semibold">
+              <span className="text-slate-600 dark:text-slate-400 block text-xs uppercase font-semibold">
                 Họ và Tên
               </span>
-              <span className="font-bold text-slate-900 break-words block">
+              <span className="font-bold text-slate-900 dark:text-white break-words block">
                 {item.ho_ten}
               </span>
             </div>
             <div>
-              <span className="text-slate-600 block text-xs font-semibold">
+              <span className="text-slate-600 dark:text-slate-400 block text-xs font-semibold">
                 Chức danh &amp; Bộ phận
               </span>
-              <span className="font-semibold text-slate-700 break-words block">
+              <span className="font-semibold text-slate-700 dark:text-slate-200 break-words block">
                 {item.chuc_danh || "Nhân viên"} • {item.department || "Khối Công trình"}
               </span>
             </div>
             <div>
-              <span className="text-slate-600 block text-xs uppercase font-semibold">
+              <span className="text-slate-600 dark:text-slate-400 block text-xs uppercase font-semibold">
                 Ngày Công Thực Tế
               </span>
-              <span className="font-extrabold text-emerald-700">
+              <span className="font-extrabold text-emerald-700 dark:text-emerald-300">
                 {item.totalWorkDays || 0} / {item.standardDays || 26} công
               </span>
             </div>
           </div>
 
           {/* Bảng chi tiết thu nhập */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="bg-slate-100 px-3.5 py-2 text-xs font-extrabold text-slate-600 uppercase tracking-wider border-b border-slate-200 flex justify-between">
+          <div className="border border-slate-200 dark:border-slate-700/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+            <div className="bg-slate-100 dark:bg-slate-800 px-3.5 py-2 text-xs font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 flex justify-between">
               <span>Khoản Mục Thu Nhập & Phụ Cấp</span>
               <span>Số Tiền (VNĐ)</span>
             </div>
 
-            <div className="divide-y divide-slate-100 text-xs">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
               <div className="px-3.5 py-2.5 flex justify-between items-center">
-                <span className="text-slate-600">
+                <span className="text-slate-600 dark:text-slate-300">
                   1. Lương cơ bản hợp đồng (Định mức {item.standardDays || 26} ngày)
                 </span>
-                <span className="font-mono font-semibold text-slate-700">
+                <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
                   {formatCurrency(item.baseSalary)}
                 </span>
               </div>
 
-              <div className="px-3.5 py-2.5 flex justify-between items-center bg-slate-50/60">
-                <span className="font-semibold text-slate-800">
+              <div className="px-3.5 py-2.5 flex justify-between items-center bg-slate-50/60 dark:bg-slate-800/40">
+                <span className="font-semibold text-slate-800 dark:text-slate-100">
                   2. Lương chính theo ngày công ({item.totalWorkDays || 0} ngày)
                 </span>
-                <span className="font-mono font-bold text-slate-900">
+                <span className="font-mono font-bold text-slate-900 dark:text-white">
                   {formatCurrency(item.salaryByWork)}
                 </span>
               </div>
 
               <div className="px-3.5 py-2.5">
-                <div className="flex justify-between items-center font-semibold text-slate-800 mb-1.5">
+                <div className="flex justify-between items-center font-semibold text-slate-800 dark:text-slate-100 mb-1.5">
                   <span>3. Tổng các khoản phụ cấp theo công</span>
-                  <span className="font-mono font-bold text-blue-700">
+                  <span className="font-mono font-bold text-blue-700 dark:text-blue-300">
                     +{formatCurrency(item.totalAllowance)}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pl-3 border-l-2 border-blue-200 text-xs text-slate-600">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pl-3 border-l-2 border-blue-200 dark:border-blue-800/70 text-xs text-slate-600 dark:text-slate-300">
                   <div className="flex justify-between">
                     <span>• Phụ cấp ăn trưa:</span>
                     <span className="font-mono">{formatCurrency(b.an_trua ?? b.an_ca)}</span>
@@ -457,20 +457,20 @@ export default function SalarySlipModal({
               </div>
 
               <div className="px-3.5 py-2.5 flex justify-between items-center">
-                <span className="font-semibold text-slate-800">
+                <span className="font-semibold text-slate-800 dark:text-slate-100">
                   4. Lương làm thêm giờ (Tăng ca / OT: {item.totalOtHours || 0} giờ)
                 </span>
-                <span className="font-mono font-bold text-indigo-700">
+                <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">
                   +{formatCurrency(item.otAmount)}
                 </span>
               </div>
 
               {Number(item.bonusAmount) > 0 && (
-                <div className="px-3.5 py-2.5 flex justify-between items-center bg-emerald-50/40">
-                  <span className="font-semibold text-emerald-800">
+                <div className="px-3.5 py-2.5 flex justify-between items-center bg-emerald-50/40 dark:bg-emerald-950/40">
+                  <span className="font-semibold text-emerald-800 dark:text-emerald-300">
                     5. Thưởng nóng / Phụ cấp thêm
                   </span>
-                  <span className="font-mono font-bold text-emerald-700">
+                  <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
                     +{formatCurrency(item.bonusAmount)}
                   </span>
                 </div>
@@ -479,25 +479,25 @@ export default function SalarySlipModal({
           </div>
 
           {/* Khấu trừ & Thực lĩnh */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-600 border-b border-slate-200">
+          <div className="border border-slate-200 dark:border-slate-700/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+            <div className="bg-slate-100 dark:bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
               Khấu trừ & Thực lĩnh
             </div>
-            <div className="divide-y divide-slate-100 text-xs">
-              <div className="px-3.5 py-2.5 flex justify-between text-slate-600">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+              <div className="px-3.5 py-2.5 flex justify-between text-slate-600 dark:text-slate-300">
                 <span>Mức lương đóng BHXH</span>
-                <span className="font-mono font-semibold">
+                <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">
                   {formatCurrency(item.insuranceBase || item.baseSalary)}
                 </span>
               </div>
-              <div className="px-3.5 py-2.5 flex justify-between text-red-600">
+              <div className="px-3.5 py-2.5 flex justify-between text-red-600 dark:text-rose-300">
                 <span>Khấu trừ BHXH, BHYT, BHTN</span>
                 <span className="font-mono font-bold">
                   -{formatCurrency(item.totalInsurance || item.insuranceDeduction)}
                 </span>
               </div>
               {Number(item.latePenaltyAmount) > 0 && (
-                <div className="px-3.5 py-2.5 flex justify-between text-rose-600">
+                <div className="px-3.5 py-2.5 flex justify-between text-rose-600 dark:text-rose-300">
                   <span>Khấu trừ đi muộn ({item.totalLateMinutes || 0} phút)</span>
                   <span className="font-mono font-bold">
                     -{formatCurrency(item.latePenaltyAmount)}
@@ -505,7 +505,7 @@ export default function SalarySlipModal({
                 </div>
               )}
               {Number(item.penaltyAmount) > 0 && (
-                <div className="px-3.5 py-2.5 flex justify-between text-rose-600">
+                <div className="px-3.5 py-2.5 flex justify-between text-rose-600 dark:text-rose-300">
                   <span>Khấu trừ phạt / Vi phạm</span>
                   <span className="font-mono font-bold">
                     -{formatCurrency(item.penaltyAmount)}
@@ -513,7 +513,7 @@ export default function SalarySlipModal({
                 </div>
               )}
               {Number(item.advanceDeduction) > 0 && (
-                <div className="px-3.5 py-2.5 flex justify-between text-amber-700">
+                <div className="px-3.5 py-2.5 flex justify-between text-amber-700 dark:text-amber-300">
                   <span>Trừ tiền đã tạm ứng lương</span>
                   <span className="font-mono font-bold">
                     -{formatCurrency(item.advanceDeduction)}
@@ -521,25 +521,25 @@ export default function SalarySlipModal({
                 </div>
               )}
               {item.adjustment_note && (
-                <div className="px-3.5 py-2 bg-slate-50 text-xs text-slate-600">
+                <div className="px-3.5 py-2 bg-slate-50 dark:bg-slate-800/70 text-xs text-slate-600 dark:text-slate-300">
                   <span className="font-semibold">Ghi chú kế toán: </span>
                   {item.adjustment_note}
                 </div>
               )}
-              <div className="px-3.5 py-3 flex justify-between bg-emerald-50 font-bold text-sm">
-                <span className="text-emerald-900">
+              <div className="px-3.5 py-3 flex justify-between bg-emerald-50 dark:bg-emerald-950/60 font-bold text-sm">
+                <span className="text-emerald-900 dark:text-emerald-200">
                   Thực lĩnh cuối cùng (NET)
                 </span>
-                <span className={`font-mono text-base ${Number(item.netSalary) < 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                <span className={`font-mono text-base ${Number(item.netSalary) < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}>
                   {formatCurrency(item.netSalary)}
                 </span>
               </div>
               {Number(item.carryOverDebt || item.carry_over_debt || 0) > 0 && (
-                <div className="px-3.5 py-2.5 flex justify-between items-center gap-2 bg-amber-50 border-t border-amber-200 text-amber-900 text-xs sm:text-sm">
+                <div className="px-3.5 py-2.5 flex justify-between items-center gap-2 bg-amber-50 dark:bg-amber-950/60 border-t border-amber-200 dark:border-amber-800/70 text-amber-900 dark:text-amber-200 text-xs sm:text-sm">
                   <span className="font-semibold">
                     Khoản khấu trừ còn dư (Chuyển kỳ sau)
                   </span>
-                  <span className="font-mono font-bold text-amber-800 shrink-0">
+                  <span className="font-mono font-bold text-amber-800 dark:text-amber-300 shrink-0">
                     {formatCurrency(item.carryOverDebt || item.carry_over_debt)}
                   </span>
                 </div>
@@ -549,15 +549,15 @@ export default function SalarySlipModal({
 
           {/* BẢNG ĐỐI CHIẾU CÔNG TỪNG NGÀY TRONG KỲ LƯƠNG */}
           {Array.isArray(item.daily_logs) && item.daily_logs.length > 0 && (
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-700 border-b border-slate-200 flex items-center justify-between gap-2">
+            <div className="border border-slate-200 dark:border-slate-700/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+              <div className="bg-slate-100 dark:bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5">
-                  <Calendar size={14} className="text-blue-600 shrink-0" />
+                  <Calendar size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
                   <span>Bảng đối chiếu công từng ngày</span>
                 </span>
-                <span className="text-slate-500 font-semibold">{item.daily_logs.length} ngày</span>
+                <span className="text-slate-500 dark:text-slate-300 font-semibold">{item.daily_logs.length} ngày</span>
               </div>
-              <div className="divide-y divide-slate-100 text-xs">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                 {item.daily_logs.map((log, idx) => {
                   const dateStr = log.record_date_iso || String(log.record_date || "").slice(0, 10);
                   const otH = Number(log.ot_hours) || 0;
@@ -565,22 +565,22 @@ export default function SalarySlipModal({
                   return (
                     <div key={`${dateStr}-${idx}`} className="perf-list-item px-3.5 py-2.5 flex items-start justify-between gap-2">
                       <div className="min-w-0 space-y-0.5">
-                        <div className="font-mono font-bold text-slate-800">{dateStr}</div>
-                        <div className="text-slate-500 flex flex-wrap items-center gap-2">
+                        <div className="font-mono font-bold text-slate-800 dark:text-slate-100">{dateStr}</div>
+                        <div className="text-slate-500 dark:text-slate-300 flex flex-wrap items-center gap-2">
                           <span>
                             Vào {log.check_in_time ? String(log.check_in_time).slice(0, 5) : "--:--"}
                             {" • "}
                             Ra {log.check_out_time ? String(log.check_out_time).slice(0, 5) : "--:--"}
                           </span>
                           {otH > 0 && (
-                            <span className="text-indigo-700 font-semibold">+{otH}h tăng ca</span>
+                            <span className="text-indigo-700 dark:text-indigo-300 font-semibold">+{otH}h tăng ca</span>
                           )}
                           {lateM > 0 && (
-                            <span className="text-amber-700 font-semibold">Muộn {lateM}p</span>
+                            <span className="text-amber-700 dark:text-amber-300 font-semibold">Muộn {lateM}p</span>
                           )}
                         </div>
                         {log.location_name && (
-                          <div className="text-xs text-slate-600 break-words">
+                          <div className="text-xs text-slate-600 dark:text-slate-400 break-words">
                             {log.location_name}
                           </div>
                         )}
@@ -597,43 +597,43 @@ export default function SalarySlipModal({
 
           {/* HIỂN THỊ KHIẾU NẠI & BẰNG CHỨNG (NẾU CÓ) */}
           {(confirmStatus === "DISPUTED" || item.dispute_reason || item.admin_response) && (
-            <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center gap-2 text-rose-800 font-black text-xs uppercase">
-                <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+            <div className="bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-200 dark:border-rose-800/70 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center gap-2 text-rose-800 dark:text-rose-200 font-black text-xs uppercase">
+                <AlertTriangle size={16} className="text-rose-600 dark:text-rose-400 shrink-0" />
                 <span>Hồ sơ Báo cáo Sai lệch Lương / Công</span>
               </div>
 
               { (disputeReason || item.dispute_reason) && (
-                <div className="text-xs text-slate-800 bg-white p-3 rounded-xl border border-rose-200">
-                  <span className="font-bold text-rose-700 block mb-1">Nội dung phản ánh của Nhân viên:</span>
+                <div className="text-xs text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 p-3 rounded-xl border border-rose-200 dark:border-rose-800/60">
+                  <span className="font-bold text-rose-700 dark:text-rose-300 block mb-1">Nội dung phản ánh của Nhân viên:</span>
                   {disputeReason || item.dispute_reason}
                 </div>
               )}
 
               {(evidenceMedia || item.dispute_evidence_media) && (
                 <div className="space-y-1.5">
-                  <span className="text-xs font-bold text-slate-700 block">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
                     Hình ảnh / Video bằng chứng đính kèm:
                   </span>
                   {(evidenceMedia || item.dispute_evidence_media).startsWith("data:video") ? (
                     <video
                       src={evidenceMedia || item.dispute_evidence_media}
                       controls
-                      className="w-full max-h-56 rounded-xl border border-slate-300 bg-black"
+                      className="w-full max-h-56 rounded-xl border border-slate-300 dark:border-slate-700 bg-black"
                     />
                   ) : (
                     <img
                       src={evidenceMedia || item.dispute_evidence_media}
                       alt="Minh chứng lương"
-                      className="w-full max-h-60 object-contain rounded-xl border border-slate-300 bg-white"
+                      className="w-full max-h-60 object-contain rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
                     />
                   )}
                 </div>
               )}
 
               {(adminResponse || item.admin_response) && !isAdminOrAccountant && (
-                <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-xs text-emerald-950">
-                  <span className="font-black text-emerald-800 block mb-0.5">
+                <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 p-3 rounded-xl text-xs text-emerald-950 dark:text-emerald-200">
+                  <span className="font-black text-emerald-800 dark:text-emerald-300 block mb-0.5">
                     Phản hồi từ Phòng Kế toán / Admin:
                   </span>
                   {adminResponse || item.admin_response}
@@ -642,8 +642,8 @@ export default function SalarySlipModal({
 
               {/* Khu vực dành riêng cho Admin / Kế toán xử lý khiếu nại */}
               {isAdminOrAccountant && (
-                <div className="pt-2 border-t border-rose-200 space-y-2.5">
-                  <label className="block text-xs font-black text-slate-800">
+                <div className="pt-2 border-t border-rose-200 dark:border-rose-800/70 space-y-2.5">
+                  <label className="block text-xs font-black text-slate-800 dark:text-slate-100">
                     Phản hồi giải quyết của Kế toán / Admin:
                   </label>
                   <textarea
@@ -651,7 +651,7 @@ export default function SalarySlipModal({
                     value={adminResponse}
                     onChange={(e) => setAdminResponse(e.target.value)}
                     placeholder="Nhập kết quả kiểm tra lại bảng công/lương cho nhân viên..."
-                    className="w-full p-2.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-600"
+                    className="w-full p-2.5 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:border-emerald-600"
                   />
                   <div className="flex flex-wrap gap-2">
                     <AppButton
@@ -669,7 +669,7 @@ export default function SalarySlipModal({
                       icon={Send}
                       loading={resolving}
                       onClick={() => handleResolveDispute("DISPUTED")}
-                      className="bg-slate-800 hover:bg-slate-900 text-white border-slate-900 text-xs font-bold"
+                      className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600 text-xs font-bold"
                     >
                       Gửi phản hồi (Giữ trạng thái)
                     </AppButton>
@@ -681,12 +681,12 @@ export default function SalarySlipModal({
 
           {/* KHU VỰC XÁC NHẬN LƯƠNG DÀNH CHO CÔNG NHÂN */}
           {!isAdminOrAccountant && (
-            <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 space-y-3 print:hidden">
+            <div className="bg-slate-50 dark:bg-slate-800/70 border-2 border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 space-y-3 print:hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-slate-800 uppercase">
+                <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase">
                   Xác Nhận Phiếu Lương Của Bạn
                 </span>
-                <span className="text-xs font-bold text-slate-500">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-300">
                   {confirmStatus === "CONFIRMED"
                     ? "Đã đồng ý"
                     : confirmStatus === "DISPUTED"
@@ -705,7 +705,7 @@ export default function SalarySlipModal({
                   onClick={handleConfirmSalary}
                   className={
                     confirmStatus === "CONFIRMED"
-                      ? "!bg-emerald-100 !text-emerald-800 !border-emerald-300"
+                      ? "!bg-emerald-100 !text-emerald-800 !border-emerald-300 dark:!bg-emerald-950/70 dark:!text-emerald-200 dark:!border-emerald-700"
                       : ""
                   }
                 >
@@ -728,10 +728,10 @@ export default function SalarySlipModal({
               {showDisputeForm && (
                 <form
                   onSubmit={handleSubmitDispute}
-                  className="mt-3 pt-3 border-t border-slate-200 space-y-3"
+                  className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-3"
                 >
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
                       Lý do sai lệch (ghi rõ ngày công, giờ tăng ca hoặc phụ cấp bị thiếu):
                     </label>
                     <textarea
@@ -740,13 +740,13 @@ export default function SalarySlipModal({
                       value={disputeReason}
                       onChange={(e) => setDisputeReason(e.target.value)}
                       placeholder="VD: Ngày 12/11 em có tăng ca 2 tiếng nhưng chưa thấy cộng vào phiếu lương..."
-                      className="w-full p-3 text-xs bg-white border-2 border-slate-300 rounded-xl focus:outline-none focus:border-amber-500"
+                      className="w-full p-3 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:border-amber-500"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <div className="space-y-2">
-                      <span className="block text-xs font-bold text-slate-700">
+                      <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">
                         Đính kèm Ảnh minh chứng (&lt;50KB) hoặc Video ngắn (&lt;800KB):
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -777,7 +777,7 @@ export default function SalarySlipModal({
                       className="hidden"
                     />
                     {mediaNotice && (
-                      <p className="text-xs text-emerald-700 font-bold">{mediaNotice}</p>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 font-bold">{mediaNotice}</p>
                     )}
                   </div>
 
@@ -797,22 +797,22 @@ export default function SalarySlipModal({
           )}
 
           {/* Chữ ký xác nhận */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 text-center text-xs text-slate-600">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 text-center text-xs text-slate-600 dark:text-slate-300">
             <div>
-              <p className="font-bold text-slate-800">Người lập biểu</p>
+              <p className="font-bold text-slate-800 dark:text-slate-100">Người lập biểu</p>
               <p className="italic text-xs">(Ký, ghi rõ họ tên)</p>
             </div>
             <div>
-              <p className="font-bold text-slate-800">Kế toán trưởng</p>
+              <p className="font-bold text-slate-800 dark:text-slate-100">Kế toán trưởng</p>
               <p className="italic text-xs">(Ký, ghi rõ họ tên)</p>
             </div>
             <div>
-              <p className="font-bold text-slate-800">Giám đốc</p>
+              <p className="font-bold text-slate-800 dark:text-slate-100">Giám đốc</p>
               <p className="italic text-xs">(Ký, đóng dấu)</p>
             </div>
             <div>
-              <p className="font-bold text-slate-700">Người nhận tiền</p>
-              <p className="font-semibold text-slate-800 mt-4">
+              <p className="font-bold text-slate-700 dark:text-slate-200">Người nhận tiền</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-100 mt-4">
                 {item.ho_ten}
               </p>
             </div>

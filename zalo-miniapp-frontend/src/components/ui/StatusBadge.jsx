@@ -16,13 +16,13 @@ const EMPLOYEE_STATUS_MAP = {
   active: {
     symbol: "✓",
     label: "Hoạt động",
-    lightClass: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    lightClass: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30",
     darkClass: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
   },
   locked: {
     symbol: "🔒",
     label: "Đã khóa",
-    lightClass: "bg-rose-50 text-rose-800 border-rose-200",
+    lightClass: "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30",
     darkClass: "bg-rose-500/15 text-rose-300 border-rose-500/30"
   }
 };
@@ -31,37 +31,37 @@ const PAYROLL_PERIOD_MAP = {
   DRAFT: {
     symbol: "Nháp",
     label: "Bản nháp",
-    lightClass: "bg-slate-100 text-slate-800 border-slate-300",
+    lightClass: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600",
     darkClass: "bg-slate-700 text-slate-100 border-slate-600"
   },
   SUBMITTED: {
     symbol: "Chờ",
     label: "Chờ duyệt",
-    lightClass: "bg-amber-50 text-amber-800 border-amber-300",
+    lightClass: "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-200 dark:border-amber-500/40",
     darkClass: "bg-amber-500/20 text-amber-200 border-amber-500/40"
   },
   APPROVED: {
     symbol: "✓",
     label: "Đã phê duyệt",
-    lightClass: "bg-emerald-50 text-emerald-800 border-emerald-300",
+    lightClass: "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-200 dark:border-emerald-500/40",
     darkClass: "bg-emerald-500/20 text-emerald-200 border-emerald-500/40"
   },
   REJECTED: {
     symbol: "!",
     label: "Cần chỉnh sửa lại",
-    lightClass: "bg-rose-50 text-rose-800 border-rose-300",
+    lightClass: "bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/20 dark:text-rose-200 dark:border-rose-500/40",
     darkClass: "bg-rose-500/20 text-rose-200 border-rose-500/40"
   },
   PAID: {
     symbol: "₫",
     label: "Đã thanh toán lương",
-    lightClass: "bg-indigo-50 text-indigo-800 border-indigo-300",
+    lightClass: "bg-indigo-50 text-indigo-800 border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-200 dark:border-indigo-500/40",
     darkClass: "bg-indigo-500/20 text-indigo-200 border-indigo-500/40"
   },
   UNPAID: {
     symbol: "•",
     label: "Chưa chi trả",
-    lightClass: "bg-slate-100 text-slate-700 border-slate-300",
+    lightClass: "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600",
     darkClass: "bg-slate-800 text-slate-300 border-slate-600"
   }
 };
@@ -127,7 +127,7 @@ export default function StatusBadge({
     label = labelOverride || String(raw || "");
     badgeClass = isDark
       ? "bg-slate-800 text-slate-200 border-slate-700"
-      : "bg-slate-100 text-slate-700 border-slate-200";
+      : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700";
   }
 
   return (

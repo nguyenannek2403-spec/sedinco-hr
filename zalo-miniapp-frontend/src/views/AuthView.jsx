@@ -79,7 +79,7 @@ export default function AuthView({
               type="button"
               disabled={isLoggingIn}
               onClick={() => onZaloOneTouchLogin(false)}
-              className="w-full min-h-[48px] py-3 px-[12px] sm:px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 dark:from-emerald-500 dark:to-teal-500 dark:hover:from-emerald-400 dark:hover:to-teal-400 text-white dark:text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full min-h-[48px] py-3 px-[12px] sm:px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 dark:from-emerald-600 dark:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Zap className="w-4 h-4 fill-current shrink-0" />
               <span className="min-w-0 leading-snug text-center">

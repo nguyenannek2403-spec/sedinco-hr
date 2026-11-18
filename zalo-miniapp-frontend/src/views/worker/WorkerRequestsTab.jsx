@@ -166,7 +166,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
 
         {/* F1: Thẻ Quỹ Phép Năm */}
         {leaveBalance && (
-          <div className="bg-indigo-50 dark:bg-gradient-to-r dark:from-indigo-950/90 dark:to-slate-800/90 border border-indigo-200 dark:border-indigo-500/30 rounded-2xl p-4 shadow-sm dark:shadow-lg flex items-center justify-between gap-3">
+          <div className="bg-indigo-50 dark:bg-indigo-950/80 dark:bg-gradient-to-r dark:from-indigo-950 dark:to-slate-900 border border-indigo-200 dark:border-indigo-500/30 rounded-2xl p-4 shadow-sm dark:shadow-lg flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-400/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
                 <CalendarCheck className="w-5 h-5" />

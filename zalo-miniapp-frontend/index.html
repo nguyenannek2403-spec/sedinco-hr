@@ -19,6 +19,7 @@
           var root = document.documentElement;
           root.classList.toggle('dark', mode === 'dark');
           root.setAttribute('zaui-theme', mode);
+          root.style.colorScheme = mode;
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute('content', mode === 'dark' ? '#090d16' : '#f8fafc');
         } catch (e) {}

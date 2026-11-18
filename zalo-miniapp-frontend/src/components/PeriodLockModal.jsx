@@ -107,8 +107,8 @@ export default function PeriodLockModal({
         <div
           className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 ${
             isLockAction
-              ? "bg-rose-50 text-rose-700 border-rose-300"
-              : "bg-amber-50 text-amber-700 border-amber-300"
+              ? "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800/70"
+              : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800/70"
           }`}
         >
           {isLockAction ? <Lock size={20} /> : <Unlock size={20} />}
@@ -141,18 +141,18 @@ export default function PeriodLockModal({
     >
       <div className="p-5 space-y-4">
         {errorMessage && (
-          <div className="p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-bold flex items-start gap-2.5">
-            <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+          <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200 text-xs font-bold flex items-start gap-2.5">
+            <AlertTriangle size={18} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
             <span>{errorMessage}</span>
           </div>
         )}
 
-        <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-sm space-y-2">
-          <div className="flex items-center gap-2 font-black text-sm text-amber-900">
-            <ShieldAlert size={18} className="text-amber-700 shrink-0" />
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-300 dark:border-amber-800/70 text-amber-950 dark:text-amber-200 text-sm space-y-2">
+          <div className="flex items-center gap-2 font-black text-sm text-amber-900 dark:text-amber-200">
+            <ShieldAlert size={18} className="text-amber-700 dark:text-amber-300 shrink-0" />
             <span>Lưu ý quan trọng về tính toàn vẹn dữ liệu:</span>
           </div>
-          <p className="text-xs md:text-sm leading-relaxed text-amber-900 font-semibold">
+          <p className="text-xs md:text-sm leading-relaxed text-amber-900 dark:text-amber-200/90 font-semibold">
             {isLockAction ? (
               <>
                 Sau khi Kế toán xác nhận <strong>Chốt công</strong>, toàn bộ bảng chấm công của Tháng {month}/{year} sẽ bị đóng băng. Nhân sự và Nhân viên sẽ <strong>không thể sửa đổi hay bổ sung công</strong> nữa để đảm bảo số liệu tính lương chính xác tuyệt đối.
@@ -167,30 +167,30 @@ export default function PeriodLockModal({
 
         <form id="period-lock-form" onSubmit={handleAction} className="space-y-4">
           {isLoadingStatus && (
-            <div className="text-xs text-slate-500 font-medium text-center py-2">
+            <div className="text-xs text-slate-500 dark:text-slate-300 font-medium text-center py-2">
               Đang kiểm tra dữ liệu bất thường của kỳ công...
             </div>
           )}
 
           {isLockAction && lowTrustCount > 0 && (
-            <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-950 space-y-3">
-              <div className="flex items-center gap-2 font-black text-sm text-rose-900">
-                <AlertTriangle size={18} className="text-rose-600 shrink-0" />
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-800/70 text-rose-950 dark:text-rose-200 space-y-3">
+              <div className="flex items-center gap-2 font-black text-sm text-rose-900 dark:text-rose-200">
+                <AlertTriangle size={18} className="text-rose-600 dark:text-rose-300 shrink-0" />
                 <span>Phát hiện {lowTrustCount} lượt chấm công cần rà soát lại</span>
               </div>
-              <p className="text-xs text-rose-800 font-semibold leading-relaxed">
+              <p className="text-xs text-rose-800 dark:text-rose-200/90 font-semibold leading-relaxed">
                 Kỳ công này có các bản ghi có dấu hiệu bất thường về vị trí hoặc thiết bị. Kế toán cần đối soát kỹ trước khi xác nhận.
               </p>
               {lowTrustLogs.length > 0 && (
                 <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
                   {lowTrustLogs.slice(0, 10).map((item, idx) => (
-                    <div key={idx} className="perf-list-item bg-white/80 p-2 rounded-lg border border-rose-200 text-xs flex justify-between items-center gap-2">
-                      <span className="font-bold text-slate-800">{item.ho_ten || item.employee_id} ({item.employee_id})</span>
-                      <span className="text-rose-700 font-semibold">{item.reason || "Cần kiểm tra xác minh lại"}</span>
+                    <div key={idx} className="perf-list-item bg-white/80 dark:bg-slate-900 p-2 rounded-lg border border-rose-200 dark:border-rose-800/60 text-xs flex justify-between items-center gap-2">
+                      <span className="font-bold text-slate-800 dark:text-slate-100">{item.ho_ten || item.employee_id} ({item.employee_id})</span>
+                      <span className="text-rose-700 dark:text-rose-300 font-semibold">{item.reason || "Cần kiểm tra xác minh lại"}</span>
                     </div>
                   ))}
                   {lowTrustLogs.length > 10 && (
-                    <p className="text-xs text-slate-500 italic text-center">Và {lowTrustLogs.length - 10} bản ghi khác...</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 italic text-center">Và {lowTrustLogs.length - 10} bản ghi khác...</p>
                   )}
                 </div>
               )}
@@ -199,9 +199,9 @@ export default function PeriodLockModal({
                   type="checkbox"
                   checked={confirmLowTrust}
                   onChange={(e) => setConfirmLowTrust(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 shrink-0"
+                  className="mt-0.5 w-4 h-4 text-rose-600 rounded border-slate-300 dark:border-slate-600 focus:ring-rose-500 shrink-0"
                 />
-                <span className="text-xs font-bold text-rose-950 leading-snug">
+                <span className="text-xs font-bold text-rose-950 dark:text-rose-100 leading-snug">
                   Tôi đã kiểm tra danh sách và xác nhận chốt sổ mặc dù có {lowTrustCount} bản ghi độ tin cậy thấp
                 </span>
               </label>
@@ -210,15 +210,15 @@ export default function PeriodLockModal({
 
           {!isLockAction && (
             <div>
-              <label className="block text-sm font-black text-slate-800 mb-1.5">
-                Lý do mở lại kỳ công <span className="text-rose-600">* (Bắt buộc)</span>
+              <label className="block text-sm font-black text-slate-800 dark:text-slate-100 mb-1.5">
+                Lý do mở lại kỳ công <span className="text-rose-600 dark:text-rose-400">* (Bắt buộc)</span>
               </label>
               <textarea
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Ghi rõ lý do hoặc căn cứ mở lại kỳ công đã chốt..."
-                className="w-full px-3.5 py-3 rounded-xl border-2 border-slate-300 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-600"
+                className="w-full px-3.5 py-3 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-sm focus:outline-none focus:border-amber-600 dark:focus:border-amber-400"
                 required
               />
             </div>

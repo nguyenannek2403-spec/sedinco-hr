@@ -37,18 +37,18 @@ export default function ConfirmDialog({
   const palette =
     variant === "danger"
       ? {
-          iconBg: "bg-rose-100 text-rose-600",
+          iconBg: "bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300",
           Icon: AlertTriangle,
           btnVariant: "danger",
         }
       : variant === "warning"
       ? {
-          iconBg: "bg-amber-100 text-amber-600",
+          iconBg: "bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300",
           Icon: AlertTriangle,
           btnVariant: "warning",
         }
       : {
-          iconBg: "bg-blue-100 text-blue-600",
+          iconBg: "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300",
           Icon: CheckCircle2,
           btnVariant: "primary",
         };

@@ -25,9 +25,9 @@ export default function CompanyLogo({
     >
       {/* Khung Biểu tượng Logo SEDINCO chính thức */}
       <div
-        className={`relative shrink-0 rounded-2xl bg-white flex items-center justify-center overflow-hidden transition-all duration-300 shadow-xl border border-white/20 ${
+        className={`relative shrink-0 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center overflow-hidden transition-all duration-300 shadow-xl border border-slate-200/80 dark:border-slate-700 ${
           isLarge
-            ? "w-24 h-24 md:w-28 md:h-28 rounded-3xl p-2.5 shadow-2xl shadow-blue-500/25 ring-4 ring-white/10"
+            ? "w-24 h-24 md:w-28 md:h-28 rounded-3xl p-2.5 shadow-2xl shadow-blue-500/25 ring-4 ring-white/10 dark:ring-slate-700/40"
             : isSmall
             ? "w-10 h-10 rounded-xl p-1 shadow-md"
             : "w-16 h-16 rounded-2xl p-1.5 shadow-lg"
@@ -44,7 +44,7 @@ export default function CompanyLogo({
       <div className={isHorizontal ? "text-left" : "text-center"}>
         <h1
           className={`font-black tracking-tight uppercase leading-tight ${
-            theme === "dark" ? "text-white" : "text-slate-900"
+            theme === "dark" ? "text-white" : "text-slate-900 dark:text-white"
           } ${isLarge ? "text-2xl md:text-3xl tracking-wide mt-1" : isSmall ? "text-sm" : "text-base"}`}
         >
           SEDINCO <span className="text-red-500">HR</span>
@@ -52,7 +52,7 @@ export default function CompanyLogo({
         {showSubtitle && (
           <p
             className={`font-semibold tracking-wide ${
-              theme === "dark" ? "text-slate-300" : "text-slate-500"
+              theme === "dark" ? "text-slate-300" : "text-slate-500 dark:text-slate-300"
             } ${isLarge ? "text-xs md:text-sm mt-1" : "text-xs mt-0.5"}`}
           >
             HỆ THỐNG QUẢN TRỊ NHÂN SỰ & CHẤM CÔNG

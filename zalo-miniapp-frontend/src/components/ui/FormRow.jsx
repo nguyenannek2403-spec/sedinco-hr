@@ -21,14 +21,14 @@ export default function FormRow({
   return (
     <div
       className={`flex items-center justify-between gap-[10px] sm:gap-3 px-[12px] sm:px-3.5 py-2.5 ${
-        isDark ? "text-slate-100" : "text-slate-800"
+        isDark ? "text-slate-100" : "text-slate-800 dark:text-slate-100"
       } ${className}`}
     >
       <div className="flex-1 min-w-0">
         <label
           htmlFor={htmlFor}
           className={`block break-words text-sm sm:text-base font-medium leading-snug ${
-            isDark ? "text-slate-200" : "text-slate-700"
+            isDark ? "text-slate-200" : "text-slate-700 dark:text-slate-200"
           }`}
         >
           {label}
@@ -36,7 +36,7 @@ export default function FormRow({
         {description && (
           <p
             className={`text-xs mt-0.5 leading-snug break-words ${
-              isDark ? "text-slate-400" : "text-slate-500"
+              isDark ? "text-slate-400" : "text-slate-500 dark:text-slate-400"
             }`}
           >
             {description}

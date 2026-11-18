@@ -86,14 +86,16 @@ export default function AppModal({
         className={`flex flex-col w-full ${maxWidthClass} ${maxHeightClass} rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl animate-sheet-up border ${
           isDark
             ? "bg-slate-900 text-slate-100 border-slate-700/80"
-            : "bg-white text-slate-800 border-slate-200"
+            : "bg-white text-slate-800 border-slate-200 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700/80"
         } ${!isTopModal ? "pointer-events-none select-none" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Thanh tiêu đề cố định: luôn có "< Trở về" ở góc trên trái */}
         <div
           className={`px-4 py-3.5 border-b flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
-            isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+            isDark
+              ? "bg-slate-900 border-slate-800"
+              : "bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800"
           }`}
           onWheel={(e) => e.stopPropagation()}
         >
@@ -105,7 +107,7 @@ export default function AppModal({
               className={`min-h-[44px] px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
                 isDark
                   ? "bg-slate-800 hover:bg-slate-700 text-slate-100"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100"
               }`}
             >
               <ArrowLeft className="w-4 h-4 shrink-0" />
@@ -117,7 +119,7 @@ export default function AppModal({
             <div className="min-w-0 flex-1">
               <h3
                 className={`font-bold text-sm sm:text-base leading-snug break-words ${
-                  isDark ? "text-white" : "text-slate-900"
+                  isDark ? "text-white" : "text-slate-900 dark:text-white"
                 }`}
               >
                 {title}
@@ -125,7 +127,7 @@ export default function AppModal({
               {subtitle && (
                 <p
                   className={`text-xs mt-0.5 leading-snug break-words ${
-                    isDark ? "text-slate-300" : "text-slate-500"
+                    isDark ? "text-slate-300" : "text-slate-500 dark:text-slate-300"
                   }`}
                 >
                   {subtitle}
@@ -145,7 +147,7 @@ export default function AppModal({
                 className={`min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
                   isDark
                     ? "bg-slate-800 hover:bg-slate-700 text-slate-200"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200"
                 }`}
               >
                 <X className="w-4 h-4" />
@@ -164,7 +166,7 @@ export default function AppModal({
           className={`px-4 py-3 border-t shrink-0 ${
             isDark
               ? "bg-slate-900 border-slate-800"
-              : "bg-white border-slate-200"
+              : "bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800"
           }`}
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
           onWheel={(e) => e.stopPropagation()}

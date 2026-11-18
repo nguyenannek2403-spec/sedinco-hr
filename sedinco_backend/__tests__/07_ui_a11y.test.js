@@ -635,7 +635,174 @@ async function inspectPhysicsAndGeometry(session, label, { expectModal = false, 
     assert.equal(audit.crushedTextNodes.length, 0, `[${label}] CHECK-4 FAIL: Crushed/vertical-wrapped text detected: ${JSON.stringify(audit.crushedTextNodes)}`);
     assert.equal(audit.jargonFound, null, `[${label}] CHECK-5 FAIL: Jargon/invalid token detected in DOM: ${audit.jargonFound}`);
 
+    const initiallyDark = await session.evaluate(`document.documentElement.classList.contains('dark')`);
+    if (initiallyDark) {
+        await auditDarkModeSurfaceAndContrast(session, label);
+    } else {
+        const lightScheme = await session.evaluate(`getComputedStyle(document.documentElement).colorScheme`);
+        assert.equal(lightScheme, 'light', `[${label}] V19 LAW-3 FAIL: Light mode colorScheme must be "light", got "${lightScheme}"`);
+        await session.evaluate(`(() => {
+            if (typeof window.__setSedincoTheme === 'function') window.__setSedincoTheme('dark');
+            else document.documentElement.classList.add('dark');
+        })()`);
+        await sleep(280);
+        await auditDarkModeSurfaceAndContrast(session, label);
+        await session.evaluate(`(() => {
+            if (typeof window.__setSedincoTheme === 'function') window.__setSedincoTheme('light');
+            else document.documentElement.classList.remove('dark');
+        })()`);
+        await sleep(240);
+    }
+
     return audit;
+}
+
+async function auditDarkModeSurfaceAndContrast(session, viewName) {
+    const res = await session.evaluate(`(() => {
+        const rootCs = getComputedStyle(document.documentElement);
+        const colorScheme = rootCs.colorScheme;
+        const isDarkRoot = document.documentElement.classList.contains('dark');
+
+        const parseRgba = (str) => {
+            if (!str || str === 'transparent') return { r: 0, g: 0, b: 0, a: 0 };
+            const m = str.match(/rgba?\\(\\s*(\\d+(?:\\.\\d+)?)[,\\s]+(\\d+(?:\\.\\d+)?)[,\\s]+(\\d+(?:\\.\\d+)?)(?:[,\\/\\s]+(\\d+(?:\\.\\d+)?%?))?\\s*\\)/i);
+            if (!m) return { r: 0, g: 0, b: 0, a: 0 };
+            let a = 1;
+            if (m[4] !== undefined) {
+                a = m[4].endsWith('%') ? parseFloat(m[4]) / 100 : parseFloat(m[4]);
+            }
+            return { r: parseFloat(m[1]), g: parseFloat(m[2]), b: parseFloat(m[3]), a };
+        };
+
+        const compositeOver = (fg, bg) => {
+            const a = fg.a;
+            if (a <= 0) return bg;
+            if (a >= 0.999) return { r: fg.r, g: fg.g, b: fg.b, a: 1 };
+            return {
+                r: fg.r * a + bg.r * (1 - a),
+                g: fg.g * a + bg.g * (1 - a),
+                b: fg.b * a + bg.b * (1 - a),
+                a: 1
+            };
+        };
+
+        const relLuminance = ({ r, g, b }) => {
+            const toLin = (v) => {
+                const c = v / 255;
+                return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+            };
+            return 0.2126 * toLin(r) + 0.7152 * toLin(g) + 0.0722 * toLin(b);
+        };
+
+        const resolveEffectiveBg = (el) => {
+            const chain = [];
+            let cur = el;
+            while (cur && cur.nodeType === 1) {
+                chain.unshift(parseRgba(getComputedStyle(cur).backgroundColor));
+                cur = cur.parentElement;
+            }
+            let acc = { r: 9, g: 13, b: 22, a: 1 }; // #090d16 base dark canvas
+            for (const c of chain) {
+                if (c.a > 0.001) acc = compositeOver(c, acc);
+            }
+            return acc;
+        };
+
+        const isVisible = (el) => {
+            if (!el) return false;
+            const cs = getComputedStyle(el);
+            if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 16 && r.height > 16;
+        };
+
+        const modals = Array.from(document.querySelectorAll('[data-modal-root="true"], [role="dialog"]'))
+            .filter((el) => {
+                const cs = getComputedStyle(el);
+                return cs.display !== 'none' && cs.visibility !== 'hidden';
+            })
+            .sort((a, b) => Number(getComputedStyle(b).zIndex || 0) - Number(getComputedStyle(a).zIndex || 0));
+        const topModal = modals[0] || null;
+        const scopes = topModal ? [topModal] : [document.getElementById('app') || document.body];
+
+        const whiteViolations = [];
+        const contrastViolations = [];
+        const seen = new Set();
+
+        for (const scope of scopes) {
+            const allEls = [scope, ...Array.from(scope.querySelectorAll('*'))];
+            for (const el of allEls) {
+                if (seen.has(el)) continue;
+                seen.add(el);
+                const tag = el.tagName;
+                if (['IMG', 'SVG', 'PATH', 'CIRCLE', 'RECT', 'LINE', 'POLYLINE', 'POLYGON', 'VIDEO', 'CANVAS', 'SCRIPT', 'STYLE'].includes(tag)) continue;
+                if (el.closest('svg')) continue;
+                if (!isVisible(el)) continue;
+
+                const cs = getComputedStyle(el);
+                const bg = parseRgba(cs.backgroundColor);
+                const rect = el.getBoundingClientRect();
+                const inSwitch = Boolean(el.closest('[role="switch"]')) && rect.width <= 48 && rect.height <= 48;
+
+                // Law 1: Zero Blinding White Box in Dark Mode
+                if (!inSwitch && bg.a > 0.85 && bg.r > 235 && bg.g > 235 && bg.b > 235) {
+                    whiteViolations.push({
+                        tag,
+                        cls: String(el.className || '').slice(0, 140),
+                        text: (el.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 40),
+                        bg: cs.backgroundColor,
+                        w: Math.round(rect.width),
+                        h: Math.round(rect.height)
+                    });
+                }
+
+                // Law 2: Zero Dark-on-Dark Unreadable Text
+                const isFormControl = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+                const directText = Array.from(el.childNodes)
+                    .filter((n) => n.nodeType === 3)
+                    .map((n) => n.textContent || '')
+                    .join('')
+                    .trim();
+
+                if (!directText && !isFormControl) continue;
+                const tc = parseRgba(cs.color);
+                if (tc.a > 0.1 && tc.r < 65 && tc.g < 75 && tc.b < 95) {
+                    const effBg = resolveEffectiveBg(el);
+                    const bgLum = relLuminance(effBg);
+                    if (bgLum < 0.15) {
+                        contrastViolations.push({
+                            tag,
+                            cls: String(el.className || '').slice(0, 140),
+                            text: (directText || el.value || el.getAttribute('placeholder') || '').slice(0, 40),
+                            color: cs.color,
+                            effBg: 'rgb(' + Math.round(effBg.r) + ',' + Math.round(effBg.g) + ',' + Math.round(effBg.b) + ')',
+                            bgLum: Number(bgLum.toFixed(3))
+                        });
+                    }
+                }
+            }
+        }
+
+        return {
+            isDarkRoot,
+            colorScheme,
+            whiteViolations: whiteViolations.slice(0, 8),
+            contrastViolations: contrastViolations.slice(0, 8)
+        };
+    })()`);
+
+    assert.ok(res.isDarkRoot, `[${viewName}] Dark audit must run with html.dark active`);
+    assert.equal(res.colorScheme, 'dark', `[${viewName}] V19 LAW-3 FAIL: Dark mode colorScheme must be "dark", got "${res.colorScheme}"`);
+    assert.equal(
+        res.whiteViolations.length,
+        0,
+        `[${viewName}] V19 LAW-1 FAIL (White Box in Dark Mode): ${JSON.stringify(res.whiteViolations)}`
+    );
+    assert.equal(
+        res.contrastViolations.length,
+        0,
+        `[${viewName}] V19 LAW-2 FAIL (Dark Text on Dark Bg): ${JSON.stringify(res.contrastViolations)}`
+    );
 }
 
 async function dismissModalIfOpen(session) {
@@ -875,6 +1042,12 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // =================================================================
         await loginThroughAuthView(session, 'NV003', '123456');
         await inspectPhysicsAndGeometry(session, 'Worker Tab 1: Chấm công', { expectModal: false, testScrollBleed: false });
+        // Click ThemeToggleButton directly in Worker view to confirm real UI toggle + Dark surface contrast
+        await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
+        await sleep(280);
+        await inspectPhysicsAndGeometry(session, 'Worker Tab 1: Chấm công (Dark Toggle)', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
+        await sleep(240);
 
         // 1A: Field Work Check-In Portal Modal + Real Photo + Check-In API
         await clickInPage(session, { text: 'Chấm công Đi Công Trình', inTopModal: false });
@@ -1036,6 +1209,11 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await setViewportAndScale(session, 390, 844, 100);
         await loginThroughAuthView(session, 'NV002', '123456');
         await inspectPhysicsAndGeometry(session, 'Accountant Dashboard Initial', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
+        await sleep(280);
+        await inspectPhysicsAndGeometry(session, 'Accountant Dashboard Initial (Dark Toggle)', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
+        await sleep(240);
 
         // Verify V18: Global headcount strip is NOT on Accountant matrix dashboard
         const hasGlobalHeadcountOnMatrix = await session.evaluate(`Boolean(document.querySelector('[data-testid="employee-hub-headcount-bar"]'))`);
@@ -1095,13 +1273,13 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await dismissModalIfOpen(session);
         }
 
-        // Toggle "Dạng thẻ" / "Bảng lưới" & inspect "Chốt kỳ công" modal
+        // Toggle "Dạng thẻ" / "Bảng 31 ngày" & inspect "Chốt kỳ công" modal
         await session.evaluate(`(() => {
-            const b = Array.from(document.querySelectorAll('#app button')).find((x) => (x.innerText || '').includes('Bảng lưới') || (x.innerText || '').includes('Dạng thẻ'));
+            const b = Array.from(document.querySelectorAll('#app button')).find((x) => (x.innerText || '').includes('Bảng 31 ngày') || (x.innerText || '').includes('Bảng lưới'));
             if (b) b.click();
         })()`);
-        await sleep(240);
-        await inspectPhysicsAndGeometry(session, 'Accountant Matrix Alternate View', { expectModal: false, testScrollBleed: false });
+        await sleep(260);
+        await inspectPhysicsAndGeometry(session, 'Accountant Matrix Alternate View (31-day Table)', { expectModal: false, testScrollBleed: false });
 
         const hasPeriodBtn = await session.evaluate(`Array.from(document.querySelectorAll('#app button')).some((b) => (b.innerText || '').includes('Chốt kỳ công'))`);
         if (hasPeriodBtn) {
@@ -1124,6 +1302,11 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // 2E: Payroll Tab — Calculate, Adjust modal (FormRow), Dispute Slip view, Snapshot
         await openDesktopTabViaDrawer('payroll', 'Accountant');
         await inspectPhysicsAndGeometry(session, 'Accountant Tab: payroll', { expectModal: false, testScrollBleed: false });
+        await setViewportAndScale(session, 900, 780, 100);
+        await sleep(180);
+        await inspectPhysicsAndGeometry(session, 'Accountant Tab: payroll (Desktop Grid Table)', { expectModal: false, testScrollBleed: false });
+        await setViewportAndScale(session, 390, 844, 100);
+        await sleep(160);
         const hasCalcBtn = await session.evaluate(`(() => {
             const isVis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; };
             return Array.from(document.querySelectorAll('#app button')).some((b) => isVis(b) && (b.innerText || '').includes('Tính lương'));
@@ -1212,6 +1395,11 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await setViewportAndScale(session, 360, 780, 100);
         await loginThroughAuthView(session, 'admin', '123456');
         await inspectPhysicsAndGeometry(session, 'Admin Dashboard Initial', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
+        await sleep(280);
+        await inspectPhysicsAndGeometry(session, 'Admin Dashboard Initial (Dark Toggle)', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
+        await sleep(240);
 
         // 3A: Verify V17 Pure Manager Isolation (zero Role Switcher) & 4 Clean Sidebar Modules + Profile
         const adminShellAudit = await session.evaluate(`(() => {

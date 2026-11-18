@@ -322,10 +322,10 @@ export default function SmartLeaveRequestModal({
     <div
       className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border shrink-0 ${
         isSalaryAdvance
-          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+          ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70"
           : isCompensation
-            ? "bg-amber-50 text-amber-700 border-amber-200"
-            : "bg-blue-50 text-blue-700 border-blue-200"
+            ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70"
+            : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/70"
       }`}
     >
       {isSalaryAdvance ? <Wallet size={20} /> : isCompensation ? <Clock size={20} /> : <FileText size={20} />}
@@ -374,25 +374,25 @@ export default function SmartLeaveRequestModal({
         <form
           id="smart-leave-request-form"
           onSubmit={handleSubmit}
-          className="p-4 space-y-4"
+          className="p-4 space-y-4 text-slate-800 dark:text-slate-100"
         >
           {errorMessage && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-semibold flex items-start gap-2.5 leading-relaxed">
-              <AlertCircle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200 text-xs font-semibold flex items-start gap-2.5 leading-relaxed">
+              <AlertCircle size={18} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {/* Chọn Loại đơn */}
           <div>
-            <label className="block text-sm font-semibold text-slate-800 mb-1.5">Loại đơn / chế độ</label>
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1.5">Loại đơn / chế độ</label>
             <select
               value={requestType}
               onChange={(e) => {
                 setErrorMessage("");
                 setRequestType(e.target.value);
               }}
-              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600 font-semibold bg-white"
+              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-blue-600 dark:focus:border-blue-400 font-semibold bg-white dark:bg-slate-800"
             >
               {LEAVE_TYPES.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -405,7 +405,7 @@ export default function SmartLeaveRequestModal({
           {isSalaryAdvance ? (
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">
+                <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1.5">
                   Số tiền muốn ứng (VNĐ)
                 </label>
                 <input
@@ -416,9 +416,9 @@ export default function SmartLeaveRequestModal({
                   value={advanceAmount}
                   onChange={(e) => setAdvanceAmount(e.target.value)}
                   placeholder="Ví dụ: 2000000"
-                  className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-900 text-base font-bold focus:outline-none focus:border-emerald-600"
+                  className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-base font-bold focus:outline-none focus:border-emerald-600 dark:focus:border-emerald-400"
                 />
-                <div className="mt-1.5 text-xs font-semibold text-emerald-700">
+                <div className="mt-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                   Bằng số: {formatVnd(parsedAdvanceNum)}
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2">
@@ -430,7 +430,7 @@ export default function SmartLeaveRequestModal({
                       className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer whitespace-nowrap ${
                         parsedAdvanceNum === amt
                           ? "bg-emerald-600 text-white border-emerald-700"
-                          : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
                       }`}
                     >
                       {amt.toLocaleString("vi-VN")} đ
@@ -439,20 +439,20 @@ export default function SmartLeaveRequestModal({
                 </div>
               </div>
 
-              <div className="bg-slate-50 rounded-xl border border-slate-200">
+              <div className="bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700/80">
                 <FormRow label="Ngày đề nghị">
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-emerald-600"
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-emerald-600"
                   />
                 </FormRow>
               </div>
             </div>
           ) : isOt ? (
             <div className="space-y-3">
-              <div className="divide-y divide-slate-200 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+              <div className="divide-y divide-slate-200 dark:divide-slate-700/70 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700/80 overflow-hidden">
                 <FormRow label="Ngày đăng ký tăng ca">
                   <input
                     type="date"
@@ -461,7 +461,7 @@ export default function SmartLeaveRequestModal({
                       setStartDate(e.target.value);
                       setEndDate(e.target.value);
                     }}
-                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-violet-600"
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-violet-600"
                   />
                 </FormRow>
                 <FormRow label="Số giờ tăng ca dự kiến" description="Đơn giá 1.5x ngày thường • 2.0x CN • 3.0x Lễ">
@@ -472,7 +472,7 @@ export default function SmartLeaveRequestModal({
                     step={0.5}
                     value={otHours}
                     onChange={(e) => setOtHours(e.target.value)}
-                    className="w-24 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-bold text-center focus:outline-none focus:border-violet-600"
+                    className="w-24 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-bold text-center focus:outline-none focus:border-violet-600"
                   />
                 </FormRow>
               </div>
@@ -485,7 +485,7 @@ export default function SmartLeaveRequestModal({
                     className={`min-h-[44px] px-2 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                       Number(otHours) === h
                         ? "bg-violet-600 text-white border-violet-700"
-                        : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
                     }`}
                   >
                     {h} giờ
@@ -496,7 +496,7 @@ export default function SmartLeaveRequestModal({
           ) : isCompensation ? (
             <div className="space-y-4">
               {/* Chọn Ngày giải trình */}
-              <div className="bg-slate-50 rounded-xl border border-slate-200">
+              <div className="bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700/80">
                 <FormRow label="Ngày bổ sung công">
                   <input
                     type="date"
@@ -505,7 +505,7 @@ export default function SmartLeaveRequestModal({
                       setStartDate(e.target.value);
                       setEndDate(e.target.value);
                     }}
-                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-amber-600"
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-amber-600"
                     required
                   />
                 </FormRow>
@@ -513,7 +513,7 @@ export default function SmartLeaveRequestModal({
 
               {/* 4 Nút chọn phạm vi giải trình */}
               <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-2">
+                <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
                   Tình huống cần giải trình
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -529,12 +529,12 @@ export default function SmartLeaveRequestModal({
                         }}
                         className={`min-h-[60px] p-2.5 rounded-xl border-2 text-left transition active:scale-[0.98] cursor-pointer ${
                           active
-                            ? "bg-amber-50 border-amber-500 text-amber-950 shadow-sm"
-                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                            ? "bg-amber-50 dark:bg-amber-950/60 border-amber-500 text-amber-950 dark:text-amber-200 shadow-sm"
+                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80"
                         }`}
                       >
                         <div className="text-xs font-bold leading-snug">{m.label}</div>
-                        <div className="text-xs text-slate-600 mt-0.5 leading-snug">{m.desc}</div>
+                        <div className={`text-xs mt-0.5 leading-snug ${active ? "text-amber-800 dark:text-amber-300" : "text-slate-600 dark:text-slate-300"}`}>{m.desc}</div>
                       </button>
                     );
                   })}
@@ -542,14 +542,14 @@ export default function SmartLeaveRequestModal({
               </div>
 
               {/* Giờ vào / Giờ ra thực tế dạng dòng ngang iOS */}
-              <div className="divide-y divide-slate-200 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="divide-y divide-slate-200 dark:divide-slate-700/70 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700/80">
                 {needsCheckIn && (
                   <FormRow label="Giờ vào thực tế">
                     <input
                       type="time"
                       value={checkInTime}
                       onChange={(e) => setCheckInTime(e.target.value)}
-                      className="w-32 sm:w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-bold focus:outline-none focus:border-amber-600"
+                      className="w-32 sm:w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-bold focus:outline-none focus:border-amber-600"
                       required
                     />
                   </FormRow>
@@ -560,7 +560,7 @@ export default function SmartLeaveRequestModal({
                       type="time"
                       value={checkOutTime}
                       onChange={(e) => setCheckOutTime(e.target.value)}
-                      className="w-32 sm:w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-bold focus:outline-none focus:border-amber-600"
+                      className="w-32 sm:w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-bold focus:outline-none focus:border-amber-600"
                       required
                     />
                   </FormRow>
@@ -568,16 +568,16 @@ export default function SmartLeaveRequestModal({
               </div>
 
               {/* Ảnh chứng minh (tùy chọn) */}
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-slate-700">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                     Ảnh chứng minh (nếu có)
                   </span>
                   {evidenceImage && (
                     <button
                       type="button"
                       onClick={() => setEvidenceImage("")}
-                      className="text-xs font-semibold text-rose-600 flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100"
+                      className="text-xs font-semibold text-rose-600 dark:text-rose-300 flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60"
                     >
                       <Trash2 size={13} />
                       <span>Xóa ảnh</span>
@@ -588,7 +588,7 @@ export default function SmartLeaveRequestModal({
                   <img
                     src={evidenceImage}
                     alt="Ảnh minh chứng giải trình công"
-                    className="w-full max-h-40 object-cover rounded-xl border border-slate-300"
+                    className="w-full max-h-40 object-cover rounded-xl border border-slate-300 dark:border-slate-600"
                   />
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -624,7 +624,7 @@ export default function SmartLeaveRequestModal({
           ) : (
             <>
               {/* Chọn Khoảng ngày nghỉ dạng hàng ngang iOS gọn gàng */}
-              <div className="divide-y divide-slate-200 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="divide-y divide-slate-200 dark:divide-slate-700/70 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700/80">
                 <FormRow label="Từ ngày">
                   <input
                     type="date"
@@ -634,7 +634,7 @@ export default function SmartLeaveRequestModal({
                       setStartDate(nextStart);
                       if (endDate < nextStart) setEndDate(nextStart);
                     }}
-                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-blue-600"
                     required
                   />
                 </FormRow>
@@ -644,7 +644,7 @@ export default function SmartLeaveRequestModal({
                     value={endDate}
                     min={startDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-blue-600"
                     required
                   />
                 </FormRow>
@@ -652,19 +652,19 @@ export default function SmartLeaveRequestModal({
 
               {/* BANNER THÔNG MINH: TỰ LOẠI TRỪ NGÀY LỄ */}
               {analysis.holidaysEncountered.length > 0 && (
-                <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-xs space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
+                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-300 dark:border-amber-700/80 text-amber-950 dark:text-amber-200 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-sm text-amber-900 dark:text-amber-200">
                     <Gift size={18} className="shrink-0" />
                     <span>Khoảng ngày này trùng với Ngày Lễ quy định</span>
                   </div>
-                  <ul className="list-disc list-inside text-xs text-amber-900 font-medium space-y-1">
+                  <ul className="list-disc list-inside text-xs text-amber-900 dark:text-amber-200 font-medium space-y-1">
                     {analysis.holidaysEncountered.map((h, i) => (
                       <li key={i}>
                         Ngày <span className="font-bold">{h.date}</span>: {h.name} (Miễn trừ phép)
                       </li>
                     ))}
                   </ul>
-                  <p className="text-xs text-amber-800 leading-relaxed">
+                  <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
                     Theo Điều 112 BLLĐ, ngày nghỉ lễ được hưởng nguyên lương, không trừ vào quỹ phép năm.
                   </p>
                 </div>
@@ -672,11 +672,11 @@ export default function SmartLeaveRequestModal({
 
               {/* BANNER GỢI Ý NGÀY CẦU NỐI */}
               {analysis.bridgeSuggestions.length > 0 && (
-                <div className="p-3.5 rounded-2xl bg-indigo-50 border-2 border-indigo-200 text-indigo-950 text-xs flex items-start gap-2.5">
-                  <Sparkles size={18} className="text-indigo-600 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border-2 border-indigo-200 dark:border-indigo-700/80 text-indigo-950 dark:text-indigo-200 text-xs flex items-start gap-2.5">
+                  <Sparkles size={18} className="text-indigo-600 dark:text-indigo-300 shrink-0 mt-0.5" />
                   <div className="leading-relaxed">
                     <span className="font-bold text-sm block mb-0.5">Gợi ý kỳ nghỉ liền kề</span>
-                    <span className="text-xs text-indigo-900">
+                    <span className="text-xs text-indigo-900 dark:text-indigo-200">
                       {analysis.bridgeSuggestions[0].message} Bạn có thể sắp xếp công việc để có kỳ nghỉ dài.
                     </span>
                   </div>
@@ -684,37 +684,37 @@ export default function SmartLeaveRequestModal({
               )}
 
               {/* KHỐI TỔNG KẾT TÍNH TOÁN NGÀY PHÉP */}
-              <div className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2 text-sm">
-                <div className="flex justify-between items-center text-slate-700">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border-2 border-slate-200 dark:border-slate-700/80 space-y-2 text-sm">
+                <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
                   <span className="font-medium">Tổng số ngày theo lịch:</span>
-                  <span className="font-bold text-slate-900 whitespace-nowrap">{analysis.totalCalendarDays} ngày</span>
+                  <span className="font-bold text-slate-900 dark:text-white whitespace-nowrap">{analysis.totalCalendarDays} ngày</span>
                 </div>
                 {analysis.holidaysEncountered.length > 0 && (
-                  <div className="flex justify-between items-center text-emerald-700 font-semibold">
+                  <div className="flex justify-between items-center text-emerald-700 dark:text-emerald-300 font-semibold">
                     <span>Ngày lễ được miễn trừ:</span>
                     <span className="font-bold whitespace-nowrap">-{analysis.holidaysEncountered.length} ngày</span>
                   </div>
                 )}
                 {analysis.weekendDaysEncountered.length > 0 && (
-                  <div className="flex justify-between items-center text-slate-600 font-medium">
+                  <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 font-medium">
                     <span>Cuối tuần (Chủ nhật):</span>
                     <span className="font-semibold whitespace-nowrap">-{analysis.weekendDaysEncountered.length} ngày</span>
                   </div>
                 )}
-                <div className="pt-2 border-t-2 border-slate-200 flex justify-between items-center text-base font-bold text-slate-900">
+                <div className="pt-2 border-t-2 border-slate-200 dark:border-slate-700 flex justify-between items-center text-base font-bold text-slate-900 dark:text-white">
                   <span>Số ngày trừ phép thực tế:</span>
-                  <span className="text-blue-700 font-bold whitespace-nowrap">
+                  <span className="text-blue-700 dark:text-blue-300 font-bold whitespace-nowrap">
                     {requestType === "P" ? analysis.actualDeductedDays : 0} ngày
                   </span>
                 </div>
                 {requestType === "P" && (
                   <div className="pt-1 space-y-2">
-                    <p className="text-xs text-slate-600 font-medium">
-                      Quỹ phép năm còn lại: <span className="font-bold text-slate-900">{availableLeaveDays} ngày</span>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                      Quỹ phép năm còn lại: <span className="font-bold text-slate-900 dark:text-white">{availableLeaveDays} ngày</span>
                     </p>
                     {isExceedingBalance && (
-                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 space-y-2">
-                        <p className="text-xs text-rose-700 font-semibold leading-relaxed">
+                      <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 space-y-2">
+                        <p className="text-xs text-rose-700 dark:text-rose-200 font-semibold leading-relaxed">
                           {isOutOfLeave
                             ? "Quỹ phép năm của bạn đã hết (0 ngày còn lại). Hãy chuyển sang Nghỉ không lương (KP)."
                             : `Số ngày xin nghỉ (${analysis.actualDeductedDays} ngày) vượt quá phép năm còn lại (${availableLeaveDays} ngày).`}
@@ -736,8 +736,8 @@ export default function SmartLeaveRequestModal({
 
           {/* Lý do */}
           <div>
-            <label className="block text-sm font-semibold text-slate-800 mb-1.5">
-              Lý do cụ thể <span className="text-rose-600">*</span>
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1.5">
+              Lý do cụ thể <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <textarea
               rows={3}
@@ -748,7 +748,7 @@ export default function SmartLeaveRequestModal({
                   ? "Ghi rõ lý do cần tạm ứng lương..."
                   : "Ghi rõ lý do xin nghỉ hoặc công việc tăng ca để quản lý xét duyệt..."
               }
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600 leading-relaxed"
+              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-blue-600 dark:focus:border-blue-400 leading-relaxed"
             />
           </div>
         </form>

@@ -23,13 +23,13 @@ import { ROLES, hasPermission } from "../constants/roles";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "./ui";
 
 const getBadgeStyle = (status) => {
-  if (status === "1") return "bg-emerald-100 text-emerald-900 border-2 border-emerald-500 font-black";
-  if (status === "0.5") return "bg-teal-100 text-teal-900 border-2 border-teal-500 font-black";
-  if (status === "P") return "bg-amber-100 text-amber-900 border-2 border-amber-500 font-black";
-  if (String(status).includes("OT")) return "bg-indigo-100 text-indigo-900 border-2 border-indigo-500 font-black";
-  if (status === "L") return "bg-rose-100 text-rose-900 border-2 border-rose-500 font-black";
-  if (status === "KP") return "bg-slate-200 text-slate-800 border-2 border-slate-400 font-black";
-  return "text-slate-400 border border-slate-200 bg-slate-50/50 hover:bg-slate-100";
+  if (status === "1") return "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-300 border-2 border-emerald-500 dark:border-emerald-500/70 font-black";
+  if (status === "0.5") return "bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-300 border-2 border-teal-500 dark:border-teal-500/70 font-black";
+  if (status === "P") return "bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 border-2 border-amber-500 dark:border-amber-500/70 font-black";
+  if (String(status).includes("OT")) return "bg-indigo-100 dark:bg-indigo-950/70 text-indigo-900 dark:text-indigo-300 border-2 border-indigo-500 dark:border-indigo-500/70 font-black";
+  if (status === "L") return "bg-rose-100 dark:bg-rose-950/70 text-rose-900 dark:text-rose-300 border-2 border-rose-500 dark:border-rose-500/70 font-black";
+  if (status === "KP") return "bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-2 border-slate-400 dark:border-slate-600 font-black";
+  return "text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/70";
 };
 
 export default function AttendanceMatrixTable({
@@ -309,18 +309,18 @@ export default function AttendanceMatrixTable({
   };
 
   return (
-    <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-sm overflow-hidden mb-24">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-24">
       
       {/* Header Điều Khiển & Tìm Kiếm */}
-      <div className="p-4 sm:p-5 border-b-2 border-slate-200 flex flex-wrap items-center justify-between gap-4 bg-slate-50/70">
+      <div className="p-4 sm:p-5 border-b-2 border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-50/70 dark:bg-slate-800/60">
         <div>
           <div className="flex items-center gap-2">
-            <Calendar className="text-blue-600 shrink-0" size={22} />
-            <h3 className="font-bold text-lg leading-snug text-slate-900">
+            <Calendar className="text-blue-600 dark:text-blue-400 shrink-0" size={22} />
+            <h3 className="font-bold text-lg leading-snug text-slate-900 dark:text-white">
               Bảng chấm công ma trận
             </h3>
           </div>
-          <p className="text-sm font-medium text-slate-600 mt-1">
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300 mt-1">
             Tổng hợp dữ liệu điểm danh thực tế của toàn bộ cán bộ công nhân viên ({filteredData.length} nhân sự)
           </p>
         </div>
@@ -328,23 +328,23 @@ export default function AttendanceMatrixTable({
         {/* Thanh tác vụ: Tháng/Năm, Tìm kiếm & Nút hành động */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Bộ chọn tháng/năm */}
-          <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl px-1.5 py-0.5 shadow-sm">
+          <div className="flex items-center bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-1.5 py-0.5 shadow-sm">
             <button
               type="button"
               onClick={() => onMonthChange(month > 1 ? month - 1 : 12, month > 1 ? year : year - 1)}
-              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer border border-transparent hover:border-slate-300 flex items-center justify-center"
+              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer border border-transparent hover:border-slate-300 dark:hover:border-slate-600 flex items-center justify-center"
               title="Tháng trước"
               aria-label="Tháng trước"
             >
               <ChevronLeft size={20} />
             </button>
-            <span className="font-black text-sm px-2.5 text-slate-900">
+            <span className="font-black text-sm px-2.5 text-slate-900 dark:text-white">
               Tháng {month}/{year}
             </span>
             <button
               type="button"
               onClick={() => onMonthChange(month < 12 ? month + 1 : 1, month < 12 ? year : year + 1)}
-              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer border border-transparent hover:border-slate-300 flex items-center justify-center"
+              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer border border-transparent hover:border-slate-300 dark:hover:border-slate-600 flex items-center justify-center"
               title="Tháng sau"
               aria-label="Tháng sau"
             >
@@ -356,7 +356,7 @@ export default function AttendanceMatrixTable({
           <select
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 shadow-sm text-slate-800"
+            className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:focus:border-blue-400 shadow-sm text-slate-800 dark:text-slate-100"
           >
             <option value="ALL">🏢 Tất cả bộ phận</option>
             {availableDepartments.map((dept) => (
@@ -374,7 +374,7 @@ export default function AttendanceMatrixTable({
               placeholder="Tìm theo tên hoặc mã NV..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-semibold bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-600 shadow-sm"
+              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:focus:border-blue-400 shadow-sm"
             />
           </div>
 
@@ -439,8 +439,8 @@ export default function AttendanceMatrixTable({
           )}
 
           {isLocked && !canUnlockPeriod && (
-            <div className="min-h-[44px] flex items-center gap-2 bg-slate-200 text-slate-800 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-400 whitespace-nowrap">
-              <Lock size={16} className="text-slate-600 shrink-0" />
+            <div className="min-h-[44px] flex items-center gap-2 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-400 dark:border-slate-600 whitespace-nowrap">
+              <Lock size={16} className="text-slate-600 dark:text-slate-300 shrink-0" />
               <span>Đã khóa sổ</span>
             </div>
           )}
@@ -449,28 +449,28 @@ export default function AttendanceMatrixTable({
 
       {/* Banner Cảnh Báo Nếu Kỳ Đã Chốt */}
       {isLocked && (
-        <div className="px-5 py-3 bg-amber-100/80 border-b-2 border-amber-300 flex items-center justify-between text-sm text-amber-950 font-bold">
+        <div className="px-5 py-3 bg-amber-100/80 dark:bg-amber-950/60 border-b-2 border-amber-300 dark:border-amber-800/70 flex items-center justify-between text-sm text-amber-950 dark:text-amber-200 font-bold">
           <div className="flex items-center gap-2.5">
-            <Lock size={18} className="text-amber-700 shrink-0" />
+            <Lock size={18} className="text-amber-700 dark:text-amber-300 shrink-0" />
             <span>Kỳ công Tháng {month}/{year} đã được Kế toán chốt sổ. Toàn bộ bảng công ở chế độ CHỈ ĐỌC.</span>
           </div>
           {canUnlockPeriod && (
-            <span className="text-xs text-amber-800 italic underline">Quản trị viên có thể mở khóa khi cần thiết</span>
+            <span className="text-xs text-amber-800 dark:text-amber-300 italic underline">Quản trị viên có thể mở khóa khi cần thiết</span>
           )}
         </div>
       )}
 
       {/* Thanh chuyển chế độ xem Mobile-First & Chú giải */}
-      <div className="px-4 sm:px-5 py-3 bg-slate-100 border-b-2 border-slate-200 space-y-2.5">
+      <div className="px-4 sm:px-5 py-3 bg-slate-100 dark:bg-slate-800/80 border-b-2 border-slate-200 dark:border-slate-800 space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="inline-flex p-1 bg-slate-200/80 rounded-xl border border-slate-300">
+          <div className="inline-flex p-1 bg-slate-200/80 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700">
             <button
               type="button"
               onClick={() => setViewMode("cards")}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] ${
                 viewMode === "cards"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-slate-700 hover:text-slate-900"
+                  ? "bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 shadow-sm"
+                  : "text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               <List size={15} />
@@ -481,8 +481,8 @@ export default function AttendanceMatrixTable({
               onClick={() => setViewMode("matrix")}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] ${
                 viewMode === "matrix"
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-slate-700 hover:text-slate-900"
+                  ? "bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 shadow-sm"
+                  : "text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
               <LayoutGrid size={15} />
@@ -490,17 +490,17 @@ export default function AttendanceMatrixTable({
             </button>
           </div>
           {canEdit && (
-            <span className="text-xs text-blue-700 font-extrabold">
+            <span className="text-xs text-blue-700 dark:text-blue-300 font-extrabold">
               {viewMode === "cards"
                 ? "💡 Chạm vào nhân viên để xem & sửa lịch 31 ngày"
                 : "💡 Chạm trực tiếp vào ô ngày để sửa công"}
             </span>
           )}
-          {isLocked && <span className="text-xs text-rose-700 font-black">🔒 Bảng công đã bị khóa sổ</span>}
+          {isLocked && <span className="text-xs text-rose-700 dark:text-rose-300 font-black">🔒 Bảng công đã bị khóa sổ</span>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-700">
-          <span className="font-black text-slate-900">Ký hiệu:</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+          <span className="font-black text-slate-900 dark:text-white">Ký hiệu:</span>
           <StatusBadge type="attendance" status="1" />
           <StatusBadge type="attendance" status="0.5" />
           <StatusBadge type="attendance" status="P" />
@@ -511,7 +511,7 @@ export default function AttendanceMatrixTable({
       </div>
 
       {matrixError && (
-        <div className="mx-4 mt-3 p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-800 text-xs sm:text-sm font-bold flex items-center justify-between gap-2">
+        <div className="mx-4 mt-3 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 text-xs sm:text-sm font-bold flex items-center justify-between gap-2">
           <span>{matrixError}</span>
           <AppButton
             variant="danger"
@@ -525,7 +525,7 @@ export default function AttendanceMatrixTable({
 
       {/* CHẾ ĐỘ 1: DẠNG THẺ MOBILE-FIRST */}
       {viewMode === "cards" && (
-        <div className="p-3 sm:p-4 space-y-2.5 bg-slate-50/70">
+        <div className="p-3 sm:p-4 space-y-2.5 bg-slate-50/70 dark:bg-slate-950/40">
           {loadingMatrix ? (
             <SkeletonList rows={3} label="Đang tải dữ liệu bảng chấm công..." />
           ) : filteredData.length === 0 ? (
@@ -545,44 +545,44 @@ export default function AttendanceMatrixTable({
                   key={emp.ma_nv || empIdx}
                   type="button"
                   onClick={() => setDetailEmpCode(emp.ma_nv)}
-                  className="perf-list-item w-full text-left bg-white rounded-2xl border border-slate-200 p-3.5 shadow-sm hover:border-blue-400 active:scale-[0.99] transition flex flex-col gap-3"
+                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 shadow-sm hover:border-blue-400 dark:hover:border-blue-500 active:scale-[0.99] transition flex flex-col gap-3"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-700 font-black flex items-center justify-center shrink-0 border border-blue-200">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-black flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-800/70">
                         {(emp.ho_ten || "N").charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-extrabold text-slate-900 text-sm truncate">
+                        <div className="font-extrabold text-slate-900 dark:text-white text-sm truncate">
                           {emp.ho_ten}
                         </div>
-                        <div className="text-xs text-blue-700 font-bold">
+                        <div className="text-xs text-blue-700 dark:text-blue-300 font-bold">
                           Mã NV: {emp.ma_nv} {(emp.department || emp.bo_phan) ? `• ${emp.department || emp.bo_phan}` : ""}
                         </div>
                       </div>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 shrink-0">
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 shrink-0">
                       {daysInMonth} ngày
                       <ChevronRight size={16} />
                     </span>
                   </div>
 
                   <div className="grid grid-cols-4 gap-2">
-                    <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-2 py-1.5 text-center">
-                      <div className="text-xs font-bold text-emerald-700">Tổng công</div>
-                      <div className="text-sm font-black text-emerald-900">{totalWorkDays}</div>
+                    <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 px-2 py-1.5 text-center">
+                      <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300">Tổng công</div>
+                      <div className="text-sm font-black text-emerald-900 dark:text-emerald-200">{totalWorkDays}</div>
                     </div>
-                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-2 py-1.5 text-center">
-                      <div className="text-xs font-bold text-amber-700">Nghỉ phép</div>
-                      <div className="text-sm font-black text-amber-900">{countP}</div>
+                    <div className="rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/70 px-2 py-1.5 text-center">
+                      <div className="text-xs font-bold text-amber-700 dark:text-amber-300">Nghỉ phép</div>
+                      <div className="text-sm font-black text-amber-900 dark:text-amber-200">{countP}</div>
                     </div>
-                    <div className="rounded-xl bg-indigo-50 border border-indigo-200 px-2 py-1.5 text-center">
-                      <div className="text-xs font-bold text-indigo-700">Tăng ca</div>
-                      <div className="text-sm font-black text-indigo-900">{countOT}</div>
+                    <div className="rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/70 px-2 py-1.5 text-center">
+                      <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300">Tăng ca</div>
+                      <div className="text-sm font-black text-indigo-900 dark:text-indigo-200">{countOT}</div>
                     </div>
-                    <div className="rounded-xl bg-slate-100 border border-slate-200 px-2 py-1.5 text-center">
-                      <div className="text-xs font-bold text-slate-600">Không phép</div>
-                      <div className="text-sm font-black text-slate-800">{countKP}</div>
+                    <div className="rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
+                      <div className="text-xs font-bold text-slate-600 dark:text-slate-300">Không phép</div>
+                      <div className="text-sm font-black text-slate-800 dark:text-slate-100">{countKP}</div>
                     </div>
                   </div>
                 </button>
@@ -597,8 +597,8 @@ export default function AttendanceMatrixTable({
       <div className="overflow-x-auto touch-scroll-x">
         <table className="w-full border-collapse text-xs text-left">
           <thead>
-            <tr className="bg-slate-100 text-slate-800 border-b-2 border-slate-300 uppercase font-black sticky top-0 z-10">
-              <th className="p-2.5 sm:p-3.5 pl-3 sm:pl-4 sticky left-0 bg-slate-100 z-20 min-w-[140px] sm:min-w-[190px] max-w-[155px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+            <tr className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-b-2 border-slate-300 dark:border-slate-700 uppercase font-black sticky top-0 z-10">
+              <th className="p-2.5 sm:p-3.5 pl-3 sm:pl-4 sticky left-0 bg-slate-100 dark:bg-slate-800 z-20 min-w-[140px] sm:min-w-[190px] max-w-[155px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
                 Nhân Sự
               </th>
               {dayNumbers.map(d => {
@@ -607,35 +607,35 @@ export default function AttendanceMatrixTable({
                 return (
                   <th
                     key={d}
-                    className={`p-1.5 text-center min-w-[48px] border-l border-slate-200 ${
-                      isSunday ? "bg-rose-100/60 text-rose-800" : ""
+                    className={`p-1.5 text-center min-w-[48px] border-l border-slate-200 dark:border-slate-700 ${
+                      isSunday ? "bg-rose-100/60 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200" : ""
                     }`}
                   >
                     <div className="text-sm font-black">{d}</div>
-                    <span className="text-xs font-bold text-slate-500 block">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-300 block">
                       {isSunday ? "CN" : `T${dayOfWeek + 1}`}
                     </span>
                   </th>
                 );
               })}
-              <th className="p-3 text-center bg-emerald-100/70 text-emerald-950 font-black border-l-2 border-slate-300 min-w-[60px] text-xs">
+              <th className="p-3 text-center bg-emerald-100/70 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-200 font-black border-l-2 border-slate-300 dark:border-slate-700 min-w-[60px] text-xs">
                 Đủ (1)
               </th>
-              <th className="p-3 text-center bg-teal-100/70 text-teal-950 font-black border-l-2 border-slate-300 min-w-[60px] text-xs">
+              <th className="p-3 text-center bg-teal-100/70 dark:bg-teal-950/60 text-teal-950 dark:text-teal-200 font-black border-l-2 border-slate-300 dark:border-slate-700 min-w-[60px] text-xs">
                 Nửa (0.5)
               </th>
-              <th className="p-3 text-center bg-amber-100/70 text-amber-950 font-black border-l-2 border-slate-300 min-w-[60px] text-xs">
+              <th className="p-3 text-center bg-amber-100/70 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 font-black border-l-2 border-slate-300 dark:border-slate-700 min-w-[60px] text-xs">
                 Phép (P)
               </th>
-              <th className="p-3 text-center bg-indigo-100/70 text-indigo-950 font-black border-l-2 border-slate-300 min-w-[60px] text-xs">
+              <th className="p-3 text-center bg-indigo-100/70 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-200 font-black border-l-2 border-slate-300 dark:border-slate-700 min-w-[60px] text-xs">
                 OT (h)
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
             {filteredData.length === 0 ? (
               <tr>
-                <td colSpan={daysInMonth + 5} className="py-12 text-center text-slate-500 text-sm font-bold">
+                <td colSpan={daysInMonth + 5} className="py-12 text-center text-slate-500 dark:text-slate-300 text-sm font-bold">
                   Không tìm thấy dữ liệu điểm danh phù hợp.
                 </td>
               </tr>
@@ -648,11 +648,11 @@ export default function AttendanceMatrixTable({
                 const countOT = days.filter(d => String(d).includes("OT")).length;
 
                 return (
-                  <tr key={emp.ma_nv || empIdx} className="hover:bg-blue-50/50 transition-colors">
+                  <tr key={emp.ma_nv || empIdx} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50 transition-colors">
                     {/* Cột cố định: Tên & Mã NV */}
-                    <td className="p-2.5 sm:p-3 pl-3 sm:pl-4 sticky left-0 bg-white z-10 min-w-[140px] sm:min-w-[190px] max-w-[165px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
-                      <div className="font-black text-slate-900 text-xs sm:text-sm leading-tight break-words">{emp.ho_ten}</div>
-                      <div className="text-xs text-blue-700 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
+                    <td className="p-2.5 sm:p-3 pl-3 sm:pl-4 sticky left-0 bg-white dark:bg-slate-900 z-10 min-w-[140px] sm:min-w-[190px] max-w-[165px] sm:max-w-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]">
+                      <div className="font-black text-slate-900 dark:text-white text-xs sm:text-sm leading-tight break-words">{emp.ho_ten}</div>
+                      <div className="text-xs text-blue-700 dark:text-blue-300 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
                     </td>
 
                     {/* 31 Cột ngày */}
@@ -664,8 +664,8 @@ export default function AttendanceMatrixTable({
                       return (
                         <td
                           key={d}
-                          className={`p-1 text-center border-l border-slate-100 ${
-                            isSunday ? "bg-rose-50/30" : ""
+                          className={`p-1 text-center border-l border-slate-100 dark:border-slate-800 ${
+                            isSunday ? "bg-rose-50/30 dark:bg-rose-950/30" : ""
                           }`}
                         >
                           <button
@@ -682,16 +682,16 @@ export default function AttendanceMatrixTable({
                     })}
 
                     {/* Cột Tổng Kết */}
-                    <td className="p-2.5 text-center font-black text-emerald-900 bg-emerald-50/60 border-l-2 border-slate-300 text-sm">
+                    <td className="p-2.5 text-center font-black text-emerald-900 dark:text-emerald-300 bg-emerald-50/60 dark:bg-emerald-950/40 border-l-2 border-slate-300 dark:border-slate-700 text-sm">
                       {count1}
                     </td>
-                    <td className="p-2.5 text-center font-black text-teal-900 bg-teal-50/60 border-l-2 border-slate-300 text-sm">
+                    <td className="p-2.5 text-center font-black text-teal-900 dark:text-teal-300 bg-teal-50/60 dark:bg-teal-950/40 border-l-2 border-slate-300 dark:border-slate-700 text-sm">
                       {countHalf}
                     </td>
-                    <td className="p-2.5 text-center font-black text-amber-900 bg-amber-50/60 border-l-2 border-slate-300 text-sm">
+                    <td className="p-2.5 text-center font-black text-amber-900 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-950/40 border-l-2 border-slate-300 dark:border-slate-700 text-sm">
                       {countP}
                     </td>
-                    <td className="p-2.5 text-center font-black text-indigo-900 bg-indigo-50/60 border-l-2 border-slate-300 text-sm">
+                    <td className="p-2.5 text-center font-black text-indigo-900 dark:text-indigo-300 bg-indigo-50/60 dark:bg-indigo-950/40 border-l-2 border-slate-300 dark:border-slate-700 text-sm">
                       {countOT}
                     </td>
                   </tr>
@@ -719,8 +719,8 @@ export default function AttendanceMatrixTable({
             subtitle={`${emp.ma_nv} • Tháng ${month}/${year}`}
             maxWidthClass="max-w-lg"
           >
-            <div className="p-4 space-y-3 bg-slate-50">
-              <p className="text-xs text-slate-600 font-medium text-center">
+            <div className="p-4 space-y-3 bg-slate-50 dark:bg-slate-900">
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium text-center">
                 {canEdit
                   ? "Chạm vào bất kỳ ngày nào bên dưới để chỉnh sửa công"
                   : "Chế độ chỉ xem chi tiết công theo ngày"}
@@ -738,11 +738,11 @@ export default function AttendanceMatrixTable({
                       onClick={() => handleCellClick(emp, dIdx)}
                       className={`min-h-[58px] rounded-xl border p-1.5 flex flex-col items-center justify-between transition active:scale-95 ${
                         isSunday
-                          ? "bg-rose-50/70 border-rose-200"
-                          : "bg-white border-slate-200 hover:border-blue-400"
+                          ? "bg-rose-50/70 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/70"
+                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-400"
                       }`}
                     >
-                      <div className="text-xs font-bold text-slate-500">
+                      <div className="text-xs font-bold text-slate-500 dark:text-slate-300">
                         {d} ({isSunday ? "CN" : `T${dayOfWeek + 1}`})
                       </div>
                       <div
@@ -792,9 +792,9 @@ export default function AttendanceMatrixTable({
             </div>
           }
         >
-          <div className="p-5 space-y-4 text-sm">
+          <div className="p-5 space-y-4 text-sm text-slate-800 dark:text-slate-100">
             <div>
-              <label className="block text-slate-800 font-black mb-2">
+              <label className="block text-slate-800 dark:text-slate-100 font-black mb-2">
                 Chọn nhanh trạng thái công
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -817,7 +817,7 @@ export default function AttendanceMatrixTable({
                       className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-extrabold text-left transition ${
                         isSelected
                           ? `${opt.activeClass} shadow-sm`
-                          : "bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100"
+                          : "bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
                       }`}
                     >
                       {opt.label}
@@ -828,7 +828,7 @@ export default function AttendanceMatrixTable({
             </div>
 
             {(selectedStatus === "OT" || selectedStatus === "1/OT") && (
-              <div className="border-2 border-slate-200 rounded-2xl bg-slate-50 overflow-hidden">
+              <div className="border-2 border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
                 <FormRow
                   label="Số giờ tăng ca (OT)"
                   description="Thường 1.5x • CN 2.0x • Lễ 3.0x"
@@ -840,7 +840,7 @@ export default function AttendanceMatrixTable({
                     step="0.5"
                     value={otHours}
                     onChange={(e) => setOtHours(Number(e.target.value))}
-                    className="w-24 px-3 py-2 bg-white border-2 border-slate-300 rounded-lg outline-none font-black text-indigo-800 text-center focus:border-indigo-600"
+                    className="w-24 px-3 py-2 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg outline-none font-black text-indigo-800 dark:text-indigo-300 text-center focus:border-indigo-600"
                   />
                 </FormRow>
               </div>
@@ -892,15 +892,15 @@ export default function AttendanceMatrixTable({
           <form
             id="proxy-checkin-form"
             onSubmit={handleSubmitProxyCheckIn}
-            className="p-5 space-y-3.5 text-slate-800"
+            className="p-5 space-y-3.5 text-slate-800 dark:text-slate-100"
           >
             <div>
-              <label className="block text-sm font-bold text-slate-800 mb-1.5">Chọn nhân viên</label>
+              <label className="block text-sm font-bold text-slate-800 dark:text-slate-100 mb-1.5">Chọn nhân viên</label>
               <select
                 required
                 value={proxyForm.ma_nv}
                 onChange={(e) => setProxyForm((p) => ({ ...p, ma_nv: e.target.value }))}
-                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-900"
+                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base font-semibold text-slate-900 dark:text-slate-100"
               >
                 <option value="">-- Chọn nhân viên --</option>
                 {(sourceList || [])
@@ -913,14 +913,14 @@ export default function AttendanceMatrixTable({
               </select>
             </div>
 
-            <div className="divide-y divide-slate-200 border-2 border-slate-200 rounded-2xl bg-slate-50 overflow-hidden">
+            <div className="divide-y divide-slate-200 dark:divide-slate-700 border-2 border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
               <FormRow label="Ngày chấm công">
                 <input
                   type="date"
                   required
                   value={proxyForm.record_date}
                   onChange={(e) => setProxyForm((p) => ({ ...p, record_date: e.target.value }))}
-                  className="w-36 bg-white border border-slate-300 rounded-lg px-2 py-2 text-base font-bold text-slate-900 text-center"
+                  className="w-36 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-bold text-slate-900 dark:text-slate-100 text-center"
                 />
               </FormRow>
               <FormRow label="Giờ vào ca">
@@ -928,7 +928,7 @@ export default function AttendanceMatrixTable({
                   type="time"
                   value={proxyForm.check_in_time}
                   onChange={(e) => setProxyForm((p) => ({ ...p, check_in_time: e.target.value }))}
-                  className="w-32 bg-white border border-slate-300 rounded-lg px-2 py-2 text-base font-bold text-slate-900 text-center"
+                  className="w-32 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-bold text-slate-900 dark:text-slate-100 text-center"
                 />
               </FormRow>
               <FormRow label="Giờ tan ca (nếu có)">
@@ -936,17 +936,17 @@ export default function AttendanceMatrixTable({
                   type="time"
                   value={proxyForm.check_out_time}
                   onChange={(e) => setProxyForm((p) => ({ ...p, check_out_time: e.target.value }))}
-                  className="w-32 bg-white border border-slate-300 rounded-lg px-2 py-2 text-base font-bold text-slate-900 text-center"
+                  className="w-32 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-bold text-slate-900 dark:text-slate-100 text-center"
                 />
               </FormRow>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-800 mb-1.5">Địa điểm làm việc</label>
+              <label className="block text-sm font-bold text-slate-800 dark:text-slate-100 mb-1.5">Địa điểm làm việc</label>
               <select
                 value={proxyForm.work_location_type}
                 onChange={(e) => setProxyForm((p) => ({ ...p, work_location_type: e.target.value }))}
-                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-900"
+                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base font-semibold text-slate-900 dark:text-slate-100"
               >
                 <option value="OFFICE">Tại Văn phòng / Kho xưởng</option>
                 <option value="FIELD_WORK">Ngoài công trình / Dự án</option>
@@ -954,13 +954,13 @@ export default function AttendanceMatrixTable({
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-800 mb-1.5">Ghi chú điểm danh hộ</label>
+              <label className="block text-sm font-bold text-slate-800 dark:text-slate-100 mb-1.5">Ghi chú điểm danh hộ</label>
               <textarea
                 rows={2}
                 value={proxyForm.note}
                 onChange={(e) => setProxyForm((p) => ({ ...p, note: e.target.value }))}
                 placeholder="Ví dụ: Quản lý chấm công hộ do nhân viên quên điện thoại"
-                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-base text-slate-900"
+                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100"
               />
             </div>
           </form>

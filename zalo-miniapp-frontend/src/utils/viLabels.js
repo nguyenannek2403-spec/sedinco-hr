@@ -94,50 +94,128 @@ export function getCorrectionModeLabel(mode) {
 export function getRequestStatusInfo(status) {
   const key = String(status || 'pending').trim().toLowerCase();
   if (key === 'approved') {
-    return { label: 'Đã duyệt', bgClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    return {
+      label: 'Đã duyệt',
+      bgClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70'
+    };
   }
   if (key === 'rejected') {
-    return { label: 'Từ chối', bgClass: 'bg-rose-50 text-rose-700 border-rose-200' };
+    return {
+      label: 'Từ chối',
+      bgClass: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/70'
+    };
   }
   if (key === 'cancelled') {
-    return { label: 'Đã hủy', bgClass: 'bg-slate-100 text-slate-600 border-slate-200' };
+    return {
+      label: 'Đã hủy',
+      bgClass: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+    };
   }
-  return { label: 'Chờ duyệt', bgClass: 'bg-amber-50 text-amber-700 border-amber-200' };
+  return {
+    label: 'Chờ duyệt',
+    bgClass: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70'
+  };
 }
 
 export function getAttendanceStatusInfo(status) {
   const s = String(status || '').trim();
   if (s === '1') {
-    return { label: 'Đủ công', shortLabel: 'Đủ công', credit: 1, creditText: '1,0 công', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    return {
+      label: 'Đủ công',
+      shortLabel: 'Đủ công',
+      credit: 1,
+      creditText: '1,0 công',
+      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70'
+    };
   }
   if (s === '1/OT') {
-    return { label: 'Đủ công & Tăng ca', shortLabel: 'Công + Tăng ca', credit: 1, creditText: '1,0 công', badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+    return {
+      label: 'Đủ công & Tăng ca',
+      shortLabel: 'Công + Tăng ca',
+      credit: 1,
+      creditText: '1,0 công',
+      badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800/70'
+    };
   }
   if (s === 'OT') {
-    return { label: 'Làm thêm ngày nghỉ', shortLabel: 'Tăng ca', credit: 0, creditText: 'Tăng ca', badgeClass: 'bg-violet-50 text-violet-700 border-violet-200' };
+    return {
+      label: 'Làm thêm ngày nghỉ',
+      shortLabel: 'Tăng ca',
+      credit: 0,
+      creditText: 'Tăng ca',
+      badgeClass: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-800/70'
+    };
   }
   if (s === '0.5') {
-    return { label: 'Nửa ngày công', shortLabel: 'Nửa công', credit: 0.5, creditText: '0,5 công', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' };
+    return {
+      label: 'Nửa ngày công',
+      shortLabel: 'Nửa công',
+      credit: 0.5,
+      creditText: '0,5 công',
+      badgeClass: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70'
+    };
   }
   if (s === 'P') {
-    return { label: 'Nghỉ phép hưởng lương', shortLabel: 'Nghỉ phép', credit: 1, creditText: '1,0 (Phép)', badgeClass: 'bg-sky-50 text-sky-700 border-sky-200' };
+    return {
+      label: 'Nghỉ phép hưởng lương',
+      shortLabel: 'Nghỉ phép',
+      credit: 1,
+      creditText: '1,0 (Phép)',
+      badgeClass: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800/70'
+    };
   }
   if (s === 'L') {
-    return { label: 'Nghỉ lễ hưởng lương', shortLabel: 'Nghỉ lễ', credit: 1, creditText: '1,0 (Lễ)', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' };
+    return {
+      label: 'Nghỉ lễ hưởng lương',
+      shortLabel: 'Nghỉ lễ',
+      credit: 1,
+      creditText: '1,0 (Lễ)',
+      badgeClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/70'
+    };
   }
   if (s === 'KP') {
-    return { label: 'Nghỉ không lương', shortLabel: 'Không lương', credit: 0, creditText: '0 công', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' };
+    return {
+      label: 'Nghỉ không lương',
+      shortLabel: 'Không lương',
+      credit: 0,
+      creditText: '0 công',
+      badgeClass: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+    };
   }
   if (s === 'V') {
-    return { label: 'Vắng không lý do', shortLabel: 'Vắng mặt', credit: 0, creditText: '0 công', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' };
+    return {
+      label: 'Vắng không lý do',
+      shortLabel: 'Vắng mặt',
+      credit: 0,
+      creditText: '0 công',
+      badgeClass: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/70'
+    };
   }
   if (s === 'NOT_CHECKED_IN') {
-    return { label: 'Chưa chấm công', shortLabel: 'Chưa chấm', credit: 0, creditText: '—', badgeClass: 'bg-slate-100 text-slate-600 border-slate-200' };
+    return {
+      label: 'Chưa chấm công',
+      shortLabel: 'Chưa chấm',
+      credit: 0,
+      creditText: '—',
+      badgeClass: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+    };
   }
   if (s === '0' || !s) {
-    return { label: 'Chưa ghi nhận công', shortLabel: 'Nghỉ / Trống', credit: 0, creditText: '0 công', badgeClass: 'bg-slate-100 text-slate-500 border-slate-200' };
+    return {
+      label: 'Chưa ghi nhận công',
+      shortLabel: 'Nghỉ / Trống',
+      credit: 0,
+      creditText: '0 công',
+      badgeClass: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+    };
   }
-  return { label: s, shortLabel: s, credit: 0, creditText: s, badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' };
+  return {
+    label: s,
+    shortLabel: s,
+    credit: 0,
+    creditText: s,
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+  };
 }
 
 export const ACCOUNTANT_PERMISSION_GROUPS = [
@@ -145,7 +223,7 @@ export const ACCOUNTANT_PERMISSION_GROUPS = [
     id: 'attendance_requests',
     label: 'Nhóm 1: Quản lý Chấm công & Đơn từ',
     description: 'Kiểm soát quyền xem, điều chỉnh, khóa sổ chấm công và xử lý đơn từ nhân viên',
-    color: 'text-blue-600 bg-blue-50',
+    color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/60 dark:text-blue-300',
     items: [
       {
         key: 'attendance_view_all',
@@ -184,7 +262,7 @@ export const ACCOUNTANT_PERMISSION_GROUPS = [
     id: 'employee_shift',
     label: 'Nhóm 2: Quản lý Hồ sơ Nhân sự & Phân ca',
     description: 'Quản lý danh sách nhân viên, thông tin hồ sơ, tài khoản và ca làm việc',
-    color: 'text-purple-600 bg-purple-50',
+    color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/60 dark:text-purple-300',
     items: [
       {
         key: 'employee_view',
@@ -229,7 +307,7 @@ export const ACCOUNTANT_PERMISSION_GROUPS = [
     id: 'payroll',
     label: 'Nhóm 3: Tính toán, Điều chỉnh & Chi trả Tiền lương',
     description: 'Kiểm soát quy trình tính lương, chốt phiếu lương, giải quyết khiếu nại và chi trả',
-    color: 'text-emerald-600 bg-emerald-50',
+    color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300',
     items: [
       {
         key: 'payroll_view_all',
@@ -263,7 +341,7 @@ export const ACCOUNTANT_PERMISSION_GROUPS = [
     id: 'config_reports',
     label: 'Nhóm 4: Cấu hình, Ngày lễ & Xuất báo cáo',
     description: 'Xuất file bảng lương, sao lưu kỳ lương và minh bạch các quyền độc quyền Giám đốc',
-    color: 'text-indigo-600 bg-indigo-50',
+    color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 dark:text-indigo-300',
     items: [
       {
         key: 'payroll_export',

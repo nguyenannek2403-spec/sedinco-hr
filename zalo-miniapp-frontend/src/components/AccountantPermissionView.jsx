@@ -190,16 +190,16 @@ export default function AccountantPermissionView({ showToast }) {
         <div
           className={`p-4 rounded-xl flex items-center gap-3 text-sm font-medium ${
             message.type === "success"
-              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70"
               : message.type === "error"
-                ? "bg-rose-50 text-rose-800 border border-rose-200"
-                : "bg-blue-50 text-blue-800 border border-blue-200"
+                ? "bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70"
+                : "bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800/70"
           }`}
         >
           {message.type === "success" ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
           ) : (
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
           )}
           <span className="leading-snug break-words">{message.text}</span>
         </div>
@@ -216,23 +216,23 @@ export default function AccountantPermissionView({ showToast }) {
             return (
               <div
                 key={group.id}
-                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden transition hover:shadow-md"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden transition hover:shadow-md"
               >
-                <div className="px-4 sm:px-6 py-4 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-3">
+                <div className="px-4 sm:px-6 py-4 bg-slate-50/80 dark:bg-slate-800/70 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`p-2 rounded-xl shrink-0 ${group.color}`}>
                       <Icon className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-bold text-slate-800 text-base leading-snug break-words">{group.label}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5 leading-snug break-words">
-                        Đang bật: <span className="font-semibold text-blue-600">{enabledCount}</span> / {group.items.length} quyền • {group.description}
+                      <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base leading-snug break-words">{group.label}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5 leading-snug break-words">
+                        Đang bật: <span className="font-semibold text-blue-600 dark:text-blue-400">{enabledCount}</span> / {group.items.length} quyền • {group.description}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {group.items.map((item) => {
                     const isChecked = Boolean(permMap[item.key]);
                     const srvMeta = serverDescMap[item.key];
@@ -240,21 +240,21 @@ export default function AccountantPermissionView({ showToast }) {
                     return (
                       <div
                         key={item.key}
-                        className="perf-list-item px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/50 transition"
+                        className="perf-list-item px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition"
                       >
                         <div className="pr-2 min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-slate-900 text-sm sm:text-base leading-snug break-words">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm sm:text-base leading-snug break-words">
                               {item.name}
                             </span>
                             {item.sodWarning && (
-                              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold leading-snug">
+                              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/70 font-semibold leading-snug">
                                 {item.sodWarning}
                               </span>
                             )}
                           </div>
                           {displayDesc && (
-                            <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed break-words">
+                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed break-words">
                               {displayDesc}
                             </p>
                           )}
@@ -270,7 +270,7 @@ export default function AccountantPermissionView({ showToast }) {
                         >
                           <div
                             className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out ${
-                              isChecked ? "bg-blue-600" : "bg-slate-300"
+                              isChecked ? "bg-blue-600" : "bg-slate-300 dark:bg-slate-700"
                             }`}
                           >
                             <div
@@ -289,19 +289,19 @@ export default function AccountantPermissionView({ showToast }) {
           })}
 
           {/* Chốt chặn Phân tách Nhiệm vụ (Độc quyền Ban Giám Đốc) */}
-          <div className="bg-amber-50/70 rounded-2xl border border-amber-200 p-4 sm:p-6 space-y-3">
-            <div className="flex items-center gap-2.5 text-amber-950 font-bold text-sm sm:text-base">
-              <Lock className="w-5 h-5 text-amber-700 shrink-0" />
+          <div className="bg-amber-50/70 dark:bg-amber-950/50 rounded-2xl border border-amber-200 dark:border-amber-800/70 p-4 sm:p-6 space-y-3">
+            <div className="flex items-center gap-2.5 text-amber-950 dark:text-amber-200 font-bold text-sm sm:text-base">
+              <Lock className="w-5 h-5 text-amber-700 dark:text-amber-300 shrink-0" />
               <span>Chốt chặn Phân tách Nhiệm vụ (Độc quyền Quản trị viên / Giám đốc)</span>
             </div>
-            <p className="text-xs sm:text-sm text-amber-900 leading-relaxed">
+            <p className="text-xs sm:text-sm text-amber-900 dark:text-amber-200/90 leading-relaxed">
               Các chức năng quản trị tối cao dưới đây luôn được khóa cứng chỉ dành riêng cho Giám đốc, không cho phép Kế toán tự ý thao tác để bảo đảm kiểm soát nội bộ:
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {ADMIN_SOD_EXCLUSIVE_ITEMS.map((sod, idx) => (
-                <div key={idx} className="bg-white/90 border border-amber-200 rounded-xl p-3 space-y-1">
-                  <div className="text-xs sm:text-sm font-bold text-slate-900">{sod.name}</div>
-                  <p className="text-xs text-slate-600 leading-relaxed">{sod.desc}</p>
+                <div key={idx} className="bg-white/90 dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 space-y-1">
+                  <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">{sod.name}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{sod.desc}</p>
                 </div>
               ))}
             </div>
@@ -309,22 +309,22 @@ export default function AccountantPermissionView({ showToast }) {
 
           {/* Lịch sử Audit Logs thu nhỏ */}
           {auditLogs && auditLogs.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-sm">
-              <h3 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-6 shadow-sm">
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm mb-3 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 <span>Lịch sử thay đổi quyền gần đây</span>
               </h3>
               <div className="space-y-2">
                 {auditLogs.map((log) => (
                   <div
                     key={log.id}
-                    className="perf-list-item text-xs bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5"
+                    className="perf-list-item text-xs bg-slate-50 dark:bg-slate-800/70 p-3 rounded-lg border border-slate-100 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5"
                   >
                     <div className="min-w-0 break-words leading-relaxed">
-                      <span className="font-semibold text-slate-800">{log.actor_id}</span>{" "}
-                      <span className="text-slate-500">({getRoleLabel(log.actor_role)})</span> —{" "}
-                      <span className="font-semibold text-blue-700">{getAuditActionLabel(log.action)}</span>
-                      <span className="text-slate-600 block mt-0.5">
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">{log.actor_id}</span>{" "}
+                      <span className="text-slate-500 dark:text-slate-400">({getRoleLabel(log.actor_role)})</span> —{" "}
+                      <span className="font-semibold text-blue-700 dark:text-blue-300">{getAuditActionLabel(log.action)}</span>
+                      <span className="text-slate-600 dark:text-slate-300 block mt-0.5">
                         {(() => {
                           if (!log.details) return "Đã cập nhật thay đổi";
                           if (typeof log.details === "object") {

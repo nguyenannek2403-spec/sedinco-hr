@@ -172,9 +172,9 @@ export default function DesktopHeader({
           </button>
         )}
 
-        <div className="hidden md:block min-w-0">
+        <div className="hidden lg:block min-w-0 max-w-[260px]">
           <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-300 font-bold leading-snug">
-            <span>Sedinco Nhân Sự</span>
+            <span className="truncate">Sedinco Nhân Sự</span>
             <ChevronRight size={12} className="shrink-0" />
             <span className="text-blue-600 dark:text-blue-400 font-black truncate">{ROLE_LABELS[activeRole] || currentUser?.ho_ten}</span>
           </div>
@@ -219,7 +219,7 @@ export default function DesktopHeader({
             className="hidden sm:flex min-w-[44px] min-h-[44px] px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-blue-500/20 text-slate-700 hover:text-blue-700 dark:text-slate-200 dark:hover:text-blue-300 border border-slate-300 dark:border-slate-700 rounded-xl items-center justify-center gap-1.5 text-xs font-bold transition-colors"
           >
             <KeyRound size={14} className="shrink-0" />
-            <span className="hidden md:inline">Tài khoản</span>
+            <span className="hidden xl:inline">Tài khoản</span>
           </button>
         )}
 

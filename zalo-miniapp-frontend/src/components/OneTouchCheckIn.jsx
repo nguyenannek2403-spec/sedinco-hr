@@ -1063,7 +1063,7 @@ export default function OneTouchCheckIn({
           onClick={handleCaptureSelfie}
           disabled={isDebounceLocked || stage === STAGES.SUBMITTING}
           icon={Camera}
-          className="!bg-slate-800 hover:!bg-slate-700 !border-slate-700 !text-emerald-300"
+          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 dark:!bg-slate-800 dark:hover:!bg-slate-700 dark:!border-slate-700 dark:!text-emerald-300"
         >
           {capturedPhoto
             ? "✅ Đã đính kèm ảnh hiện trường"
@@ -1076,23 +1076,23 @@ export default function OneTouchCheckIn({
       {/* Kết quả & Thông báo chi tiết */}
       <div className="w-full text-center space-y-3">
         {spamWarning && (
-          <div className="p-3.5 rounded-2xl bg-amber-500/20 border-2 border-amber-400 text-left flex items-start gap-2.5 shadow-lg">
-            <AlertTriangle size={18} className="text-amber-300 shrink-0 mt-0.5" />
-            <p className="font-bold text-xs sm:text-sm text-amber-100 leading-relaxed">{spamWarning}</p>
+          <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-400 dark:border-amber-700 text-left flex items-start gap-2.5 shadow-lg">
+            <AlertTriangle size={18} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
+            <p className="font-bold text-xs sm:text-sm text-amber-900 dark:text-amber-100 leading-relaxed">{spamWarning}</p>
           </div>
         )}
         <div
           className={`w-full py-3 px-4 rounded-2xl text-xs sm:text-sm font-extrabold inline-flex items-center justify-center gap-2 transition-all border-2 shadow-sm ${
             stage === STAGES.SUCCESS
-              ? "bg-emerald-50 text-emerald-950 border-emerald-400"
+              ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-300 border-emerald-400 dark:border-emerald-700"
               : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
-              ? "bg-rose-50 text-rose-900 border-rose-400"
-              : "bg-slate-900 text-slate-200 border-slate-700"
+              ? "bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-400 dark:border-rose-700"
+              : "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700"
           }`}
         >
-          {stage === STAGES.SUCCESS && <CheckCircle2 size={18} className="text-emerald-700 shrink-0" />}
+          {stage === STAGES.SUCCESS && <CheckCircle2 size={18} className="text-emerald-700 dark:text-emerald-300 shrink-0" />}
           {(stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD) && (
-            <AlertCircle size={18} className="text-rose-700 shrink-0" />
+            <AlertCircle size={18} className="text-rose-700 dark:text-rose-300 shrink-0" />
           )}
           {stage !== STAGES.SUCCESS && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 animate-pulse" />
@@ -1101,19 +1101,19 @@ export default function OneTouchCheckIn({
         </div>
 
         {errorMessage && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
-          <div className="p-3 rounded-2xl bg-rose-50 border-2 border-rose-300 text-left flex items-start gap-2.5">
-            <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
-            <p className="font-bold text-xs text-rose-900">{errorMessage}</p>
+          <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-700 text-left flex items-start gap-2.5">
+            <AlertTriangle size={18} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
+            <p className="font-bold text-xs text-rose-900 dark:text-rose-200">{errorMessage}</p>
           </div>
         )}
 
         {stage === STAGES.ERROR && (
-          <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-left space-y-3">
+          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-700 text-left space-y-3">
             <div className="flex items-start gap-2.5">
-              <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+              <AlertTriangle size={20} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-black text-sm text-rose-950">{errorMessage}</h4>
-                {errorDetails && <p className="text-xs text-rose-800 mt-1 font-medium">{errorDetails}</p>}
+                <h4 className="font-black text-sm text-rose-950 dark:text-rose-100">{errorMessage}</h4>
+                {errorDetails && <p className="text-xs text-rose-800 dark:text-rose-200 mt-1 font-medium">{errorDetails}</p>}
               </div>
             </div>
             <AppButton

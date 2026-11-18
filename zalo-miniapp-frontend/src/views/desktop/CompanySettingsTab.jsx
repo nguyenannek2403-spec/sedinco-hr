@@ -30,17 +30,17 @@ const AccordionSection = ({
   title,
   subtitle,
   icon: Icon,
-  iconColor = "text-blue-600",
-  iconBg = "bg-blue-50",
+  iconColor = "text-blue-600 dark:text-blue-300",
+  iconBg = "bg-blue-50 dark:bg-blue-950/60",
   isOpen,
   onToggle,
   children,
 }) => (
-  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden transition-all">
+  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden transition-all">
     <button
       type="button"
       onClick={() => onToggle(id)}
-      className="w-full flex items-center justify-between gap-[10px] p-[14px] sm:p-4 text-left hover:bg-slate-50/70 active:bg-slate-100/70 transition-colors min-h-[64px]"
+      className="w-full flex items-center justify-between gap-[10px] p-[14px] sm:p-4 text-left hover:bg-slate-50/70 dark:hover:bg-slate-800/60 active:bg-slate-100/70 dark:active:bg-slate-800 transition-colors min-h-[64px]"
     >
       <div className="flex items-center gap-[10px] min-w-0 flex-1">
         <div
@@ -49,16 +49,16 @@ const AccordionSection = ({
           <Icon className="w-[18px] h-[18px]" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[15px] font-bold text-slate-800 leading-snug break-words">{title}</h3>
-          <p className="text-xs text-slate-500 leading-snug break-words mt-0.5">{subtitle}</p>
+          <h3 className="text-[15px] font-bold text-slate-800 dark:text-slate-100 leading-snug break-words">{title}</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-300 leading-snug break-words mt-0.5">{subtitle}</p>
         </div>
       </div>
-      <div className="w-[34px] h-[34px] rounded-full bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+      <div className="w-[34px] h-[34px] rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
         {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </div>
     </button>
     {isOpen && (
-      <div className="px-[14px] sm:px-4 pb-[14px] sm:pb-4 pt-2 border-t border-slate-100 space-y-4">
+      <div className="px-[14px] sm:px-4 pb-[14px] sm:pb-4 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-4">
         {children}
       </div>
     )}
@@ -375,8 +375,8 @@ export default function CompanySettingsTab({ showToast }) {
         <div
           className={`flex items-start gap-2.5 p-3.5 rounded-xl border text-sm font-medium ${
             statusBanner.type === "error"
-              ? "bg-red-50 border-red-200 text-red-700"
-              : "bg-emerald-50 border-emerald-200 text-emerald-700"
+              ? "bg-red-50 dark:bg-rose-950/60 border-red-200 dark:border-rose-800/70 text-red-700 dark:text-rose-300"
+              : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/70 text-emerald-700 dark:text-emerald-300"
           }`}
         >
           {statusBanner.type === "error" ? (
@@ -389,11 +389,11 @@ export default function CompanySettingsTab({ showToast }) {
       )}
 
       {/* F4: Bảng tin Thông báo Nội bộ */}
-      <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 space-y-2.5 shadow-sm">
+      <div className="bg-amber-50/80 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/70 rounded-2xl p-4 space-y-2.5 shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-bold text-amber-950">📢 Bảng tin thông báo nội bộ</h3>
-            <p className="text-xs text-amber-800/80 mt-0.5">
+            <h3 className="text-sm font-bold text-amber-950 dark:text-amber-200">📢 Bảng tin thông báo nội bộ</h3>
+            <p className="text-xs text-amber-800/80 dark:text-amber-300/90 mt-0.5">
               Hiển thị nổi bật ngay đầu màn hình chấm công của toàn bộ công nhân.
             </p>
           </div>
@@ -401,7 +401,7 @@ export default function CompanySettingsTab({ showToast }) {
             <button
               type="button"
               onClick={() => updateField("announcement_text", "")}
-              className="min-h-[44px] px-3 py-2 rounded-xl bg-white border border-amber-300 text-xs font-semibold text-amber-900 hover:bg-amber-100 whitespace-nowrap shrink-0"
+              className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/60 whitespace-nowrap shrink-0"
             >
               Xóa thông báo
             </button>
@@ -412,7 +412,7 @@ export default function CompanySettingsTab({ showToast }) {
           value={config.announcement_text || ""}
           onChange={(e) => updateField("announcement_text", e.target.value)}
           placeholder="VD: Thứ 7 tuần này công trình A nghỉ bảo trì điện, anh em ca chiều chuyển sang kho B lúc 13:00..."
-          className="w-full p-3 rounded-xl border border-amber-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:outline-none"
+          className="w-full p-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:border-amber-500 focus:outline-none"
         />
       </div>
 
@@ -422,18 +422,18 @@ export default function CompanySettingsTab({ showToast }) {
         title="1. Giờ làm việc & Nghỉ trưa"
         subtitle={`${config.work_start || "08:00"} – ${config.work_end || "17:30"} • Nghỉ trưa ${config.lunch_start || "12:00"} – ${config.lunch_end || "13:30"}`}
         icon={Clock}
-        iconColor="text-blue-600"
-        iconBg="bg-blue-50"
+        iconColor="text-blue-600 dark:text-blue-300"
+        iconBg="bg-blue-50 dark:bg-blue-950/60"
         isOpen={openSections.schedule}
         onToggle={toggleSection}
       >
-        <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl bg-slate-50/70 overflow-hidden">
+        <div className="divide-y divide-slate-100 dark:divide-slate-700/70 border border-slate-200 dark:border-slate-700/80 rounded-2xl bg-slate-50/70 dark:bg-slate-800/70 overflow-hidden">
           <FormRow label="Giờ bắt đầu làm việc">
             <input
               type="time"
               value={config.work_start || "08:00"}
               onChange={(e) => updateField("work_start", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-blue-500 focus:outline-none"
             />
           </FormRow>
           <FormRow label="Giờ tan ca">
@@ -441,7 +441,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.work_end || "17:30"}
               onChange={(e) => updateField("work_end", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-blue-500 focus:outline-none"
             />
           </FormRow>
           <FormRow label="Bắt đầu nghỉ trưa">
@@ -449,7 +449,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.lunch_start || "12:00"}
               onChange={(e) => updateField("lunch_start", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-blue-500 focus:outline-none"
             />
           </FormRow>
           <FormRow label="Kết thúc nghỉ trưa">
@@ -457,13 +457,13 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.lunch_end || "13:30"}
               onChange={(e) => updateField("lunch_end", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-blue-500 focus:outline-none"
             />
           </FormRow>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-600 mb-1">
+          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
             Thời gian đi muộn được châm chước (phút)
           </label>
           <input
@@ -471,28 +471,28 @@ export default function CompanySettingsTab({ showToast }) {
             min="0"
             value={config.grace_period_minutes ?? 15}
             onChange={(e) => updateField("grace_period_minutes", e.target.value)}
-            className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+            className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
           />
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Ví dụ: nhập 15 nghĩa là nhân viên vào trễ trong vòng 15 phút đầu vẫn được tính đúng giờ.
           </p>
         </div>
 
-        <div className="pt-2 border-t border-slate-100 space-y-3">
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Tên công ty hiển thị trên phiếu lương
             </label>
             <input
               type="text"
               value={config.company_name || ""}
               onChange={(e) => updateField("company_name", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                 Số điện thoại liên hệ
               </label>
               <input
@@ -500,11 +500,11 @@ export default function CompanySettingsTab({ showToast }) {
                 value={config.phone || ""}
                 onChange={(e) => updateField("phone", e.target.value)}
                 placeholder="Ví dụ: 0236 3888 999"
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:border-blue-500 focus:outline-none"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                 Địa chỉ trụ sở
               </label>
               <input
@@ -512,7 +512,7 @@ export default function CompanySettingsTab({ showToast }) {
                 value={config.address || ""}
                 onChange={(e) => updateField("address", e.target.value)}
                 placeholder="Nhập địa chỉ công ty"
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:border-blue-500 focus:outline-none"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
@@ -525,8 +525,8 @@ export default function CompanySettingsTab({ showToast }) {
         title="2. Địa điểm chấm công & Wi-Fi công ty"
         subtitle={`${config.allowed_locations?.length || 1} địa điểm được phép chấm công`}
         icon={MapPin}
-        iconColor="text-emerald-600"
-        iconBg="bg-emerald-50"
+        iconColor="text-emerald-600 dark:text-emerald-300"
+        iconBg="bg-emerald-50 dark:bg-emerald-950/60"
         isOpen={openSections.locations}
         onToggle={toggleSection}
       >
@@ -534,10 +534,10 @@ export default function CompanySettingsTab({ showToast }) {
           {(config.allowed_locations || []).map((loc, idx) => (
             <div
               key={loc.id || idx}
-              className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3"
+              className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-800/70 space-y-3"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-slate-700">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
                   Địa điểm #{idx + 1}
                 </span>
                 <div className="flex items-center gap-2">
@@ -554,7 +554,7 @@ export default function CompanySettingsTab({ showToast }) {
                     <AppButton
                       variant="ghost"
                       onClick={() => handleRemoveLocation(idx)}
-                      className="min-w-[44px] min-h-[44px] px-2.5 border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                      className="min-w-[44px] min-h-[44px] px-2.5 border border-red-200 dark:border-rose-800/70 bg-white dark:bg-slate-800 text-red-600 dark:text-rose-300 hover:bg-red-50 dark:hover:bg-rose-950/50"
                       aria-label="Xóa địa điểm"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -564,20 +564,20 @@ export default function CompanySettingsTab({ showToast }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                   Tên văn phòng / Kho bãi / Công trình
                 </label>
                 <input
                   type="text"
                   value={loc.name || ""}
                   onChange={(e) => handleLocationChange(idx, "name", e.target.value)}
-                  className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 focus:border-blue-500 focus:outline-none"
+                  className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                     Vĩ độ
                   </label>
                   <input
@@ -585,11 +585,11 @@ export default function CompanySettingsTab({ showToast }) {
                     step="any"
                     value={loc.lat ?? ""}
                     onChange={(e) => handleLocationChange(idx, "lat", e.target.value)}
-                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none"
+                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                     Kinh độ
                   </label>
                   <input
@@ -597,11 +597,11 @@ export default function CompanySettingsTab({ showToast }) {
                     step="any"
                     value={loc.lng ?? ""}
                     onChange={(e) => handleLocationChange(idx, "lng", e.target.value)}
-                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none"
+                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                     Bán kính (mét)
                   </label>
                   <input
@@ -609,7 +609,7 @@ export default function CompanySettingsTab({ showToast }) {
                     min="20"
                     value={loc.radius ?? 300}
                     onChange={(e) => handleLocationChange(idx, "radius", e.target.value)}
-                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -621,15 +621,15 @@ export default function CompanySettingsTab({ showToast }) {
             fullWidth
             icon={Plus}
             onClick={handleAddLocation}
-            className="border border-dashed border-emerald-400 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-50"
+            className="border border-dashed border-emerald-400 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/70"
           >
             Thêm chi nhánh / công trình mới
           </AppButton>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
+        <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/70 space-y-2.5">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 text-blue-800 font-bold text-xs">
+            <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 font-bold text-xs">
               <Wifi className="w-4 h-4" />
               <span>Chấm công nhanh bằng Wi-Fi công ty</span>
             </div>
@@ -643,12 +643,12 @@ export default function CompanySettingsTab({ showToast }) {
               Lưu Wi-Fi đang kết nối
             </AppButton>
           </div>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-slate-600 dark:text-slate-300">
             Địa chỉ mạng hiện tại của bạn:{" "}
-            <strong className="text-slate-800">{config.current_client_ip || "Đang xác định"}</strong>
+            <strong className="text-slate-800 dark:text-white">{config.current_client_ip || "Đang xác định"}</strong>
           </p>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Danh sách địa chỉ mạng Wi-Fi hợp lệ (cách nhau bởi dấu phẩy)
             </label>
             <input
@@ -656,7 +656,7 @@ export default function CompanySettingsTab({ showToast }) {
               value={config.office_ip_whitelist || ""}
               onChange={(e) => updateField("office_ip_whitelist", e.target.value)}
               placeholder="Bấm nút Lưu Wi-Fi đang kết nối để tự điền"
-              className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+              className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
             />
           </div>
         </div>
@@ -668,14 +668,14 @@ export default function CompanySettingsTab({ showToast }) {
         title="3. Quy tắc tính công, Tăng ca & Bảo hiểm"
         subtitle={`Công chuẩn ${config.standard_work_days || 26} ngày • Bảo hiểm ${config.insurance_rate ?? 10.5}%`}
         icon={Calculator}
-        iconColor="text-violet-600"
-        iconBg="bg-violet-50"
+        iconColor="text-violet-600 dark:text-violet-300"
+        iconBg="bg-violet-50 dark:bg-violet-950/60"
         isOpen={openSections.payroll}
         onToggle={toggleSection}
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Số ngày công chuẩn trong tháng
             </label>
             <input
@@ -684,11 +684,11 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.5"
               value={config.standard_work_days ?? 26}
               onChange={(e) => updateField("standard_work_days", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Mức hưởng lương thử việc (%)
             </label>
             <input
@@ -697,11 +697,11 @@ export default function CompanySettingsTab({ showToast }) {
               max="100"
               value={config.probation_salary_percent ?? 85}
               onChange={(e) => updateField("probation_salary_percent", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Tỷ lệ đóng bảo hiểm người lao động (%)
             </label>
             <input
@@ -710,11 +710,11 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.1"
               value={config.insurance_rate ?? 10.5}
               onChange={(e) => updateField("insurance_rate", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Đơn giá tăng ca cố định / giờ (VNĐ)
             </label>
             <input
@@ -722,9 +722,9 @@ export default function CompanySettingsTab({ showToast }) {
               min="0"
               value={config.custom_ot_hourly_rate ?? 0}
               onChange={(e) => updateField("custom_ot_hourly_rate", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
             />
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Nhập 0 nếu tính theo hệ số bên dưới.
             </p>
           </div>
@@ -732,7 +732,7 @@ export default function CompanySettingsTab({ showToast }) {
 
         <div className="grid grid-cols-3 gap-2.5">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Hệ số ngày thường
             </label>
             <input
@@ -741,11 +741,11 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.1"
               value={config.ot_rate_weekday ?? 1.5}
               onChange={(e) => updateField("ot_rate_weekday", e.target.value)}
-              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Hệ số cuối tuần
             </label>
             <input
@@ -754,11 +754,11 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.1"
               value={config.ot_rate_weekend ?? 2.0}
               onChange={(e) => updateField("ot_rate_weekend", e.target.value)}
-              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Hệ số ngày lễ
             </label>
             <input
@@ -767,16 +767,16 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.1"
               value={config.ot_rate_holiday ?? 3.0}
               onChange={(e) => updateField("ot_rate_holiday", e.target.value)}
-              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
             />
           </div>
         </div>
 
-        <div className="pt-3 border-t border-slate-100 space-y-2.5">
-          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+          <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">
             Quy tắc linh hoạt phụ cấp thử việc, tăng ca &amp; khấu trừ
           </h4>
-          <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
+          <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
             <FormRow
               label="Phụ cấp & đơn giá tăng ca thử việc"
               description="Áp dụng cho ngày công trước ngày chính thức"
@@ -784,7 +784,7 @@ export default function CompanySettingsTab({ showToast }) {
               <select
                 value={String(config.probation_allowance_full ?? 1)}
                 onChange={(e) => updateField("probation_allowance_full", Number(e.target.value))}
-                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800"
+                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
               >
                 <option value="1">Hưởng đủ 100% phụ cấp &amp; đơn giá tăng ca</option>
                 <option value="0">Nhân theo tỷ lệ lương thử việc</option>
@@ -797,7 +797,7 @@ export default function CompanySettingsTab({ showToast }) {
               <select
                 value={config.ot_calculation_mode || "APPROVED_OR_AUTO"}
                 onChange={(e) => updateField("ot_calculation_mode", e.target.value)}
-                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800"
+                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
               >
                 <option value="APPROVED_OR_AUTO">Ưu tiên đơn duyệt, tự tính theo chấm công</option>
                 <option value="REQUIRE_APPROVAL">Bắt buộc có đơn tăng ca đã duyệt</option>
@@ -811,7 +811,7 @@ export default function CompanySettingsTab({ showToast }) {
               <select
                 value={String(config.free_late_exempts_halfday ? 1 : 0)}
                 onChange={(e) => updateField("free_late_exempts_halfday", Number(e.target.value))}
-                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800"
+                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
               >
                 <option value="0">Không miễn (Vẫn trừ 0.5 công nếu trễ nặng)</option>
                 <option value="1">Có miễn trong số lần trễ cho phép</option>
@@ -824,7 +824,7 @@ export default function CompanySettingsTab({ showToast }) {
               <select
                 value={config.negative_salary_policy || "CLAMP_ZERO"}
                 onChange={(e) => updateField("negative_salary_policy", e.target.value)}
-                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800"
+                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
               >
                 <option value="CLAMP_ZERO">Giữ 0đ &amp; ghi nhận nợ chuyển kỳ sau</option>
                 <option value="SHOW_NEGATIVE">Hiển thị số âm trực tiếp trên phiếu lương</option>
@@ -833,19 +833,19 @@ export default function CompanySettingsTab({ showToast }) {
           </div>
         </div>
 
-        <div className="pt-3 border-t border-slate-100 space-y-3">
-          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+          <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">
             Chính sách xử lý đi trễ & Quy đổi công
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                 Hình thức xử lý đi trễ
               </label>
               <select
                 value={config.late_policy_type || "PER_MINUTE"}
                 onChange={(e) => updateField("late_policy_type", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:border-blue-500 focus:outline-none"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 focus:border-blue-500 focus:outline-none"
               >
                 <option value="NONE">Không trừ phạt (Chỉ ghi nhận)</option>
                 <option value="PER_MINUTE">Phạt tiền theo số phút đi trễ</option>
@@ -854,7 +854,7 @@ export default function CompanySettingsTab({ showToast }) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                 Số lần đi trễ miễn phạt / tháng
               </label>
               <input
@@ -862,7 +862,7 @@ export default function CompanySettingsTab({ showToast }) {
                 min="0"
                 value={config.free_late_occurrences ?? 3}
                 onChange={(e) => updateField("free_late_occurrences", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
               />
             </div>
           </div>
@@ -870,7 +870,7 @@ export default function CompanySettingsTab({ showToast }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {(config.late_policy_type || "PER_MINUTE") === "PER_MINUTE" && (
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                   Tiền phạt đi trễ mỗi phút (VNĐ)
                 </label>
                 <input
@@ -881,14 +881,14 @@ export default function CompanySettingsTab({ showToast }) {
                     updateField("late_penalty_per_minute", e.target.value);
                     updateField("penalty_per_minute", e.target.value);
                   }}
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
                 />
               </div>
             )}
 
             {config.late_policy_type === "PER_OCCURRENCE" && (
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                   Tiền phạt mỗi lần đi trễ (VNĐ)
                 </label>
                 <input
@@ -899,14 +899,14 @@ export default function CompanySettingsTab({ showToast }) {
                     updateField("late_penalty_amount", e.target.value);
                     updateField("penalty_fixed_block", e.target.value);
                   }}
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
                 />
               </div>
             )}
 
             {config.late_policy_type === "DEDUCT_WORKDAY" && (
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                   Ngưỡng trễ tính nửa công (phút)
                 </label>
                 <input
@@ -914,13 +914,13 @@ export default function CompanySettingsTab({ showToast }) {
                   min="1"
                   value={config.max_late_minutes_for_half_day ?? 60}
                   onChange={(e) => updateField("max_late_minutes_for_half_day", e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                 Lưu lịch sử hoạt động (ngày)
               </label>
               <input
@@ -928,7 +928,7 @@ export default function CompanySettingsTab({ showToast }) {
                 min="7"
                 value={config.log_retention_days ?? 30}
                 onChange={(e) => updateField("log_retention_days", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
               />
             </div>
           </div>
@@ -937,7 +937,7 @@ export default function CompanySettingsTab({ showToast }) {
 
       {/* Thanh hành động in-flow bên dưới — không dùng sticky bottom để tránh đè lên ô nhập liệu ở 200% font scale */}
       <div
-        className="bg-white border border-slate-200 px-3 sm:px-5 py-3.5 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3"
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 sm:px-5 py-3.5 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3"
       >
         <AppButton
           variant="secondary"
