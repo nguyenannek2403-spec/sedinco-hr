@@ -975,13 +975,6 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
     let adminBefore = [];
     const maxIds = {};
 
-    // Create 1x1 temporary PNG file for Field Work photo check-in
-    const tmpPhotoPath = path.join(os.tmpdir(), `sedinco-v15-field-${Date.now()}.png`);
-    fs.writeFileSync(
-        tmpPhotoPath,
-        Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64')
-    );
-
     const now = new Date();
     const curYear = now.getFullYear();
     const curMonth = now.getMonth() + 1;
@@ -1132,6 +1125,21 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // =================================================================
         await loginThroughAuthView(session, 'NV003', '123456');
         await inspectPhysicsAndGeometry(session, 'Worker Tab 1: Chấm công', { expectModal: false, testScrollBleed: false });
+
+        // V23 Check: Minimalist UI (no CÔNG THÁNG / Chụp ảnh Selfie on check-in screen) & mascot starts sleeping
+        const initialCheckInLayout = await session.evaluate(`(() => {
+            const text = document.body.innerText || '';
+            const mascot = document.querySelector('[data-mascot-state]');
+            return {
+                mascotState: mascot ? mascot.getAttribute('data-mascot-state') : null,
+                hasMonthlySummaryCard: text.includes('CÔNG THÁNG'),
+                hasSelfieButton: text.includes('Chụp ảnh Selfie') || text.includes('Chụp ảnh Công trình')
+            };
+        })()`);
+        assert.equal(initialCheckInLayout.mascotState, 'sleeping', 'Unchecked worker mascot must start in sleeping state');
+        assert.equal(initialCheckInLayout.hasMonthlySummaryCard, false, 'OneTouchCheckIn must NOT display monthly summary card');
+        assert.equal(initialCheckInLayout.hasSelfieButton, false, 'OneTouchCheckIn must NOT render camera/selfie buttons');
+
         // Click ThemeToggleButton directly in Worker view to confirm real UI toggle + Dark surface contrast
         await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
         await sleep(280);
@@ -1139,31 +1147,105 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
         await sleep(240);
 
-        // 1A: Field Work Check-In Portal Modal + Real Photo + Check-In API
+        // 1A: GPS-Only Field Work Portal Modal (ZERO photo required)
         await clickInPage(session, { text: 'Chấm công Đi Công Trình', inTopModal: false });
         await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Field Work AppModal opened');
-        await inspectPhysicsAndGeometry(session, 'Worker Field Work Modal', { expectModal: true });
-        await setReactInputValue(session, { selector: 'input[placeholder*="Hòa Xuân"]', value: 'Công trình Hòa Xuân V15', inTopModal: true });
-        await uploadTempFileInModal(session, tmpPhotoPath);
+        await inspectPhysicsAndGeometry(session, 'Worker Field Work Modal (GPS-Only)', { expectModal: true });
+        await setReactInputValue(session, { selector: 'input[placeholder*="Hòa Xuân"]', value: 'Công trình Hòa Xuân V23', inTopModal: true });
         await clickInPage(session, { text: 'Xác nhận Công trình', inTopModal: true });
-        await sleep(500);
-        await waitForCondition(session, `!document.querySelector('[data-modal-root="true"]')`, 6000, 'Field Work modal closed after submit');
+        await sleep(300);
+        await waitForCondition(session, `!document.querySelector('[data-modal-root="true"]')`, 4000, 'Field Work modal closed after submit');
+        await clickInPage(session, { text: 'Đang bật: Chấm công Đi Công Trình GPS', inTopModal: false });
+        await sleep(180);
 
-        // Also click primary check-in CTA (pre-permission modal if shown, or checkout flow)
-        const prePermClicked = await session.evaluate(`(() => {
-            const btn = document.getElementById('btn-start-checkin');
-            if (!btn || btn.disabled) return false;
-            btn.click();
-            return true;
-        })()`);
-        if (prePermClicked) {
-            await sleep(260);
-            const hasPrePerm = await session.evaluate(`Boolean(document.querySelector('[data-modal-root="true"]'))`);
-            if (hasPrePerm) {
-                await inspectPhysicsAndGeometry(session, 'Worker GPS Pre-Permission Modal', { expectModal: true });
-                await dismissModalIfOpen(session);
-            }
+        // 1A-Persistence: Check-In -> Logout -> Login -> Verify Waving Mascot & Disabled Button 1 -> Check-Out -> Logout -> Login -> Verify Goodbye Mascot & Both Disabled
+        await clickInPage(session, { selector: '#btn-start-checkin', inTopModal: false });
+        await sleep(260);
+        const hasPrePerm = await session.evaluate(`Boolean(document.querySelector('[data-modal-root="true"]'))`);
+        if (hasPrePerm) {
+            await inspectPhysicsAndGeometry(session, 'Worker GPS Pre-Permission Modal', { expectModal: true });
+            await clickInPage(session, { text: 'Cho phép', inTopModal: true });
         }
+        await waitForCondition(
+            session,
+            `document.querySelector('[data-mascot-state]')?.getAttribute('data-mascot-state') === 'waving_hello' && (document.body.innerText || '').includes('VÀO CA THÀNH CÔNG')`,
+            8000,
+            'NV003 check-in transitioned mascot to waving_hello and showed VÀO CA THÀNH CÔNG'
+        );
+        const checkInTs = Date.now();
+        await dismissToastIfVisible(session);
+
+        // Navigate to "👤 Tài khoản" and Logout cleanly -> Log back in as NV003
+        await clickInPage(session, { text: '👤 Tài khoản', inTopModal: false });
+        await waitForCondition(
+            session,
+            `(document.body.innerText || '').includes('Thống kê Công tháng')`,
+            4000,
+            'Worker Profile tab renders moved monthly attendance stats'
+        );
+        await logoutViaConfirmDialog(session, 'Đăng xuất khỏi thiết bị');
+        await loginThroughAuthView(session, 'NV003', '123456');
+
+        // Verify persisted Checked-In state IMMEDIATELY after relogin
+        await waitForCondition(
+            session,
+            `document.querySelector('[data-mascot-state]')?.getAttribute('data-mascot-state') === 'waving_hello' && (document.body.innerText || '').includes('VÀO CA THÀNH CÔNG')`,
+            6000,
+            'NV003 mascot & VÀO CA THÀNH CÔNG banner persisted from DB after Logout->Login'
+        );
+        const reloginInState = await session.evaluate(`(() => {
+            const btns = Array.from(document.querySelectorAll('button'));
+            const btnIn = btns.find((b) => (b.innerText || '').includes('CHẤM CÔNG VÀO'));
+            const btnOut = btns.find((b) => (b.innerText || '').includes('VỀ THÔI!!!'));
+            return {
+                inDisabled: Boolean(btnIn && btnIn.disabled),
+                outDisabled: Boolean(btnOut && btnOut.disabled)
+            };
+        })()`);
+        assert.equal(reloginInState.inDisabled, true, 'Button 1 (Check-In) must stay disabled after relogin');
+        assert.equal(reloginInState.outDisabled, false, 'Button 2 (Check-Out) must be enabled after relogin');
+
+        // Ensure >= 3.2s elapsed after check-in so anti-spam 3s window allows real check-out
+        const waitMs = Math.max(0, 3200 - (Date.now() - checkInTs));
+        if (waitMs > 0) await sleep(waitMs);
+
+        // Perform Check-Out (Button 2) -> Wait for waving_goodbye -> Logout -> Login -> Verify waving_goodbye & both buttons disabled
+        await clickInPage(session, { text: 'VỀ THÔI!!!', inTopModal: false });
+        await sleep(220);
+        const hasPrePerm2 = await session.evaluate(`Boolean(document.querySelector('[data-modal-root="true"]'))`);
+        if (hasPrePerm2) {
+            await clickInPage(session, { text: 'Cho phép', inTopModal: true });
+        }
+        await waitForCondition(
+            session,
+            `document.querySelector('[data-mascot-state]')?.getAttribute('data-mascot-state') === 'waving_goodbye' && (document.body.innerText || '').includes('TAN CA THÀNH CÔNG')`,
+            8000,
+            'NV003 check-out transitioned mascot to waving_goodbye and showed TAN CA THÀNH CÔNG'
+        );
+        await dismissToastIfVisible(session);
+
+        await clickInPage(session, { text: '👤 Tài khoản', inTopModal: false });
+        await sleep(250);
+        await logoutViaConfirmDialog(session, 'Đăng xuất khỏi thiết bị');
+        await loginThroughAuthView(session, 'NV003', '123456');
+
+        await waitForCondition(
+            session,
+            `document.querySelector('[data-mascot-state]')?.getAttribute('data-mascot-state') === 'waving_goodbye' && (document.body.innerText || '').includes('TAN CA THÀNH CÔNG') && (document.body.innerText || '').includes('Tạm biệt!')`,
+            6000,
+            'NV003 waving_goodbye mascot & Tạm biệt sticker & TAN CA THÀNH CÔNG persisted after Logout->Login'
+        );
+        const reloginOutState = await session.evaluate(`(() => {
+            const btns = Array.from(document.querySelectorAll('button'));
+            const btnIn = btns.find((b) => (b.innerText || '').includes('CHẤM CÔNG VÀO'));
+            const btnOut = btns.find((b) => (b.innerText || '').includes('VỀ THÔI!!!'));
+            return {
+                inDisabled: Boolean(btnIn && btnIn.disabled),
+                outDisabled: Boolean(btnOut && btnOut.disabled)
+            };
+        })()`);
+        assert.equal(reloginOutState.inDisabled, true, 'Button 1 (Check-In) must stay disabled after Check-Out relogin');
+        assert.equal(reloginOutState.outDisabled, true, 'Button 2 (Check-Out) must stay disabled after Check-Out relogin');
         await dismissToastIfVisible(session);
 
         // 1B: WorkerHistoryTab — click completed Day 2 & forgotten-checkout Day 3
@@ -1738,7 +1820,6 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await restoreSettings(settingsSnap).catch(() => {});
         }
 
-        try { fs.unlinkSync(tmpPhotoPath); } catch { /* ignore */ }
         if (session) await session.close().catch(() => {});
         if (srv) await srv.close().catch(() => {});
     }

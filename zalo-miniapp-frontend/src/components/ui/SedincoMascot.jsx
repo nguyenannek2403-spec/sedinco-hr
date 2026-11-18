@@ -65,6 +65,7 @@ export default function SedincoMascot({
 
   return (
     <div
+      data-mascot-state={activeState}
       className={`w-full rounded-2xl bg-gradient-to-b from-blue-50/60 via-white to-slate-50/70 dark:from-slate-800/70 dark:via-slate-900 dark:to-slate-900 border border-slate-200/80 dark:border-slate-800 px-3 py-3.5 flex flex-col items-center justify-center text-center space-y-2.5 ${className}`}
     >
       {/* Sticker Lời Nói Nổi Bật (khi Đang trong ca hoặc Tan ca) */}

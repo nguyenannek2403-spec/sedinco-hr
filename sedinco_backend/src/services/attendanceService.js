@@ -91,7 +91,9 @@ class AttendanceService {
         const y = parseInt(year, 10) || new Date().getFullYear();
 
         const logs = await query(
-            `SELECT record_date, status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours,
+            `SELECT DATE_FORMAT(record_date, '%Y-%m-%d') as record_date,
+                    DATE_FORMAT(record_date, '%Y-%m-%d') as work_date,
+                    status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours,
                     is_suspicious, suspicious_reason, location_name, field_note, work_location_type,
                     COALESCE(shift_type, 'FULL_DAY') as shift_type, proxy_by, proxy_note
              FROM attendance_logs
@@ -109,6 +111,7 @@ class AttendanceService {
             return {
                 logs: [],
                 days: [],
+                today_record: null,
                 forgotten_checkout: null,
                 excluded_admin: true,
                 shift_type: 'FULL_DAY',
@@ -134,9 +137,31 @@ class AttendanceService {
         const cs = (csRows && csRows[0]) ? csRows[0] : {};
         const schedule = resolveEmployeeWorkSchedule({ emp: empRow, cs, activeShiftCode: empShiftCode });
 
-        // Phát hiện ngày làm việc gần nhất trước hôm nay bị Quên Bấm Giờ Ra (check_in_time IS NOT NULL AND check_out_time IS NULL)
+        // Truy vấn trực tiếp bản ghi chấm công hôm nay theo GMT+7 để đồng bộ 100% sau Đăng xuất / Đăng nhập lại
         const { getVietnamDateString } = require('../utils/timeHelper');
         const todayStr = getVietnamDateString(new Date());
+        const todayLogRows = await query(
+            `SELECT id, employee_id,
+                    DATE_FORMAT(record_date, '%Y-%m-%d') as record_date,
+                    DATE_FORMAT(record_date, '%Y-%m-%d') as work_date,
+                    check_in_time, check_out_time, status, ot_hours,
+                    late_minutes, early_leave_minutes, work_hours,
+                    is_suspicious, suspicious_reason, location_name, field_note, work_location_type,
+                    COALESCE(shift_type, 'FULL_DAY') as shift_type, proxy_by, proxy_note
+             FROM attendance_logs
+             WHERE employee_id = ? AND record_date = ?
+             LIMIT 1`,
+            [ma_nv, todayStr]
+        );
+        const todayRaw = todayLogRows && todayLogRows.length > 0 ? todayLogRows[0] : null;
+        const today_record = todayRaw
+            ? {
+                  ...todayRaw,
+                  matched_location_name: todayRaw.location_name || 'Văn phòng SEDINCO'
+              }
+            : null;
+
+        // Phát hiện ngày làm việc gần nhất trước hôm nay bị Quên Bấm Giờ Ra (check_in_time IS NOT NULL AND check_out_time IS NULL)
         const forgottenCheckoutRows = await query(
             `SELECT DATE_FORMAT(record_date, '%Y-%m-%d') as iso_date,
                     DATE_FORMAT(record_date, '%d/%m') as short_date,
@@ -192,6 +217,7 @@ class AttendanceService {
         return {
             logs: logs || [],
             days: logs || [],
+            today_record,
             forgotten_checkout: forgottenCheckout,
             shift_type: empShiftCode,
             shift_info: {
@@ -1021,20 +1047,18 @@ class AttendanceService {
             finalLocationType = 'WIFI_OFFICE';
             locationName = `Wi-Fi Nội bộ (${cleanClientIp})`;
         } else if (isFieldWork) {
-            // Chế độ Đi Công Trình / Thị Trường: Bắt buộc có ảnh chụp hiện trường thật và ghi chú công trình
-            const dummyTinyWebp = 'data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==';
-            if (!image_snapshot || image_snapshot === dummyTinyWebp || image_snapshot.length < 200) {
-                const error = new Error('Chế độ Đi Công Trình yêu cầu BẮT BUỘC phải chụp ảnh hiện trường thực tế tại công trình/khách hàng!');
+            // V23: Đi Công Trình / Thị Trường chỉ xác thực GPS + ghi chú tùy chọn (không yêu cầu chụp ảnh)
+            if (numLat === null || numLng === null) {
+                const error = new Error('Chế độ Đi Công Trình cần định vị GPS hợp lệ để ghi nhận tọa độ thực tế!');
                 error.statusCode = 400;
                 throw error;
             }
-            if (!cleanFieldNote || cleanFieldNote.length < 5) {
-                const error = new Error('Vui lòng nhập ghi chú tên công trình hoặc khách hàng (tối thiểu 5 ký tự)!');
-                error.statusCode = 400;
-                throw error;
-            }
+            const resolvedNote = cleanFieldNote && cleanFieldNote.length >= 2
+                ? cleanFieldNote
+                : 'Đi công trình / Thị trường (GPS)';
+            cleanFieldNote = resolvedNote;
             finalLocationType = 'FIELD_WORK';
-            locationName = `Công trình: ${cleanFieldNote.slice(0, 80)}`;
+            locationName = `Công trình: ${resolvedNote.slice(0, 80)}`;
         } else {
             const error = new Error(
                 `Bạn đang ngoài phạm vi các điểm chấm công (Cách ${nearestLocation.name} ${distanceMeters}m, cho phép ${nearestLocation.radius}m). Nếu bạn đang đi thị trường/công trình, hãy chọn nút "Đi Công Trình / Thị Trường"!`
@@ -1224,7 +1248,7 @@ class AttendanceService {
                     numLat,
                     numLng,
                     checkInMethod,
-                    image_snapshot || null,
+                    null,
                     is_suspicious ? 1 : 0,
                     suspicious_reason || null,
                     deviceStr,
@@ -1314,7 +1338,7 @@ class AttendanceService {
                     locationName,
                     cleanFieldNote || null,
                     finalLocationType,
-                    image_snapshot || null,
+                    null,
                     is_suspicious ? 1 : 0,
                     suspicious_reason || null,
                     deviceStr,

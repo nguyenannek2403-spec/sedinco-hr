@@ -7,8 +7,6 @@ import {
   AlertTriangle,
   RotateCcw,
   ShieldAlert,
-  Camera,
-  Image as ImageIcon,
   HardHat,
   Wifi,
   Calendar,
@@ -17,7 +15,6 @@ import {
 } from "lucide-react";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
-import { captureDirectCameraPhoto, compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { getDeviceIdentity } from "../utils/deviceIdentity";
 import { useSpamClickGuard, SPAM_WARNING_MESSAGE } from "../hooks/useAttendanceCheckIn";
 import { useTheme } from "../context/ThemeContext";
@@ -92,10 +89,8 @@ export default function OneTouchCheckIn({
   const [errorDetails, setErrorDetails] = useState("");
   const [fraudDetails, setFraudDetails] = useState("");
   const [isDebounceLocked, setIsDebounceLocked] = useState(false);
-  const [capturedPhoto, setCapturedPhoto] = useState("");
   const [liveTodayRecord, setLiveTodayRecord] = useState(todayAttendance);
   const [forgottenCheckout, setForgottenCheckout] = useState(null);
-  const [monthlyCount, setMonthlyCount] = useState(0);
   const [attendanceSummary, setAttendanceSummary] = useState({
     late_count: 0,
     total_late_minutes: 0,
@@ -123,17 +118,14 @@ export default function OneTouchCheckIn({
     online: true
   });
 
-  // Chế độ Đi Công Trình / Thị Trường
+  // Chế độ Đi Công Trình / Thị Trường (chỉ dùng GPS, không chụp ảnh)
   const [isFieldWorkMode, setIsFieldWorkMode] = useState(false);
   const [fieldNote, setFieldNote] = useState("");
   const [showFieldWorkModal, setShowFieldWorkModal] = useState(false);
-  const [fieldModalError, setFieldModalError] = useState("");
 
   const isLockedRef = useRef(false);
   const timeoutIdRef = useRef(null);
   const lastIdempotencyKeyRef = useRef("");
-  const cameraFileInputRef = useRef(null);
-  const albumFileInputRef = useRef(null);
 
   const evaluateFriendlyLocation = useCallback((compData) => {
     if (!compData) return;
@@ -236,9 +228,11 @@ export default function OneTouchCheckIn({
       }
 
       const todayIso = new Date(now.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
-      const found = list.find((r) => String(r.record_date || "").slice(0, 10) === todayIso);
-      if (found) setLiveTodayRecord(found);
-      setMonthlyCount(list.filter((r) => r.status && r.status !== "0" && r.status !== "V").length);
+      const todayRec =
+        (rawData && !Array.isArray(rawData) && rawData.today_record) ||
+        list.find((r) => String(r.work_date || r.record_date || "").slice(0, 10) === todayIso) ||
+        null;
+      setLiveTodayRecord(todayRec);
     } catch (e) {}
   }, [evaluateFriendlyLocation]);
 
@@ -283,90 +277,10 @@ export default function OneTouchCheckIn({
     };
   }, []);
 
-  const handleFallbackFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const rawDataUrl = ev.target?.result;
-        if (!rawDataUrl) return;
-        const compressed = await compressAndResizeImage(rawDataUrl, 480, 480, 0.6);
-        setCapturedPhoto(compressed);
-        setErrorMessage("");
-        setErrorDetails("");
-        setStatusMessage("Đã chụp ảnh hiện trường! Chạm nút CHẤM CÔNG bên trên để hoàn tất.");
-      } catch {
-        setErrorMessage("Không thể xử lý ảnh vừa chụp. Vui lòng thử lại!");
-      }
-    };
-    reader.onerror = () => {
-      setErrorMessage("Không thể đọc tệp ảnh từ máy ảnh. Vui lòng thử lại!");
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
-  const handleCaptureSelfie = async () => {
-    try {
-      const res = await captureDirectCameraPhoto();
-      if (res?.success && res?.photoUrl) {
-        setCapturedPhoto(res.photoUrl);
-        setErrorMessage("");
-        setErrorDetails("");
-        setStatusMessage("Đã chụp ảnh hiện trường! Chạm nút CHẤM CÔNG để hoàn tất.");
-      } else {
-        const msg = res?.error || res?.message || "Không thể mở máy ảnh trực tiếp.";
-        if (cameraFileInputRef.current) {
-          setStatusMessage("Đang mở máy ảnh thiết bị để chụp ảnh hiện trường...");
-          cameraFileInputRef.current.click();
-        }
-        setErrorMessage(msg);
-      }
-    } catch (err) {
-      if (cameraFileInputRef.current) {
-        cameraFileInputRef.current.click();
-      }
-      setErrorMessage(err?.message || "Lỗi chụp ảnh hiện trường. Vui lòng thử lại!");
-    }
-  };
-
-  const handlePickFieldPhoto = async (sourceType) => {
-    const res = await pickCompressedEvidencePhoto({
-      sourceType,
-      cameraType: "back",
-      maxWidth: 720,
-      maxHeight: 720,
-      quality: 0.65
-    });
-    if (res?.success && res?.photoUrl) {
-      setCapturedPhoto(res.photoUrl);
-      setFieldModalError("");
-      setErrorMessage("");
-      setErrorDetails("");
-      setStatusMessage("Đã đính kèm ảnh hiện trường! Chạm nút CHẤM CÔNG để hoàn tất.");
-      return;
-    }
-    if (sourceType?.[0] === "camera") {
-      if (cameraFileInputRef.current) cameraFileInputRef.current.click();
-    } else if (albumFileInputRef.current) {
-      albumFileInputRef.current.click();
-    }
-  };
-
   const handleStartCheckIn = async (bypassPermExplain = false) => {
-    if (isFieldWorkMode) {
-      if (!capturedPhoto) {
-        setStage(STAGES.ERROR);
-        setErrorMessage("Chế độ Đi Công Trình yêu cầu BẮT BUỘC chụp ảnh hiện trường thực tế trước khi chấm công!");
-        return;
-      }
-      if (!fieldNote.trim() || fieldNote.trim().length < 5) {
-        setStage(STAGES.ERROR);
-        setErrorMessage("Vui lòng nhập tên công trình / khách hàng (tối thiểu 5 ký tự)!");
-        return;
-      }
-    }
+    const resolvedFieldNote = isFieldWorkMode
+      ? (fieldNote.trim().length >= 2 ? fieldNote.trim() : "Đi công trình / Thị trường (GPS)")
+      : "";
 
     if (isLockedPeriod) {
       isLockedRef.current = false;
@@ -475,7 +389,7 @@ export default function OneTouchCheckIn({
       setStage(STAGES.SUBMITTING);
       setStatusMessage(
         isFieldWorkMode
-          ? "Đang gửi chấm công Đi Công Trình kèm ảnh hiện trường..."
+          ? "Đang gửi chấm công Đi Công Trình qua GPS..."
           : checkinType === "in"
           ? "Đang ghi nhận Giờ Vào Ca trên máy chủ Sedinco..."
           : "Đang ghi nhận Giờ Ra Ca & tính giờ làm việc..."
@@ -496,8 +410,7 @@ export default function OneTouchCheckIn({
           gps_accuracy: gpsAccuracy,
           is_fake_gps: isFakeGpsDetected,
           work_location_type: isFieldWorkMode ? "FIELD_WORK" : "OFFICE",
-          field_note: isFieldWorkMode ? fieldNote.trim() : "",
-          image_snapshot: capturedPhoto || "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
+          field_note: resolvedFieldNote
         }, {
           idempotencyKey: lastIdempotencyKeyRef.current
         });
@@ -531,7 +444,7 @@ export default function OneTouchCheckIn({
 
         setStage(STAGES.ERROR);
         setErrorMessage(errText);
-        setErrorDetails("Nếu bạn đang đi công tác/gặp khách hàng, hãy chụp ảnh hiện trường và ghi chú bên dưới.");
+        setErrorDetails("Nếu bạn đang đi công tác/gặp khách hàng, hãy bật chế độ Đi Công Trình (GPS) bên dưới.");
         return;
       }
 
@@ -544,6 +457,14 @@ export default function OneTouchCheckIn({
         result?.data?.check_out_time ||
         result?.data?.check_in_time ||
         new Date().toLocaleTimeString("vi-VN", { hour12: false });
+
+      if (result?.data && !result?.is_spam_warning && !result?.data?.is_spam_warning) {
+        setLiveTodayRecord((prev) => ({
+          ...(prev || {}),
+          ...result.data,
+          matched_location_name: result.data.location_name || prev?.location_name || "Văn phòng SEDINCO"
+        }));
+      }
 
       setServerTimeResult(serverTime);
       setLastCheckAction(checkinType);
@@ -656,7 +577,6 @@ export default function OneTouchCheckIn({
   const weekdayDateLabel = `${weekdayNames[nowClock.getDay()]}, ngày ${pad2(nowClock.getDate())}/${pad2(nowClock.getMonth() + 1)}/${nowClock.getFullYear()}`;
   const clockHHMM = `${pad2(nowClock.getHours())}:${pad2(nowClock.getMinutes())}`;
   const clockSS = `:${pad2(nowClock.getSeconds())}`;
-  const currentMonthNum = nowClock.getMonth() + 1;
 
   const mascotState =
     hasCheckedOut || lastCheckAction === "out"
@@ -722,43 +642,10 @@ export default function OneTouchCheckIn({
         </div>
       </div>
 
-      {/* KHU VỰC 2: THẺ TÓM TẮT NHÂN VIÊN & SỐ CÔNG TRONG THÁNG (2 CỘT) */}
-      <div className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-md flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            NHÂN VIÊN
-          </div>
-          <div className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white leading-snug break-words">
-            {currentUser?.ho_ten || "Cán bộ công nhân viên"}
-          </div>
-          <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 leading-snug break-words">
-            Mã: <strong className="text-slate-800 dark:text-slate-100">{currentUser?.ma_nv || "NV"}</strong> • Ca: {effStart} – {effEnd}
-          </div>
-        </div>
-
-        <div className="text-right shrink-0 flex flex-col items-end">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap">
-            CÔNG THÁNG {currentMonthNum} 🔍
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5 whitespace-nowrap">
-            {monthlyCount} công
-          </div>
-          {typeof onNavigateHistory === "function" && (
-            <button
-              type="button"
-              onClick={onNavigateHistory}
-              className="min-h-[44px] px-2 -mr-2 inline-flex items-center justify-end text-xs font-bold text-[#0068FF] dark:text-blue-400 underline cursor-pointer hover:text-blue-700 dark:hover:text-blue-300"
-            >
-              Chi tiết
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* KHU VỰC 3: SÂN KHẤU TRUNG TÂM — NHÂN VẬT HOẠT HÌNH ĐỒNG PHỤC SEDINCO */}
+      {/* KHU VỰC 2: SÂN KHẤU TRUNG TÂM — NHÂN VẬT HOẠT HÌNH ĐỒNG PHỤC SEDINCO */}
       <SedincoMascot state={mascotState} interactivePreview={true} />
 
-      {/* KHU VỰC 4: KHUNG THÔNG BÁO XÁC NHẬN TRẠNG THÁI CHẤM CÔNG */}
+      {/* KHU VỰC 3: KHUNG THÔNG BÁO XÁC NHẬN TRẠNG THÁI CHẤM CÔNG */}
       {(hasCheckedIn || stage === STAGES.SUCCESS) && (
         <div className="w-full rounded-2xl border-2 border-emerald-500 bg-emerald-50/75 dark:bg-slate-900 p-3.5 shadow-sm space-y-1">
           <div className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 leading-snug">
@@ -770,7 +657,7 @@ export default function OneTouchCheckIn({
           </div>
           <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed break-words">
             <strong>{currentUser?.ho_ten || "Nhân viên"}</strong> đã ghi nhận chấm công tại{" "}
-            {effectiveToday?.location_name || "Văn phòng SEDINCO"}!
+            {effectiveToday?.matched_location_name || effectiveToday?.location_name || "Văn phòng SEDINCO"}!
           </p>
           {effectiveToday?.proxy_by && (
             <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-200 text-xs font-semibold">
@@ -910,7 +797,6 @@ export default function OneTouchCheckIn({
               if (isFieldWorkMode) {
                 setIsFieldWorkMode(false);
               } else {
-                setFieldModalError("");
                 setShowFieldWorkModal(true);
               }
             }}
@@ -921,65 +807,29 @@ export default function OneTouchCheckIn({
             }`}
           >
             {isFieldWorkMode
-              ? "Đang bật: Chấm công Đi Công Trình (Bấm để tắt)"
-              : "🚧 Chấm công Đi Công Trình / Thị Trường"}
+              ? "Đang bật: Chấm công Đi Công Trình GPS (Bấm để tắt)"
+              : "🚧 Chấm công Đi Công Trình / Thị Trường (GPS)"}
           </AppButton>
 
           {isFieldWorkMode && (
             <div className="bg-amber-50 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-500/40 rounded-2xl p-3 space-y-2 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-amber-800 dark:text-amber-200 uppercase">
-                  Thông tin công trình đã xác nhận:
+                  Đang bật chế độ Đi Công Trình (GPS)
                 </span>
                 <AppButton
                   variant="secondary"
-                  onClick={() => {
-                    setFieldModalError("");
-                    setShowFieldWorkModal(true);
-                  }}
+                  onClick={() => setShowFieldWorkModal(true)}
                   className="text-xs px-3 py-1.5"
                 >
-                  Chỉnh sửa
+                  Sửa ghi chú
                 </AppButton>
               </div>
               <p className="text-sm font-semibold text-slate-900 dark:text-white break-words bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
-                {fieldNote}
-              </p>
-              <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">
-                {capturedPhoto ? "✅ Đã đính kèm ảnh chụp hiện trường" : "⚠️ Chưa có ảnh hiện trường"}
+                {fieldNote.trim() || "Đi công trình / Thị trường (Xác thực tọa độ GPS)"}
               </p>
             </div>
           )}
-
-          <input
-            ref={cameraFileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleFallbackFileChange}
-            className="hidden"
-          />
-          <input
-            ref={albumFileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFallbackFileChange}
-            className="hidden"
-          />
-          <AppButton
-            type="button"
-            variant="secondary"
-            fullWidth
-            onClick={handleCaptureSelfie}
-            disabled={isDebounceLocked || stage === STAGES.SUBMITTING}
-            icon={Camera}
-          >
-            {capturedPhoto
-              ? "✅ Đã đính kèm ảnh hiện trường"
-              : isFieldWorkMode
-              ? "📸 Chụp ảnh Công trình / Khách hàng (Bắt buộc)"
-              : "Chụp ảnh Selfie xác thực"}
-          </AppButton>
         </div>
 
         {/* Cảnh báo & Thông báo trạng thái xử lý */}
@@ -1037,29 +887,6 @@ export default function OneTouchCheckIn({
               </AppButton>
             </div>
           )}
-        </div>
-
-        {/* Thống kê tháng 3 cột */}
-        <div className="zaui-ticket-divider" />
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl px-2 py-2">
-            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Đúng giờ</div>
-            <div className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5">
-              {attendanceSummary?.on_time_count || 0} ngày
-            </div>
-          </div>
-          <div className="bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/60 rounded-xl px-2 py-2">
-            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Đi trễ</div>
-            <div className="text-sm font-extrabold text-amber-700 dark:text-amber-300 mt-0.5">
-              {attendanceSummary?.late_count || 0} lần
-            </div>
-          </div>
-          <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl px-2 py-2">
-            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Tổng công</div>
-            <div className="text-sm font-extrabold text-[#0068FF] dark:text-blue-300 mt-0.5">
-              {monthlyCount} ngày
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1199,12 +1026,12 @@ export default function OneTouchCheckIn({
         </div>
       </AppModal>
 
-      {/* Modal Nhập Thông Tin & Ảnh Hiện Trường Đi Công Trình */}
+      {/* Modal Xác Nhận Địa Điểm Đi Công Trình (GPS-Only, Không Cần Ảnh) */}
       <AppModal
         open={showFieldWorkModal}
         onClose={() => setShowFieldWorkModal(false)}
-        title="Chấm công Đi công trình"
-        subtitle="Nhập tên công trình & chụp ảnh hiện trường"
+        title="Chấm công Đi công trình (GPS)"
+        subtitle="Ghi nhận tọa độ GPS trực tiếp tại công trình / khách hàng"
         icon={<HardHat className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />}
         maxWidthClass="max-w-md"
         footer={
@@ -1219,15 +1046,9 @@ export default function OneTouchCheckIn({
             <AppButton
               variant="warning"
               onClick={() => {
-                if (!fieldNote.trim() || fieldNote.trim().length < 5) {
-                  setFieldModalError("Vui lòng nhập tên công trình hoặc tên khách hàng (tối thiểu 5 ký tự).");
-                  return;
+                if (!fieldNote.trim()) {
+                  setFieldNote("Đi công trình / Thị trường (GPS)");
                 }
-                if (!capturedPhoto) {
-                  setFieldModalError("Vui lòng chụp hoặc chọn ảnh hiện trường trước khi xác nhận đi công trình.");
-                  return;
-                }
-                setFieldModalError("");
                 setIsFieldWorkMode(true);
                 setShowFieldWorkModal(false);
               }}
@@ -1238,57 +1059,22 @@ export default function OneTouchCheckIn({
           </div>
         }
       >
-        <div className="p-4 space-y-3.5 text-sm">
-          {fieldModalError && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-200 text-xs font-semibold flex items-start gap-2">
-              <AlertTriangle size={16} className="text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
-              <span>{fieldModalError}</span>
-            </div>
-          )}
+        <div className="p-4 space-y-3 text-sm">
+          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-500/30 rounded-xl p-3">
+            📍 Hệ thống chỉ cần xác thực tọa độ GPS thực tế, hoàn toàn <strong>không yêu cầu chụp ảnh</strong>.
+          </p>
 
           <div>
             <label className="block text-xs font-bold text-amber-800 dark:text-amber-200 uppercase mb-1.5">
-              Tên công trình / khách hàng <span className="text-rose-500">*</span>
+              Ghi chú tên công trình / khách hàng (tùy chọn)
             </label>
             <input
               type="text"
               value={fieldNote}
-              onChange={(e) => {
-                setFieldNote(e.target.value);
-                if (fieldModalError) setFieldModalError("");
-              }}
+              onChange={(e) => setFieldNote(e.target.value)}
               placeholder="VD: Giao gạch công trình Hòa Xuân / Gặp anh Minh..."
               className="w-full min-h-[46px] bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400"
             />
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-700 space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                Ảnh xác thực hiện trường <span className="text-rose-500">*</span>
-              </span>
-              {capturedPhoto && (
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">✅ Đã có ảnh</span>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <AppButton
-                variant="secondary"
-                icon={Camera}
-                onClick={() => handlePickFieldPhoto(["camera"])}
-                className="!text-emerald-700 dark:!text-emerald-300 text-xs"
-              >
-                📷 Chụp ảnh Camera
-              </AppButton>
-              <AppButton
-                variant="secondary"
-                icon={ImageIcon}
-                onClick={() => handlePickFieldPhoto(["album"])}
-                className="!text-sky-700 dark:!text-sky-300 text-xs"
-              >
-                🖼️ Chọn ảnh thư viện
-              </AppButton>
-            </div>
           </div>
         </div>
       </AppModal>

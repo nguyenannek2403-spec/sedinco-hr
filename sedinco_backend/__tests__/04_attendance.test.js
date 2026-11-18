@@ -57,13 +57,37 @@ test.after(async () => {
     }
 });
 
-test('ATT-01: GPS Geofence check-in inside radius + out-of-range flagged + field work raw fallback', async () => {
+test('ATT-01: GPS Geofence check-in inside radius + GPS-only field work (no photo) + today_record GMT+7 parity', async () => {
     const insideRes = await apiRequest(baseUrl, 'POST', '/api/attendance/check-in', {
         token: workerToken,
         headers: { 'X-Idempotency-Key': `qa-att-in-${Date.now()}` },
         body: { lat: 16.0544, lng: 108.2022, work_location_type: 'OFFICE', device_info: 'QA_DEV_ATT_1' }
     });
     assert.equal(insideRes.status, 200, `Inside office check-in failed: ${insideRes.raw}`);
+
+    // V23: GET /api/attendance/me must return explicit today_record with ISO YYYY-MM-DD (no UTC -1d shift)
+    const { getVietnamDateString } = require('../src/utils/timeHelper');
+    const vnToday = getVietnamDateString(new Date());
+    const meRes = await apiRequest(baseUrl, 'GET', `/api/attendance/me?month=${Number(vnToday.slice(5, 7))}&year=${Number(vnToday.slice(0, 4))}`, {
+        token: workerToken
+    });
+    assert.equal(meRes.status, 200);
+    assert.equal(meRes.json?.data?.today_record?.work_date, vnToday, 'today_record.work_date must match GMT+7 ISO date');
+    assert.equal(meRes.json?.data?.today_record?.record_date, vnToday, 'today_record.record_date must match GMT+7 ISO date');
+    assert.ok(meRes.json?.data?.today_record?.check_in_time, 'today_record.check_in_time must persist in /attendance/me');
+
+    // V23: Field Work GPS-only check-in (out-of-range GPS, NO image_snapshot required, optional field_note)
+    const rW2 = await apiRequest(baseUrl, 'POST', '/api/login', { body: { ma_nv: 'QA_ATT_W2', password: 'QaPass@2026!' } });
+    const w2FieldRes = await apiRequest(baseUrl, 'POST', '/api/attendance/check-in', {
+        token: rW2.json?.data?.token,
+        headers: { 'X-Idempotency-Key': `qa-field-gps-${Date.now()}` },
+        body: { lat: 16.4637, lng: 107.5909, work_location_type: 'FIELD_WORK', device_info: 'QA_DEV_FIELD_GPS' }
+    });
+    assert.equal(w2FieldRes.status, 200, `GPS-only FIELD_WORK check-in must succeed without photo: ${w2FieldRes.raw}`);
+    const [w2Row] = await query('SELECT work_location_type, check_in_image FROM attendance_logs WHERE employee_id = ? AND record_date = ?', ['QA_ATT_W2', vnToday]);
+    assert.equal(w2Row.work_location_type, 'FIELD_WORK');
+    assert.equal(w2Row.check_in_image, null, 'Attendance check-in must NOT store check_in_image');
+    await query('DELETE FROM attendance_logs WHERE employee_id = ? AND record_date = ?', ['QA_ATT_W2', vnToday]);
 
     // Proxy check-in for a test date in 2099 to test heatmap & matrix
     const proxyRes = await apiRequest(baseUrl, 'POST', '/api/attendance/proxy-check-in', {

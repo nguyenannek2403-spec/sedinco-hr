@@ -479,6 +479,14 @@ async function initDatabase() {
             }
         }
 
+        // V23: Composite Indexes & Auto-Prune để tối ưu hiệu năng và dung lượng TiDB Cloud
+        await query("CREATE INDEX idx_att_logs_emp_date ON attendance_logs (employee_id, record_date)").catch(() => {});
+        await query("CREATE INDEX idx_att_emp_period ON attendance (ma_nv, nam, thang)").catch(() => {});
+        await query("CREATE INDEX idx_req_emp_status ON requests (employee_id, status, created_at)").catch(() => {});
+        await query("CREATE INDEX idx_audit_created ON audit_logs (created_at, is_pinned)").catch(() => {});
+        await query("UPDATE attendance_logs SET check_in_image = NULL WHERE check_in_image IS NOT NULL").catch(() => {});
+        await query("DELETE FROM idempotency_keys WHERE created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)").catch(() => {});
+
         console.log('✅ Khởi tạo cấu trúc Database (12 bảng tinh gọn + V6 Enterprise Schema) thành công!');
     } catch (err) {
         console.error('❌ Lỗi khởi tạo cấu trúc Database:', err.message);

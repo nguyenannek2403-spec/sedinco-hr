@@ -110,7 +110,6 @@ export default function WorkerDashboard({
             <OneTouchCheckIn
               currentUser={currentUser}
               showToast={showToast}
-              onNavigateHistory={() => setActiveTab("history")}
               onOpenQuickService={(mode) => setQuickServiceMode(mode)}
               onOpenFixCheckoutRequest={(info) => setFixCheckoutInfo(info)}
               onCheckInSuccess={() => {
@@ -133,6 +132,7 @@ export default function WorkerDashboard({
             onLogout={onLogout}
             showToast={showToast}
             onChangePasswordRequest={onChangePasswordRequest}
+            onNavigateHistory={() => setActiveTab("history")}
           />
         )}
         </div>
@@ -140,14 +140,14 @@ export default function WorkerDashboard({
 
       {/* ZaUI Bottom Navigation Bar */}
       <nav
-        className="shrink-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800/90 px-2 pt-1.5 flex items-center justify-around shadow-[0_-6px_24px_-6px_rgba(15,23,42,0.08)] dark:shadow-2xl transition-colors duration-200"
+        className="shrink-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800/90 px-1.5 pt-1.5 flex items-center justify-around gap-0.5 shadow-[0_-6px_24px_-6px_rgba(15,23,42,0.08)] dark:shadow-2xl transition-colors duration-200"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
       >
         {[
           { key: "checkin", label: "Chấm công", Icon: Clock },
           { key: "history", label: "Lịch sử", Icon: Calendar },
           { key: "requests", label: "Đơn từ", Icon: FileText },
-          { key: "profile", label: "Tài khoản", Icon: User }
+          { key: "profile", label: "👤 Tài khoản", Icon: User }
         ].map(({ key, label, Icon }) => {
           const active = activeTab === key;
           return (
@@ -155,7 +155,7 @@ export default function WorkerDashboard({
               key={key}
               type="button"
               onClick={() => setActiveTab(key)}
-              className={`relative flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[68px] py-1.5 px-3 rounded-2xl transition-all ${
+              className={`relative flex-1 min-w-0 flex flex-col items-center justify-center gap-1 min-h-[48px] py-1.5 px-1.5 rounded-2xl transition-all ${
                 active
                   ? "text-[#0068FF] dark:text-blue-400 font-bold bg-blue-50/90 dark:bg-blue-500/15"
                   : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium"
@@ -168,7 +168,7 @@ export default function WorkerDashboard({
                 />
               )}
               <Icon className={`w-5 h-5 ${active ? "scale-105" : ""}`} />
-              <span className="text-xs leading-tight">{label}</span>
+              <span className="text-xs leading-tight whitespace-nowrap">{label}</span>
             </button>
           );
         })}
