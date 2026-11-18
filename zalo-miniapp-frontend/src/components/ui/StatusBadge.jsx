@@ -132,11 +132,11 @@ export default function StatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold leading-snug whitespace-nowrap shrink-0 ${badgeClass} ${className}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold leading-snug whitespace-nowrap shrink-0 ${badgeClass} ${className}`}
     >
       {showSymbol && symbol && (
         <span className="font-mono font-bold text-xs opacity-90" aria-hidden="true">
-          [{symbol}]
+          {symbol}
         </span>
       )}
       <span>{label}</span>

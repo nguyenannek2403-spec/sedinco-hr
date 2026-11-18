@@ -332,27 +332,27 @@ export default function SalarySlipModal({
     >
         {/* Nội dung Phiếu Lương */}
         <div className="p-4 sm:p-6 space-y-4 text-slate-800 dark:text-slate-100">
-          {/* Quốc hiệu & Tiêu đề công ty */}
-          <div className="border-b-2 border-slate-800 dark:border-slate-700 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          {/* Quốc hiệu & Tiêu đề công ty — ZaUI E-Receipt Header */}
+          <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-800 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 text-white rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 shadow-sm">
             <div>
-              <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white uppercase">
+              <h2 className="text-sm sm:text-base font-extrabold text-white uppercase">
                 CÔNG TY CỔ PHẦN SEDINCO
               </h2>
-              <p className="text-xs text-slate-600 dark:text-slate-300">
+              <p className="text-xs text-blue-100 mt-0.5">
                 Hệ thống Quản trị Nhân sự &amp; Phiếu lương Điện tử
               </p>
             </div>
-            <div className="sm:text-right flex sm:flex-col items-center sm:items-end gap-2">
-              <span className="inline-block px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70 rounded-full text-xs font-extrabold uppercase">
+            <div className="sm:text-right flex flex-wrap sm:flex-col items-center sm:items-end gap-1.5">
+              <span className="inline-block px-3 py-1 bg-blue-900/45 dark:bg-slate-800 border border-white/25 text-white rounded-full text-xs font-extrabold uppercase">
                 Kỳ Lương: Tháng {thang}/{nam}
               </span>
               {confirmStatus === "CONFIRMED" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-transparent dark:border-emerald-800/70 text-xs font-black">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-800/80 border border-emerald-300/40 text-white text-xs font-bold">
                   <CheckCircle2 size={12} /> Đã xác nhận đúng lương
                 </span>
               )}
               {confirmStatus === "DISPUTED" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-transparent dark:border-rose-800/70 text-xs font-black">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-800/85 border border-rose-300/40 text-white text-xs font-bold">
                   <AlertTriangle size={12} /> Đang khiếu nại sai lương
                 </span>
               )}
@@ -360,7 +360,7 @@ export default function SalarySlipModal({
           </div>
 
           {/* Thông tin nhân sự */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-800/70 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-800/70 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs">
             <div>
               <span className="text-slate-600 dark:text-slate-400 block text-xs uppercase font-semibold">
                 Mã Nhân Viên
@@ -478,8 +478,10 @@ export default function SalarySlipModal({
             </div>
           </div>
 
+          <div className="zaui-ticket-divider" />
+
           {/* Khấu trừ & Thực lĩnh */}
-          <div className="border border-slate-200 dark:border-slate-700/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+          <div className="border border-slate-200/80 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
             <div className="bg-slate-100 dark:bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
               Khấu trừ & Thực lĩnh
             </div>

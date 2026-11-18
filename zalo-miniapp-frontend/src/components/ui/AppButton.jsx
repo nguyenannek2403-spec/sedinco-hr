@@ -1,23 +1,26 @@
 import React, { useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useTheme } from "../../context/ThemeContext";
 
 const VARIANT_CLASSES = {
   primary:
-    "bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white border border-blue-700 dark:border-blue-400/80 shadow-sm",
+    "bg-[#0068FF] bg-gradient-to-r from-[#0068FF] to-[#0091FF] hover:from-[#0058D6] hover:to-[#007EE5] dark:from-blue-600 dark:to-sky-600 dark:hover:from-blue-500 dark:hover:to-sky-500 text-white border border-blue-600/80 dark:border-blue-400/70 shadow-[0_6px_16px_-3px_rgba(0,104,255,0.35)]",
   secondary:
-    "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100 dark:border-slate-600 shadow-xs",
+    "bg-blue-50/95 hover:bg-blue-100/90 text-[#0068FF] border border-blue-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-blue-300 dark:border-blue-700/70 shadow-xs",
   "secondary-dark":
-    "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 shadow-xs",
+    "bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-700/70 shadow-xs",
   success:
-    "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-700 dark:border-emerald-400/80 shadow-sm",
+    "bg-emerald-600 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 dark:from-emerald-600 dark:to-teal-600 text-white border border-emerald-700/80 dark:border-emerald-400/70 shadow-sm",
   danger:
-    "bg-rose-600 hover:bg-rose-700 dark:bg-rose-600 dark:hover:bg-rose-500 text-white border border-rose-700 dark:border-rose-400/80 shadow-sm",
+    "bg-rose-600 hover:bg-rose-700 dark:bg-rose-600 dark:hover:bg-rose-500 text-white border border-rose-700/80 dark:border-rose-400/70 shadow-sm",
   warning:
     "bg-amber-500 hover:bg-amber-600 dark:bg-amber-500 dark:hover:bg-amber-400 text-slate-950 border border-amber-600 dark:border-amber-400 shadow-sm",
+  purple:
+    "bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white border border-indigo-700/80 dark:border-indigo-400/70 shadow-sm",
   ghost:
-    "bg-slate-50/80 hover:bg-slate-100 text-slate-700 border border-slate-200/90 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-slate-100 dark:border-slate-600",
+    "bg-slate-50/90 hover:bg-slate-100 text-slate-700 border border-slate-200/90 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-slate-100 dark:border-slate-700",
   "ghost-dark":
-    "bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-600"
+    "bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-700"
 };
 
 /**
@@ -29,7 +32,7 @@ const VARIANT_CLASSES = {
 export default function AppButton({
   children,
   variant = "primary",
-  tone = "light",
+  tone = "auto",
   loading = false,
   disabled = false,
   type = "button",
@@ -40,14 +43,16 @@ export default function AppButton({
   className = "",
   ...rest
 }) {
+  const { isDark } = useTheme();
   const lockRef = useRef(false);
   const [internalLoading, setInternalLoading] = useState(false);
 
   const isBusy = Boolean(loading || internalLoading);
   const isDisabled = Boolean(disabled || isBusy);
 
+  const effectiveTone = tone === "auto" ? (isDark ? "dark" : "light") : tone;
   const resolvedVariantKey =
-    tone === "dark" && (variant === "secondary" || variant === "ghost")
+    effectiveTone === "dark" && (variant === "secondary" || variant === "ghost")
       ? `${variant}-dark`
       : variant;
   const variantClass = VARIANT_CLASSES[resolvedVariantKey] || VARIANT_CLASSES.primary;
@@ -76,7 +81,7 @@ export default function AppButton({
       type={type}
       disabled={isDisabled}
       onClick={typeof onClick === "function" ? handleClick : undefined}
-      className={`min-h-[46px] h-auto py-2.5 px-4 rounded-xl font-semibold leading-snug text-sm inline-flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-transform duration-150 disabled:opacity-55 disabled:cursor-not-allowed ${
+      className={`min-h-[46px] h-auto py-2.5 px-4 rounded-2xl font-semibold leading-snug text-sm inline-flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-transform duration-150 disabled:opacity-55 disabled:cursor-not-allowed ${
         fullWidth ? "w-full" : ""
       } ${variantClass} ${className}`}
       {...rest}

@@ -164,7 +164,7 @@ export default function DesktopHeader({
 
   return (
     <header
-      className={`bg-white/95 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-[10px] sm:px-6 lg:px-8 pb-2.5 flex items-center justify-between gap-[6px] sm:gap-2 sticky top-0 select-none shadow-sm transition-colors duration-200 ${
+      className={`bg-white/95 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-[10px] sm:px-6 lg:px-8 pb-2.5 flex items-center justify-between gap-[6px] sm:gap-2 sticky top-0 select-none shadow-[0_2px_14px_-2px_rgba(15,23,42,0.06)] transition-colors duration-200 ${
         showAlertPanel ? "z-[125]" : "z-40"
       }`}
       style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
@@ -175,7 +175,7 @@ export default function DesktopHeader({
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            className="lg:hidden min-w-[44px] min-h-[44px] p-[8px] sm:p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 flex items-center justify-center shrink-0"
+            className="lg:hidden min-w-[44px] min-h-[44px] p-[8px] sm:p-2 rounded-2xl bg-blue-50/90 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#0068FF] dark:text-blue-300 border border-blue-200/80 dark:border-slate-700 flex items-center justify-center shrink-0"
             aria-label="Mở danh mục quản trị"
             title="Mở danh mục quản trị"
           >
@@ -188,7 +188,7 @@ export default function DesktopHeader({
             type="button"
             aria-label="Trở về"
             onClick={() => setCurrentTab("matrix")}
-            className="hidden sm:flex min-w-[44px] min-h-[44px] px-[8px] sm:px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-600/20 dark:hover:bg-blue-600/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/40 items-center justify-center gap-1 text-xs font-extrabold shrink-0"
+            className="hidden sm:flex min-w-[44px] min-h-[44px] px-3 py-1.5 rounded-full bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-600/20 dark:hover:bg-blue-600/30 text-[#0068FF] dark:text-blue-300 border border-blue-200 dark:border-blue-500/40 items-center justify-center gap-1 text-xs font-extrabold shrink-0"
           >
             <ArrowLeft size={15} className="shrink-0" />
             <span className="hidden sm:inline">Trở về</span>
@@ -199,7 +199,7 @@ export default function DesktopHeader({
           <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-300 font-bold leading-snug">
             <span className="truncate">Sedinco Nhân Sự</span>
             <ChevronRight size={12} className="shrink-0" />
-            <span className="text-blue-600 dark:text-blue-400 font-black truncate">{ROLE_LABELS[activeRole] || currentUser?.ho_ten}</span>
+            <span className="text-[#0068FF] dark:text-blue-400 font-black truncate">{ROLE_LABELS[activeRole] || currentUser?.ho_ten}</span>
           </div>
           <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-tight truncate">
             {getTabTitle()}
@@ -207,12 +207,12 @@ export default function DesktopHeader({
         </div>
       </div>
 
-      {/* Giữa: Tên nhân sự nổi bật + Mã NV / Vai trò (Tránh tràn chữ với truncate) */}
+      {/* Giữa: Tên nhân sự nổi bật + Mã NV / Vai trò */}
       <div className="flex-1 min-w-0 text-center px-1">
         <div className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-tight truncate">
           {currentUser?.ho_ten || ROLE_LABELS[activeRole] || "Quản trị viên"}
         </div>
-        <div className="text-xs text-blue-600 dark:text-blue-300 font-semibold leading-snug truncate">
+        <div className="text-xs text-[#0068FF] dark:text-blue-300 font-semibold leading-snug truncate">
           {currentUser?.login_username || currentUser?.ma_nv ? `${currentUser?.login_username || currentUser?.ma_nv} • ` : ""}
           {ROLE_LABELS[activeRole] || getTabTitle()}
         </div>
@@ -221,8 +221,8 @@ export default function DesktopHeader({
       {/* Phải: Giao diện, Tài khoản, Thông báo, Làm mới & Đăng xuất */}
       <div className="flex items-center gap-[6px] sm:gap-1.5 shrink-0 relative">
         {/* Đồng hồ số thời gian thực (Desktop) */}
-        <div className="hidden xl:flex items-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-slate-700 dark:text-slate-200">
-          <Clock size={14} className="text-blue-600 dark:text-blue-400" />
+        <div className="hidden xl:flex items-center gap-2 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-3 py-1.5 rounded-full text-xs font-mono font-bold text-slate-700 dark:text-slate-200">
+          <Clock size={14} className="text-[#0068FF] dark:text-blue-400" />
           <span>
             {displayTime.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
           </span>
@@ -239,7 +239,7 @@ export default function DesktopHeader({
             data-testid="header-account-btn"
             aria-label="Tài khoản và mật khẩu"
             title="Cập nhật Tài khoản đăng nhập (SĐT) & Mật khẩu"
-            className="hidden sm:flex min-w-[44px] min-h-[44px] px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-blue-500/20 text-slate-700 hover:text-blue-700 dark:text-slate-200 dark:hover:text-blue-300 border border-slate-300 dark:border-slate-700 rounded-xl items-center justify-center gap-1.5 text-xs font-bold transition-colors"
+            className="hidden sm:flex min-w-[44px] min-h-[44px] px-3 py-1.5 bg-blue-50/70 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-blue-500/20 text-[#0068FF] hover:text-blue-800 dark:text-slate-200 dark:hover:text-blue-300 border border-blue-200/80 dark:border-slate-700 rounded-2xl items-center justify-center gap-1.5 text-xs font-bold transition-colors"
           >
             <KeyRound size={14} className="shrink-0" />
             <span className="hidden xl:inline">Tài khoản</span>
@@ -252,12 +252,12 @@ export default function DesktopHeader({
           data-bell-button="true"
           onClick={() => setShowAlertPanel(!showAlertPanel)}
           aria-label="Trung tâm cảnh báo và thông báo"
-          className={`relative min-w-[44px] min-h-[44px] px-[8px] sm:px-2.5 py-1.5 rounded-xl border flex items-center justify-center gap-1.5 text-xs font-black transition-all ${
+          className={`relative min-w-[44px] min-h-[44px] px-[8px] sm:px-3 py-1.5 rounded-2xl border flex items-center justify-center gap-1.5 text-xs font-black transition-all ${
             criticalOrHighCount > 0
               ? "bg-rose-50 dark:bg-rose-600/20 border-rose-300 dark:border-rose-500 text-rose-700 dark:text-rose-300 shadow-sm"
               : totalBellCount > 0
               ? "bg-amber-50 dark:bg-amber-500/20 border-amber-300 dark:border-amber-400 text-amber-700 dark:text-amber-200 shadow-sm"
-              : "bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+              : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
           }`}
           title="Trung tâm Thông báo & Cảnh báo"
         >
@@ -273,7 +273,7 @@ export default function DesktopHeader({
           />
           {totalBellCount > 0 && (
             <span
-              className={`px-[5px] py-0.5 text-[11px] leading-none rounded-full text-white font-black ${
+              className={`px-1.5 py-0.5 text-xs leading-none rounded-full text-white font-black ${
                 criticalOrHighCount > 0 ? "bg-rose-600" : "bg-amber-600"
               }`}
             >
@@ -288,10 +288,10 @@ export default function DesktopHeader({
             type="button"
             onClick={onRefresh}
             aria-label="Làm mới dữ liệu"
-            className="hidden sm:flex min-w-[44px] min-h-[44px] p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl transition-all active:scale-95 items-center justify-center"
+            className="hidden sm:flex min-w-[44px] min-h-[44px] p-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-2xl transition-all active:scale-95 items-center justify-center"
             title="Tải lại dữ liệu mới nhất"
           >
-            <RefreshCw size={15} className={isLoading ? "animate-spin text-blue-600 dark:text-blue-400" : ""} />
+            <RefreshCw size={15} className={isLoading ? "animate-spin text-[#0068FF] dark:text-blue-400" : ""} />
           </button>
         )}
 
@@ -302,7 +302,7 @@ export default function DesktopHeader({
             aria-label="Đăng xuất"
             onClick={onLogout}
             title="Đăng xuất"
-            className="min-w-[44px] min-h-[44px] px-[10px] sm:px-3 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-700 hover:text-rose-700 dark:text-slate-100 dark:hover:text-rose-200 border border-slate-300 dark:border-slate-700 hover:border-rose-400 flex items-center justify-center gap-1.5 text-xs font-bold shrink-0 transition-colors"
+            className="min-w-[44px] min-h-[44px] px-[10px] sm:px-3 py-2 rounded-2xl bg-slate-50 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-700 hover:text-rose-700 dark:text-slate-100 dark:hover:text-rose-200 border border-slate-200 dark:border-slate-700 hover:border-rose-400 flex items-center justify-center gap-1.5 text-xs font-bold shrink-0 transition-colors"
           >
             <LogOut size={14} className="shrink-0" />
             <span className="hidden sm:inline">Đăng xuất</span>

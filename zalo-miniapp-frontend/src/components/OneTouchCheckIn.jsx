@@ -12,7 +12,10 @@ import {
   Camera,
   Image as ImageIcon,
   HardHat,
-  Wifi
+  Wifi,
+  Calendar,
+  TrendingUp,
+  Wallet
 } from "lucide-react";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
@@ -65,9 +68,15 @@ export default function OneTouchCheckIn({
   todayAttendance = null,
   onCheckInSuccess,
   onOpenFixCheckoutRequest,
+  onOpenQuickService = null,
   isLockedPeriod = false,
   showToast = null
 }) {
+  const [nowClock, setNowClock] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNowClock(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const {
     spamWarning,
     showFriendlySpamAlert,
@@ -580,55 +589,107 @@ export default function OneTouchCheckIn({
     handleStartCheckIn(true);
   };
 
+  const effStart =
+    shiftInfo?.effective_start ||
+    attendanceSummary?.effective_shift_start ||
+    currentUser?.custom_start_time ||
+    (effectiveToday?.shift_type === "MORNING_SHIFT"
+      ? "07:30"
+      : effectiveToday?.shift_type === "AFTERNOON_SHIFT"
+      ? "13:00"
+      : effectiveToday?.shift_type === "NIGHT_SHIFT"
+      ? "18:00"
+      : companyMeta.work_start || "08:00");
+  const effEnd =
+    shiftInfo?.effective_end ||
+    attendanceSummary?.effective_shift_end ||
+    currentUser?.custom_end_time ||
+    (effectiveToday?.shift_type === "MORNING_SHIFT"
+      ? "12:00"
+      : effectiveToday?.shift_type === "AFTERNOON_SHIFT"
+      ? "17:30"
+      : effectiveToday?.shift_type === "NIGHT_SHIFT"
+      ? "22:00"
+      : companyMeta.work_end || "17:30");
+
+  const quickServices = [
+    {
+      key: "leave",
+      mode: "P",
+      label: "Nghỉ phép",
+      desc: "Phép năm, việc riêng",
+      icon: Calendar,
+      iconBg: "bg-blue-50 text-[#0068FF] border-blue-200/80 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30"
+    },
+    {
+      key: "comp",
+      mode: "Bổ sung công / Quên chấm giờ ra",
+      label: "Bổ sung công",
+      desc: "Quên chấm vào/ra",
+      icon: Clock,
+      iconBg: "bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30"
+    },
+    {
+      key: "ot",
+      mode: "OT",
+      label: "Tăng ca (OT)",
+      desc: "Đăng ký làm thêm",
+      icon: TrendingUp,
+      iconBg: "bg-indigo-50 text-indigo-700 border-indigo-200/80 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30"
+    },
+    {
+      key: "advance",
+      mode: "SALARY_ADVANCE",
+      label: "Ứng lương",
+      desc: "Tạm ứng trước kỳ",
+      icon: Wallet,
+      iconBg: "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30"
+    }
+  ];
+
+  const timeString = nowClock.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+
   return (
-    <div className="w-full flex flex-col items-center justify-center space-y-3">
-      {/* 1. BANNER NHẮC NHỞ THÔNG MINH "QUÊN BẤM GIỜ RA" */}
-      {forgottenCheckout && (
-        <button
-          type="button"
-          onClick={() => onOpenFixCheckoutRequest && onOpenFixCheckoutRequest(forgottenCheckout)}
-          className="w-full p-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 border-2 border-amber-400/70 text-left flex items-start gap-2.5 shadow-sm dark:shadow-lg transition cursor-pointer"
-        >
-          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-          <div className="flex-1 min-w-0 text-xs leading-relaxed">
-            <p className="font-black text-amber-900 dark:text-amber-200">
-              ⚠️ Phát hiện ngày {forgottenCheckout.short_date} bạn có chấm công Vào ({String(forgottenCheckout.check_in_time).slice(0, 5)}) nhưng quên bấm Giờ Ra!
-            </p>
-            <span className="inline-block mt-1 font-black text-amber-700 dark:text-amber-300 underline">
-              👉 Bấm vào đây để gửi đơn bổ sung giờ ra 1 chạm
+    <div className="w-full flex flex-col space-y-3.5">
+      {/* KHU VỰC 1: ZAUI HERO STRIP — ĐỒNG HỒ SỐ & TRẠNG THÁI GPS / WI-FI */}
+      <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 text-white rounded-b-[28px] px-4 pt-1.5 pb-10 space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-900/45 dark:bg-slate-800/90 border border-white/25 text-xs font-bold text-white">
+            {locationFriendlyBadge.mode === "wifi_office" ? (
+              <Wifi className="w-3.5 h-3.5 text-cyan-200 shrink-0" />
+            ) : (
+              <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+            )}
+            <span className="leading-snug break-words">
+              {locationFriendlyBadge.mode === "in_range"
+                ? "Trong vùng chấm công"
+                : locationFriendlyBadge.mode === "wifi_office"
+                ? "Wi-Fi Văn phòng"
+                : locationFriendlyBadge.mode === "out_of_range"
+                ? "Ngoài vùng văn phòng"
+                : "GPS Sẵn sàng"}
             </span>
           </div>
-        </button>
-      )}
 
-      {/* 2. THẺ TRẠNG THÁI VỊ TRÍ & KẾT NỐI MẠNG THÂN THIỆN */}
-      <div
-        className={`w-full px-3.5 py-2.5 rounded-2xl border text-xs font-bold flex flex-col gap-1.5 shadow-sm ${
-          locationFriendlyBadge.mode === "in_range"
-            ? "bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-200"
-            : locationFriendlyBadge.mode === "wifi_office"
-            ? "bg-blue-50 dark:bg-blue-950/70 border-blue-200 dark:border-blue-500/40 text-blue-800 dark:text-blue-200"
-            : locationFriendlyBadge.mode === "out_of_range"
-            ? "bg-amber-50 dark:bg-amber-950/70 border-amber-200 dark:border-amber-500/40 text-amber-900 dark:text-amber-200"
-            : "bg-white dark:bg-slate-900/90 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          {locationFriendlyBadge.mode === "wifi_office" ? (
-            <Wifi className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-          ) : (
-            <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          )}
-          <span className="flex-1 min-w-0 leading-snug">{locationFriendlyBadge.text}</span>
+          <div className="px-3 py-1 rounded-full bg-blue-900/45 dark:bg-slate-800/90 border border-white/25 text-xs font-mono font-bold tabular-nums text-white shrink-0">
+            {timeString}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 text-xs font-semibold opacity-95 pl-6">
+
+        <p className="text-xs font-medium text-blue-50 dark:text-slate-200 leading-snug">
+          {locationFriendlyBadge.text}
+        </p>
+
+        <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
           <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${
+            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border ${
               !networkBadge.online || networkBadge.networkType === "none"
-                ? "bg-rose-100 dark:bg-rose-500/20 border-rose-300 dark:border-rose-400/50 text-rose-800 dark:text-rose-200"
-                : networkBadge.networkType === "wifi"
-                ? "bg-emerald-100 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-400/40 text-emerald-800 dark:text-emerald-200"
-                : "bg-sky-100 dark:bg-sky-500/15 border-sky-300 dark:border-sky-400/40 text-sky-800 dark:text-sky-200"
+                ? "bg-rose-900/80 border-rose-300/60 text-white"
+                : "bg-blue-900/45 dark:bg-slate-800/90 border-white/25 text-white"
             }`}
           >
             {!networkBadge.online || networkBadge.networkType === "none"
@@ -642,119 +703,375 @@ export default function OneTouchCheckIn({
         </div>
       </div>
 
-      {/* F4: THÔNG BÁO NỘI BỘ CÔNG TY */}
-      {companyMeta?.announcement_text && String(companyMeta.announcement_text).trim() && (
-        <div className="w-full bg-amber-50 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-400/50 rounded-2xl px-3.5 py-2.5 text-left space-y-1 shadow-sm">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-amber-800 dark:text-amber-200">📢 Thông báo từ Công ty</span>
-            {companyMeta.announcement_updated_at && (
-              <span className="text-xs text-amber-700/90 dark:text-amber-100/90 whitespace-nowrap shrink-0">
-                {new Date(companyMeta.announcement_updated_at).toLocaleDateString("vi-VN")}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-amber-900 dark:text-amber-50 leading-relaxed whitespace-pre-line">
-            {companyMeta.announcement_text}
-          </p>
-        </div>
-      )}
-
-      {/* 3. THẺ TÓM TẮT CÔNG HÔM NAY & CA CHUẨN */}
-      <div className="w-full bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 space-y-2.5 text-xs shadow-sm dark:shadow-md">
-        <div className="flex items-center justify-between gap-2.5">
-          <div className="flex-1 min-w-0">
-            <span className="text-slate-600 dark:text-slate-300 font-medium block">
-              Hôm nay ({new Date().toLocaleDateString("vi-VN")}):
+      {/* KHU VỰC 2: ZAUI FLOATING CHECK-IN HERO CARD */}
+      <div className="zaui-floating-card mx-3.5 bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 space-y-3.5">
+        {/* Shift Timeline Pill */}
+        <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-semibold text-slate-600 dark:text-slate-300">
+              Hôm nay ({new Date().toLocaleDateString("vi-VN")})
             </span>
-            <span className="font-bold text-emerald-700 dark:text-emerald-400 text-sm block mt-0.5 leading-snug">
+            <span className="font-bold text-[#0068FF] dark:text-blue-300 whitespace-nowrap">
+              Ca: {effStart} – {effEnd}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              {effectiveToday?.check_in_time ? String(effectiveToday.check_in_time).slice(0, 5) : effStart}
+            </span>
+            <div className="flex-1 h-1.5 rounded-full bg-blue-100 dark:bg-slate-700 relative overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  effectiveToday?.check_out_time
+                    ? "w-full bg-emerald-500"
+                    : effectiveToday?.check_in_time
+                    ? "w-1/2 bg-[#0068FF]"
+                    : "w-1/6 bg-slate-400"
+                }`}
+              />
+            </div>
+            <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-100 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              {effectiveToday?.check_out_time ? String(effectiveToday.check_out_time).slice(0, 5) : effEnd}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
+            <span className="font-bold text-emerald-700 dark:text-emerald-300 leading-snug">
               {effectiveToday?.check_out_time
-                ? `Vào ${effectiveToday.check_in_time?.slice(0, 5)} • Ra ${effectiveToday.check_out_time?.slice(0, 5)}`
+                ? `Đã hoàn thành ca: Vào ${effectiveToday.check_in_time?.slice(0, 5)} • Ra ${effectiveToday.check_out_time?.slice(0, 5)}`
                 : effectiveToday?.check_in_time
                 ? `Đã vào ca lúc ${effectiveToday.check_in_time?.slice(0, 5)}`
                 : "Chưa chấm công vào ca"}
             </span>
-            {effectiveToday?.location_name && (
-              <span className="block text-xs text-slate-600 dark:text-slate-300 mt-0.5 truncate">
-                📍 {effectiveToday.location_name}
-              </span>
-            )}
-            {effectiveToday?.proxy_by && (
-              <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-200 text-xs font-semibold">
-                Quản lý chấm hộ{effectiveToday.proxy_note ? `: ${effectiveToday.proxy_note}` : ""}
-              </span>
-            )}
-          </div>
-          <div className="text-right bg-slate-50 dark:bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
-            <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block whitespace-nowrap">Công tháng này</span>
-            <span className="text-base font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">{monthlyCount} ngày</span>
-          </div>
-        </div>
-
-        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2 text-xs text-slate-600 dark:text-slate-300">
-          <div className="flex flex-wrap items-center justify-between gap-1.5">
-            <span>
-              {(() => {
-                const effStart =
-                  shiftInfo?.effective_start ||
-                  attendanceSummary?.effective_shift_start ||
-                  currentUser?.custom_start_time ||
-                  (effectiveToday?.shift_type === "MORNING_SHIFT"
-                    ? "07:30"
-                    : effectiveToday?.shift_type === "AFTERNOON_SHIFT"
-                    ? "13:00"
-                    : effectiveToday?.shift_type === "NIGHT_SHIFT"
-                    ? "18:00"
-                    : companyMeta.work_start || "08:00");
-                const effEnd =
-                  shiftInfo?.effective_end ||
-                  attendanceSummary?.effective_shift_end ||
-                  currentUser?.custom_end_time ||
-                  (effectiveToday?.shift_type === "MORNING_SHIFT"
-                    ? "12:00"
-                    : effectiveToday?.shift_type === "AFTERNOON_SHIFT"
-                    ? "17:30"
-                    : effectiveToday?.shift_type === "NIGHT_SHIFT"
-                    ? "22:00"
-                    : companyMeta.work_end || "17:30");
-                return (
-                  <>
-                    Ca làm việc của bạn hôm nay:{" "}
-                    <strong className="text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                      {effStart} – {effEnd}
-                    </strong>
-                  </>
-                );
-              })()}
-            </span>
             <div className="flex items-center gap-1">
               {Number(effectiveToday?.late_minutes) > 0 && (
-                <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold whitespace-nowrap">
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold whitespace-nowrap">
                   Muộn {effectiveToday.late_minutes}p
                 </span>
               )}
               {Number(effectiveToday?.ot_hours) > 0 && (
-                <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 font-semibold whitespace-nowrap">
+                <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 font-semibold whitespace-nowrap">
                   OT +{effectiveToday.ot_hours}h
                 </span>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl px-2.5 py-1.5">
-              <span className="text-xs text-slate-500 dark:text-slate-300 block">Đúng giờ tháng này</span>
-              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                {attendanceSummary?.on_time_count || 0} ngày
-              </span>
+          {effectiveToday?.location_name && (
+            <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
+              📍 {effectiveToday.location_name}
             </div>
-            <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl px-2.5 py-1.5">
-              <span className="text-xs text-slate-500 dark:text-slate-300 block">Đi trễ tháng này</span>
-              <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
-                {attendanceSummary?.late_count || 0} lần ({attendanceSummary?.total_late_minutes || 0} phút)
-              </span>
+          )}
+          {effectiveToday?.proxy_by && (
+            <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-200 text-xs font-semibold">
+              Quản lý chấm hộ{effectiveToday.proxy_note ? `: ${effectiveToday.proxy_note}` : ""}
+            </span>
+          )}
+        </div>
+
+        {/* Nút Chấm Công 1 Chạm Chính */}
+        <div className="relative py-1 flex flex-col items-center">
+          <button
+            id="btn-start-checkin"
+            type="button"
+            onClick={() => handleStartCheckIn(false)}
+            disabled={isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || isLockedPeriod}
+            className={`relative w-[196px] min-h-[196px] aspect-square h-auto max-w-[82vw] p-4 rounded-full flex flex-col items-center justify-center text-white transition-all duration-200 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed border-[6px] ${
+              isLockedPeriod
+                ? "bg-slate-600 border-slate-300 opacity-70"
+                : stage === STAGES.SUCCESS
+                ? "bg-gradient-to-br from-emerald-500 to-teal-600 border-emerald-100 dark:border-emerald-300/40 shadow-emerald-500/40"
+                : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
+                ? "bg-gradient-to-br from-rose-500 to-rose-700 border-rose-100 dark:border-rose-300/40 shadow-rose-600/40"
+                : isFieldWorkMode
+                ? "bg-gradient-to-br from-amber-500 to-orange-600 border-amber-100 dark:border-amber-300/40 hover:from-amber-400 hover:to-orange-500 shadow-amber-500/40"
+                : checkinType === "in"
+                ? "bg-[#0068FF] bg-gradient-to-br from-[#0068FF] via-[#0084FF] to-[#06B6D4] border-blue-100 dark:border-blue-300/40 shadow-[0_12px_30px_-4px_rgba(0,104,255,0.45)]"
+                : "bg-indigo-600 bg-gradient-to-br from-indigo-600 to-blue-600 border-indigo-100 dark:border-indigo-300/40 shadow-[0_12px_30px_-4px_rgba(79,70,229,0.45)]"
+            }`}
+          >
+            <div className="mb-1.5">
+              {stage === STAGES.SUCCESS ? (
+                <CheckCircle2 size={46} className="text-white" />
+              ) : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD ? (
+                <AlertCircle size={46} className="text-white" />
+              ) : stage === STAGES.BIO_AUTH ? (
+                <Fingerprint size={46} className="text-blue-100" />
+              ) : stage === STAGES.LOCATING ? (
+                <MapPin size={46} className="text-amber-100" />
+              ) : stage === STAGES.SUBMITTING ? (
+                <Send size={42} className="text-white" />
+              ) : isFieldWorkMode ? (
+                <HardHat size={46} className="text-white" />
+              ) : (
+                <Clock size={46} className="text-white" />
+              )}
+            </div>
+
+            <span className="font-black text-lg tracking-tight uppercase leading-tight text-center px-2">
+              {stage === STAGES.SUBMITTING
+                ? "ĐANG GỬI..."
+                : stage === STAGES.LOCATING
+                ? "ĐANG ĐỊNH VỊ"
+                : stage === STAGES.SUCCESS
+                ? "HOÀN TẤT"
+                : stage === STAGES.ERROR
+                ? "BẤM THỬ LẠI"
+                : isFieldWorkMode
+                ? "ĐI CÔNG TRÌNH"
+                : checkinType === "in"
+                ? "CHẤM CÔNG VÀO"
+                : "CHẤM CÔNG RA"}
+            </span>
+
+            <span className="text-xs font-bold text-white mt-1.5 bg-slate-900/35 px-3 py-0.5 rounded-full border border-white/25">
+              {isLockedPeriod
+                ? "Kỳ công đã chốt"
+                : stage === STAGES.SUCCESS
+                ? (serverTimeResult ? `Lúc ${serverTimeResult}` : "Đã ghi nhận")
+                : isFieldWorkMode
+                ? "Kèm ảnh hiện trường"
+                : checkinType === "in"
+                ? `Vào ca (${effStart})`
+                : `Ra ca (${effEnd})`}
+            </span>
+          </button>
+        </div>
+
+        {/* Nút Chế độ Đi Công Trình & Chụp ảnh Selfie */}
+        <div className="space-y-2">
+          <AppButton
+            variant={isFieldWorkMode ? "warning" : "secondary"}
+            fullWidth
+            icon={HardHat}
+            onClick={() => {
+              if (isFieldWorkMode) {
+                setIsFieldWorkMode(false);
+              } else {
+                setFieldModalError("");
+                setShowFieldWorkModal(true);
+              }
+            }}
+            className={`text-xs font-bold ${
+              isFieldWorkMode
+                ? "border-amber-400 shadow-lg shadow-amber-500/20"
+                : "!bg-amber-50 hover:!bg-amber-100 dark:!bg-slate-800 dark:hover:!bg-slate-700 !text-amber-800 dark:!text-amber-300 !border-amber-300 dark:!border-amber-500/40"
+            }`}
+          >
+            {isFieldWorkMode
+              ? "Đang bật: Chấm công Đi Công Trình (Bấm để tắt)"
+              : "Chấm công Đi Công Trình / Thị Trường"}
+          </AppButton>
+
+          {isFieldWorkMode && (
+            <div className="bg-amber-50 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-500/40 rounded-2xl p-3 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-amber-800 dark:text-amber-200 uppercase">
+                  Thông tin công trình đã xác nhận:
+                </span>
+                <AppButton
+                  variant="secondary"
+                  onClick={() => {
+                    setFieldModalError("");
+                    setShowFieldWorkModal(true);
+                  }}
+                  className="text-xs px-3 py-1.5"
+                >
+                  Chỉnh sửa
+                </AppButton>
+              </div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white break-words bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
+                {fieldNote}
+              </p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">
+                {capturedPhoto ? "✅ Đã đính kèm ảnh chụp hiện trường" : "⚠️ Chưa có ảnh hiện trường"}
+              </p>
+            </div>
+          )}
+
+          <input
+            ref={cameraFileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFallbackFileChange}
+            className="hidden"
+          />
+          <input
+            ref={albumFileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFallbackFileChange}
+            className="hidden"
+          />
+          <AppButton
+            type="button"
+            variant="secondary"
+            fullWidth
+            onClick={handleCaptureSelfie}
+            disabled={isDebounceLocked || stage === STAGES.SUBMITTING}
+            icon={Camera}
+          >
+            {capturedPhoto
+              ? "✅ Đã đính kèm ảnh hiện trường"
+              : isFieldWorkMode
+              ? "📸 Chụp ảnh Công trình / Khách hàng (Bắt buộc)"
+              : "Chụp ảnh Selfie xác thực"}
+          </AppButton>
+        </div>
+
+        {/* Trạng thái / Cảnh báo */}
+        <div className="space-y-2.5 text-center">
+          {spamWarning && (
+            <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-left flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
+              <p className="font-semibold text-xs sm:text-sm text-amber-900 dark:text-amber-100 leading-relaxed">{spamWarning}</p>
+            </div>
+          )}
+
+          <div
+            className={`w-full py-2.5 px-3.5 rounded-2xl text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all border ${
+              stage === STAGES.SUCCESS
+                ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700"
+                : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
+                ? "bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-700"
+                : "bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
+            }`}
+          >
+            {stage === STAGES.SUCCESS && <CheckCircle2 size={16} className="text-emerald-700 dark:text-emerald-300 shrink-0" />}
+            {(stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD) && (
+              <AlertCircle size={16} className="text-rose-700 dark:text-rose-300 shrink-0" />
+            )}
+            {stage !== STAGES.SUCCESS && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
+              <span className="w-2 h-2 rounded-full bg-[#0068FF] dark:bg-blue-400 shrink-0 animate-pulse" />
+            )}
+            <span>{statusMessage}</span>
+          </div>
+
+          {errorMessage && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
+            <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 text-left flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
+              <p className="font-semibold text-xs text-rose-900 dark:text-rose-200">{errorMessage}</p>
+            </div>
+          )}
+
+          {stage === STAGES.ERROR && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 text-left space-y-2.5">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle size={18} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-sm text-rose-900 dark:text-rose-100">{errorMessage}</h4>
+                  {errorDetails && <p className="text-xs text-rose-800 dark:text-rose-200 mt-1">{errorDetails}</p>}
+                </div>
+              </div>
+              <AppButton
+                type="button"
+                variant="danger"
+                fullWidth
+                onClick={() => handleStartCheckIn(true)}
+                icon={RotateCcw}
+              >
+                BẤM VÀO ĐÂY ĐỂ THỬ LẠI
+              </AppButton>
+            </div>
+          )}
+        </div>
+
+        {/* Ticket Dashed Divider + 3-Col Monthly Stats */}
+        <div className="zaui-ticket-divider" />
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl px-2 py-2">
+            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Đúng giờ</div>
+            <div className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5">
+              {attendanceSummary?.on_time_count || 0} ngày
+            </div>
+          </div>
+          <div className="bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/60 rounded-xl px-2 py-2">
+            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Đi trễ</div>
+            <div className="text-sm font-extrabold text-amber-700 dark:text-amber-300 mt-0.5">
+              {attendanceSummary?.late_count || 0} lần
+            </div>
+          </div>
+          <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl px-2 py-2">
+            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Tổng công</div>
+            <div className="text-sm font-extrabold text-[#0068FF] dark:text-blue-300 mt-0.5">
+              {monthlyCount} ngày
             </div>
           </div>
         </div>
+      </div>
+
+      {/* KHU VỰC PHỤ: NHẮC QUÊN GIỜ RA + THÔNG BÁO + LƯỚI DỊCH VỤ NHÂN SỰ NHANH */}
+      <div className="px-3.5 space-y-3.5">
+        {forgottenCheckout && (
+          <button
+            type="button"
+            onClick={() => onOpenFixCheckoutRequest && onOpenFixCheckoutRequest(forgottenCheckout)}
+            className="w-full p-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 border border-amber-300 dark:border-amber-500/50 text-left flex items-start gap-2.5 shadow-sm transition cursor-pointer"
+          >
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+            <div className="flex-1 min-w-0 text-xs leading-relaxed">
+              <p className="font-bold text-amber-900 dark:text-amber-200">
+                ⚠️ Phát hiện ngày {forgottenCheckout.short_date} bạn có chấm công Vào ({String(forgottenCheckout.check_in_time).slice(0, 5)}) nhưng quên bấm Giờ Ra!
+              </p>
+              <span className="inline-block mt-1 font-bold text-amber-700 dark:text-amber-300 underline">
+                👉 Bấm vào đây để gửi đơn bổ sung giờ ra 1 chạm
+              </span>
+            </div>
+          </button>
+        )}
+
+        {companyMeta?.announcement_text && String(companyMeta.announcement_text).trim() && (
+          <div className="w-full bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-400/40 rounded-2xl px-4 py-3 text-left space-y-1 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-amber-800 dark:text-amber-200">📢 Thông báo từ Công ty</span>
+              {companyMeta.announcement_updated_at && (
+                <span className="text-xs text-amber-700/90 dark:text-amber-100/90 whitespace-nowrap shrink-0">
+                  {new Date(companyMeta.announcement_updated_at).toLocaleDateString("vi-VN")}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-amber-900 dark:text-amber-50 leading-relaxed whitespace-pre-line">
+              {companyMeta.announcement_text}
+            </p>
+          </div>
+        )}
+
+        {/* KHU VỰC 3: ZAUI QUICK SERVICE GRID */}
+        {typeof onOpenQuickService === "function" && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Dịch vụ Nhân sự Nhanh</h3>
+              <span className="text-xs font-semibold text-[#0068FF] dark:text-blue-400">Gửi 1 chạm</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {quickServices.map((svc) => {
+                const SvcIcon = svc.icon;
+                return (
+                  <button
+                    key={svc.key}
+                    type="button"
+                    onClick={() => onOpenQuickService(svc.mode)}
+                    className="p-3 rounded-2xl bg-slate-50/90 hover:bg-blue-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex flex-col items-center justify-center text-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+                  >
+                    <div className={`zaui-service-icon w-11 h-11 rounded-2xl border shrink-0 ${svc.iconBg}`}>
+                      <SvcIcon className="w-5 h-5" />
+                    </div>
+                    <div className="w-full min-w-0 space-y-0.5">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug break-words">
+                        {svc.label}
+                      </div>
+                      <div className="text-xs text-slate-600 dark:text-slate-300 leading-snug break-words">
+                        {svc.desc}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* MODAL CẢNH BÁO ĐỎ TOÀN MÀN HÌNH KHI PHÁT HIỆN FAKE GPS / THIẾT BỊ LẠ */}
@@ -815,7 +1132,7 @@ export default function OneTouchCheckIn({
         }
       >
         <div className="p-6 text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto shadow-sm border border-blue-100 dark:border-blue-500/30">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-500/15 text-[#0068FF] dark:text-blue-400 flex items-center justify-center mx-auto shadow-sm border border-blue-100 dark:border-blue-500/30">
             <MapPin size={32} />
           </div>
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -823,58 +1140,6 @@ export default function OneTouchCheckIn({
           </p>
         </div>
       </AppModal>
-
-      {/* 4. NÚT CHUYỂN CHẾ ĐỘ ĐI CÔNG TRÌNH / THỊ TRƯỜNG */}
-      <div className="w-full">
-        <AppButton
-          variant={isFieldWorkMode ? "warning" : "secondary"}
-          fullWidth
-          icon={HardHat}
-          onClick={() => {
-            if (isFieldWorkMode) {
-              setIsFieldWorkMode(false);
-            } else {
-              setFieldModalError("");
-              setShowFieldWorkModal(true);
-            }
-          }}
-          className={`text-xs font-black rounded-2xl border-2 ${
-            isFieldWorkMode
-              ? "border-amber-400 shadow-lg shadow-amber-500/20"
-              : "!bg-amber-50 hover:!bg-amber-100 dark:!bg-slate-800/90 dark:hover:!bg-slate-800 !text-amber-800 dark:!text-amber-300 !border-amber-300 dark:!border-amber-500/40"
-          }`}
-        >
-          {isFieldWorkMode
-            ? "Đang bật: Chấm công Đi Công Trình (Bấm để tắt)"
-            : "Chấm công Đi Công Trình / Thị Trường"}
-        </AppButton>
-
-        {isFieldWorkMode && (
-          <div className="mt-2.5 bg-amber-50 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-500/40 rounded-2xl p-3.5 space-y-2.5 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-black text-amber-800 dark:text-amber-200 uppercase">
-                Thông tin công trình đã xác nhận:
-              </span>
-              <AppButton
-                variant="secondary"
-                onClick={() => {
-                  setFieldModalError("");
-                  setShowFieldWorkModal(true);
-                }}
-                className="text-xs px-3 py-1.5"
-              >
-                Chỉnh sửa
-              </AppButton>
-            </div>
-            <p className="text-sm font-semibold text-slate-900 dark:text-white break-words bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
-              {fieldNote}
-            </p>
-            <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">
-              {capturedPhoto ? "✅ Đã đính kèm ảnh chụp hiện trường" : "⚠️ Chưa có ảnh hiện trường"}
-            </p>
-          </div>
-        )}
-      </div>
 
       {/* Modal Nhập Thông Tin & Ảnh Hiện Trường Đi Công Trình */}
       <AppModal
@@ -969,166 +1234,6 @@ export default function OneTouchCheckIn({
           </div>
         </div>
       </AppModal>
-
-      {/* 5. NÚT CHẤM CÔNG 1 CHẠM DUY NHẤT */}
-      <div className="relative my-2 flex flex-col items-center">
-        <button
-          id="btn-start-checkin"
-          type="button"
-          onClick={() => handleStartCheckIn(false)}
-          disabled={isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || isLockedPeriod}
-          className={`relative w-[216px] min-h-[216px] aspect-square h-auto max-w-[85vw] p-5 rounded-full flex flex-col items-center justify-center text-white transition-all duration-200 shadow-2xl select-none cursor-pointer active:scale-95 disabled:cursor-not-allowed border-[6px] ${
-            isLockedPeriod
-              ? "bg-slate-600 border-slate-400 opacity-70"
-              : stage === STAGES.SUCCESS
-              ? "bg-emerald-600 border-white shadow-emerald-600/50"
-              : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
-              ? "bg-rose-600 border-white shadow-rose-600/50"
-              : isFieldWorkMode
-              ? "bg-amber-600 border-white hover:bg-amber-500 shadow-amber-600/50"
-              : checkinType === "in"
-              ? "bg-blue-600 border-white hover:bg-blue-500 shadow-blue-600/50"
-              : "bg-indigo-600 border-white hover:bg-indigo-500 shadow-indigo-600/50"
-          }`}
-        >
-          <div className="mb-2">
-            {stage === STAGES.SUCCESS ? (
-              <CheckCircle2 size={54} className="text-white" />
-            ) : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD ? (
-              <AlertCircle size={54} className="text-white" />
-            ) : stage === STAGES.BIO_AUTH ? (
-              <Fingerprint size={54} className="text-blue-100" />
-            ) : stage === STAGES.LOCATING ? (
-              <MapPin size={54} className="text-amber-100" />
-            ) : stage === STAGES.SUBMITTING ? (
-              <Send size={50} className="text-white" />
-            ) : isFieldWorkMode ? (
-              <HardHat size={54} className="text-white" />
-            ) : (
-              <Clock size={54} className="text-white" />
-            )}
-          </div>
-
-          <span className="font-black text-xl tracking-tight uppercase leading-tight text-center px-2">
-            {stage === STAGES.SUBMITTING
-              ? "ĐANG GỬI..."
-              : stage === STAGES.LOCATING
-              ? "ĐANG ĐỊNH VỊ"
-              : stage === STAGES.SUCCESS
-              ? "HOÀN TẤT"
-              : stage === STAGES.ERROR
-              ? "BẤM THỬ LẠI"
-              : isFieldWorkMode
-              ? "ĐI CÔNG TRÌNH"
-              : checkinType === "in"
-              ? "CHẤM CÔNG VÀO"
-              : "CHẤM CÔNG RA"}
-          </span>
-
-          <span className="text-xs font-black text-white mt-2 bg-black/30 px-3.5 py-1 rounded-full border border-white/20">
-            {isLockedPeriod
-              ? "Kỳ công đã chốt"
-              : stage === STAGES.SUCCESS
-              ? (serverTimeResult ? `Lúc ${serverTimeResult}` : "Đã ghi nhận")
-              : isFieldWorkMode
-              ? "Kèm ảnh hiện trường"
-              : checkinType === "in"
-              ? `Vào ca (${shiftInfo?.effective_start || attendanceSummary?.effective_shift_start || currentUser?.custom_start_time || companyMeta.work_start || "08:00"})`
-              : `Ra ca (${shiftInfo?.effective_end || attendanceSummary?.effective_shift_end || currentUser?.custom_end_time || companyMeta.work_end || "17:30"})`}
-          </span>
-        </button>
-      </div>
-
-      {/* Nút chụp ảnh Selfie / Hiện trường */}
-      <div className="w-full">
-        <input
-          ref={cameraFileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handleFallbackFileChange}
-          className="hidden"
-        />
-        <input
-          ref={albumFileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFallbackFileChange}
-          className="hidden"
-        />
-        <AppButton
-          type="button"
-          variant="secondary"
-          fullWidth
-          onClick={handleCaptureSelfie}
-          disabled={isDebounceLocked || stage === STAGES.SUBMITTING}
-          icon={Camera}
-          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 dark:!bg-slate-800 dark:hover:!bg-slate-700 dark:!border-slate-700 dark:!text-emerald-300"
-        >
-          {capturedPhoto
-            ? "✅ Đã đính kèm ảnh hiện trường"
-            : isFieldWorkMode
-            ? "📸 Chụp ảnh Công trình / Khách hàng (Bắt buộc)"
-            : "Chụp ảnh Selfie xác thực"}
-        </AppButton>
-      </div>
-
-      {/* Kết quả & Thông báo chi tiết */}
-      <div className="w-full text-center space-y-3">
-        {spamWarning && (
-          <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-400 dark:border-amber-700 text-left flex items-start gap-2.5 shadow-lg">
-            <AlertTriangle size={18} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
-            <p className="font-bold text-xs sm:text-sm text-amber-900 dark:text-amber-100 leading-relaxed">{spamWarning}</p>
-          </div>
-        )}
-        <div
-          className={`w-full py-3 px-4 rounded-2xl text-xs sm:text-sm font-extrabold inline-flex items-center justify-center gap-2 transition-all border-2 shadow-sm ${
-            stage === STAGES.SUCCESS
-              ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-300 border-emerald-400 dark:border-emerald-700"
-              : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
-              ? "bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-400 dark:border-rose-700"
-              : "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700"
-          }`}
-        >
-          {stage === STAGES.SUCCESS && <CheckCircle2 size={18} className="text-emerald-700 dark:text-emerald-300 shrink-0" />}
-          {(stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD) && (
-            <AlertCircle size={18} className="text-rose-700 dark:text-rose-300 shrink-0" />
-          )}
-          {stage !== STAGES.SUCCESS && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 animate-pulse" />
-          )}
-          <span>{statusMessage}</span>
-        </div>
-
-        {errorMessage && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
-          <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-700 text-left flex items-start gap-2.5">
-            <AlertTriangle size={18} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
-            <p className="font-bold text-xs text-rose-900 dark:text-rose-200">{errorMessage}</p>
-          </div>
-        )}
-
-        {stage === STAGES.ERROR && (
-          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-700 text-left space-y-3">
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle size={20} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-black text-sm text-rose-950 dark:text-rose-100">{errorMessage}</h4>
-                {errorDetails && <p className="text-xs text-rose-800 dark:text-rose-200 mt-1 font-medium">{errorDetails}</p>}
-              </div>
-            </div>
-            <AppButton
-              type="button"
-              variant="danger"
-              fullWidth
-              onClick={() => handleStartCheckIn(true)}
-              icon={RotateCcw}
-              className="!border-2 !border-rose-800"
-            >
-              BẤM VÀO ĐÂY ĐỂ THỬ LẠI
-            </AppButton>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

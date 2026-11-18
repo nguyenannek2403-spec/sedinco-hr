@@ -309,14 +309,14 @@ export default function AttendanceMatrixTable({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-24">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100/90 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden mb-24">
       
       {/* Header Điều Khiển & Tìm Kiếm */}
-      <div className="p-4 sm:p-5 border-b-2 border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-50/70 dark:bg-slate-800/60">
+      <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-50/60 dark:bg-slate-900/90">
         <div>
           <div className="flex items-center gap-2">
-            <Calendar className="text-blue-600 dark:text-blue-400 shrink-0" size={22} />
-            <h3 className="font-bold text-lg leading-snug text-slate-900 dark:text-white">
+            <Calendar className="text-[#0068FF] dark:text-blue-400 shrink-0" size={22} />
+            <h3 className="font-extrabold text-lg leading-snug text-slate-900 dark:text-white">
               Bảng chấm công ma trận
             </h3>
           </div>
@@ -550,27 +550,29 @@ export default function AttendanceMatrixTable({
                   key={emp.ma_nv || empIdx}
                   type="button"
                   onClick={() => setDetailEmpCode(emp.ma_nv)}
-                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 shadow-sm hover:border-blue-400 dark:hover:border-blue-500 active:scale-[0.99] transition flex flex-col gap-3"
+                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-100/90 dark:border-slate-800 p-3.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] hover:border-blue-400 dark:hover:border-blue-500 active:scale-[0.99] transition flex flex-col gap-2.5"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-black flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-800/70">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#0068FF] dark:text-blue-300 font-black flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-800/70">
                         {(emp.ho_ten || "N").charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <div className="font-extrabold text-slate-900 dark:text-white text-sm truncate">
                           {emp.ho_ten}
                         </div>
-                        <div className="text-xs text-blue-700 dark:text-blue-300 font-bold">
+                        <div className="text-xs text-[#0068FF] dark:text-blue-300 font-bold">
                           Mã NV: {emp.ma_nv} {(emp.department || emp.bo_phan) ? `• ${emp.department || emp.bo_phan}` : ""}
                         </div>
                       </div>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50/90 dark:bg-blue-500/15 text-xs font-bold text-[#0068FF] dark:text-blue-300 shrink-0">
                       {daysInMonth} ngày
-                      <ChevronRight size={16} />
+                      <ChevronRight size={14} />
                     </span>
                   </div>
+
+                  <div className="zaui-ticket-divider !my-0" />
 
                   <div className="grid grid-cols-4 gap-2">
                     <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 px-2 py-1.5 text-center">

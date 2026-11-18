@@ -394,35 +394,35 @@ export default function PayrollGridTable({
   return (
     <div className="space-y-5 pb-28">
       
-      {/* 4 Card KPI Tổng Quan Tài Chính */}
+      {/* 4 Card KPI Tổng Quan Tài Chính — ZaUI Squircle KPI Tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
         {/* KPI 1: Tổng Quỹ Lương Net */}
-        <div className="bg-gradient-to-br from-emerald-600 to-teal-800 text-white rounded-3xl p-4 sm:p-5 shadow-md border-2 border-emerald-700 relative overflow-hidden">
+        <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 text-white rounded-2xl p-4 sm:p-5 shadow-md border border-blue-500/40 relative overflow-hidden">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-emerald-100 font-semibold">Tổng quỹ lương (Net)</span>
-            <div className="p-2 bg-white/20 rounded-xl border border-white/30 shrink-0">
+            <span className="text-xs text-blue-100 font-semibold">Tổng quỹ lương (Net)</span>
+            <div className="p-2 bg-blue-900/45 dark:bg-slate-800 rounded-xl border border-white/25 shrink-0">
               <DollarSign size={20} className="text-white" />
             </div>
           </div>
           <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-bold">
+            <span className="text-xl sm:text-2xl font-extrabold text-white">
               {totalNetSalary.toLocaleString("vi-VN")} đ
             </span>
-            <span className="text-xs text-emerald-100 block mt-1 font-medium">Chi trả kỳ tháng {month}/{year}</span>
+            <span className="text-xs text-blue-100 block mt-1 font-medium">Chi trả kỳ tháng {month}/{year}</span>
           </div>
         </div>
 
         {/* KPI 2: Tổng Số Nhân Sự */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border-2 border-slate-300 dark:border-slate-800 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-100/90 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Tổng số nhân sự</span>
-            <div className="p-2 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded-xl border-2 border-blue-200 dark:border-blue-800/70 shrink-0">
+            <div className="p-2 bg-blue-50 dark:bg-blue-950/60 text-[#0068FF] dark:text-blue-300 rounded-xl border border-blue-200/80 dark:border-blue-800/70 shrink-0">
               <Users size={20} />
             </div>
           </div>
           <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+            <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
               {totalEmployees} nhân sự
             </span>
             <span className="text-xs text-emerald-700 dark:text-emerald-300 block mt-1 font-medium">100% hồ sơ hoàn tất</span>
@@ -430,15 +430,15 @@ export default function PayrollGridTable({
         </div>
 
         {/* KPI 3: Tổng Ngày Công Thực Tế */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border-2 border-slate-300 dark:border-slate-800 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-100/90 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Tổng ngày công thực tế</span>
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-xl border-2 border-indigo-200 dark:border-indigo-800/70 shrink-0">
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-xl border border-indigo-200/80 dark:border-indigo-800/70 shrink-0">
               <TrendingUp size={20} />
             </div>
           </div>
           <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+            <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
               {totalWorkDays.toFixed(1)} công
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block mt-1">Định mức chuẩn 26.0 ngày</span>
@@ -446,15 +446,15 @@ export default function PayrollGridTable({
         </div>
 
         {/* KPI 4: Bình Quân Thu Nhập */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border-2 border-slate-300 dark:border-slate-800 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-100/90 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Thu nhập bình quân</span>
-            <div className="p-2 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-xl border-2 border-amber-200 dark:border-amber-800/70 shrink-0">
+            <div className="p-2 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-xl border border-amber-200/80 dark:border-amber-800/70 shrink-0">
               <Award size={20} />
             </div>
           </div>
           <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+            <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
               {averageIncome > 0 ? `${(averageIncome / 1000000).toFixed(1)} tr` : "0 tr"}
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block mt-1">Bình quân thực nhận / người</span>
@@ -464,10 +464,10 @@ export default function PayrollGridTable({
       </div>
 
       {/* Bảng Chi Tiết Toàn Bộ Nhân Sự */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div className="md:bg-white md:dark:bg-slate-900 md:rounded-2xl md:border md:border-slate-100/90 md:dark:border-slate-800 md:shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
         
         {/* Header Tác Vụ */}
-        <div className="p-4 sm:p-5 border-b-2 border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-800/60">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-none mb-3 md:mb-0 p-4 sm:p-5 border border-slate-100/90 dark:border-slate-800 md:border-0 md:border-b flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <DollarSign className="text-emerald-600 dark:text-emerald-400 shrink-0" size={22} />
@@ -678,14 +678,14 @@ export default function PayrollGridTable({
           </div>
         )}
 
-        {/* Mobile Cards View (Tối ưu cho Zalo Mini App < 768px) */}
-        <div className="md:hidden divide-y divide-slate-200 dark:divide-slate-800">
+        {/* Mobile ZaUI Ticket Cards View */}
+        <div className="md:hidden space-y-3">
           {isLoading ? (
-            <div className="p-4">
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
               <SkeletonList rows={3} label="Đang tải bảng lương..." />
             </div>
           ) : filteredList.length === 0 ? (
-            <div className="p-4">
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
               <EmptyState icon={FileText} title={`Không có dữ liệu tiền lương tháng ${month}/${year}.`} />
             </div>
           ) : (
@@ -695,20 +695,30 @@ export default function PayrollGridTable({
               const bonusAmt = Number(item.bonusAmount) || 0;
               const penaltyAmt = Number(item.penaltyAmount) || 0;
               const advAmt = Number(item.advanceDeduction) || 0;
+              const empInitial = (item.ho_ten || "N").charAt(0).toUpperCase();
               return (
                 <div
                   key={empId || idx}
-                  className={`perf-list-item p-4 space-y-3 ${confirmStatus === "DISPUTED" ? "bg-rose-50 dark:bg-rose-950/40" : "bg-white dark:bg-slate-900"}`}
+                  className={`perf-list-item rounded-2xl border p-4 space-y-2.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] ${
+                    confirmStatus === "DISPUTED"
+                      ? "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700"
+                      : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800"
+                  }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.ho_ten}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-300 font-mono">
-                        {empId} • {item.totalWorkDays} công
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/20 border border-blue-200/80 dark:border-blue-500/40 text-[#0068FF] dark:text-blue-300 font-extrabold text-sm flex items-center justify-center shrink-0">
+                        {empInitial}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.ho_ten}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-300 font-mono">
+                          {empId} • {item.totalWorkDays} công
+                        </div>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="font-bold text-base text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                      <div className="font-extrabold text-base text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                         {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
                       </div>
                       <div className="text-xs text-slate-600 dark:text-slate-300 font-medium">Thực lĩnh</div>
@@ -718,24 +728,26 @@ export default function PayrollGridTable({
                   {(bonusAmt > 0 || penaltyAmt > 0 || advAmt > 0) && (
                     <div className="flex flex-wrap gap-1.5 text-xs">
                       {bonusAmt > 0 && (
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
                           +Thưởng {bonusAmt.toLocaleString("vi-VN")} đ
                         </span>
                       )}
                       {penaltyAmt > 0 && (
-                        <span className="px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-semibold whitespace-nowrap">
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-semibold whitespace-nowrap">
                           -Phạt {penaltyAmt.toLocaleString("vi-VN")} đ
                         </span>
                       )}
                       {advAmt > 0 && (
-                        <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 font-semibold whitespace-nowrap">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 font-semibold whitespace-nowrap">
                           -Ứng {advAmt.toLocaleString("vi-VN")} đ
                         </span>
                       )}
                     </div>
                   )}
 
-                  <div className={`grid ${canCalculatePayroll ? "grid-cols-2" : "grid-cols-1"} gap-2 pt-1`}>
+                  <div className="zaui-ticket-divider !my-2" />
+
+                  <div className={`grid ${canCalculatePayroll ? "grid-cols-2" : "grid-cols-1"} gap-2`}>
                     {canCalculatePayroll && (
                       <AppButton
                         variant="ghost"

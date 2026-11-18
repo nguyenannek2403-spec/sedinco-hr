@@ -198,13 +198,13 @@ export default function RequestsManagementTab({
 
   return (
     <div className="space-y-4 pb-28">
-      {/* Header and Controls */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3">
+      {/* Header and Controls — ZaUI Header Card */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-snug flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
-            Xét duyệt đơn từ & Nghỉ phép
+          <h2 className="text-lg font-extrabold text-slate-900 dark:text-white leading-snug flex items-center gap-2">
+            <FileText className="w-5 h-5 text-[#0068FF] dark:text-blue-400 shrink-0" />
+            Xét duyệt đơn từ &amp; Nghỉ phép
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
             Duyệt đơn nghỉ phép, bổ sung công, ứng lương và tăng ca của nhân viên
@@ -220,14 +220,14 @@ export default function RequestsManagementTab({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm mã NV, họ tên..."
-              className="w-full sm:w-48 min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full sm:w-48 min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0068FF]"
             />
           </div>
 
           {/* Status Filter */}
           <div
             data-filter-group="admin-requests-filter"
-            className="flex flex-wrap bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-xl text-xs gap-1"
+            className="flex flex-wrap bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-2xl text-xs gap-1"
           >
             {["all", "PENDING", "APPROVED", "REJECTED"].map(st => {
               const active = filterStatus === st;
@@ -237,9 +237,9 @@ export default function RequestsManagementTab({
                   type="button"
                   data-active={active ? "true" : "false"}
                   onClick={() => setFilterStatus(st)}
-                  className={`min-h-[44px] px-3 py-2 font-semibold rounded-lg whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  className={`min-h-[44px] px-3 py-2 font-semibold rounded-xl whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                     active
-                      ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                      ? "bg-[#0068FF] text-white shadow-sm dark:bg-blue-600 dark:text-white"
                       : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                   }`}
                 >
@@ -279,7 +279,7 @@ export default function RequestsManagementTab({
         {/* Bộ lọc loại đơn */}
         <div
           data-filter-group="admin-request-type-filter"
-          className="flex flex-wrap items-center gap-1 bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-xl text-xs"
+          className="flex flex-wrap items-center gap-1 bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-2xl text-xs"
         >
           {[
             { id: "all", label: "Mọi loại đơn" },
@@ -295,9 +295,9 @@ export default function RequestsManagementTab({
                 type="button"
                 data-active={active ? "true" : "false"}
                 onClick={() => setFilterType(t.id)}
-                className={`min-h-[44px] px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                className={`min-h-[44px] px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   active
-                    ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                    ? "bg-[#0068FF] text-white shadow-sm dark:bg-blue-600 dark:text-white"
                     : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                 }`}
               >
@@ -309,13 +309,13 @@ export default function RequestsManagementTab({
       </div>
 
       {/* Table Data */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden">
+      <div className="md:bg-white md:dark:bg-slate-900 md:border md:border-slate-100/90 md:dark:border-slate-800 md:rounded-2xl md:shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
         {loading ? (
-          <div className="p-4">
+          <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
             <SkeletonList rows={4} label="Đang tải dữ liệu đơn từ..." />
           </div>
         ) : error ? (
-          <div className="p-6 text-center text-rose-600 dark:text-rose-300 text-xs flex flex-col items-center justify-center gap-3">
+          <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl text-center text-rose-600 dark:text-rose-300 text-xs flex flex-col items-center justify-center gap-3">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 shrink-0" />
               <span>{error}</span>
@@ -325,7 +325,7 @@ export default function RequestsManagementTab({
             </AppButton>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-4">
+          <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
             <EmptyState
               icon={FileText}
               title="Không tìm thấy đơn từ nào khớp với bộ lọc."
@@ -333,8 +333,8 @@ export default function RequestsManagementTab({
           </div>
         ) : (
           <>
-            {/* Mobile Card View */}
-            <div className="md:hidden divide-y divide-slate-200 dark:divide-slate-700/60">
+            {/* Mobile ZaUI Appointment Ticket Cards View */}
+            <div className="md:hidden space-y-3">
               {filtered.map((req) => {
                 const isPending = String(req.status).toUpperCase() === "PENDING";
                 const isOwner = req.ma_nv === currentUser?.ma_nv;
@@ -345,24 +345,28 @@ export default function RequestsManagementTab({
                   <div
                     key={req.id}
                     data-request-id={req.id}
-                    className={`perf-list-item p-4 space-y-3 ${isFocused ? "bg-amber-50 dark:bg-amber-950/35 ring-2 ring-inset ring-amber-400" : ""}`}
+                    className={`perf-list-item rounded-2xl border p-4 space-y-2.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] ${
+                      isFocused
+                        ? "bg-amber-50 dark:bg-amber-950/40 border-amber-400 ring-2 ring-inset ring-amber-400"
+                        : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800"
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <span className="font-semibold text-base text-slate-900 dark:text-white block break-words leading-snug">
+                        <span className="font-bold text-base text-slate-900 dark:text-white block break-words leading-snug">
                           {req.ho_ten || req.ma_nv}{" "}
-                          <span className="text-xs font-mono text-blue-600 dark:text-blue-400">({req.ma_nv})</span>
+                          <span className="text-xs font-mono text-[#0068FF] dark:text-blue-400">({req.ma_nv})</span>
                         </span>
-                        <span className="text-sm font-medium text-amber-700 dark:text-amber-300 block mt-1 break-words leading-snug">
+                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 block mt-1 break-words leading-snug">
                           {getRequestTypeLabel(req.request_type || req.type)} • {req.request_date || req.date || req.start_date}
                           {Number(req.advance_amount) > 0 && (
-                            <span className="inline-block ml-1.5 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
+                            <span className="inline-block ml-1.5 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
                               Ứng {(Number(req.advance_amount) || 0).toLocaleString("vi-VN")}đ
                             </span>
                           )}
                         </span>
                         {(req.correction_mode || req.check_in_time || req.check_out_time) && (
-                          <div className="inline-block text-xs text-cyan-800 dark:text-cyan-200 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-500/40 px-2.5 py-1 rounded-lg mt-1.5 break-words leading-snug">
+                          <div className="inline-block text-xs text-cyan-800 dark:text-cyan-200 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-500/40 px-2.5 py-1 rounded-full mt-1.5 break-words leading-snug">
                             {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
                             {(req.check_in_time || req.check_out_time) && (
                               <span className="ml-1 font-semibold">
@@ -377,7 +381,7 @@ export default function RequestsManagementTab({
                       <StatusBadge type="request" status={req.status} />
                     </div>
 
-                    <div className="text-sm text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200 dark:border-slate-700 break-words leading-relaxed">
+                    <div className="text-sm text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700 break-words leading-relaxed">
                       <span className="text-slate-500 dark:text-slate-300 font-semibold">Lý do: </span>
                       {req.reason || "--"}
                       {req.evidence_image && (
@@ -391,6 +395,8 @@ export default function RequestsManagementTab({
                       )}
                     </div>
 
+                    <div className="zaui-ticket-divider !my-2" />
+
                     {isPending && (
                       isOwner ? (
                         <div className="text-xs text-amber-700 dark:text-amber-300 italic font-semibold leading-snug">
@@ -401,7 +407,7 @@ export default function RequestsManagementTab({
                           (Chế độ chỉ xem — Chưa được cấp quyền phê duyệt đơn từ)
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 gap-2.5 pt-1">
+                        <div className="grid grid-cols-2 gap-2.5">
                           <AppButton
                             variant="success"
                             icon={CheckCircle2}

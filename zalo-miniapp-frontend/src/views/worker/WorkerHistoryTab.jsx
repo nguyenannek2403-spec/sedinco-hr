@@ -204,55 +204,57 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
   }, [logs, month, year]);
 
   return (
-    <div className="p-3 sm:p-4 pb-28 space-y-4">
-      {/* Month Navigator */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-3.5 flex items-center justify-between shadow-sm dark:shadow-lg">
+    <div className="pb-28 space-y-4">
+      {/* ZaUI Month Navigator Hero */}
+      <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 text-white rounded-b-[28px] px-4 pt-2 pb-10 flex items-center justify-between shadow-md">
         <button
           type="button"
           onClick={prevMonth}
           aria-label="Tháng trước"
-          className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl flex items-center justify-center cursor-pointer"
+          className="min-w-[44px] min-h-[44px] p-2 bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 dark:hover:bg-slate-700 border border-white/25 text-white rounded-full flex items-center justify-center cursor-pointer transition-colors"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
 
         <div className="text-center">
-          <div className="text-xs font-semibold text-blue-600 dark:text-blue-400">Lịch công Heatmap</div>
-          <div className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Tháng {month} / {year}</div>
+          <div className="text-xs font-semibold text-blue-100">Lịch công Heatmap</div>
+          <div className="text-base sm:text-lg font-extrabold text-white">Tháng {month} / {year}</div>
         </div>
 
         <button
           type="button"
           onClick={nextMonth}
           aria-label="Tháng sau"
-          className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl flex items-center justify-center cursor-pointer"
+          className="min-w-[44px] min-h-[44px] p-2 bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 dark:hover:bg-slate-700 border border-white/25 text-white rounded-full flex items-center justify-center cursor-pointer transition-colors"
         >
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Summary KPI & Thống kê Đi trễ / Đúng giờ */}
+      {/* Floating KPI Summary Card */}
       {summary && (
-        <div className="space-y-2.5">
+        <div className="zaui-floating-card mx-3.5 bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-3.5 space-y-3">
           <div className="grid grid-cols-3 gap-2">
-            <div className="bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2.5 text-center shadow-sm">
+            <div className="bg-emerald-50/75 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl p-2.5 text-center">
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Ngày công</div>
-              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{summary.total_work_days || 0}</div>
-              <div className="text-xs text-slate-500 dark:text-slate-300">/ {summary.standard_days || 26} công</div>
+              <div className="text-lg font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5">{summary.total_work_days || 0}</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">/ {summary.standard_days || 26} công</div>
             </div>
-            <div className="bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2.5 text-center shadow-sm">
+            <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl p-2.5 text-center">
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Tăng ca OT</div>
-              <div className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-0.5">{summary.total_ot_hours || 0}h</div>
-              <div className="text-xs text-slate-500 dark:text-slate-300">ngoài giờ</div>
+              <div className="text-lg font-extrabold text-[#0068FF] dark:text-blue-300 mt-0.5">{summary.total_ot_hours || 0}h</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">ngoài giờ</div>
             </div>
-            <div className="bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2.5 text-center shadow-sm">
+            <div className="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 rounded-xl p-2.5 text-center">
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Nghỉ phép</div>
-              <div className="text-lg font-bold text-purple-600 dark:text-purple-400 mt-0.5">{summary.total_leave_days || 0}</div>
-              <div className="text-xs text-slate-500 dark:text-slate-300">hưởng lương</div>
+              <div className="text-lg font-extrabold text-indigo-700 dark:text-indigo-300 mt-0.5">{summary.total_leave_days || 0}</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">hưởng lương</div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl px-3.5 py-2.5 text-xs space-y-1 shadow-sm">
+          <div className="zaui-ticket-divider" />
+
+          <div className="space-y-2 text-xs">
             {summary.effective_shift_start && summary.effective_shift_end && (
               <div className="text-slate-700 dark:text-slate-200 font-medium">
                 Ca làm việc của bạn hôm nay:{" "}
@@ -261,15 +263,15 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                 </strong>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl px-2.5 py-1.5">
-                <span className="text-xs text-slate-500 dark:text-slate-300 block">Đúng giờ tháng này</span>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 rounded-xl px-2.5 py-2">
+                <span className="text-xs text-slate-600 dark:text-slate-300 block">Đúng giờ tháng này</span>
                 <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
                   {summary.on_time_count || 0} ngày
                 </span>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl px-2.5 py-1.5">
-                <span className="text-xs text-slate-500 dark:text-slate-300 block">Đi trễ tháng này</span>
+              <div className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 rounded-xl px-2.5 py-2">
+                <span className="text-xs text-slate-600 dark:text-slate-300 block">Đi trễ tháng này</span>
                 <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
                   {summary.late_count || 0} lần ({summary.total_late_minutes || 0} phút)
                 </span>
@@ -279,8 +281,9 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
         </div>
       )}
 
+      <div className="px-3.5 space-y-4">
       {/* CALENDAR GRID HEATMAP (7 CỘT T2 -> CN) */}
-      <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 shadow-sm dark:shadow-xl space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase">
             <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
@@ -356,82 +359,101 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
         )}
       </div>
 
-      {/* BẢNG ĐỐI CHIẾU CÔNG & LƯƠNG TỪNG NGÀY (CHUẨN MISA AMIS) */}
+      {/* BẢNG ĐỐI CHIẾU CÔNG TỪNG NGÀY — ZAUI APPOINTMENT CARDS */}
       {logs.length > 0 && (
-        <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-3.5 space-y-2.5 shadow-sm dark:shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
             <h4 className="text-sm font-bold text-slate-900 dark:text-white">
               Bảng đối chiếu công từng ngày ({logs.length} ngày)
             </h4>
-            <span className="text-xs text-blue-600 dark:text-blue-300 font-semibold">
-              Chạm vào ngày để giải trình công
+            <span className="text-xs text-[#0068FF] dark:text-blue-400 font-semibold">
+              Chạm để giải trình công
             </span>
           </div>
-          <div className="divide-y divide-slate-200 dark:divide-slate-700/60 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700/70 rounded-2xl overflow-hidden">
+          <div className="space-y-2.5">
             {logs.map((day, idx) => {
               const iso = String(day.record_date || "").slice(0, 10);
               const style = getHeatmapCellStyle(day, idx, false);
               const statusInfo = getAttendanceStatusInfo(day.status);
               const otHours = Number(day.ot_hours) || 0;
               const lateMinutes = Number(day.late_minutes) || 0;
+              const dayNumLabel = iso.slice(8, 10) || "--";
+              const monthLabel = iso.slice(5, 7) || String(month);
               return (
                 <button
                   key={iso || idx}
                   type="button"
                   onClick={() => setSelectedDayDetail({ isoDate: iso, dayNum: iso.slice(-2), log: day, style })}
-                  className="perf-list-item w-full text-left p-3.5 flex items-start justify-between gap-3 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition cursor-pointer"
+                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-3.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] hover:border-blue-300 dark:hover:border-blue-500/40 transition cursor-pointer space-y-2.5"
                 >
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">{iso}</span>
-                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 px-2 py-0.5 rounded-md">
+                  <div className="flex items-start gap-3">
+                    {/* Left Rounded Date Badge */}
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/15 border border-blue-200/80 dark:border-blue-500/30 flex flex-col items-center justify-center shrink-0">
+                      <span className="text-sm font-extrabold text-[#0068FF] dark:text-blue-300 leading-none">{dayNumLabel}</span>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">T{monthLabel}</span>
+                    </div>
+
+                    {/* Center Shift Info */}
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">{iso}</span>
+                        <StatusBadge type="attendance" status={day.status} />
+                      </div>
+                      <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-3">
+                        <span>
+                          Vào:{" "}
+                          <strong className="text-slate-900 dark:text-white font-mono">
+                            {day.check_in_time ? String(day.check_in_time).slice(0, 5) : "--:--"}
+                          </strong>
+                        </span>
+                        <span>
+                          Ra:{" "}
+                          <strong className="text-slate-900 dark:text-white font-mono">
+                            {day.check_out_time ? String(day.check_out_time).slice(0, 5) : "--:--"}
+                          </strong>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="zaui-ticket-divider !my-2" />
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 px-2.5 py-0.5 rounded-full">
                         {statusInfo.creditText}
                       </span>
                       {otHours > 0 && (
-                        <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-2 py-0.5 rounded-md">
+                        <span className="font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-2.5 py-0.5 rounded-full">
                           +{otHours}h tăng ca
                         </span>
                       )}
                       {lateMinutes > 0 && (
-                        <span className="text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 px-2 py-0.5 rounded-md">
+                        <span className="font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 px-2.5 py-0.5 rounded-full">
                           Muộn {lateMinutes}p
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-3">
-                      <span>
-                        Vào:{" "}
-                        <strong className="text-slate-900 dark:text-white font-mono">
-                          {day.check_in_time ? String(day.check_in_time).slice(0, 5) : "--:--"}
-                        </strong>
-                      </span>
-                      <span>
-                        Ra:{" "}
-                        <strong className="text-slate-900 dark:text-white font-mono">
-                          {day.check_out_time ? String(day.check_out_time).slice(0, 5) : "--:--"}
-                        </strong>
-                      </span>
-                    </div>
                     {day.location_name && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 leading-snug">
-                        <MapPin className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 min-w-0">
+                        <MapPin className="w-3.5 h-3.5 text-[#0068FF] dark:text-blue-400 shrink-0" />
                         <span className="break-words">{day.location_name}</span>
                       </div>
                     )}
                     {day.proxy_by && (
-                      <div className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1 leading-snug">
+                      <div className="text-xs text-[#0068FF] dark:text-blue-300 flex items-center gap-1">
                         <UserCheck className="w-3.5 h-3.5 shrink-0" />
-                        <span>Chấm công hộ{day.proxy_note ? `: ${day.proxy_note}` : ""}</span>
+                        <span>Chấm công hộ</span>
                       </div>
                     )}
                   </div>
-                  <StatusBadge type="attendance" status={day.status} />
                 </button>
               );
             })}
           </div>
         </div>
       )}
+      </div>
 
       {/* MODAL CHI TIẾT 1 NGÀY + NÚT BỔ SUNG CÔNG 1 CHẠM */}
       <AppModal

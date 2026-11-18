@@ -127,17 +127,41 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
   });
 
   return (
-    <div className="p-4 pb-8 space-y-4">
-      {/* Top Header */}
-      <div className="space-y-3">
+    <div className="p-3.5 pb-8 space-y-4">
+      {/* F1: Thẻ Quỹ Phép Năm — ZaUI Membership Card Style */}
+      {leaveBalance && (
+        <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 border border-blue-500/30 dark:border-slate-700 rounded-2xl p-4 shadow-md text-white flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-blue-900/45 dark:bg-slate-800/90 border border-white/25 text-white flex items-center justify-center shrink-0">
+              <CalendarCheck className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-extrabold text-white">
+                Quỹ phép năm {leaveBalance.year}
+              </div>
+              <div className="text-xs text-blue-100 mt-0.5 leading-relaxed">
+                Đã dùng {leaveBalance.used} • Chờ duyệt {leaveBalance.pending} ngày
+              </div>
+            </div>
+          </div>
+          <div className="text-right shrink-0 bg-blue-900/45 dark:bg-slate-800/90 border border-white/25 px-3 py-1.5 rounded-xl">
+            <div className="text-base font-extrabold text-white whitespace-nowrap">
+              Còn {leaveBalance.remaining} / {leaveBalance.quota}
+            </div>
+            <div className="text-xs text-blue-100">ngày phép</div>
+          </div>
+        </div>
+      )}
+
+      {/* Request Hub 4 Thẻ Dịch Vụ ZaUI */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
         <div>
-          <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white">Trung tâm Đơn từ &amp; Giải trình</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-            Chọn loại đơn bạn muốn gửi cho quản lý xét duyệt
+          <h2 className="text-base font-extrabold leading-snug text-slate-900 dark:text-white">Trung tâm Đơn từ &amp; Giải trình</h2>
+          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">
+            Chọn dịch vụ nhân sự bạn muốn gửi cho quản lý xét duyệt
           </p>
         </div>
 
-        {/* Request Hub 4 Thẻ Độc Lập */}
         <div className="grid grid-cols-2 gap-2.5">
           {REQUEST_HUB_CARDS.map((card) => {
             const CardIcon = card.icon;
@@ -149,79 +173,52 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                   setModalInitialType(card.mode);
                   setIsModalOpen(true);
                 }}
-                className={`min-h-[72px] p-3 rounded-2xl border text-left flex items-start gap-2.5 transition active:scale-[0.98] cursor-pointer ${card.cardClass}`}
+                className={`min-h-[88px] p-3 rounded-2xl border text-left flex flex-col items-start gap-2 transition active:scale-[0.98] cursor-pointer shadow-xs ${card.cardClass}`}
               >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${card.iconClass}`}>
+                <div className={`zaui-service-icon w-10 h-10 rounded-xl shrink-0 ${card.iconClass}`}>
                   <CardIcon className="w-4 h-4" />
                 </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-bold leading-snug break-words">{card.title}</div>
-                    <div className="text-xs opacity-90 mt-0.5 leading-snug break-words">{card.desc}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* F1: Thẻ Quỹ Phép Năm */}
-        {leaveBalance && (
-          <div className="bg-indigo-50 dark:bg-indigo-950/80 dark:bg-gradient-to-r dark:from-indigo-950 dark:to-slate-900 border border-indigo-200 dark:border-indigo-500/30 rounded-2xl p-4 shadow-sm dark:shadow-lg flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-400/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
-                <CalendarCheck className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Quỹ phép năm {leaveBalance.year}
+                <div className="w-full min-w-0">
+                  <div className="text-sm font-bold leading-snug break-words">{card.title}</div>
+                  <div className="text-xs opacity-90 mt-0.5 leading-snug break-words">{card.desc}</div>
                 </div>
-                <div className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
-                  Đã dùng {leaveBalance.used} • Chờ duyệt {leaveBalance.pending} ngày
-                </div>
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              <div className={`text-base font-bold whitespace-nowrap ${
-                leaveBalance.remaining > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
-              }`}>
-                Còn {leaveBalance.remaining} / {leaveBalance.quota}
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">ngày phép</div>
-            </div>
-          </div>
-        )}
-
-        {/* Filter Tabs */}
-        <div
-          data-filter-group="worker-requests-filter"
-          className="flex flex-wrap bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-xl text-xs gap-1"
-        >
-          {["all", "PENDING", "APPROVED", "REJECTED"].map((st) => {
-            const active = filterStatus === st;
-            return (
-              <button
-                key={st}
-                type="button"
-                data-active={active ? "true" : "false"}
-                onClick={() => setFilterStatus(st)}
-                className={`flex-1 min-h-[44px] px-2.5 py-2 font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-                  active
-                    ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
-                    : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-                }`}
-              >
-                {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
               </button>
             );
           })}
         </div>
+      </div>
 
-      {/* Requests List */}
+      {/* ZaUI Segmented Filter Tabs */}
+      <div
+        data-filter-group="worker-requests-filter"
+        className="flex flex-wrap bg-slate-100 border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800 p-1 rounded-2xl text-xs gap-1"
+      >
+        {["all", "PENDING", "APPROVED", "REJECTED"].map((st) => {
+          const active = filterStatus === st;
+          return (
+            <button
+              key={st}
+              type="button"
+              data-active={active ? "true" : "false"}
+              onClick={() => setFilterStatus(st)}
+              className={`flex-1 min-h-[44px] px-2.5 py-2 font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+                active
+                  ? "bg-[#0068FF] text-white shadow-sm dark:bg-blue-600 dark:text-white"
+                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+              }`}
+            >
+              {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Requests List — ZaUI Ticket Cards */}
       <div className="space-y-3">
         {loading ? (
           <SkeletonList rows={3} label="Đang tải danh sách đơn từ..." />
         ) : error ? (
-          <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
+          <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-2xl text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             {error}
           </div>
@@ -238,15 +235,15 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
             return (
               <div
                 key={req.id}
-                className="perf-list-item bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-4 shadow-sm dark:shadow-lg space-y-2.5 transition-all"
+                className="perf-list-item bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-2.5 transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="text-sm font-semibold text-slate-900 dark:text-white block leading-snug break-words">
+                    <span className="text-sm font-bold text-slate-900 dark:text-white block leading-snug break-words">
                       {getRequestTypeLabel(req.request_type)}
                     </span>
                     {req.correction_mode && getCorrectionModeLabel(req.correction_mode) && (
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs font-semibold">
+                      <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs font-semibold">
                         {getCorrectionModeLabel(req.correction_mode)}
                       </span>
                     )}
@@ -265,7 +262,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                       </div>
                     )}
                     {Number(req.advance_amount) > 0 && (
-                      <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold whitespace-nowrap">
+                      <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold whitespace-nowrap">
                         <Wallet className="w-3.5 h-3.5 shrink-0" />
                         <span>Số tiền ứng: {Math.round(Number(req.advance_amount) || 0).toLocaleString("vi-VN")} đ</span>
                       </div>
@@ -276,7 +273,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                 </div>
 
                 {req.reason && (
-                  <p className="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800 leading-relaxed break-words">
+                  <p className="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/80 leading-relaxed break-words">
                     {req.reason}
                   </p>
                 )}
@@ -291,14 +288,16 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between pt-1 text-xs text-slate-500 dark:text-slate-400">
-                  <span>Mã đơn: #{req.id}</span>
+                <div className="zaui-ticket-divider !my-2" />
+
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span className="font-mono font-semibold">Mã phiếu: #{req.id}</span>
                   {isPending && (
                     <AppButton
                       variant="ghost"
                       icon={Trash2}
                       onClick={() => handleCancelRequest(req.id)}
-                      className="text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 px-3 py-1.5 text-xs"
+                      className="text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 px-3 py-1.5 text-xs rounded-full"
                     >
                       Hủy đơn
                     </AppButton>

@@ -568,21 +568,21 @@ export default function EmployeeManagementTab({
 
   return (
     <div className="space-y-4 pb-8">
-      {/* 1. KHU VỰC 1 ĐỘC QUYỀN: QUÂN SỐ THỜI GIAN THỰC & THẺ LỌC NHANH NHÂN SỰ 360° */}
+      {/* 1. KHU VỰC 1 ĐỘC QUYỀN: QUÂN SỐ THỜI GIAN THỰC & THẺ LỌC NHANH NHÂN SỰ 360° — ZAUI HUB */}
       {headcountToday && (
         <div
           data-testid="employee-hub-headcount-bar"
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 shadow-sm space-y-2.5"
+          className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200">
               📊 Quân số điểm danh hôm nay ({headcountToday.date || "Hôm nay"}) — Bấm để lọc nhanh nhân sự
             </span>
             {typeof onOpenLiveBoard === "function" && (
               <button
                 type="button"
                 onClick={() => onOpenLiveBoard(todayFilter === "all" ? "present" : todayFilter)}
-                className="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-200 text-xs font-bold cursor-pointer transition"
+                className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 border border-blue-200 dark:border-blue-500/40 text-[#0068FF] dark:text-blue-200 text-xs font-bold cursor-pointer transition"
               >
                 <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                 <span>Xem bảng live chi tiết</span>
@@ -592,15 +592,15 @@ export default function EmployeeManagementTab({
 
           <div
             data-filter-group="headcount-today-filter"
-            className="flex items-center gap-2 overflow-x-auto touch-scroll-x p-1 rounded-xl bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 text-xs font-semibold"
+            className="flex items-center gap-2 overflow-x-auto touch-scroll-x p-1.5 rounded-2xl bg-slate-100/90 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 text-xs font-semibold"
           >
             <button
               type="button"
               data-active={todayFilter === "all" ? "true" : "false"}
               onClick={() => setTodayFilter("all")}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "all"
-                  ? "bg-blue-600 text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 ring-2 ring-blue-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+                  ? "bg-[#0068FF] text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 shadow-md"
                   : "bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
               }`}
             >
@@ -610,9 +610,9 @@ export default function EmployeeManagementTab({
               type="button"
               data-active={todayFilter === "present" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "present" ? "all" : "present"))}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "present"
-                  ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 ring-2 ring-emerald-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+                  ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 shadow-md"
                   : "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/80 border-emerald-200 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
               }`}
             >
@@ -622,9 +622,9 @@ export default function EmployeeManagementTab({
               type="button"
               data-active={todayFilter === "late" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "late" ? "all" : "late"))}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "late"
-                  ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 ring-2 ring-amber-400/50 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+                  ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 shadow-md"
                   : "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-300"
               }`}
             >
@@ -634,9 +634,9 @@ export default function EmployeeManagementTab({
               type="button"
               data-active={todayFilter === "field_work" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "field_work" ? "all" : "field_work"))}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "field_work"
-                  ? "bg-orange-600 text-white border-orange-500 dark:bg-orange-600 dark:text-white dark:border-orange-400 ring-2 ring-orange-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+                  ? "bg-orange-600 text-white border-orange-500 dark:bg-orange-600 dark:text-white dark:border-orange-400 shadow-md"
                   : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/70 dark:hover:bg-orange-900/80 border-orange-200 dark:border-orange-500/40 text-orange-800 dark:text-orange-300"
               }`}
             >
@@ -646,9 +646,9 @@ export default function EmployeeManagementTab({
               type="button"
               data-active={todayFilter === "leave" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "leave" ? "all" : "leave"))}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "leave"
-                  ? "bg-purple-600 text-white border-purple-500 dark:bg-purple-600 dark:text-white dark:border-purple-400 ring-2 ring-purple-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+                  ? "bg-purple-600 text-white border-purple-500 dark:bg-purple-600 dark:text-white dark:border-purple-400 shadow-md"
                   : "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/70 dark:hover:bg-purple-900/80 border-purple-200 dark:border-purple-500/40 text-purple-800 dark:text-purple-300"
               }`}
             >
@@ -659,9 +659,9 @@ export default function EmployeeManagementTab({
                 type="button"
                 data-active={todayFilter === "absent" ? "true" : "false"}
                 onClick={() => setTodayFilter((p) => (p === "absent" ? "all" : "absent"))}
-                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                   todayFilter === "absent"
-                    ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 ring-2 ring-rose-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+                    ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-md"
                     : "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/70 dark:hover:bg-rose-900/80 border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300"
                 }`}
               >
@@ -672,7 +672,7 @@ export default function EmployeeManagementTab({
         </div>
       )}
 
-      {/* 4 Thẻ Lọc Nhanh Trạng Thái Tài Khoản & Thiết Bị */}
+      {/* 4 Thẻ Lọc Nhanh Trạng Thái Tài Khoản & Thiết Bị — ZaUI Squircle KPI Tiles */}
       <div
         data-filter-group="employee-quick-filter"
         className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
@@ -681,10 +681,10 @@ export default function EmployeeManagementTab({
           type="button"
           data-active={quickFilter === "all" ? "true" : "false"}
           onClick={() => setQuickFilter("all")}
-          className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
+          className={`min-h-[64px] p-3.5 rounded-2xl border text-left transition cursor-pointer shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)] ${
             quickFilter === "all"
-              ? "bg-blue-600 text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 ring-2 ring-blue-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
-              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              ? "bg-[#0068FF] text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 shadow-md"
+              : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <div className="text-xs font-semibold opacity-95">👥 Tất cả nhân sự</div>
@@ -695,10 +695,10 @@ export default function EmployeeManagementTab({
           type="button"
           data-active={quickFilter === "active" ? "true" : "false"}
           onClick={() => setQuickFilter("active")}
-          className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
+          className={`min-h-[64px] p-3.5 rounded-2xl border text-left transition cursor-pointer shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)] ${
             quickFilter === "active"
-              ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 ring-2 ring-emerald-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
-              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 shadow-md"
+              : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <div className={`text-xs font-semibold ${quickFilter === "active" ? "text-emerald-50" : "text-emerald-700 dark:text-emerald-300"}`}>🟢 Đang làm việc</div>
@@ -709,12 +709,12 @@ export default function EmployeeManagementTab({
           type="button"
           data-active={quickFilter === "alerts" ? "true" : "false"}
           onClick={() => setQuickFilter("alerts")}
-          className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
+          className={`min-h-[64px] p-3.5 rounded-2xl border text-left transition cursor-pointer shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)] ${
             quickFilter === "alerts"
-              ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 ring-2 ring-rose-500/40 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
+              ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-md"
               : alertCount > 0
               ? "bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-500/50 text-rose-800 dark:text-rose-100 hover:bg-rose-100 dark:hover:bg-rose-950/80"
-              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <div className={`text-xs font-semibold ${quickFilter === "alerts" ? "text-rose-50" : "text-rose-700 dark:text-rose-300"}`}>🚨 Đa thiết bị / Đổi máy</div>
@@ -725,10 +725,10 @@ export default function EmployeeManagementTab({
           type="button"
           data-active={quickFilter === "locked" ? "true" : "false"}
           onClick={() => setQuickFilter("locked")}
-          className={`min-h-[60px] p-3 rounded-2xl border text-left transition cursor-pointer ${
+          className={`min-h-[64px] p-3.5 rounded-2xl border text-left transition cursor-pointer shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)] ${
             quickFilter === "locked"
-              ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 ring-2 ring-amber-400/50 ring-offset-1 ring-offset-white dark:ring-offset-slate-950 shadow-md"
-              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 shadow-md"
+              : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <div className={`text-xs font-semibold ${quickFilter === "locked" ? "text-slate-950" : "text-amber-700 dark:text-amber-300"}`}>🔒 Đang khóa</div>
@@ -835,49 +835,60 @@ export default function EmployeeManagementTab({
             const displayPhone = emp.phone || emp.dien_thoai;
             const displayLogin = emp.login_username || displayPhone || emp.ma_nv;
 
+            const empInitial = String(emp.ho_ten || emp.ma_nv || "N")
+              .trim()
+              .split(/\s+/)
+              .slice(-1)[0]?.[0]
+              ?.toUpperCase() || "N";
+
             return (
               <div
                 key={emp.ma_nv}
-                className={`perf-list-item bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3 transition ${
-                  devSummary.hasAnyAlert ? "border-rose-400 dark:border-rose-500/70" : "border-slate-200 dark:border-slate-800"
+                className={`perf-list-item bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3 transition ${
+                  devSummary.hasAnyAlert ? "border-rose-400 dark:border-rose-500/70" : "border-slate-100/90 dark:border-slate-800"
                 }`}
               >
-                {/* Dòng 1: Họ tên + Mã NV + Vai trò + Trạng thái */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-bold text-base text-slate-900 dark:text-white break-words leading-snug">
-                        {emp.ho_ten}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-blue-700 dark:text-blue-300">
-                        {emp.ma_nv}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/35 text-indigo-700 dark:text-indigo-200 text-xs font-semibold">
-                        {ROLE_LABELS[emp.role] || "Nhân viên"}
-                      </span>
-                      {todayBadge && (
-                        <span className={`px-2 py-0.5 rounded-md border text-xs font-semibold ${todayBadge.cls}`}>
-                          {todayBadge.label}
-                        </span>
-                      )}
+                {/* Header Card — ZaUI Doctor Profile Row */}
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="w-11 h-11 rounded-full bg-blue-50 dark:bg-blue-500/20 border border-blue-200/80 dark:border-blue-500/40 text-[#0068FF] dark:text-blue-300 font-extrabold text-sm flex items-center justify-center shrink-0">
+                      {empInitial}
                     </div>
-
-                    {/* Dòng 2: Tài khoản (SĐT), Bộ phận, Chức danh & Ca làm việc */}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
-                      <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-mono font-semibold">
-                        <Phone className="w-3.5 h-3.5 shrink-0" />
-                        <span>TK: {displayLogin}{displayPhone && displayPhone !== displayLogin ? ` (${displayPhone})` : ""}</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-cyan-700 dark:text-cyan-300 font-medium">
-                        <Building2 className="w-3.5 h-3.5 shrink-0" />
-                        <span>{emp.department || "Khối Công trình"} • {emp.chuc_danh || "Nhân viên"}</span>
-                      </span>
-                      {emp.role !== "admin" && (
-                        <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-300 font-medium">
-                          <Clock className="w-3.5 h-3.5 shrink-0" />
-                          <span>{getShiftWindowText(emp)}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-bold text-base text-slate-900 dark:text-white break-words leading-snug">
+                          {emp.ho_ten}
                         </span>
-                      )}
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#0068FF] dark:text-blue-300">
+                          {emp.ma_nv}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/35 text-indigo-700 dark:text-indigo-200 text-xs font-semibold">
+                          {ROLE_LABELS[emp.role] || "Nhân viên"}
+                        </span>
+                        {todayBadge && (
+                          <span className={`px-2.5 py-0.5 rounded-full border text-xs font-semibold ${todayBadge.cls}`}>
+                            {todayBadge.label}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Body Meta Pills */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+                        <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-mono font-semibold">
+                          <Phone className="w-3.5 h-3.5 shrink-0" />
+                          <span>TK: {displayLogin}{displayPhone && displayPhone !== displayLogin ? ` (${displayPhone})` : ""}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-cyan-700 dark:text-cyan-300 font-medium">
+                          <Building2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>{emp.department || "Khối Công trình"} • {emp.chuc_danh || "Nhân viên"}</span>
+                        </span>
+                        {emp.role !== "admin" && (
+                          <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-300 font-medium">
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
+                            <span>{getShiftWindowText(emp)}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -886,7 +897,7 @@ export default function EmployeeManagementTab({
 
                 {/* Dòng 3: Hiển thị Thiết bị (chỉ áp dụng với Nhân viên & Kế toán, ẩn với Quản trị viên) */}
                 {emp.role !== "admin" && (
-                  <div className="px-3 py-2.5 rounded-xl bg-emerald-50/70 dark:bg-slate-800/95 border border-emerald-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="px-3 py-2.5 rounded-xl bg-emerald-50/75 dark:bg-slate-800/95 border border-emerald-200/80 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 min-w-0">
                       <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span className="font-bold text-emerald-900 dark:text-emerald-200 break-words">
@@ -894,7 +905,7 @@ export default function EmployeeManagementTab({
                       </span>
                     </div>
                     <span
-                      className={`px-2 py-0.5 rounded-md font-semibold shrink-0 ${
+                      className={`px-2.5 py-0.5 rounded-full font-semibold shrink-0 ${
                         emp.device_binding_mode === "enforced"
                           ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
                           : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600"
@@ -933,8 +944,10 @@ export default function EmployeeManagementTab({
                   </div>
                 )}
 
+                <div className="zaui-ticket-divider !my-2" />
+
                 {/* Thanh Hành Động Nhanh trên Thẻ */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   {emp.role === "admin" ? (
                     <span className="text-xs text-amber-700 dark:text-amber-300 font-semibold">
                       🛡️ Quản trị điều hành (Không tính lương)

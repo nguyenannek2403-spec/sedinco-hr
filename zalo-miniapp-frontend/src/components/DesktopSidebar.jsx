@@ -135,9 +135,9 @@ export function DesktopMobileBottomNav({
             type="button"
             data-active={isActive ? "true" : "false"}
             onClick={() => handleSelect(item.id)}
-            className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
+            className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2.5 rounded-2xl transition-all cursor-pointer ${
               isActive
-                ? "bg-blue-600 text-white dark:bg-blue-600 dark:text-white font-bold shadow-sm ring-1 ring-blue-500/50"
+                ? "bg-[#0068FF] text-white dark:bg-blue-600 dark:text-white font-bold shadow-sm"
                 : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/80 font-medium"
             }`}
           >
@@ -243,10 +243,10 @@ export default function DesktopSidebar({
               data-active={isActive ? "true" : "false"}
               title={item.label}
               onClick={() => handleSelect(item.id)}
-              className={`w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-black transition-all cursor-pointer border-2 ${
+              className={`w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer border ${
                 isActive
-                  ? "bg-blue-600 text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 ring-1 ring-blue-500/50 shadow-lg shadow-blue-600/25"
-                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800/80"
+                  ? "bg-[#0068FF] bg-gradient-to-r from-[#0068FF] to-[#0091FF] text-white border-blue-500 dark:from-blue-600 dark:to-sky-600 dark:text-white dark:border-blue-400 shadow-[0_6px_16px_-3px_rgba(0,104,255,0.3)]"
+                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/80"
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">

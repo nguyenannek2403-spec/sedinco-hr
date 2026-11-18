@@ -83,19 +83,25 @@ export default function AppModal({
     >
       <div
         ref={dialogCardRef}
-        className={`flex flex-col w-full ${maxWidthClass} ${maxHeightClass} rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl animate-sheet-up border ${
+        className={`flex flex-col w-full ${maxWidthClass} ${maxHeightClass} rounded-t-[28px] sm:rounded-[24px] overflow-hidden shadow-2xl animate-sheet-up border ${
           isDark
             ? "bg-slate-900 text-slate-100 border-slate-700/80"
-            : "bg-white text-slate-800 border-slate-200 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700/80"
+            : "bg-white text-slate-800 border-slate-200/90 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700/80"
         } ${!isTopModal ? "pointer-events-none select-none" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* ZaUI Bottom Sheet Drag Handle Pill */}
+        <div
+          className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-2.5 mb-1 shrink-0"
+          aria-hidden="true"
+        />
+
         {/* Thanh tiêu đề cố định: luôn có "< Trở về" ở góc trên trái */}
         <div
-          className={`px-4 py-3.5 border-b flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
+          className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
             isDark
               ? "bg-slate-900 border-slate-800"
-              : "bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800"
+              : "bg-white border-slate-100 dark:bg-slate-900 dark:border-slate-800"
           }`}
           onWheel={(e) => e.stopPropagation()}
         >
@@ -104,10 +110,10 @@ export default function AppModal({
               type="button"
               disabled={disableClose}
               onClick={handleSafeClose}
-              className={`min-h-[44px] px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
+              className={`min-h-[44px] px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
                 isDark
-                  ? "bg-slate-800 hover:bg-slate-700 text-slate-100"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100"
+                  ? "bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700"
+                  : "bg-blue-50/90 hover:bg-blue-100 text-[#0068FF] border border-blue-200/70 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-blue-300 dark:border-slate-700"
               }`}
             >
               <ArrowLeft className="w-4 h-4 shrink-0" />
@@ -144,7 +150,7 @@ export default function AppModal({
                 disabled={disableClose}
                 onClick={handleSafeClose}
                 aria-label="Đóng"
-                className={`min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
+                className={`min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
                   isDark
                     ? "bg-slate-800 hover:bg-slate-700 text-slate-200"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200"
