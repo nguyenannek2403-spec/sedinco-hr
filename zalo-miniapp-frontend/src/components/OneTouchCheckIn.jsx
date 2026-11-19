@@ -8,10 +8,7 @@ import {
   RotateCcw,
   ShieldAlert,
   HardHat,
-  Wifi,
-  Calendar,
-  TrendingUp,
-  Wallet
+  Wifi
 } from "lucide-react";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
@@ -21,12 +18,9 @@ import { useSpamClickGuard, SPAM_WARNING_MESSAGE } from "../hooks/useAttendanceC
 import { useTheme } from "../context/ThemeContext";
 import { AppButton, AppModal, SedincoMascot } from "./ui";
 
-export const FEATURE_BIOMETRIC_ENABLED = false;
-
 const STAGES = {
   IDLE: "idle",
   PERM_EXPLAIN: "perm_explain",
-  BIO_AUTH: "bio_auth",
   LOCATING: "locating",
   SUBMITTING: "submitting",
   SUCCESS: "success",
@@ -46,17 +40,11 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
 }
 
 let globalCheckInLockTimestamp = 0;
-export function getGlobalCheckInLockTimestamp() {
-  return globalCheckInLockTimestamp;
-}
-export function resetGlobalCheckInLockTimestamp() {
-  globalCheckInLockTimestamp = 0;
-}
 
 /**
  * F2 (V6): Chấm Công 1 Chạm Thông Minh
  * - Hỗ trợ Đa địa điểm (Kho/Showroom) & Cứu cánh Wi-Fi Nội bộ
- * - Hỗ trợ chế độ "Đi Công Trình / Thị Trường" (Ảnh hiện trường + Ghi chú)
+ * - Hỗ trợ chế độ "Đi Công Trình / Thị Trường" (GPS-Only)
  * - Ẩn toàn bộ thông số kỹ thuật thô, thay bằng thẻ trạng thái thân thiện
  * - Phát hiện "Quên bấm Giờ Ra" của ngày hôm trước để bù công 1 chạm
  */
@@ -65,8 +53,6 @@ export default function OneTouchCheckIn({
   todayAttendance = null,
   onCheckInSuccess,
   onOpenFixCheckoutRequest,
-  onOpenQuickService = null,
-  onNavigateHistory = null,
   isLockedPeriod = false,
   showToast = null
 }) {
@@ -339,14 +325,6 @@ export default function OneTouchCheckIn({
     }, 20000);
 
     try {
-
-      if (FEATURE_BIOMETRIC_ENABLED) {
-        setStage(STAGES.BIO_AUTH);
-        setStatusMessage("Đang xác nhận vân tay / khuôn mặt trên điện thoại...");
-        const secretData = `sedinco_bio_${Date.now()}_${currentUser?.ma_nv}`;
-        await zmpAdapter.openBioAuthentication({ secretData });
-      }
-
       setStage(STAGES.LOCATING);
       setStatusMessage("Đang xác định vị trí & kiểm tra bảo mật...");
 
@@ -541,41 +519,6 @@ export default function OneTouchCheckIn({
       : effectiveToday?.shift_type === "NIGHT_SHIFT"
       ? "22:00"
       : companyMeta.work_end || "17:30");
-
-  const quickServices = [
-    {
-      key: "leave",
-      mode: "P",
-      label: "Nghỉ phép",
-      desc: "Phép năm, việc riêng",
-      icon: Calendar,
-      iconBg: "bg-blue-50 text-[#0068FF] border-blue-200/80 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30"
-    },
-    {
-      key: "comp",
-      mode: "Bổ sung công / Quên chấm giờ ra",
-      label: "Bổ sung công",
-      desc: "Quên chấm vào/ra",
-      icon: Clock,
-      iconBg: "bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30"
-    },
-    {
-      key: "ot",
-      mode: "OT",
-      label: "Tăng ca (OT)",
-      desc: "Đăng ký làm thêm",
-      icon: TrendingUp,
-      iconBg: "bg-indigo-50 text-indigo-700 border-indigo-200/80 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30"
-    },
-    {
-      key: "advance",
-      mode: "SALARY_ADVANCE",
-      label: "Ứng lương",
-      desc: "Tạm ứng trước kỳ",
-      icon: Wallet,
-      iconBg: "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30"
-    }
-  ];
 
   const pad2 = (n) => String(n).padStart(2, "0");
   const weekdayNames = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
@@ -959,40 +902,6 @@ export default function OneTouchCheckIn({
           <p className="text-xs text-amber-900 dark:text-amber-50 leading-relaxed whitespace-pre-line">
             {companyMeta.announcement_text}
           </p>
-        </div>
-      )}
-
-      {typeof onOpenQuickService === "function" && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Dịch vụ Nhân sự Nhanh</h3>
-            <span className="text-xs font-semibold text-[#0068FF] dark:text-blue-400">Gửi 1 chạm</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {quickServices.map((svc) => {
-              const SvcIcon = svc.icon;
-              return (
-                <button
-                  key={svc.key}
-                  type="button"
-                  onClick={() => onOpenQuickService(svc.mode)}
-                  className="p-3 rounded-2xl bg-slate-50/90 hover:bg-blue-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex flex-col items-center justify-center text-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
-                >
-                  <div className={`zaui-service-icon w-11 h-11 rounded-2xl border shrink-0 ${svc.iconBg}`}>
-                    <SvcIcon className="w-5 h-5" />
-                  </div>
-                  <div className="w-full min-w-0 space-y-0.5">
-                    <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug break-words">
-                      {svc.label}
-                    </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-300 leading-snug break-words">
-                      {svc.desc}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
         </div>
       )}
 

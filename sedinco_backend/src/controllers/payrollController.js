@@ -25,6 +25,17 @@ class PayrollController {
         }
     }
 
+    async getEmployeePayrollDetail(req, res, next) {
+        try {
+            const { ma_nv } = req.params;
+            const { month, year } = req.query;
+            const data = await payrollService.getEmployeePayrollDetail(ma_nv, month, year);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async calculatePayroll(req, res, next) {
         try {
             const month = req.body?.month || req.query?.month;

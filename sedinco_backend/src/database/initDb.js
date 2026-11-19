@@ -422,6 +422,22 @@ async function initDatabase() {
             UNIQUE KEY uniq_payroll_period (month, year)
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
 
+        // V25: Bảng lưu thông báo bền vững tới từng Nhân viên & Quản trị viên (Chốt kỳ công, Bảng lương...)
+        await query(`CREATE TABLE IF NOT EXISTS user_notifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            recipient_ma_nv VARCHAR(50) NOT NULL,
+            type VARCHAR(50) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            ref_month INT NULL,
+            ref_year INT NULL,
+            target_ma_nv VARCHAR(50) NULL,
+            is_read TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_notif_recipient_read (recipient_ma_nv, is_read, created_at)
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+        await query('CREATE INDEX idx_notif_recipient_read ON user_notifications (recipient_ma_nv, is_read, created_at)').catch(() => {});
+
         // V18: Account Phone/Custom Username & Persistent Theme Preference + Cleanup Legacy Multi-Model Device Names
         await query("ALTER TABLE employees ADD COLUMN phone VARCHAR(30) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN login_username VARCHAR(100) NULL").catch(() => {});

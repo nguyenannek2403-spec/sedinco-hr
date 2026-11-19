@@ -14,8 +14,9 @@ router.get('/my-payslip', authenticateToken, requireAuth, (req, res, next) => pa
 router.post('/confirm', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => payrollController.confirmOrDisputeSalary(req, res, next));
 router.post('/resolve-dispute', authenticateToken, requirePermission('payroll_approve'), idempotencyMiddleware(), (req, res, next) => payrollController.resolveSalaryDispute(req, res, next));
 
-// 2. Xem bảng lương toàn công ty (Yêu cầu permission: payroll_view_all)
+// 2. Xem bảng lương toàn công ty & Chi tiết phiếu lương + bảng công từng nhân viên (Yêu cầu permission: payroll_view_all)
 router.get('/', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => payrollController.getPayroll(req, res, next));
+router.get('/employee/:ma_nv', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => payrollController.getEmployeePayrollDetail(req, res, next));
 
 // 3. Tính toán bảng lương tháng (Yêu cầu permission: payroll_calculate)
 router.post('/calculate', authenticateToken, requirePermission('payroll_calculate'), (req, res, next) => payrollController.calculatePayroll(req, res, next));

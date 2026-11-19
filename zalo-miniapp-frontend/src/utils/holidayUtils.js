@@ -5,7 +5,7 @@
  */
 
 // Danh mục ngày lễ luật định 2026 (Điều 112 BLLĐ 2019 + NQ 28/2026/QH16)
-export const VIETNAM_LEGAL_HOLIDAYS_2026 = [
+const VIETNAM_LEGAL_HOLIDAYS_2026 = [
   { date: "2026-01-01", name: "Tết Dương lịch", rate: 3.0 },
   { date: "2026-02-16", name: "Tết Nguyên Đán (29 Tết)", rate: 3.0 },
   { date: "2026-02-17", name: "Tết Nguyên Đán (Mùng 1)", rate: 3.0 },
@@ -35,7 +35,7 @@ export const formatDateKey = (date) => {
  * Kiểm tra xem ngày có phải ngày Chủ nhật (hoặc ngày nghỉ hàng tuần) không
  * Mặc định Sedinco nghỉ Chủ nhật (day === 0)
  */
-export const isWeeklyRestDay = (dateStr) => {
+const isWeeklyRestDay = (dateStr) => {
   const d = new Date(dateStr);
   return d.getDay() === 0;
 };
@@ -43,7 +43,7 @@ export const isWeeklyRestDay = (dateStr) => {
 /**
  * Tìm thông tin ngày lễ trong danh sách do Backend cung cấp
  */
-export const findHoliday = (dateStr, holidaysList = []) => {
+const findHoliday = (dateStr, holidaysList = []) => {
   if (!dateStr) return null;
   const dKey = formatDateKey(dateStr);
 

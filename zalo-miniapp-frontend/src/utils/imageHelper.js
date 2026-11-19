@@ -113,17 +113,3 @@ export async function pickCompressedEvidencePhoto({
     };
   }
 }
-
-/**
- * Chụp ảnh trực tiếp từ Camera (CHỈ camera, KHÔNG cho phép chọn album)
- * Sau đó tự động nén/đổi cỡ trước khi trả về.
- */
-export async function captureDirectCameraPhoto() {
-  return pickCompressedEvidencePhoto({
-    sourceType: ['camera'],
-    cameraType: 'front',
-    maxWidth: 480,
-    maxHeight: 480,
-    quality: 0.6
-  });
-}

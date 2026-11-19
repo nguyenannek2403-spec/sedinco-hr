@@ -257,11 +257,97 @@ function calculateDailyEarnedAmount({
     return Math.round(((base * ratio) / stdDays) * credit);
 }
 
+const VI_WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+function formatViDateWithWeekday(isoDateStr) {
+    const raw = String(isoDateStr || '').trim().slice(0, 10);
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return raw;
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+    const utcDate = new Date(Date.UTC(year, month - 1, day));
+    if (Number.isNaN(utcDate.getTime())) return raw;
+    const wd = VI_WEEKDAYS[utcDate.getUTCDay()] || '';
+    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')} (${wd})`;
+}
+
+/**
+ * Sinh chuỗi ghi chú chấm công tiếng Việt chuẩn hóa cho từng ngày làm việc.
+ */
+function buildDailyAttendanceNote(log = {}, _settings = {}) {
+    if (!log || typeof log !== 'object') return '';
+    const status = String(log.status || '').trim().toUpperCase();
+    const durationStatus = String(log.duration_status || '').trim().toUpperCase();
+    const lateMins = Math.max(0, Math.round(Number(log.late_minutes) || 0));
+    const earlyMins = Math.max(0, Math.round(Number(log.early_leave_minutes) || 0));
+    const suppressEarly = Boolean(log.has_approved_half_leave || Number(log.paid_leave_credit) >= 0.5);
+
+    let lateLabel = '';
+    if (lateMins >= 60) {
+        const h = Math.floor(lateMins / 60);
+        const m = lateMins % 60;
+        lateLabel = m > 0
+            ? `Vào muộn ${h} giờ ${m} phút (${lateMins} phút)`
+            : `Vào muộn ${h} giờ (${lateMins} phút)`;
+    } else if (lateMins > 0) {
+        lateLabel = `Vào muộn ${lateMins} phút`;
+    }
+
+    const earlyLabel = (earlyMins > 0 && !suppressEarly) ? `Ra sớm ${earlyMins} phút` : '';
+
+    let baseNote = '';
+    if (status === 'P') {
+        baseNote = 'Nghỉ phép hưởng lương (P)';
+    } else if (status === 'L') {
+        baseNote = 'Nghỉ lễ hưởng lương (L)';
+    } else if (status === 'KP' || status === 'V') {
+        baseNote = 'Vắng / Nghỉ không lương';
+    } else if (durationStatus === 'INVALID_SHORT_DURATION') {
+        const inMins = parseTimeToMinutes(log.check_in_time, null);
+        const outMins = parseTimeToMinutes(log.check_out_time, null);
+        const rawSpan = (inMins !== null && outMins !== null) ? Math.max(0, outMins - inMins) : null;
+        const workedSum = (Number(log.morning_worked_minutes) || 0) + (Number(log.afternoon_worked_minutes) || 0);
+        const shortMins = rawSpan !== null ? rawSpan : Math.max(0, workedSum);
+        baseNote = `Thời gian làm quá ngắn (${shortMins} phút) - Không tính công`;
+    } else if (log.check_in_time && !log.check_out_time) {
+        baseNote = [lateLabel, 'Chưa chấm công ra (Quên check-out)'].filter(Boolean).join(' • ');
+    } else if (
+        durationStatus === 'MORNING_ONLY' ||
+        durationStatus === 'AFTERNOON_ONLY' ||
+        (status === '0.5' && log.check_in_time && log.check_out_time)
+    ) {
+        const mornMins = Number(log.morning_worked_minutes) || 0;
+        const aftMins = Number(log.afternoon_worked_minutes) || 0;
+        const isMorningOnly = durationStatus === 'MORNING_ONLY' || (durationStatus !== 'AFTERNOON_ONLY' && mornMins >= 120 && aftMins < 120);
+        const isAfternoonOnly = durationStatus === 'AFTERNOON_ONLY' || (durationStatus !== 'MORNING_ONLY' && aftMins >= 120 && mornMins < 120);
+        const sessionLabel = isMorningOnly
+            ? 'Làm ca sáng (0,5 công)'
+            : isAfternoonOnly
+                ? 'Làm ca chiều (0,5 công)'
+                : 'Làm nửa ngày (0,5 công)';
+        baseNote = [sessionLabel, lateLabel, earlyLabel].filter(Boolean).join(' • ');
+    } else if (lateLabel || earlyLabel) {
+        baseNote = [lateLabel, earlyLabel].filter(Boolean).join(' • ');
+    } else if (status === '0') {
+        baseNote = 'Chưa đủ thời gian tính công';
+    } else {
+        baseNote = 'Đúng giờ • Đủ công';
+    }
+
+    if (log.proxy_by) {
+        baseNote = `${baseNote} (Chấm công hộ)`;
+    }
+    return baseNote;
+}
+
 module.exports = {
     MIN_VALID_CHECK_MINUTES,
     MIN_SESSION_MINUTES,
     parseTimeToMinutes,
     overlapMinutes,
     evaluateMisaDailyAttendance,
-    calculateDailyEarnedAmount
+    calculateDailyEarnedAmount,
+    formatViDateWithWeekday,
+    buildDailyAttendanceNote
 };

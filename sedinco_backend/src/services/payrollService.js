@@ -54,6 +54,7 @@ class PayrollService {
                     COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
                     COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
                     work_credit, duration_status, location_name, work_location_type,
+                    proxy_by, proxy_note,
                     DAYOFWEEK(record_date) as dow
              FROM attendance_logs
              WHERE employee_id IN (${placeholders}) AND record_date >= ? AND record_date < ?
@@ -136,6 +137,8 @@ class PayrollService {
                 latePenaltyAmount: calc.latePenaltyAmount || 0,
                 salaryByWork: calc.salaryByWork,
                 totalAllowance: calc.totalAllowance,
+                total_allowance: calc.total_allowance ?? calc.totalAllowance ?? 0,
+                allowances: calc.allowances || [],
                 allowances_breakdown: calc.allowances_breakdown,
                 otAmount: calc.otAmount,
                 bonusAmount,
@@ -193,25 +196,31 @@ class PayrollService {
 
         const { startDateStr, endDateStr } = getMonthDateBounds(m, y);
 
-        const logs = await query(
-            `SELECT employee_id, DATE_FORMAT(record_date, "%Y-%m-%d") as record_date_iso, record_date,
-                    status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours,
-                    COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
-                    COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
-                    work_credit, duration_status, location_name, work_location_type,
-                    DAYOFWEEK(record_date) as dow
-             FROM attendance_logs
-             WHERE employee_id = ? AND record_date >= ? AND record_date < ?
-             ORDER BY record_date ASC`,
-            [ma_nv, startDateStr, endDateStr]
-        );
+        const [logs, otRegs, lockRows, periodRows] = await Promise.all([
+            query(
+                `SELECT employee_id, DATE_FORMAT(record_date, "%Y-%m-%d") as record_date_iso, record_date,
+                        status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours,
+                        COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
+                        COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
+                        work_credit, duration_status, location_name, work_location_type,
+                        proxy_by, proxy_note,
+                        DAYOFWEEK(record_date) as dow
+                 FROM attendance_logs
+                 WHERE employee_id = ? AND record_date >= ? AND record_date < ?
+                 ORDER BY record_date ASC`,
+                [ma_nv, startDateStr, endDateStr]
+            ),
+            query(
+                'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE employee_id = ? AND work_date >= ? AND work_date < ? AND status = ?',
+                [ma_nv, startDateStr, endDateStr, 'approved']
+            ),
+            query('SELECT is_locked, locked_by, locked_at FROM period_locks WHERE month = ? AND year = ? LIMIT 1', [m, y]).catch(() => []),
+            query('SELECT status, payment_status FROM payroll_periods WHERE month = ? AND year = ? LIMIT 1', [m, y]).catch(() => [])
+        ]);
         const safeLogs = logs || [];
-
-        const otRegs = await query(
-            'SELECT employee_id, work_date, expected_hours, status FROM ot_registrations WHERE employee_id = ? AND work_date >= ? AND work_date < ? AND status = ?',
-            [ma_nv, startDateStr, endDateStr, 'approved']
-        );
         const safeOtRegs = otRegs || [];
+        const lockRow = (lockRows && lockRows[0]) ? lockRows[0] : null;
+        const periodRow = (periodRows && periodRows[0]) ? periodRows[0] : null;
 
         const allowances = {
             an_trua: emp.phu_cap_an_trua,
@@ -277,7 +286,12 @@ class PayrollService {
             latePenaltyAmount: calc.latePenaltyAmount || 0,
             salaryByWork: calc.salaryByWork,
             totalAllowance: calc.totalAllowance,
+            total_allowance: calc.total_allowance ?? calc.totalAllowance ?? 0,
+            allowances: calc.allowances || [],
             allowances_breakdown: calc.allowances_breakdown,
+            period_locked: Boolean(lockRow && lockRow.is_locked),
+            payroll_period_status: periodRow?.status || 'DRAFT',
+            payment_status: periodRow?.payment_status || 'UNPAID',
             otAmount: calc.otAmount,
             bonusAmount,
             penaltyAmount,
@@ -301,6 +315,27 @@ class PayrollService {
             warning: calc.warning || null,
             daily_logs: calc.daily_breakdown || safeLogs
         };
+    }
+
+    async getEmployeePayrollDetail(ma_nv, month, year) {
+        const cleanMaNv = String(ma_nv || '').trim();
+        if (!cleanMaNv) {
+            const err = new Error('Thiếu mã nhân viên cần tra cứu phiếu lương!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const empRows = await query('SELECT ma_nv, role FROM employees WHERE ma_nv = ? LIMIT 1', [cleanMaNv]);
+        if (!empRows || empRows.length === 0) {
+            const err = new Error(`Không tìm thấy nhân viên ${cleanMaNv}!`);
+            err.statusCode = 404;
+            throw err;
+        }
+        if (empRows[0].role === 'admin') {
+            const err = new Error('Tài khoản Quản trị viên không tham gia bảng lương cá nhân!');
+            err.statusCode = 400;
+            throw err;
+        }
+        return this.getMyPayroll(cleanMaNv, month, year);
     }
 
     async confirmOrDisputeSalary({ ma_nv, month, year, status, dispute_reason, dispute_evidence_media, current_user = null }) {

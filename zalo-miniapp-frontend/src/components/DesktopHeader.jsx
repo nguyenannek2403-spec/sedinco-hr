@@ -13,7 +13,8 @@ import {
   ArrowLeft,
   LogOut,
   KeyRound,
-  X
+  X,
+  CheckCircle2
 } from "lucide-react";
 import { ROLE_LABELS, ROLES } from "../constants/roles";
 import { ThemeToggleButton } from "../context/ThemeContext";
@@ -398,6 +399,13 @@ export default function DesktopHeader({
                           action: "Duyệt đơn →",
                           Icon: FileText,
                           iconColor: "text-blue-600 dark:text-blue-300"
+                        },
+                        period_locked: {
+                          card: "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/75 dark:hover:bg-emerald-900/80 border-emerald-200 dark:border-emerald-500/50",
+                          title: "text-emerald-900 dark:text-emerald-200",
+                          action: "Xem bảng lương →",
+                          Icon: CheckCircle2,
+                          iconColor: "text-emerald-600 dark:text-emerald-400"
                         }
                       };
                       const theme = styleMap[alert.category] || {

@@ -8,9 +8,7 @@ import {
   Phone,
   Mail,
   Clock,
-  CalendarCheck,
   Building2,
-  SunMoon,
   Calendar
 } from "lucide-react";
 import { safePost, safeGet } from "../../utils/api";
@@ -18,22 +16,16 @@ import SalarySlipModal from "../../components/SalarySlipModal";
 import { getShiftLabel } from "../../utils/viLabels";
 import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
 import { getDeviceIdentity, getDeviceIdentitySync, formatEmployeeDeviceLabel } from "../../utils/deviceIdentity";
-import { ThemeToggleButton } from "../../context/ThemeContext";
-import { AppButton, AppModal, FormRow } from "../../components/ui";
+import { AppButton, AppModal } from "../../components/ui";
 
 export default function WorkerProfileTab({
   currentUser,
   onLogout,
   showToast,
   onChangePasswordRequest,
-  onNavigateHistory = null
+  onOpenPayslip = null
 }) {
-  const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
-  const [payrollData, setPayrollData] = useState(null);
-  const [salaryLoading, setSalaryLoading] = useState(false);
-  const [slipMonth, setSlipMonth] = useState(new Date().getMonth() + 1);
-  const [slipYear, setSlipYear] = useState(new Date().getFullYear());
-  const [leaveBalance, setLeaveBalance] = useState(null);
+  const [fallbackSlipOpen, setFallbackSlipOpen] = useState(false);
   const [attendanceSummary, setAttendanceSummary] = useState({
     total_work_days: 0,
     on_time_count: 0,
@@ -50,57 +42,43 @@ export default function WorkerProfileTab({
   const [deviceSubmitting, setDeviceSubmitting] = useState(false);
   const [deviceError, setDeviceError] = useState("");
 
-  const salaryLoadingRef = useRef(false);
   const deviceSubmittingRef = useRef(false);
 
   useEffect(() => {
     if (currentUser?.role === "admin") return undefined;
     let active = true;
     const now = new Date();
-    Promise.all([
-      safeGet("/requests/leave-balance").catch(() => null),
-      safeGet("/attendance/me", {
-        month: now.getMonth() + 1,
-        year: now.getFullYear()
-      }).catch(() => null)
-    ]).then(([leaveRes, attRes]) => {
-      if (!active) return;
-      if (leaveRes?.success && leaveRes.data) {
-        setLeaveBalance(leaveRes.data);
-      }
-      const rawAtt = attRes?.data;
-      if (rawAtt && !Array.isArray(rawAtt) && rawAtt.summary) {
-        setAttendanceSummary((prev) => ({
-          ...prev,
-          ...rawAtt.summary
-        }));
-      } else if (Array.isArray(rawAtt)) {
-        const totalDays = rawAtt.filter((r) => r.status && r.status !== "0" && r.status !== "V").length;
-        setAttendanceSummary((prev) => ({ ...prev, total_work_days: totalDays }));
-      }
-    });
+    safeGet("/attendance/me", {
+      month: now.getMonth() + 1,
+      year: now.getFullYear()
+    })
+      .then((attRes) => {
+        if (!active) return;
+        const rawAtt = attRes?.data;
+        if (rawAtt && !Array.isArray(rawAtt) && rawAtt.summary) {
+          setAttendanceSummary((prev) => ({
+            ...prev,
+            ...rawAtt.summary
+          }));
+        } else if (Array.isArray(rawAtt)) {
+          const totalDays = rawAtt.filter((r) => r.status && r.status !== "0" && r.status !== "V").length;
+          setAttendanceSummary((prev) => ({ ...prev, total_work_days: totalDays }));
+        }
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
   }, [currentUser?.role]);
 
-  const handleOpenSalarySlip = async () => {
-    if (salaryLoadingRef.current) return;
-    salaryLoadingRef.current = true;
-    setSalaryLoading(true);
-    try {
-      const res = await safeGet("/payroll/me", { month: slipMonth, year: slipYear });
-      if (res?.success && res.data) {
-        setPayrollData(res.data);
-        setIsSalaryModalOpen(true);
-      } else {
-        if (showToast) showToast(res?.message || "Chưa có bảng tính lương cho tháng này.", "warning");
-      }
-    } catch (err) {
-      if (showToast) showToast(err.message || "Không thể tải phiếu lương.", "error");
-    } finally {
-      salaryLoadingRef.current = false;
-      setSalaryLoading(false);
+  const handleOpenSalarySlip = () => {
+    const now = new Date();
+    const curM = now.getMonth() + 1;
+    const curY = now.getFullYear();
+    if (typeof onOpenPayslip === "function") {
+      onOpenPayslip(curM, curY);
+    } else {
+      setFallbackSlipOpen(true);
     }
   };
 
@@ -145,6 +123,7 @@ export default function WorkerProfileTab({
   const effStart = attendanceSummary?.effective_shift_start || currentUser?.custom_start_time || "08:00";
   const effEnd = attendanceSummary?.effective_shift_end || currentUser?.custom_end_time || "17:30";
   const currentMonthNum = new Date().getMonth() + 1;
+  const currentYearNum = new Date().getFullYear();
 
   return (
     <div className="p-3.5 pb-8 space-y-4">
@@ -203,25 +182,13 @@ export default function WorkerProfileTab({
         </div>
       </div>
 
-      {/* Thẻ Thống kê Công & Phép trong tháng */}
+      {/* Thẻ Thống kê Công trong tháng */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-[#0068FF] dark:text-blue-400 shrink-0" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Thống kê Công tháng {currentMonthNum}
-            </h3>
-          </div>
-          {typeof onNavigateHistory === "function" && (
-            <button
-              type="button"
-              onClick={onNavigateHistory}
-              className="min-h-[44px] px-2 text-xs font-bold text-[#0068FF] dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <span>Xem lịch công</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          )}
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-[#0068FF] dark:text-blue-400 shrink-0" />
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            Thống kê Công tháng {currentMonthNum}
+          </h3>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">
@@ -244,77 +211,29 @@ export default function WorkerProfileTab({
             </div>
           </div>
         </div>
-
-        {leaveBalance && (
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
-                <CalendarCheck className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-900 dark:text-white">Quỹ phép năm {leaveBalance.year}</div>
-                <div className="text-xs text-slate-600 dark:text-slate-300">
-                  Đã dùng {leaveBalance.used} • Chờ duyệt {leaveBalance.pending} ngày
-                </div>
-              </div>
-            </div>
-            <span className="text-xs sm:text-sm font-extrabold text-emerald-700 dark:text-emerald-400 whitespace-nowrap shrink-0">
-              Còn {leaveBalance.remaining}/{leaveBalance.quota} ngày
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* Thẻ Phiếu Lương & Bảo mật / Cài đặt */}
+      {/* Thẻ Phiếu Lương & Bảo mật Tài khoản */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-2 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] divide-y divide-slate-100 dark:divide-slate-800">
-        {/* Phiếu Lương + Bộ chọn kỳ lương */}
+        {/* Phiếu Lương & Bảng Công Lịch Sử */}
         <div className="p-3.5 space-y-2.5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <DollarSign className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white">Phiếu Lương Điện Tử</div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">Xem chi tiết công, phụ cấp, BHXH &amp; thực lĩnh</div>
+              <div className="text-sm font-bold text-slate-900 dark:text-white">Phiếu Lương &amp; Bảng Công</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Xem chi tiết lương, phụ cấp &amp; công từng ngày mọi tháng</div>
             </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
-            <FormRow label="Kỳ phiếu lương" controlClassName="!max-w-[65%]">
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <select
-                  aria-label="Chọn tháng phiếu lương"
-                  value={slipMonth}
-                  onChange={(e) => setSlipMonth(Number(e.target.value))}
-                  className="min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white font-bold"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <option key={m} value={m}>T{m}</option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Chọn năm phiếu lương"
-                  value={slipYear}
-                  onChange={(e) => setSlipYear(Number(e.target.value))}
-                  className="min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white font-bold"
-                >
-                  {[2025, 2026, 2027].map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-            </FormRow>
           </div>
 
           <AppButton
             variant="success"
             fullWidth
             icon={DollarSign}
-            loading={salaryLoading}
-            loadingText="Đang tải phiếu lương..."
             onClick={handleOpenSalarySlip}
           >
-            Xem phiếu lương tháng {slipMonth}/{slipYear}
+            Xem phiếu lương tháng {currentMonthNum}/{currentYearNum}
           </AppButton>
         </div>
 
@@ -336,7 +255,7 @@ export default function WorkerProfileTab({
               <div className="text-xs text-slate-600 dark:text-slate-300">Đăng ký đổi điện thoại chấm công mới</div>
             </div>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors shrink-0" />
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors shrink-0" />
         </button>
 
         {/* Tài Khoản & Mật Khẩu */}
@@ -354,22 +273,8 @@ export default function WorkerProfileTab({
               <div className="text-xs text-slate-600 dark:text-slate-300">Đổi tên đăng nhập, SĐT hoặc mật khẩu bảo mật</div>
             </div>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors shrink-0" />
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors shrink-0" />
         </button>
-
-        {/* Chế độ hiển thị Sáng / Tối */}
-        <div className="p-3.5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-500/15 border border-sky-200 dark:border-sky-500/30 text-sky-700 dark:text-sky-300 flex items-center justify-center shrink-0">
-              <SunMoon className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-900 dark:text-white">Giao diện hiển thị</div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">Chuyển đổi chế độ Sáng / Tối</div>
-            </div>
-          </div>
-          <ThemeToggleButton className="shrink-0" />
-        </div>
       </div>
 
       {/* Nút Đăng Xuất */}
@@ -383,18 +288,14 @@ export default function WorkerProfileTab({
         Đăng xuất khỏi thiết bị
       </AppButton>
 
-      {/* Salary Slip Modal */}
-      {isSalaryModalOpen && payrollData && (
+      {/* Fallback SalarySlipModal nếu component được dùng độc lập */}
+      {fallbackSlipOpen && (
         <SalarySlipModal
-          payrollItem={payrollData}
-          month={slipMonth}
-          year={slipYear}
-          currentUser={currentUser}
+          month={currentMonthNum}
+          year={currentYearNum}
+          targetMaNv={currentUser?.ma_nv}
           showToast={showToast}
-          onStatusUpdated={(newStatus) => {
-            setPayrollData((prev) => (prev ? { ...prev, salary_confirm_status: newStatus } : prev));
-          }}
-          onClose={() => setIsSalaryModalOpen(false)}
+          onClose={() => setFallbackSlipOpen(false)}
         />
       )}
 

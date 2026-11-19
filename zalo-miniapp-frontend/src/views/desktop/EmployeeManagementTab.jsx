@@ -19,7 +19,8 @@ import {
   XCircle,
   RotateCcw,
   Phone,
-  ExternalLink
+  ExternalLink,
+  FileSpreadsheet
 } from "lucide-react";
 import { safeGet, safePost, safePut } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
@@ -34,6 +35,7 @@ import {
   UNKNOWN_DEVICE_LABEL
 } from "../../utils/deviceIdentity";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SalarySlipModal from "../../components/SalarySlipModal";
 import {
   AppButton,
   AppModal,
@@ -107,8 +109,10 @@ export default function EmployeeManagementTab({
   const effectiveRole = activeRole || currentUser?.role || ROLES.ADMIN;
   const isAdmin = effectiveRole === ROLES.ADMIN;
   const canEditEmployees = isAdmin || dynamicPerms?.employee_edit === true;
+  const canViewPayroll = isAdmin || dynamicPerms?.payroll_view_all !== false;
 
   const [employees, setEmployees] = useState([]);
+  const [payslipEmp, setPayslipEmp] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [quickFilter, setQuickFilter] = useState(initialFilter || "all"); // 'all' | 'active' | 'alerts' | 'locked'
@@ -1295,6 +1299,20 @@ export default function EmployeeManagementTab({
             onSubmit={handleSaveDetailModal}
             className="p-4 sm:p-5 space-y-5"
           >
+            {/* V25: Truy cập nhanh Bảng lương & Bảng công chi tiết của nhân viên này */}
+            {detailEmp.role !== "admin" && canViewPayroll && (
+              <AppButton
+                data-testid="emp-360-payslip-btn"
+                variant="success"
+                fullWidth
+                icon={FileSpreadsheet}
+                onClick={() => setPayslipEmp(detailEmp)}
+                className="text-xs sm:text-sm"
+              >
+                Xem Lương &amp; Công chi tiết
+              </AppButton>
+            )}
+
             {/* KHU VỰC 1: THÔNG TIN & CHẾ ĐỘ ĐÃI NGỘ */}
             <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
               <h3 className="text-sm font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide flex items-center gap-2">
@@ -1718,6 +1736,18 @@ export default function EmployeeManagementTab({
           </form>
         )}
       </AppModal>
+
+      {/* Modal Phiếu Lương & Bảng Công Chi Tiết Cho Nhân Viên Đang Xem */}
+      {payslipEmp && (
+        <SalarySlipModal
+          targetMaNv={payslipEmp.ma_nv}
+          month={new Date().getMonth() + 1}
+          year={new Date().getFullYear()}
+          isAdminOrAccountant={true}
+          showToast={showToast}
+          onClose={() => setPayslipEmp(null)}
+        />
+      )}
     </div>
   );
 }

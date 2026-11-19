@@ -7,7 +7,8 @@ import {
   RefreshCw,
   FilePlus2,
   MapPin,
-  UserCheck
+  UserCheck,
+  FileSpreadsheet
 } from "lucide-react";
 import { safeGet } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
@@ -111,7 +112,7 @@ function getHeatmapCellStyle(log, dayNum, isFuture, isSunday = false) {
   };
 }
 
-export default function WorkerHistoryTab({ currentUser, showToast }) {
+export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip = null }) {
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [logs, setLogs] = useState([]);
@@ -278,6 +279,19 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                 </span>
               </div>
             </div>
+
+            {typeof onOpenPayslip === "function" && (
+              <AppButton
+                data-testid="history-open-payslip-btn"
+                variant="primary"
+                fullWidth
+                icon={FileSpreadsheet}
+                onClick={() => onOpenPayslip(month, year)}
+                className="text-xs"
+              >
+                Xem Bảng lương &amp; Bảng công chi tiết T{month}/{year}
+              </AppButton>
+            )}
           </div>
         </div>
       )}
@@ -429,11 +443,31 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                           +{otHours}h tăng ca
                         </span>
                       )}
-                      {lateMinutes > 0 && (
-                        <span className="font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 px-2.5 py-0.5 rounded-full">
-                          Muộn {lateMinutes}p
-                        </span>
-                      )}
+                      {(() => {
+                        const earlyMinutes = Number(day.early_leave_minutes) || 0;
+                        const noteStr = day.attendance_note || "";
+                        const hasIssueNote =
+                          lateMinutes > 0 ||
+                          earlyMinutes > 0 ||
+                          noteStr.toLowerCase().includes("vào muộn") ||
+                          noteStr.toLowerCase().includes("ra sớm") ||
+                          noteStr.toLowerCase().includes("quên check-out") ||
+                          noteStr.toLowerCase().includes("quá ngắn");
+                        if (!hasIssueNote) return null;
+                        const displayNote =
+                          noteStr ||
+                          [
+                            lateMinutes > 0 ? `Vào muộn ${lateMinutes} phút` : "",
+                            earlyMinutes > 0 ? `Ra sớm ${earlyMinutes} phút` : ""
+                          ]
+                            .filter(Boolean)
+                            .join(" • ");
+                        return (
+                          <span className="font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70 px-2.5 py-0.5 rounded-full">
+                            {displayNote}
+                          </span>
+                        );
+                      })()}
                     </div>
                     {day.location_name && (
                       <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 min-w-0">
@@ -511,6 +545,21 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
                 </span>
               </div>
             </div>
+
+            {selectedDayDetail.log?.attendance_note && (
+              <div
+                className={`p-3 rounded-2xl border text-xs font-semibold ${
+                  selectedDayDetail.log.attendance_note.toLowerCase().includes("vào muộn") ||
+                  selectedDayDetail.log.attendance_note.toLowerCase().includes("ra sớm") ||
+                  selectedDayDetail.log.attendance_note.toLowerCase().includes("quên check-out") ||
+                  selectedDayDetail.log.attendance_note.toLowerCase().includes("quá ngắn")
+                    ? "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70"
+                    : "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60"
+                }`}
+              >
+                {selectedDayDetail.log.attendance_note}
+              </div>
+            )}
 
             {selectedDayDetail.log?.location_name && (
               <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-300">

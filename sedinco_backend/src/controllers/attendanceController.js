@@ -111,16 +111,6 @@ class AttendanceController {
         }
     }
 
-    async getDynamicQr(req, res, next) {
-        try {
-            const branchId = parseInt(req.query.branch_id, 10) || 1;
-            const data = await attendanceService.generateDynamicQr(branchId, req.user);
-            return res.json({ success: true, data });
-        } catch (err) {
-            next(err);
-        }
-    }
-
     async checkInMultiFactor(req, res, next) {
         try {
             const {

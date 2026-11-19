@@ -125,6 +125,7 @@ async function cleanupQaData(prefix = 'QA_', testYear = 2099) {
     await query('DELETE FROM ot_registrations WHERE employee_id LIKE ? OR YEAR(work_date) = ?', [likePattern, testYear]).catch(() => {});
     await query('DELETE FROM period_locks WHERE year = ?', [testYear]).catch(() => {});
     await query('DELETE FROM payroll_periods WHERE year = ? OR year >= 2090', [testYear]).catch(() => {});
+    await query('DELETE FROM user_notifications WHERE ref_year = ? OR ref_year >= 2090 OR recipient_ma_nv LIKE ? OR target_ma_nv LIKE ?', [testYear, likePattern, likePattern]).catch(() => {});
     await query('DELETE FROM public_holidays WHERE holiday_name LIKE ?', [likePattern]).catch(() => {});
     await query('DELETE FROM audit_logs WHERE actor_id LIKE ? OR details LIKE ? OR actor_id IN (?, ?, ?, ?)', [likePattern, `%${prefix}%`, "' OR '1'='1' -- ", "' OR '1'='1", "admin'--", '" UNION SELECT 1,2--']).catch(() => {});
     await query('DELETE FROM login_rate_limits WHERE identifier LIKE ? OR key_name LIKE ? OR identifier IN (?, ?, ?, ?)', [likePattern, `%${prefix}%`, "' OR '1'='1' -- ", "' OR '1'='1", "admin'--", '" UNION SELECT 1,2--']).catch(() => {});
@@ -197,7 +198,7 @@ function listExpressRoutes(appInstance) {
             const probes = [
                 '/api', '/attendance', '/payroll', '/requests', '/employees',
                 '/company', '/holidays', '/settings', '/permissions',
-                '/diagnostics', '/client-errors', '/auth', '/admin'
+                '/diagnostics', '/client-errors', '/notifications', '/auth', '/admin'
             ];
             for (const p of probes) {
                 try {
@@ -324,6 +325,7 @@ function createTestRunTracker(prefix = 'QR') {
                 await query(`DELETE FROM idempotency_keys WHERE actor_id IN (${ph})`, empList).catch(() => {});
                 await query(`DELETE FROM login_rate_limits WHERE identifier IN (${ph})`, empList).catch(() => {});
                 await query(`DELETE FROM audit_logs WHERE actor_id IN (${ph})`, empList).catch(() => {});
+                await query(`DELETE FROM user_notifications WHERE recipient_ma_nv IN (${ph}) OR target_ma_nv IN (${ph})`, [...empList, ...empList]).catch(() => {});
                 await query(`DELETE FROM employees WHERE ma_nv IN (${ph})`, empList).catch(() => {});
             }
             const admList = [...adminUsernames];

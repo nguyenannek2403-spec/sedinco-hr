@@ -105,7 +105,6 @@ export function DesktopMobileBottomNav({
   pendingRequestsCount = 0,
   currentTab,
   setCurrentTab,
-  onSelectTab,
   onOpenMobileMenu
 }) {
   const mobileBottomItems = getSidebarMenuItems({
@@ -116,8 +115,7 @@ export function DesktopMobileBottomNav({
   }).slice(0, 4);
 
   const handleSelect = (id) => {
-    if (onSelectTab) onSelectTab(id);
-    else if (setCurrentTab) setCurrentTab(id);
+    if (setCurrentTab) setCurrentTab(id);
   };
 
   return (
@@ -165,7 +163,6 @@ export default function DesktopSidebar({
   dynamicPerms = {},
   currentTab,
   setCurrentTab,
-  onSelectTab,
   onLogout,
   onClearCache,
   alertsSummary = {},
@@ -186,8 +183,7 @@ export default function DesktopSidebar({
   });
 
   const handleSelect = (id) => {
-    if (onSelectTab) onSelectTab(id);
-    else if (setCurrentTab) setCurrentTab(id);
+    if (setCurrentTab) setCurrentTab(id);
     if (onCloseMobileMenu) onCloseMobileMenu();
   };
 
@@ -376,7 +372,6 @@ export default function DesktopSidebar({
           pendingRequestsCount={pendingRequestsCount}
           currentTab={currentTab}
           setCurrentTab={setCurrentTab}
-          onSelectTab={onSelectTab}
           onOpenMobileMenu={onOpenMobileMenu}
         />
       )}

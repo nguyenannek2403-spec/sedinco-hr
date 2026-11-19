@@ -6,7 +6,9 @@ const { parseAllowedLocations, normalizeIp } = require('./companyService');
 const { parseDeviceIdentity, recordEmployeeDeviceActivity } = require('../utils/deviceIdentityHelper');
 const {
     evaluateMisaDailyAttendance,
-    calculateDailyEarnedAmount
+    calculateDailyEarnedAmount,
+    buildDailyAttendanceNote,
+    formatViDateWithWeekday
 } = require('../utils/misaWorkdayEngine');
 
 const SHIFT_DEFINITIONS = {
@@ -72,7 +74,15 @@ class AttendanceService {
         if (!emps || emps.length === 0) return [];
 
         const logs = await query(
-            'SELECT employee_id, DAY(record_date) as day, status, ot_hours FROM attendance_logs WHERE MONTH(record_date)=? AND YEAR(record_date)=?',
+            `SELECT employee_id, DAY(record_date) as day,
+                    DATE_FORMAT(record_date, '%Y-%m-%d') as record_date,
+                    status, ot_hours, check_in_time, check_out_time,
+                    late_minutes, early_leave_minutes, duration_status,
+                    COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
+                    COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
+                    proxy_by
+             FROM attendance_logs
+             WHERE MONTH(record_date)=? AND YEAR(record_date)=?`,
             [month, year]
         );
         const safeLogs = logs || [];
@@ -80,18 +90,29 @@ class AttendanceService {
 
         return emps.map(emp => {
             const days = Array(daysInMonth).fill('');
+            const dayDetails = Array(daysInMonth).fill(null);
             safeLogs
                 .filter(l => l.employee_id === emp.ma_nv)
                 .forEach(log => {
                     if (log.day > 0 && log.day <= daysInMonth) {
                         days[log.day - 1] = log.status;
+                        dayDetails[log.day - 1] = {
+                            status: log.status,
+                            check_in_time: log.check_in_time || null,
+                            check_out_time: log.check_out_time || null,
+                            late_minutes: Number(log.late_minutes) || 0,
+                            early_leave_minutes: Number(log.early_leave_minutes) || 0,
+                            ot_hours: Number(log.ot_hours) || 0,
+                            attendance_note: buildDailyAttendanceNote(log)
+                        };
                     }
                 });
             return {
                 ma_nv: emp.ma_nv,
                 ho_ten: emp.ho_ten,
                 department: emp.department || 'Khối Công trình',
-                days: days
+                days: days,
+                dayDetails
             };
         });
     }
@@ -173,10 +194,17 @@ class AttendanceService {
             [ma_nv, todayStr]
         );
         const todayRaw = todayLogRows && todayLogRows.length > 0 ? todayLogRows[0] : null;
+        const enrichedLogs = (logs || []).map((l) => ({
+            ...l,
+            date_label: formatViDateWithWeekday(l.record_date),
+            attendance_note: buildDailyAttendanceNote(l, cs)
+        }));
         const today_record = todayRaw
             ? {
                   ...todayRaw,
-                  matched_location_name: todayRaw.location_name || 'Văn phòng SEDINCO'
+                  matched_location_name: todayRaw.location_name || 'Văn phòng SEDINCO',
+                  date_label: formatViDateWithWeekday(todayRaw.record_date),
+                  attendance_note: buildDailyAttendanceNote(todayRaw, cs)
               }
             : null;
 
@@ -246,8 +274,8 @@ class AttendanceService {
             : 3;
 
         return {
-            logs: logs || [],
-            days: logs || [],
+            logs: enrichedLogs,
+            days: enrichedLogs,
             today_record,
             forgotten_checkout: forgottenCheckout,
             unclosed_previous_record: unclosedPreviousRecord,
@@ -367,9 +395,13 @@ class AttendanceService {
         `;
         await query(sql, [m, y, locked_by, reason || 'Khóa kỳ công']);
 
+        const actorId = current_user
+            ? (current_user.ma_nv || current_user.username || locked_by)
+            : locked_by;
+
         if (current_user) {
             await logAuditEvent({
-                actor_id: current_user.ma_nv || current_user.username || locked_by,
+                actor_id: actorId,
                 actor_role: current_user.role || 'admin',
                 action: 'LOCK_ATTENDANCE_PERIOD',
                 resource: 'attendance',
@@ -377,7 +409,21 @@ class AttendanceService {
             });
         }
 
-        return { success: true, message: `Đã chốt sổ kỳ công Tháng ${m}/${y} thành công!` };
+        // V25: Tự động đồng bộ bảng lương tháng & gửi thông báo tới toàn bộ nhân viên + Admin
+        const payrollService = require('./payrollService');
+        const notificationService = require('./notificationService');
+        await payrollService.calculateMonthlyPayroll(m, y, { exportAll: true }).catch(() => []);
+        const notifSummary = await notificationService.broadcastPeriodLockNotifications({
+            month: m,
+            year: y,
+            lockedBy: actorId
+        });
+
+        return {
+            success: true,
+            message: `Đã chốt sổ kỳ công Tháng ${m}/${y} thành công!`,
+            notifications_sent: notifSummary.notified_employees
+        };
     }
 
     async unlockPeriod({ month, year, reason, unlocked_by = 'admin', current_user = null }) {
@@ -752,12 +798,6 @@ class AttendanceService {
         }
 
         return true;
-    }
-
-    async generateDynamicQr() {
-        const error = new Error('Tính năng Kiosk QR đã được loại bỏ ở phiên bản V6. Vui lòng dùng Chấm công 1 chạm!');
-        error.statusCode = 410;
-        throw error;
     }
 
     parseTimeToMinutes(timeStr, defaultMins = 480) {

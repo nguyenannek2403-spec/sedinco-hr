@@ -257,7 +257,7 @@ class PermissionService {
             }
         };
 
-        const [fraudRows, disputedRows, deviceRows, reqCountRows, reqItemRows, csRows, totalEmpRows, todayLogsRows] = await Promise.all([
+        const [fraudRows, disputedRows, deviceRows, reqCountRows, reqItemRows, csRows, totalEmpRows, todayLogsRows, adminNotifRows] = await Promise.all([
             query(`
                 SELECT a.id, a.actor_id, e.ho_ten, a.action, a.resource, a.details, a.created_at, COALESCE(e.is_locked, 0) as is_locked
                 FROM audit_logs a
@@ -304,7 +304,14 @@ class PermissionService {
             `).catch(() => []),
             query('SELECT log_retention_days FROM company_settings LIMIT 1').catch(() => [{ log_retention_days: 30 }]),
             query("SELECT ma_nv, ho_ten, chuc_danh, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM employees WHERE status != 'inactive' AND (role IS NULL OR role != 'admin') ORDER BY ma_nv ASC").catch(() => []),
-            query("SELECT a.employee_id, a.status, a.late_minutes, a.check_in_time, a.check_out_time, a.work_location_type, a.location_name, a.field_note, COALESCE(a.shift_type, 'FULL_DAY') as shift_type, CASE WHEN a.check_in_image IS NOT NULL AND LENGTH(a.check_in_image) > 100 THEN 1 ELSE 0 END as has_photo FROM attendance_logs a INNER JOIN employees e ON a.employee_id = e.ma_nv WHERE a.record_date = ? AND (e.role IS NULL OR e.role != 'admin')", [todayStr]).catch(() => [])
+            query("SELECT a.employee_id, a.status, a.late_minutes, a.check_in_time, a.check_out_time, a.work_location_type, a.location_name, a.field_note, COALESCE(a.shift_type, 'FULL_DAY') as shift_type, CASE WHEN a.check_in_image IS NOT NULL AND LENGTH(a.check_in_image) > 100 THEN 1 ELSE 0 END as has_photo FROM attendance_logs a INNER JOIN employees e ON a.employee_id = e.ma_nv WHERE a.record_date = ? AND (e.role IS NULL OR e.role != 'admin')", [todayStr]).catch(() => []),
+            query(`
+                SELECT id, type, title, message, ref_month, ref_year, target_ma_nv, created_at
+                FROM user_notifications
+                WHERE recipient_ma_nv = 'ADMIN' AND is_read = 0
+                ORDER BY created_at DESC, id DESC
+                LIMIT 10
+            `).catch(() => [])
         ]);
 
         const empList = Array.isArray(totalEmpRows) ? totalEmpRows : [];
@@ -469,6 +476,25 @@ class PermissionService {
             });
         });
 
+        const adminNotifs = Array.isArray(adminNotifRows) ? adminNotifRows : [];
+        adminNotifs.forEach((n) => {
+            actionableAlerts.push({
+                id: `notif_${n.id}`,
+                notification_id: n.id,
+                category: 'period_locked',
+                severity: 'info',
+                title: n.title,
+                description: n.message,
+                created_at: n.created_at || null,
+                target_tab: 'management',
+                target_subtab: 'payroll',
+                target_ma_nv: n.target_ma_nv || null,
+                target_id: n.id,
+                month: n.ref_month || null,
+                year: n.ref_year || null
+            });
+        });
+
         const totalRedAlerts = fraudAlerts.length + salaryDisputes.length + pendingDevicesCount;
 
         return {
@@ -480,6 +506,7 @@ class PermissionService {
             pending_device_alerts: deviceAlerts,
             pending_requests_count: pendingRequestsCount,
             pending_requests: pendingRequests,
+            admin_notifications: adminNotifs,
             total_red_alerts: totalRedAlerts,
             total_actionable_count: totalRedAlerts + pendingRequestsCount,
             actionable_alerts: actionableAlerts.slice(0, 30),

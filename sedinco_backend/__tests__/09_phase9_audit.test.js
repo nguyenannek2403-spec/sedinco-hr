@@ -89,6 +89,7 @@ async function cleanupPhase9Data() {
     await query(`DELETE FROM idempotency_keys WHERE actor_id IN (${actPh}) OR actor_id LIKE ? OR key_hash LIKE 'LOC_TOKEN_%'`, [...allActors, 'P9_%']);
     await query(`DELETE FROM login_rate_limits WHERE identifier IN (${actPh}) OR identifier LIKE ? OR key_name LIKE ?`, [...allActors, 'P9_%', '%P9_%']);
     await query(`DELETE FROM audit_logs WHERE actor_id IN (${actPh}) OR actor_id LIKE ? OR details LIKE ?`, [...allActors, 'P9_%', '%P9_%']);
+    await query('DELETE FROM user_notifications WHERE ref_year = ? OR recipient_ma_nv LIKE ? OR target_ma_nv LIKE ?', [TEST_YEAR, 'P9_%', 'P9_%']);
     await query('DELETE FROM employees WHERE ma_nv LIKE ? OR phone IN (?, ?)', ['P9_%', P9_PHONE_TEST, P9_PHONE_TEST_2]);
     await query('DELETE FROM admins WHERE username LIKE ?', ['P9_%']);
     invalidatePermissionCache();
@@ -854,9 +855,9 @@ test('P9-SEC-LOGIN-01: Special/Unicode passwords, SQLi, Account Enumeration (P1 
 // =========================================================================
 // GROUP 4: COMPLETE 132-ROUTE RBAC, 1:1 16-KEY PERMISSION MATRIX & SOD
 // =========================================================================
-test('P9-RBAC-ALL: Route Inventory (135 Routes), Auth Boundaries, 16-Key 1:1 Matrix & SoD Verification', async () => {
+test('P9-RBAC-ALL: Route Inventory (140 Routes), Auth Boundaries, 16-Key 1:1 Matrix & SoD Verification', async () => {
     const routes = listExpressRoutes(app);
-    assert.equal(routes.length, 135, `Expected 135 Express routes, observed ${routes.length}`);
+    assert.equal(routes.length, 140, `Expected 140 Express routes, observed ${routes.length}`);
 
     const publicWhitelist = new Set([
         'GET /api/health',
@@ -906,12 +907,14 @@ test('P9-RBAC-ALL: Route Inventory (135 Routes), Auth Boundaries, 16-Key 1:1 Mat
     const nonWorkerRoutes = [
         ['GET', `/api/attendance?month=4&year=${TEST_YEAR}`],
         ['POST', '/api/attendance/lock-period', { month: 4, year: TEST_YEAR }],
+        ['POST', '/api/attendance/lock', { month: 4, year: TEST_YEAR }],
         ['POST', '/api/attendance/unlock-period', { month: 4, year: TEST_YEAR, reason: 'x' }],
         ['POST', '/api/attendance/proxy-check-in', { ma_nv: W2, record_date: `${TEST_YEAR}-04-08`, status: '1' }],
         ['GET', '/api/attendance/suspicious-logs'],
         ['GET', '/api/attendance/logs/1/image'],
         ['GET', `/api/attendance/stats?month=4&year=${TEST_YEAR}`],
         ['POST', '/api/payroll/resolve-dispute', { ma_nv: W2, month: 4, year: TEST_YEAR, new_status: 'CONFIRMED' }],
+        ['GET', `/api/payroll/employee/${W2}?month=4&year=${TEST_YEAR}`],
         ['GET', `/api/payroll?month=4&year=${TEST_YEAR}`],
         ['POST', '/api/payroll/calculate', { month: 4, year: TEST_YEAR }],
         ['GET', `/api/payroll/calculate?month=4&year=${TEST_YEAR}`],
@@ -1003,9 +1006,11 @@ test('P9-RBAC-ALL: Route Inventory (135 Routes), Auth Boundaries, 16-Key 1:1 Mat
     const accountantPermGatedRoutes = [
         ['GET', `/api/attendance?month=4&year=${TEST_YEAR}`],
         ['POST', '/api/attendance/lock-period', { month: 4, year: TEST_YEAR }],
+        ['POST', '/api/attendance/lock', { month: 4, year: TEST_YEAR }],
         ['GET', '/api/attendance/suspicious-logs'],
         ['GET', `/api/attendance/stats?month=4&year=${TEST_YEAR}`],
         ['POST', '/api/attendance/proxy-check-in', { ma_nv: W2, record_date: `${TEST_YEAR}-04-08`, status: '1' }],
+        ['GET', `/api/payroll/employee/${W2}?month=4&year=${TEST_YEAR}`],
         ['GET', `/api/payroll?month=4&year=${TEST_YEAR}`],
         ['POST', '/api/payroll/calculate', { month: 4, year: TEST_YEAR }],
         ['POST', '/api/payroll/adjustments', { ma_nv: W2, month: 4, year: TEST_YEAR }],
@@ -1210,7 +1215,12 @@ test('P9-V17-01: Pure Manager Role Isolation & Deep-Link Actionable Alerts Summa
     const seededBellItem = notif.actionable_alerts.find((a) => a.category === 'pending_request' && a.target_ma_nv === W2);
     assert.ok(seededBellItem, `notifications/summary actionable_alerts must contain pending_request for ${W2}`);
     for (const a of notif.actionable_alerts) {
-        assert.ok(a.id && a.category && a.target_tab && a.target_ma_nv, `Alert entry missing deep-link fields: ${JSON.stringify(a)}`);
+        assert.ok(a.id && a.category && a.target_tab, `Alert entry missing deep-link fields: ${JSON.stringify(a)}`);
+        if (a.category === 'period_locked') {
+            assert.ok(a.month && a.year, `Period-lock alert missing month/year: ${JSON.stringify(a)}`);
+        } else {
+            assert.ok(a.target_ma_nv, `Employee alert missing target_ma_nv: ${JSON.stringify(a)}`);
+        }
     }
     const absentIds = (notif?.headcount_today?.live_board?.absent_list || []).map((x) => x.ma_nv);
     assert.ok(!absentIds.includes(ADM1), 'Admin must not appear in live_board absent_list');

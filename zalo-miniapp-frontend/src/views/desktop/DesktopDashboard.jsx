@@ -9,7 +9,7 @@ import AuditLogsTab from "./AuditLogsTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
 import LiveAttendanceBoardModal from "../../components/LiveAttendanceBoardModal";
 import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from "../../constants/roles";
-import { safeGet } from "../../utils/api";
+import { safeGet, safePut } from "../../utils/api";
 import { AppButton } from "../../components/ui";
 import {
   RefreshCw,
@@ -163,6 +163,11 @@ export default function DesktopDashboard({
 
   const handleNavigateAlert = useCallback((alert) => {
     if (!alert) return;
+    if (alert.notification_id) {
+      safePut(`/notifications/${alert.notification_id}/read`, {})
+        .then(() => fetchAlertsSummary())
+        .catch(() => {});
+    }
     if (alert.month && alert.year) {
       setSelectedMonth(Number(alert.month));
       setSelectedYear(Number(alert.year));
@@ -190,7 +195,6 @@ export default function DesktopDashboard({
       <DesktopSidebar
         currentTab={effectiveTab}
         setCurrentTab={(tabId) => navigateToTarget(tabId)}
-        onSelectTab={(tabId) => navigateToTarget(tabId)}
         activeRole={resolvedRole}
         dynamicPerms={effectiveDynamicPerms}
         currentUser={currentUser}
@@ -218,10 +222,6 @@ export default function DesktopDashboard({
           onNavigateAlert={handleNavigateAlert}
           onLogout={onLogout}
           onChangePasswordRequest={onChangePasswordRequest}
-          selectedMonth={selectedMonth}
-          setSelectedMonth={setSelectedMonth}
-          selectedYear={selectedYear}
-          setSelectedYear={setSelectedYear}
           alertsSummary={alertsSummary}
           isLoading={alertsLoading}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
@@ -256,6 +256,7 @@ export default function DesktopDashboard({
                 month={selectedMonth}
                 year={selectedYear}
                 onMonthChange={handleMonthChange}
+                onRefresh={fetchAlertsSummary}
                 showToast={showToast}
                 onShowToast={showToast}
               />
@@ -565,7 +566,6 @@ export default function DesktopDashboard({
           pendingRequestsCount={alertsSummary.pending_requests_count || 0}
           currentTab={effectiveTab}
           setCurrentTab={(tabId) => navigateToTarget(tabId)}
-          onSelectTab={(tabId) => navigateToTarget(tabId)}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
       </div>

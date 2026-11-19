@@ -1006,10 +1006,10 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // Snapshot DB baseline & max IDs so all UI test mutations are 100% restored in finally
         settingsSnap = await snapshotSettings();
         coreUsersBefore = await query(
-            "SELECT ma_nv, ho_ten, chuc_danh, role, status, is_locked, password, must_change_password, phone, login_username, theme_preference, bound_device_id, bound_device_name, pending_device_id, pending_device_name, device_change_reason, device_binding_mode, known_devices_json, multi_device_alert, token_version FROM employees WHERE ma_nv IN ('NV001','NV002','NV003')"
+            "SELECT ma_nv, ho_ten, chuc_danh, role, status, is_locked, password, must_change_password, phone, login_username, theme_preference, phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, bound_device_id, bound_device_name, pending_device_id, pending_device_name, device_change_reason, device_binding_mode, known_devices_json, multi_device_alert, token_version FROM employees WHERE ma_nv IN ('NV001','NV002','NV003')"
         );
         adminBefore = await query('SELECT username, password, must_change_password, phone, login_username, theme_preference, token_version FROM admins WHERE username = "admin"');
-        for (const tbl of ['attendance_logs', 'requests', 'ot_registrations', 'payroll_periods', 'period_locks', 'public_holidays', 'audit_logs']) {
+        for (const tbl of ['attendance_logs', 'requests', 'ot_registrations', 'payroll_periods', 'period_locks', 'public_holidays', 'audit_logs', 'user_notifications']) {
             const [r] = await query(`SELECT COALESCE(MAX(id), 0) as m FROM ${tbl}`);
             maxIds[tbl] = Number(r?.m || 0);
         }
@@ -1036,17 +1036,31 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await query('DELETE FROM payroll_periods WHERE month = ? AND year = ?', [curMonth, curYear]);
         await query('DELETE FROM attendance_logs WHERE employee_id = "NV003" AND record_date IN (?, ?, CURDATE())', [day2Str, day3Str]);
         await query('DELETE FROM attendance WHERE ma_nv IN ("NV003", "NV002", "NV001") AND thang = ? AND nam = ?', [curMonth, curYear]);
-        await query('DELETE FROM requests WHERE employee_id = "NV003" AND request_date IN (?, ?)', [day3Str, leaveDateStr]);
+        await query('DELETE FROM requests WHERE employee_id = "NV003" AND (request_date IN (?, ?, ?, CURDATE()) OR (MONTH(request_date) = ? AND YEAR(request_date) = ?))', [day3Str, leaveDateStr, otDateStr, curMonth, curYear]);
         await query('DELETE FROM ot_registrations WHERE employee_id = "NV003" AND work_date = ?', [otDateStr]);
 
-        // Seed 1 normal day & 1 forgotten-checkout day for NV003 in current month
+        // Seed 1 late+early day & 1 forgotten-checkout day + zero allowances on NV003 + 1 unread PERIOD_LOCKED_PAYROLL notification for V25 Test 6
         await query(
-            "INSERT INTO attendance_logs (employee_id, record_date, check_in_time, check_out_time, status, ot_hours) VALUES ('NV003', ?, '07:55:00', '17:05:00', '1', 0)",
+            "UPDATE employees SET phu_cap_an_trua = 0, phu_cap_xang_xe = 0, phu_cap_nha_o = 0, thuong_htcv = 0, phu_cap_trach_nhiem = 0, phu_cap_tiep_khach = 0 WHERE ma_nv = 'NV003'"
+        );
+        await query('DELETE FROM user_notifications WHERE recipient_ma_nv = "NV003" AND is_read = 0');
+        await query(
+            "INSERT INTO attendance_logs (employee_id, record_date, check_in_time, check_out_time, status, ot_hours, late_minutes, early_leave_minutes) VALUES ('NV003', ?, '08:25:00', '17:05:00', '1', 0, 25, 15)",
             [day2Str]
         );
         await query(
             "INSERT INTO attendance_logs (employee_id, record_date, check_in_time, check_out_time, status, ot_hours) VALUES ('NV003', ?, '07:58:00', NULL, '0.5', 0)",
             [day3Str]
+        );
+        await query(
+            `INSERT INTO user_notifications (recipient_ma_nv, type, title, message, ref_month, ref_year, target_ma_nv, is_read)
+             VALUES ('NV003', 'PERIOD_LOCKED_PAYROLL', ?, ?, ?, ?, 'NV003', 0)`,
+            [
+                `📢 Đã chốt kỳ công & Bảng lương Tháng ${curMonth}/${curYear}`,
+                `Kỳ công và phiếu lương Tháng ${curMonth}/${curYear} của bạn đã được chốt minh bạch. Bấm để xem chi tiết từng ngày công và bảng lương.`,
+                curMonth,
+                curYear
+            ]
         );
 
         // Enable CDP domains & grant real Geolocation permissions (ZERO Fetch interception!)
@@ -1146,6 +1160,41 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await inspectPhysicsAndGeometry(session, 'Worker Tab 1: Chấm công (Dark Toggle)', { expectModal: false, testScrollBleed: false });
         await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
         await sleep(240);
+
+        // V25 Test 6 (Worker Bell -> Notification Modal -> Deep-Link Payslip + Daily Attendance + Hidden 0-Allowances + History Switch)
+        const bellBadgeBefore = await session.evaluate(`document.querySelector('[data-testid="worker-bell-badge"]')?.innerText?.trim() || null`);
+        assert.equal(bellBadgeBefore, '1', 'V25 Worker Header Bell must display unread badge "1"');
+        await clickInPage(session, { selector: 'button[data-testid="worker-bell-btn"]', inTopModal: false });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="worker-notification-modal"]'))`, 4000, 'Worker notification modal opened');
+        await inspectPhysicsAndGeometry(session, 'V25 Worker Notification Bell Modal', { expectModal: true });
+        await clickInPage(session, { selector: 'button[data-testid^="worker-notif-item-"]', inTopModal: true });
+        await waitForCondition(
+            session,
+            `Boolean(document.querySelector('[data-testid="payslip-part-a"]') && document.querySelector('[data-testid="payslip-daily-attendance-section"]'))`,
+            6000,
+            'Clicking notification opened unified SalarySlipModal Part A + Part B'
+        );
+        await inspectPhysicsAndGeometry(session, 'V25 Bell-Opened Historical SalarySlipModal (Light & Dark)', { expectModal: true });
+        const slipDomAudit = await session.evaluate(`(() => {
+            const modal = document.querySelector('[data-modal-root="true"]');
+            const txt = modal ? (modal.innerText || '') : '';
+            const hasAllowanceSection = Boolean(modal?.querySelector('[data-testid="payslip-allowances-section"]'));
+            const hasZeroAllowanceLine = /Phụ cấp[^\\n]*:\\s*0\\s*đ/i.test(txt);
+            const hasLateEarlyNote = txt.includes('Vào muộn 25 phút • Ra sớm 15 phút');
+            const bellBadgeAfter = document.querySelector('[data-testid="worker-bell-badge"]')?.innerText?.trim() || null;
+            return { hasAllowanceSection, hasZeroAllowanceLine, hasLateEarlyNote, bellBadgeAfter };
+        })()`);
+        assert.equal(slipDomAudit.hasAllowanceSection, false, 'V25 LAW-4: Allowances section must be completely hidden when all allowances = 0');
+        assert.equal(slipDomAudit.hasZeroAllowanceLine, false, 'V25 LAW-4: Must NEVER render any 0 đ allowance line');
+        assert.equal(slipDomAudit.hasLateEarlyNote, true, 'V25 LAW-3: Must render exact late/early note "Vào muộn 25 phút • Ra sớm 15 phút"');
+        assert.equal(slipDomAudit.bellBadgeAfter, null, 'V25: Unread bell badge must clear after reading notification');
+
+        // Test historical month switcher inside SalarySlipModal
+        const prevM = curMonth > 1 ? curMonth - 1 : 12;
+        await setReactInputValue(session, { selector: 'select[data-testid="payslip-month-select"]', value: prevM, inTopModal: true });
+        await sleep(350);
+        await dismissModalIfOpen(session);
+        await dismissToastIfVisible(session);
 
         // 1A: GPS-Only Field Work Portal Modal (ZERO photo required)
         await clickInPage(session, { text: 'Chấm công Đi Công Trình', inTopModal: false });
@@ -1677,6 +1726,18 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         if (open360Clicked) {
             await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Admin 360 Modal opened');
             await inspectPhysicsAndGeometry(session, 'Admin Unified 360° Control Modal', { expectModal: true });
+            const hasEmpPayslipBtn = await session.evaluate(`(() => {
+                const top = document.querySelector('[data-modal-root="true"]');
+                return Boolean(top && top.querySelector('button[data-testid="emp-360-payslip-btn"]'));
+            })()`);
+            if (hasEmpPayslipBtn) {
+                await clickInPage(session, { selector: 'button[data-testid="emp-360-payslip-btn"]', inTopModal: true });
+                await waitForCondition(session, `document.querySelectorAll('[data-modal-root="true"]').length >= 2`, 5000, 'Stacked SalarySlipModal opened from 360 modal');
+                await waitForCondition(session, `Boolean(document.querySelector('[data-testid="payslip-part-a"]'))`, 5000, 'Admin 360° SalarySlipModal loaded');
+                await inspectPhysicsAndGeometry(session, 'Admin 360° Stacked SalarySlipModal', { expectModal: true });
+                await clickInPage(session, { text: 'Đóng / Quay lại', inTopModal: true });
+                await sleep(250);
+            }
             const hasApproveInside360 = await session.evaluate(`(() => {
                 const top = document.querySelector('[data-modal-root="true"]');
                 return top ? Array.from(top.querySelectorAll('button')).some((b) => (b.innerText || '').includes('Duyệt đổi sang máy mới')) : false;
@@ -1816,6 +1877,7 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await query('DELETE FROM period_locks WHERE id > ?', [maxIds.period_locks]).catch(() => {});
             await query("DELETE FROM public_holidays WHERE id > ? OR holiday_name = 'QA_UI_HOLIDAY'", [maxIds.public_holidays]).catch(() => {});
             await query('DELETE FROM audit_logs WHERE id > ?', [maxIds.audit_logs]).catch(() => {});
+            await query('DELETE FROM user_notifications WHERE id > ?', [maxIds.user_notifications]).catch(() => {});
         }
         await query("DELETE FROM idempotency_keys WHERE actor_id IN ('NV001','NV002','NV003','admin','NV_UI_TEMP')").catch(() => {});
         await query('DELETE FROM attendance WHERE ma_nv IN ("NV001","NV002","NV003","NV_UI_TEMP") AND thang = ? AND nam = ?', [curMonth, curYear]).catch(() => {});
@@ -1827,6 +1889,7 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
                 `UPDATE employees SET
                     ho_ten = ?, chuc_danh = ?, role = ?, status = ?, is_locked = ?,
                     password = ?, must_change_password = ?, phone = ?, login_username = ?, theme_preference = ?,
+                    phu_cap_an_trua = ?, phu_cap_xang_xe = ?, phu_cap_nha_o = ?, thuong_htcv = ?, phu_cap_trach_nhiem = ?, phu_cap_tiep_khach = ?,
                     bound_device_id = ?, bound_device_name = ?,
                     pending_device_id = ?, pending_device_name = ?, device_change_reason = ?,
                     device_binding_mode = ?, known_devices_json = ?, multi_device_alert = ?, token_version = ?
@@ -1834,6 +1897,7 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
                 [
                     emp.ho_ten, emp.chuc_danh, emp.role, emp.status, emp.is_locked,
                     emp.password, emp.must_change_password, emp.phone, emp.login_username, emp.theme_preference || 'light',
+                    emp.phu_cap_an_trua ?? 0, emp.phu_cap_xang_xe ?? 0, emp.phu_cap_nha_o ?? 0, emp.thuong_htcv ?? 0, emp.phu_cap_trach_nhiem ?? 0, emp.phu_cap_tiep_khach ?? 0,
                     emp.bound_device_id, emp.bound_device_name,
                     emp.pending_device_id, emp.pending_device_name, emp.device_change_reason,
                     emp.device_binding_mode, emp.known_devices_json, emp.multi_device_alert, emp.token_version,

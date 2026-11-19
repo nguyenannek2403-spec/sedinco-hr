@@ -666,6 +666,13 @@ export default function AttendanceMatrixTable({
                     {/* 31 Cột ngày */}
                     {dayNumbers.map((d, dIdx) => {
                       const val = days[dIdx] || "";
+                      const detail = emp.dayDetails?.[dIdx];
+                      const hasLateEarly = Boolean(
+                        detail &&
+                          ((Number(detail.late_minutes) || 0) > 0 ||
+                            (Number(detail.early_leave_minutes) || 0) > 0 ||
+                            /vào muộn|ra sớm|quên check-out|quá ngắn/i.test(detail.attendance_note || ""))
+                      );
                       const badgeClass = getBadgeStyle(val);
                       const isSunday = new Date(year, month - 1, d).getDay() === 0;
 
@@ -679,11 +686,17 @@ export default function AttendanceMatrixTable({
                           <button
                             type="button"
                             onClick={() => handleCellClick(emp, dIdx)}
-                            title={`Ngày ${d}/${month}: ${val || "Chưa có công"} (Nhấp để sửa)`}
-                            aria-label={`${emp.ho_ten} ngày ${d}/${month}: ${val || "Chưa có công"}`}
-                            className={`min-w-[44px] min-h-[44px] px-1 mx-auto rounded-xl flex items-center justify-center text-xs font-black shadow-none active:scale-95 transition cursor-pointer ${badgeClass}`}
+                            title={`Ngày ${d}/${month}: ${val || "Chưa có công"}${detail?.attendance_note ? ` • ${detail.attendance_note}` : ""} (Nhấp để sửa)`}
+                            aria-label={`${emp.ho_ten} ngày ${d}/${month}: ${val || "Chưa có công"}${detail?.attendance_note ? `, ${detail.attendance_note}` : ""}`}
+                            className={`relative min-w-[44px] min-h-[44px] px-1 mx-auto rounded-xl flex items-center justify-center text-xs font-black shadow-none active:scale-95 transition cursor-pointer ${badgeClass}`}
                           >
                             {val || "·"}
+                            {hasLateEarly && (
+                              <span
+                                aria-hidden="true"
+                                className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-white dark:ring-slate-900"
+                              />
+                            )}
                           </button>
                         </td>
                       );
@@ -736,6 +749,13 @@ export default function AttendanceMatrixTable({
               <div className="grid grid-cols-7 gap-2">
                 {dayNumbers.map((d, dIdx) => {
                   const val = days[dIdx] || "";
+                  const detail = emp.dayDetails?.[dIdx];
+                  const hasLateEarly = Boolean(
+                    detail &&
+                      ((Number(detail.late_minutes) || 0) > 0 ||
+                        (Number(detail.early_leave_minutes) || 0) > 0 ||
+                        /vào muộn|ra sớm|quên check-out|quá ngắn/i.test(detail.attendance_note || ""))
+                  );
                   const badgeClass = getBadgeStyle(val);
                   const dayOfWeek = new Date(year, month - 1, d).getDay();
                   const isSunday = dayOfWeek === 0;
@@ -744,12 +764,19 @@ export default function AttendanceMatrixTable({
                       key={d}
                       type="button"
                       onClick={() => handleCellClick(emp, dIdx)}
-                      className={`min-h-[58px] rounded-xl border p-1.5 flex flex-col items-center justify-between transition active:scale-95 ${
+                      title={detail?.attendance_note || undefined}
+                      className={`relative min-h-[58px] rounded-xl border p-1.5 flex flex-col items-center justify-between transition active:scale-95 ${
                         isSunday
                           ? "bg-rose-50/70 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/70"
                           : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-400"
                       }`}
                     >
+                      {hasLateEarly && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500"
+                        />
+                      )}
                       <div className="text-xs font-bold text-slate-500 dark:text-slate-300">
                         {d} ({isSunday ? "CN" : `T${dayOfWeek + 1}`})
                       </div>
@@ -801,6 +828,26 @@ export default function AttendanceMatrixTable({
           }
         >
           <div className="p-5 space-y-4 text-sm text-slate-800 dark:text-slate-100">
+            {(() => {
+              const cellDetail = editingCell.emp?.dayDetails?.[editingCell.dayNum - 1];
+              if (!cellDetail?.attendance_note) return null;
+              const isWarn = /vào muộn|ra sớm|quên check-out|quá ngắn/i.test(cellDetail.attendance_note);
+              return (
+                <div
+                  className={`p-3 rounded-xl border text-xs space-y-1 ${
+                    isWarn
+                      ? "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70"
+                      : "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60"
+                  }`}
+                >
+                  <div className="font-bold">
+                    Vào {cellDetail.check_in_time ? String(cellDetail.check_in_time).slice(0, 5) : "--:--"} • Ra{" "}
+                    {cellDetail.check_out_time ? String(cellDetail.check_out_time).slice(0, 5) : "--:--"}
+                  </div>
+                  <div className="font-semibold">Chi tiết ca: {cellDetail.attendance_note}</div>
+                </div>
+              );
+            })()}
             <div>
               <label className="block text-slate-800 dark:text-slate-100 font-black mb-2">
                 Chọn nhanh trạng thái công

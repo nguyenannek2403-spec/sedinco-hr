@@ -24,6 +24,7 @@ router.get('/period-lock-status', authenticateToken, requireAuth, (req, res, nex
 
 // 4. Khóa kỳ công tháng (Yêu cầu permission: attendance_lock)
 router.post('/lock-period', authenticateToken, requirePermission('attendance_lock'), idempotencyMiddleware(), (req, res, next) => attendanceController.lockPeriod(req, res, next));
+router.post('/lock', authenticateToken, requirePermission('attendance_lock'), idempotencyMiddleware(), (req, res, next) => attendanceController.lockPeriod(req, res, next));
 
 // 5. Mở khóa kỳ công tháng (Chỉ Quản trị viên - Admin)
 router.post('/unlock-period', authenticateToken, requireRole(['admin']), (req, res, next) => attendanceController.unlockPeriod(req, res, next));
@@ -35,9 +36,13 @@ router.post('/', authenticateToken, requireAuth, validateAttendanceMiddleware, (
 // 6b. Quản lý / Kế toán chấm công hộ (Điểm danh nhanh cho nhân viên quên điện thoại / ngoài công trình)
 router.post('/proxy-check-in', authenticateToken, requireRole(['admin', 'accountant']), idempotencyMiddleware(), (req, res, next) => attendanceController.proxyCheckIn(req, res, next));
 
-// 7. Sinh mã QR Động / Phiên chấm công 1 chạm (Yêu cầu đăng nhập xác thực JWT)
-router.get('/dynamic-qr', authenticateToken, requireAuth, (req, res, next) => attendanceController.getDynamicQr(req, res, next));
-router.get('/qr', authenticateToken, requireAuth, (req, res, next) => attendanceController.getDynamicQr(req, res, next));
+// 7. Ngừng hỗ trợ Kiosk QR từ V6 (410 Gone cho client cũ)
+const legacyQrGone = (_req, res) => res.status(410).json({
+    success: false,
+    message: 'Tính năng Kiosk QR đã được loại bỏ ở phiên bản V6. Vui lòng dùng Chấm công 1 chạm!'
+});
+router.get('/dynamic-qr', authenticateToken, requireAuth, legacyQrGone);
+router.get('/qr', authenticateToken, requireAuth, legacyQrGone);
 
 // 8. Chấm công đa lớp Multi-Factor (Mã QR động + GPS Geofencing + Camera Snapshot + Anti-Proxy + Idempotency)
 router.post('/check-in', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => attendanceController.checkInMultiFactor(req, res, next));

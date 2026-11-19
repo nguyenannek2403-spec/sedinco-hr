@@ -747,6 +747,25 @@ export default function PayrollGridTable({
                 const empId = item.ma_nv || item.id_nhan_vien;
                 const confirmStatus = item.salary_confirm_status || "PENDING";
                 const b = item.allowances_breakdown || {};
+                const detailedAllowanceDefs = [
+                  { key: "an_trua", alt: "an_ca", label: "Ăn trưa" },
+                  { key: "xang_xe", alt: "xang", label: "Xăng xe" },
+                  { key: "nha_o", alt: "doc_hai", label: "Nhà ở" },
+                  { key: "thuong_htcv", label: "Thưởng HTCV" },
+                  { key: "trach_nhiem", label: "Trách nhiệm" },
+                  { key: "tiep_khach", alt: "dien_thoai", label: "ĐT / Tiếp khách" }
+                ];
+                const positiveAllowances = Array.isArray(item.allowances)
+                  ? item.allowances.filter((a) => Number(a.amount) > 0)
+                  : detailedAllowanceDefs
+                      .map((def) => ({
+                        key: def.key,
+                        label: def.label,
+                        amount: Number(b[def.key] ?? (def.alt ? b[def.alt] : 0)) || 0
+                      }))
+                      .filter((a) => a.amount > 0);
+                const totalPositiveAllowance = Number(item.totalAllowance ?? item.total_allowance ?? 0);
+                const showAllowanceCard = positiveAllowances.length > 0 && totalPositiveAllowance > 0;
                 const bonusAmt = Number(item.bonusAmount) || 0;
                 const penaltyAmt = Number(item.penaltyAmount) || 0;
                 const latePenaltyAmt = Number(item.latePenaltyAmount) || 0;
@@ -797,8 +816,8 @@ export default function PayrollGridTable({
                       </div>
                     </div>
 
-                    {/* Lưới Bóc Tách Chi Tiết 4 Nhóm */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    {/* Lưới Bóc Tách Chi Tiết (Ẩn hoàn toàn khối Phụ cấp nếu = 0) */}
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${showAllowanceCard ? "lg:grid-cols-4" : "lg:grid-cols-3"} gap-3 text-xs`}>
                       {/* 1. Lương cơ bản & Công */}
                       <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1.5">
                         <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
@@ -826,39 +845,34 @@ export default function PayrollGridTable({
                         </div>
                       </div>
 
-                      {/* 2. Bóc tách 6 Phụ cấp */}
-                      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
-                        <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
-                          2. Chi tiết Phụ cấp
+                      {/* 2. Phụ cấp phát sinh > 0 */}
+                      {showAllowanceCard && (
+                        <div
+                          data-testid={`detailed-allowances-card-${empId}`}
+                          className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1"
+                        >
+                          <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+                            2. Chi tiết Phụ cấp
+                          </div>
+                          {positiveAllowances.map((a) => (
+                            <div key={a.key || a.label} className="flex justify-between gap-2">
+                              <span className="text-slate-600 dark:text-slate-300">{a.label}:</span>
+                              <span className="font-mono text-slate-800 dark:text-slate-200">
+                                {formatViCurrency(a.amount)}
+                              </span>
+                            </div>
+                          ))}
+                          <div className="flex justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-700 font-bold">
+                            <span className="text-slate-800 dark:text-slate-100">Tổng phụ cấp:</span>
+                            <span className="font-mono text-blue-700 dark:text-blue-300">+{formatViCurrency(totalPositiveAllowance)}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Ăn trưa / Xăng xe:</span>
-                          <span className="font-mono text-slate-800 dark:text-slate-200">
-                            {formatViCurrency(b.an_trua ?? b.an_ca, false)} / {formatViCurrency(b.xang_xe ?? b.xang, false)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Nhà ở / Trách nhiệm:</span>
-                          <span className="font-mono text-slate-800 dark:text-slate-200">
-                            {formatViCurrency(b.nha_o ?? b.doc_hai, false)} / {formatViCurrency(b.trach_nhiem, false)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Thưởng HTCV / ĐT:</span>
-                          <span className="font-mono text-slate-800 dark:text-slate-200">
-                            {formatViCurrency(b.thuong_htcv, false)} / {formatViCurrency(b.tiep_khach ?? b.dien_thoai, false)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-700 font-bold">
-                          <span className="text-slate-800 dark:text-slate-100">Tổng phụ cấp:</span>
-                          <span className="font-mono text-blue-700 dark:text-blue-300">+{formatViCurrency(item.totalAllowance)}</span>
-                        </div>
-                      </div>
+                      )}
 
-                      {/* 3. Tăng ca OT & Thưởng */}
+                      {/* Tăng ca OT & Thưởng */}
                       <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1.5">
                         <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
-                          3. Tăng ca &amp; Thưởng
+                          {showAllowanceCard ? 3 : 2}. Tăng ca &amp; Thưởng
                         </div>
                         <div className="flex justify-between gap-2">
                           <span className="text-slate-600 dark:text-slate-300">Tăng ca ({formatViNumber(item.totalOtHours || 0)}h OT):</span>
@@ -875,10 +889,10 @@ export default function PayrollGridTable({
                         )}
                       </div>
 
-                      {/* 4. Khấu trừ chi tiết */}
+                      {/* Khấu trừ chi tiết */}
                       <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
                         <div className="font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
-                          4. Các khoản Khấu trừ
+                          {showAllowanceCard ? 4 : 3}. Các khoản Khấu trừ
                         </div>
                         <div className="flex justify-between gap-2">
                           <span className="text-slate-600 dark:text-slate-300">
@@ -932,10 +946,11 @@ export default function PayrollGridTable({
                         <AppButton
                           variant="secondary"
                           icon={Eye}
+                          data-testid={`payroll-view-detail-btn-${empId}`}
                           onClick={() => setSelectedSlipItem(item)}
                           className="text-xs"
                         >
-                          Xem phiếu lương
+                          Xem Lương &amp; Công chi tiết
                         </AppButton>
                       </div>
                     </div>
@@ -950,10 +965,14 @@ export default function PayrollGridTable({
                           <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                             {dailyLogs.map((log, lIdx) => {
                               const dateIso = log.record_date_iso || String(log.record_date || "").slice(0, 10);
+                              const noteText = log.attendance_note || "";
+                              const isWarnNote = /vào muộn|ra sớm|quên check-out|quá ngắn/i.test(noteText);
                               return (
                                 <div key={`${dateIso}-${lIdx}`} className="px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
-                                  <div className="min-w-0 space-y-0.5">
-                                    <div className="font-mono font-bold text-slate-900 dark:text-white">{dateIso}</div>
+                                  <div className="min-w-0 space-y-1">
+                                    <div className="font-mono font-bold text-slate-900 dark:text-white">
+                                      {log.date_label || dateIso}
+                                    </div>
                                     <div className="text-slate-600 dark:text-slate-300">
                                       Vào {log.check_in_time ? String(log.check_in_time).slice(0, 5) : "--:--"} • Ra{" "}
                                       {log.check_out_time ? String(log.check_out_time).slice(0, 5) : "--:--"}
@@ -963,6 +982,17 @@ export default function PayrollGridTable({
                                         </span>
                                       )}
                                     </div>
+                                    {noteText && (
+                                      <span
+                                        className={`inline-flex items-center px-2 py-0.5 rounded-lg border text-xs font-semibold ${
+                                          isWarnNote
+                                            ? "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70"
+                                            : "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60"
+                                        }`}
+                                      >
+                                        {noteText}
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
                                     <div className="text-right font-mono">
@@ -1223,11 +1253,12 @@ export default function PayrollGridTable({
                           )}
                           <button
                             type="button"
+                            data-testid={`payroll-view-detail-btn-${empId}`}
                             onClick={() => setSelectedSlipItem(item)}
                             className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-emerald-100 dark:bg-slate-800 dark:hover:bg-emerald-950/60 text-slate-800 dark:text-slate-100 hover:text-emerald-900 dark:hover:text-emerald-300 text-xs font-semibold border border-slate-300 dark:border-slate-600 hover:border-emerald-600 transition-all cursor-pointer whitespace-nowrap"
                           >
                             <Eye size={14} />
-                            <span>Chi tiết</span>
+                            <span>Xem Lương &amp; Công chi tiết</span>
                           </button>
                         </div>
                       </td>
@@ -1423,10 +1454,11 @@ export default function PayrollGridTable({
         </form>
       </AppModal>
 
-      {/* Modal Phiếu Lương Chi Tiết */}
+      {/* Modal Phiếu Lương & Bảng Công Chi Tiết */}
       {selectedSlipItem && (
         <SalarySlipModal
           payrollItem={selectedSlipItem}
+          targetMaNv={selectedSlipItem.ma_nv || selectedSlipItem.id_nhan_vien}
           month={month}
           year={year}
           isAdminOrAccountant={isAdmin || isAccountant}

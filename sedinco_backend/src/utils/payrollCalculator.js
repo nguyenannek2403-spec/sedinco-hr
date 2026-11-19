@@ -3,7 +3,20 @@
  * Đã xác minh qua bộ test tự động TC-PAY-01 đến TC-PAY-08
  */
 
-const { calculateDailyEarnedAmount } = require('./misaWorkdayEngine');
+const {
+    calculateDailyEarnedAmount,
+    buildDailyAttendanceNote,
+    formatViDateWithWeekday
+} = require('./misaWorkdayEngine');
+
+const ALLOWANCE_DEFINITIONS = [
+    { key: 'an_trua', label: 'Phụ cấp ăn trưa' },
+    { key: 'xang_xe', label: 'Phụ cấp xăng xe' },
+    { key: 'nha_o', label: 'Phụ cấp nhà ở' },
+    { key: 'thuong_htcv', label: 'Thưởng hoàn thành công việc' },
+    { key: 'trach_nhiem', label: 'Phụ cấp trách nhiệm' },
+    { key: 'tiep_khach', label: 'Phụ cấp điện thoại / tiếp khách' }
+];
 
 function calculateEmployeeSalary({
     luong_cb,
@@ -203,8 +216,16 @@ function calculateEmployeeSalary({
             workCredit: appliedDayCredit
         });
 
+        const recordDateIso = log.record_date_iso || (
+            log.record_date instanceof Date
+                ? `${log.record_date.getFullYear()}-${String(log.record_date.getMonth() + 1).padStart(2, '0')}-${String(log.record_date.getDate()).padStart(2, '0')}`
+                : String(log.record_date || '').slice(0, 10)
+        );
         daily_breakdown.push({
             ...log,
+            record_date_iso: recordDateIso,
+            date_label: formatViDateWithWeekday(recordDateIso),
+            attendance_note: buildDailyAttendanceNote(log, companySettings),
             work_credit: appliedDayCredit,
             ot_hours_applied: appliedOtHours,
             is_probation_day: Boolean(isProbation),
@@ -235,6 +256,14 @@ function calculateEmployeeSalary({
         trach_nhiem: Math.round((Number(allowances.trach_nhiem) || 0) * workRatio),
         tiep_khach: Math.round((Number(allowances.tiep_khach) || 0) * workRatio)
     };
+    const activeAllowances = ALLOWANCE_DEFINITIONS
+        .map((def) => ({
+            key: def.key,
+            label: def.label,
+            amount: Number(allowances_breakdown[def.key]) || 0
+        }))
+        .filter((item) => item.amount > 0);
+    const totalAllowance = activeAllowances.length === 0 ? 0 : Math.round(allowanceByWork);
 
     const grossSalary = salaryByWork + allowanceByWork + tienOt;
     const cleanBonus = Math.max(0, Math.round(Number(bonusAmount) || 0));
@@ -289,7 +318,9 @@ function calculateEmployeeSalary({
         latePolicyType,
         latePenaltyAmount,
         salaryByWork: Math.round(salaryByWork),
-        totalAllowance: Math.round(allowanceByWork),
+        totalAllowance,
+        total_allowance: totalAllowance,
+        allowances: activeAllowances,
         allowances_breakdown,
         otAmount: Math.round(tienOt),
         bonusAmount: cleanBonus,
