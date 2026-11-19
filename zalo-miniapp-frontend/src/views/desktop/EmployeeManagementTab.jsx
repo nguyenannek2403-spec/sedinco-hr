@@ -24,6 +24,7 @@ import {
 import { safeGet, safePost, safePut } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS, getShiftLabel } from "../../utils/viLabels";
+import { formatViCurrency, formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
 import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import {
   computeDeviceShortTag,
@@ -954,7 +955,7 @@ export default function EmployeeManagementTab({
                     </span>
                   ) : (
                     <span className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 font-mono font-semibold whitespace-nowrap">
-                      Lương CB: {Number(emp.luong_cb || 0).toLocaleString("vi-VN")} đ
+                      Lương CB: {formatViCurrency(emp.luong_cb || 0)}
                     </span>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
@@ -1215,12 +1216,11 @@ export default function EmployeeManagementTab({
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Lương cơ bản (đ)</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   required
-                  min={0}
-                  step={100000}
-                  value={form.luong_cb}
-                  onChange={(e) => setForm({ ...form, luong_cb: Number(e.target.value) })}
+                  value={formatViNumber(form.luong_cb || 0, 0)}
+                  onChange={(e) => setForm({ ...form, luong_cb: Math.max(0, Math.round(parseViNumberInput(e.target.value))) })}
                   className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1405,24 +1405,22 @@ export default function EmployeeManagementTab({
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Lương cơ bản (đ)</label>
                       <input
-                        type="number"
-                        min={0}
-                        step={100000}
+                        type="text"
+                        inputMode="numeric"
                         disabled={!canEditEmployees}
-                        value={detailForm.luong_cb}
-                        onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Number(e.target.value) || 0 }))}
+                        value={formatViNumber(detailForm.luong_cb || 0, 0)}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
                         className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-700 dark:text-emerald-300 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp ăn trưa (đ)</label>
                       <input
-                        type="number"
-                        min={0}
-                        step={50000}
+                        type="text"
+                        inputMode="numeric"
                         disabled={!canEditEmployees}
-                        value={detailForm.phu_cap_an_trua}
-                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Number(e.target.value) || 0 }))}
+                        value={formatViNumber(detailForm.phu_cap_an_trua || 0, 0)}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
                         className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                       />
                     </div>
@@ -1432,24 +1430,22 @@ export default function EmployeeManagementTab({
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp xăng xe (đ)</label>
                       <input
-                        type="number"
-                        min={0}
-                        step={50000}
+                        type="text"
+                        inputMode="numeric"
                         disabled={!canEditEmployees}
-                        value={detailForm.phu_cap_xang_xe}
-                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Number(e.target.value) || 0 }))}
+                        value={formatViNumber(detailForm.phu_cap_xang_xe || 0, 0)}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
                         className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp nhà ở / khác (đ)</label>
                       <input
-                        type="number"
-                        min={0}
-                        step={50000}
+                        type="text"
+                        inputMode="numeric"
                         disabled={!canEditEmployees}
-                        value={detailForm.phu_cap_nha_o}
-                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Number(e.target.value) || 0 }))}
+                        value={formatViNumber(detailForm.phu_cap_nha_o || 0, 0)}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
                         className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                       />
                     </div>

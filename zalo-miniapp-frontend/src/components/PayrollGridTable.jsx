@@ -16,7 +16,12 @@ import {
   CheckCircle2,
   SlidersHorizontal,
   Undo2,
-  Wallet
+  Wallet,
+  LayoutGrid,
+  List,
+  ChevronDown,
+  ChevronUp,
+  Calendar
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "./ui";
@@ -24,6 +29,12 @@ import { safeGet, safePost, formatCsvCellRFC4180, generateIdempotencyKey } from 
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { useDebouncedValue } from "../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
+import {
+  formatViNumber,
+  formatViCurrency,
+  formatViWorkday,
+  parseViNumberInput
+} from "../utils/viNumberFormat";
 
 export default function PayrollGridTable({
   payrollData,
@@ -77,6 +88,12 @@ export default function PayrollGridTable({
   const [adjSaving, setAdjSaving] = useState(false);
   const [adjError, setAdjError] = useState("");
   const [payrollError, setPayrollError] = useState("");
+  const [viewMode, setViewMode] = useState("overview"); // 'overview' | 'detailed'
+  const [expandedDailyLogs, setExpandedDailyLogs] = useState({});
+
+  const toggleDailyLogsRow = (empId) => {
+    setExpandedDailyLogs((prev) => ({ ...prev, [empId]: !prev[empId] }));
+  };
 
   const fetchPeriodStatus = useCallback(async () => {
     try {
@@ -407,7 +424,7 @@ export default function PayrollGridTable({
           </div>
           <div className="mt-2.5">
             <span className="text-xl sm:text-2xl font-extrabold text-white">
-              {totalNetSalary.toLocaleString("vi-VN")} đ
+              {formatViCurrency(totalNetSalary)}
             </span>
             <span className="text-xs text-blue-100 block mt-1 font-medium">Chi trả kỳ tháng {month}/{year}</span>
           </div>
@@ -423,7 +440,7 @@ export default function PayrollGridTable({
           </div>
           <div className="mt-2.5">
             <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-              {totalEmployees} nhân sự
+              {formatViNumber(totalEmployees, 0)} nhân sự
             </span>
             <span className="text-xs text-emerald-700 dark:text-emerald-300 block mt-1 font-medium">100% hồ sơ hoàn tất</span>
           </div>
@@ -439,9 +456,11 @@ export default function PayrollGridTable({
           </div>
           <div className="mt-2.5">
             <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-              {totalWorkDays.toFixed(1)} công
+              {formatViWorkday(totalWorkDays)} công
             </span>
-            <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block mt-1">Định mức chuẩn 26.0 ngày</span>
+            <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block mt-1">
+              Định mức chuẩn {formatViWorkday(filteredList[0]?.standardWorkDays || 26)} ngày
+            </span>
           </div>
         </div>
 
@@ -455,7 +474,7 @@ export default function PayrollGridTable({
           </div>
           <div className="mt-2.5">
             <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-              {averageIncome > 0 ? `${(averageIncome / 1000000).toFixed(1)} tr` : "0 tr"}
+              {formatViCurrency(averageIncome)}
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block mt-1">Bình quân thực nhận / người</span>
           </div>
@@ -494,7 +513,42 @@ export default function PayrollGridTable({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="w-full min-w-0 flex flex-wrap items-center gap-2">
+            {/* Thanh chuyển đổi Bảng lương Tổng quan / Bảng lương Chi tiết */}
+            <div
+              data-filter-group="payroll-view-mode"
+              className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 gap-1"
+            >
+              <button
+                type="button"
+                data-testid="payroll-mode-overview"
+                data-active={viewMode === "overview" ? "true" : "false"}
+                onClick={() => setViewMode("overview")}
+                className={`min-h-[44px] px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer leading-tight text-center ${
+                  viewMode === "overview"
+                    ? "bg-[#0068FF] text-white shadow-sm"
+                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <LayoutGrid size={14} className="shrink-0 hidden sm:block" />
+                <span>📊 Bảng lương tổng quan</span>
+              </button>
+              <button
+                type="button"
+                data-testid="payroll-mode-detailed"
+                data-active={viewMode === "detailed" ? "true" : "false"}
+                onClick={() => setViewMode("detailed")}
+                className={`min-h-[44px] px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer leading-tight text-center ${
+                  viewMode === "detailed"
+                    ? "bg-[#0068FF] text-white shadow-sm"
+                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <List size={14} className="shrink-0 hidden sm:block" />
+                <span>📑 Bảng lương chi tiết</span>
+              </button>
+            </div>
+
             {/* Bộ chọn tháng/năm */}
             <div className="flex items-center bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-1.5 py-0.5 shadow-sm">
               <button
@@ -524,7 +578,7 @@ export default function PayrollGridTable({
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-emerald-600 dark:focus:border-emerald-400 shadow-sm text-slate-800 dark:text-slate-100"
+              className="w-full sm:w-auto max-w-full min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-emerald-600 dark:focus:border-emerald-400 shadow-sm text-slate-800 dark:text-slate-100"
             >
               <option value="ALL">🏢 Tất cả bộ phận</option>
               {availableDepartments.map((dept) => (
@@ -535,7 +589,7 @@ export default function PayrollGridTable({
             </select>
 
             {/* Tìm kiếm */}
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -678,8 +732,265 @@ export default function PayrollGridTable({
           </div>
         )}
 
-        {/* Mobile ZaUI Ticket Cards View */}
-        <div className="md:hidden space-y-3">
+        {viewMode === "detailed" ? (
+          <div className="p-3 sm:p-5 space-y-4">
+            {isLoading ? (
+              <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
+                <SkeletonList rows={3} label="Đang tải bảng lương chi tiết..." />
+              </div>
+            ) : filteredList.length === 0 ? (
+              <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
+                <EmptyState icon={FileText} title={`Không có dữ liệu tiền lương tháng ${month}/${year}.`} />
+              </div>
+            ) : (
+              filteredList.map((item, idx) => {
+                const empId = item.ma_nv || item.id_nhan_vien;
+                const confirmStatus = item.salary_confirm_status || "PENDING";
+                const b = item.allowances_breakdown || {};
+                const bonusAmt = Number(item.bonusAmount) || 0;
+                const penaltyAmt = Number(item.penaltyAmount) || 0;
+                const latePenaltyAmt = Number(item.latePenaltyAmount) || 0;
+                const advAmt = Number(item.advanceDeduction) || 0;
+                const debtAmt = Number(item.carryOverDebt || item.carry_over_debt) || 0;
+                const dailyLogs = Array.isArray(item.daily_logs) ? item.daily_logs : [];
+                const isExpanded = Boolean(expandedDailyLogs[empId]);
+                const unitWage = item.unitDailyWage || Math.round((Number(item.baseSalary) || 0) / (Number(item.standardWorkDays) || 26));
+
+                return (
+                  <div
+                    key={empId || idx}
+                    data-testid={`detailed-payroll-card-${empId}`}
+                    className={`rounded-2xl border p-4 sm:p-5 space-y-4 shadow-sm ${
+                      confirmStatus === "DISPUTED"
+                        ? "bg-rose-50/70 dark:bg-rose-950/35 border-rose-300 dark:border-rose-700"
+                        : "bg-slate-50/60 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+                    }`}
+                  >
+                    {/* Header Nhân viên + Thực lĩnh NET */}
+                    <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                            {empId}
+                          </span>
+                          <h4 className="font-extrabold text-base text-slate-900 dark:text-white break-words">
+                            {item.ho_ten}
+                          </h4>
+                          {Number(item.probationPercent || 100) < 100 && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
+                              Thử việc {item.probationPercent}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-600 dark:text-slate-300">
+                          {item.chuc_danh || "Nhân viên"} • {item.department || "Khối Công trình"}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+                          Thực lĩnh (NET)
+                        </div>
+                        <div className="text-lg sm:text-xl font-black text-emerald-700 dark:text-emerald-300 font-mono">
+                          {formatViCurrency(item.netSalary)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Lưới Bóc Tách Chi Tiết 4 Nhóm */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                      {/* 1. Lương cơ bản & Công */}
+                      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1.5">
+                        <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+                          1. Lương &amp; Ngày công
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Lương CB (HĐ):</span>
+                          <span className="font-mono font-bold text-slate-900 dark:text-white">{formatViCurrency(item.baseSalary)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Công chuẩn / Đơn giá:</span>
+                          <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
+                            {formatViWorkday(item.standardWorkDays || 26)} / {formatViCurrency(unitWage)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Làm TT / Phép / Lễ:</span>
+                          <span className="font-mono font-semibold text-blue-700 dark:text-blue-300">
+                            {formatViWorkday(item.workedDays ?? item.totalWorkDays)} / {formatViWorkday(item.paidLeaveDays || 0)} / {formatViWorkday(item.holidayDays || 0)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-700 font-bold">
+                          <span className="text-slate-800 dark:text-slate-100">Lương ngày công ({formatViWorkday(item.totalWorkDays)}):</span>
+                          <span className="font-mono text-emerald-700 dark:text-emerald-300">{formatViCurrency(item.salaryByWork)}</span>
+                        </div>
+                      </div>
+
+                      {/* 2. Bóc tách 6 Phụ cấp */}
+                      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
+                        <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+                          2. Chi tiết Phụ cấp
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Ăn trưa / Xăng xe:</span>
+                          <span className="font-mono text-slate-800 dark:text-slate-200">
+                            {formatViCurrency(b.an_trua ?? b.an_ca, false)} / {formatViCurrency(b.xang_xe ?? b.xang, false)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Nhà ở / Trách nhiệm:</span>
+                          <span className="font-mono text-slate-800 dark:text-slate-200">
+                            {formatViCurrency(b.nha_o ?? b.doc_hai, false)} / {formatViCurrency(b.trach_nhiem, false)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Thưởng HTCV / ĐT:</span>
+                          <span className="font-mono text-slate-800 dark:text-slate-200">
+                            {formatViCurrency(b.thuong_htcv, false)} / {formatViCurrency(b.tiep_khach ?? b.dien_thoai, false)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-700 font-bold">
+                          <span className="text-slate-800 dark:text-slate-100">Tổng phụ cấp:</span>
+                          <span className="font-mono text-blue-700 dark:text-blue-300">+{formatViCurrency(item.totalAllowance)}</span>
+                        </div>
+                      </div>
+
+                      {/* 3. Tăng ca OT & Thưởng */}
+                      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1.5">
+                        <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+                          3. Tăng ca &amp; Thưởng
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Tăng ca ({formatViNumber(item.totalOtHours || 0)}h OT):</span>
+                          <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">+{formatViCurrency(item.otAmount)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Thưởng nóng thêm:</span>
+                          <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">+{formatViCurrency(bonusAmt)}</span>
+                        </div>
+                        {item.adjustment_note && (
+                          <div className="text-slate-500 dark:text-slate-400 italic break-words pt-1">
+                            Ghi chú: {item.adjustment_note}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. Khấu trừ chi tiết */}
+                      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
+                        <div className="font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+                          4. Các khoản Khấu trừ
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">
+                            Đi trễ ({formatViNumber(item.lateOccurrences || 0, 0)} lần / {formatViNumber(item.totalLateMinutes || 0, 0)}p):
+                          </span>
+                          <span className="font-mono text-rose-700 dark:text-rose-300">-{formatViCurrency(latePenaltyAmt)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Trích BHXH ({formatViNumber(item.insuranceRatePercent ?? 10.5)}%):</span>
+                          <span className="font-mono text-rose-700 dark:text-rose-300">-{formatViCurrency(item.insuranceDeduction || item.totalInsurance)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-600 dark:text-slate-300">Phạt khác / Tạm ứng:</span>
+                          <span className="font-mono text-amber-700 dark:text-amber-300">
+                            -{formatViCurrency(penaltyAmt, false)} / -{formatViCurrency(advAmt, false)}
+                          </span>
+                        </div>
+                        {debtAmt > 0 && (
+                          <div className="flex justify-between gap-2 font-bold text-amber-800 dark:text-amber-300">
+                            <span>Nợ chuyển kỳ sau:</span>
+                            <span className="font-mono">{formatViCurrency(debtAmt)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Thanh nút hành động + Đối chiếu Nhật ký từng ngày */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <button
+                        type="button"
+                        data-testid={`toggle-daily-logs-${empId}`}
+                        onClick={() => toggleDailyLogsRow(empId)}
+                        className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Calendar size={14} className="text-[#0068FF] dark:text-blue-400" />
+                        <span>Đối chiếu nhật ký công ({formatViNumber(dailyLogs.length, 0)} ngày)</span>
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {canCalculatePayroll && (
+                          <AppButton
+                            variant="ghost"
+                            icon={SlidersHorizontal}
+                            onClick={() => handleOpenAdjustmentModal(item)}
+                            className="bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 text-xs"
+                          >
+                            Điều chỉnh
+                          </AppButton>
+                        )}
+                        <AppButton
+                          variant="secondary"
+                          icon={Eye}
+                          onClick={() => setSelectedSlipItem(item)}
+                          className="text-xs"
+                        >
+                          Xem phiếu lương
+                        </AppButton>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="bg-white dark:bg-slate-950/70 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                        {dailyLogs.length === 0 ? (
+                          <div className="p-3 text-xs text-slate-500 dark:text-slate-400 text-center">
+                            Chưa có dữ liệu chấm công trong tháng {month}/{year}.
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                            {dailyLogs.map((log, lIdx) => {
+                              const dateIso = log.record_date_iso || String(log.record_date || "").slice(0, 10);
+                              return (
+                                <div key={`${dateIso}-${lIdx}`} className="px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                                  <div className="min-w-0 space-y-0.5">
+                                    <div className="font-mono font-bold text-slate-900 dark:text-white">{dateIso}</div>
+                                    <div className="text-slate-600 dark:text-slate-300">
+                                      Vào {log.check_in_time ? String(log.check_in_time).slice(0, 5) : "--:--"} • Ra{" "}
+                                      {log.check_out_time ? String(log.check_out_time).slice(0, 5) : "--:--"}
+                                      {(Number(log.morning_worked_minutes) > 0 || Number(log.afternoon_worked_minutes) > 0) && (
+                                        <span className="ml-1.5 text-slate-500 dark:text-slate-400">
+                                          (Sáng {formatViNumber(log.morning_worked_minutes || 0, 0)}p / Chiều {formatViNumber(log.afternoon_worked_minutes || 0, 0)}p)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <div className="text-right font-mono">
+                                      <div className="font-bold text-[#0068FF] dark:text-blue-300">
+                                        {formatViWorkday(log.work_credit ?? 0)} công
+                                      </div>
+                                      <div className="font-semibold text-emerald-700 dark:text-emerald-300">
+                                        {formatViCurrency(log.daily_earned_amount || 0)}
+                                      </div>
+                                    </div>
+                                    <StatusBadge type="attendance" status={log.status} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Mobile ZaUI Ticket Cards View */}
+            <div className="md:hidden space-y-3">
           {isLoading ? (
             <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
               <SkeletonList rows={3} label="Đang tải bảng lương..." />
@@ -713,13 +1024,13 @@ export default function PayrollGridTable({
                       <div className="min-w-0">
                         <div className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.ho_ten}</div>
                         <div className="text-xs text-slate-500 dark:text-slate-300 font-mono">
-                          {empId} • {item.totalWorkDays} công
+                          {empId} • {formatViWorkday(item.totalWorkDays)} công
                         </div>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="font-extrabold text-base text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
-                        {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
+                        {formatViCurrency(item.netSalary || 0)}
                       </div>
                       <div className="text-xs text-slate-600 dark:text-slate-300 font-medium">Thực lĩnh</div>
                     </div>
@@ -729,17 +1040,17 @@ export default function PayrollGridTable({
                     <div className="flex flex-wrap gap-1.5 text-xs">
                       {bonusAmt > 0 && (
                         <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
-                          +Thưởng {bonusAmt.toLocaleString("vi-VN")} đ
+                          +Thưởng {formatViCurrency(bonusAmt)}
                         </span>
                       )}
                       {penaltyAmt > 0 && (
                         <span className="px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-semibold whitespace-nowrap">
-                          -Phạt {penaltyAmt.toLocaleString("vi-VN")} đ
+                          -Phạt {formatViCurrency(penaltyAmt)}
                         </span>
                       )}
                       {advAmt > 0 && (
                         <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 font-semibold whitespace-nowrap">
-                          -Ứng {advAmt.toLocaleString("vi-VN")} đ
+                          -Ứng {formatViCurrency(advAmt)}
                         </span>
                       )}
                     </div>
@@ -831,44 +1142,50 @@ export default function PayrollGridTable({
                         }`}
                       >
                         <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm truncate">{item.ho_ten}</div>
-                        <div className="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 mt-0.5">
+                        <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-1 mt-0.5">
                           <span className="font-mono text-blue-700 dark:text-blue-300 font-semibold">{empId}</span>
+                          <span>• {item.department || "Khối Công trình"}</span>
                         </div>
                       </td>
                       <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">
-                        {Number(item.baseSalary || 0).toLocaleString("vi-VN")} đ
+                        {formatViCurrency(item.baseSalary || 0)}
                       </td>
                       <td className="p-3.5 text-center whitespace-nowrap">
                         <span className="inline-block px-2.5 py-1 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 font-bold text-xs border border-blue-300 dark:border-blue-800/70">
-                          {item.totalWorkDays} công
+                          {formatViWorkday(item.totalWorkDays)} công
                         </span>
                       </td>
                       <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">
-                        {Number(item.salaryByWork || 0).toLocaleString("vi-VN")} đ
+                        {formatViCurrency(item.salaryByWork || 0)}
                       </td>
                       <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">
-                        {Number(item.totalAllowance || 0).toLocaleString("vi-VN")} đ
+                        {formatViCurrency(item.totalAllowance || 0)}
                       </td>
                       <td className="p-3.5 text-right font-semibold text-indigo-800 dark:text-indigo-300 text-sm whitespace-nowrap">
-                        +{Number(item.otAmount || 0).toLocaleString("vi-VN")} đ
+                        <div>+{formatViCurrency(item.otAmount || 0)}</div>
+                        {Number(item.totalOtHours || 0) > 0 && (
+                          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {formatViNumber(item.totalOtHours)}h tăng ca
+                          </div>
+                        )}
                       </td>
                       <td className="p-3.5 text-right text-xs whitespace-nowrap">
                         {netAdj === 0 && bonusAmt === 0 && penaltyAmt === 0 && advAmt === 0 ? (
                           <span className="text-slate-400 dark:text-slate-400">0 đ</span>
                         ) : (
                           <div className="space-y-0.5">
-                            {bonusAmt > 0 && <div className="text-emerald-700 dark:text-emerald-300 font-semibold">+{bonusAmt.toLocaleString("vi-VN")} Thưởng</div>}
-                            {penaltyAmt > 0 && <div className="text-rose-700 dark:text-rose-300 font-semibold">-{penaltyAmt.toLocaleString("vi-VN")} Phạt</div>}
-                            {advAmt > 0 && <div className="text-amber-700 dark:text-amber-300 font-semibold">-{advAmt.toLocaleString("vi-VN")} Ứng</div>}
+                            {bonusAmt > 0 && <div className="text-emerald-700 dark:text-emerald-300 font-semibold">+{formatViCurrency(bonusAmt, false)} Thưởng</div>}
+                            {penaltyAmt > 0 && <div className="text-rose-700 dark:text-rose-300 font-semibold">-{formatViCurrency(penaltyAmt, false)} Phạt</div>}
+                            {advAmt > 0 && <div className="text-amber-700 dark:text-amber-300 font-semibold">-{formatViCurrency(advAmt, false)} Ứng</div>}
                           </div>
                         )}
                       </td>
                       <td className="p-3.5 text-right font-semibold text-rose-700 dark:text-rose-300 text-sm whitespace-nowrap">
-                        -{Number(item.insuranceDeduction || item.totalInsurance || 0).toLocaleString("vi-VN")} đ
+                        -{formatViCurrency(item.insuranceDeduction || item.totalInsurance || 0)}
                       </td>
                       <td className="p-3.5 text-right font-bold text-base whitespace-nowrap">
                         <span className="text-emerald-800 dark:text-emerald-300">
-                          {Number(item.netSalary || 0).toLocaleString("vi-VN")} đ
+                          {formatViCurrency(item.netSalary || 0)}
                         </span>
                       </td>
                       <td className="p-3.5 text-center whitespace-nowrap">
@@ -922,36 +1239,36 @@ export default function PayrollGridTable({
             {filteredList.length > 0 && (
               <tfoot>
                 <tr className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-t-2 border-slate-300 dark:border-slate-700 font-bold">
-                  <td className="p-4 pl-5 text-xs whitespace-nowrap sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">Tổng cộng ({filteredList.length} NV):</td>
+                  <td className="p-4 pl-5 text-xs whitespace-nowrap sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">Tổng cộng ({formatViNumber(filteredList.length, 0)} NV):</td>
                   <td className="p-4 text-right text-sm whitespace-nowrap">
-                    {filteredList.reduce((acc, c) => acc + (Number(c.baseSalary) || 0), 0).toLocaleString("vi-VN")} đ
+                    {formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.baseSalary) || 0), 0))}
                   </td>
                   <td className="p-4 text-center text-blue-800 dark:text-blue-300 text-sm whitespace-nowrap">
-                    {totalWorkDays.toFixed(1)} công
+                    {formatViWorkday(totalWorkDays)} công
                   </td>
                   <td className="p-4 text-right text-sm whitespace-nowrap">
-                    {filteredList.reduce((acc, c) => acc + (Number(c.salaryByWork) || 0), 0).toLocaleString("vi-VN")} đ
+                    {formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.salaryByWork) || 0), 0))}
                   </td>
                   <td className="p-4 text-right text-sm whitespace-nowrap">
-                    {filteredList.reduce((acc, c) => acc + (Number(c.totalAllowance) || 0), 0).toLocaleString("vi-VN")} đ
+                    {formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.totalAllowance) || 0), 0))}
                   </td>
                   <td className="p-4 text-right text-indigo-800 dark:text-indigo-300 text-sm whitespace-nowrap">
-                    +{filteredList.reduce((acc, c) => acc + (Number(c.otAmount) || 0), 0).toLocaleString("vi-VN")} đ
+                    +{formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.otAmount) || 0), 0))}
                   </td>
                   <td className="p-4 text-right text-slate-800 dark:text-slate-200 text-xs whitespace-nowrap">
-                    {(
+                    {formatViCurrency(
                       filteredList.reduce(
                         (acc, c) =>
                           acc + (Number(c.bonusAmount) || 0) - (Number(c.penaltyAmount) || 0) - (Number(c.advanceDeduction) || 0),
                         0
                       )
-                    ).toLocaleString("vi-VN")} đ
+                    )}
                   </td>
                   <td className="p-4 text-right text-rose-700 dark:text-rose-300 text-sm whitespace-nowrap">
-                    -{filteredList.reduce((acc, c) => acc + (Number(c.insuranceDeduction || c.totalInsurance) || 0), 0).toLocaleString("vi-VN")} đ
+                    -{formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.insuranceDeduction || c.totalInsurance) || 0), 0))}
                   </td>
                   <td className="p-4 text-right text-emerald-800 dark:text-emerald-300 text-base whitespace-nowrap">
-                    {totalNetSalary.toLocaleString("vi-VN")} đ
+                    {formatViCurrency(totalNetSalary)}
                   </td>
                   <td className="p-4 text-center"></td>
                   <td className="p-4 text-center pr-5"></td>
@@ -960,6 +1277,8 @@ export default function PayrollGridTable({
             )}
           </table>
         </div>
+          </>
+        )}
 
       </div>
 
@@ -1009,31 +1328,28 @@ export default function PayrollGridTable({
             <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
               <FormRow label="Tiền thưởng thêm (VNĐ)">
                 <input
-                  type="number"
-                  min={0}
-                  step={50000}
-                  value={adjForm.bonus_amount}
-                  onChange={(e) => setAdjForm((f) => ({ ...f, bonus_amount: Number(e.target.value) || 0 }))}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatViNumber(adjForm.bonus_amount, 0)}
+                  onChange={(e) => setAdjForm((f) => ({ ...f, bonus_amount: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
                   className="w-36 min-h-[44px] px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-emerald-700 dark:text-emerald-300 text-right focus:outline-none focus:border-emerald-600"
                 />
               </FormRow>
               <FormRow label="Khấu trừ phạt (VNĐ)">
                 <input
-                  type="number"
-                  min={0}
-                  step={50000}
-                  value={adjForm.penalty_amount}
-                  onChange={(e) => setAdjForm((f) => ({ ...f, penalty_amount: Number(e.target.value) || 0 }))}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatViNumber(adjForm.penalty_amount, 0)}
+                  onChange={(e) => setAdjForm((f) => ({ ...f, penalty_amount: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
                   className="w-36 min-h-[44px] px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-rose-700 dark:text-rose-300 text-right focus:outline-none focus:border-rose-500"
                 />
               </FormRow>
               <FormRow label="Tạm ứng đã trừ (VNĐ)">
                 <input
-                  type="number"
-                  min={0}
-                  step={50000}
-                  value={adjForm.advance_deduction}
-                  onChange={(e) => setAdjForm((f) => ({ ...f, advance_deduction: Number(e.target.value) || 0 }))}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatViNumber(adjForm.advance_deduction, 0)}
+                  onChange={(e) => setAdjForm((f) => ({ ...f, advance_deduction: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
                   className="w-36 min-h-[44px] px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-amber-800 dark:text-amber-300 text-right focus:outline-none focus:border-amber-500"
                 />
               </FormRow>

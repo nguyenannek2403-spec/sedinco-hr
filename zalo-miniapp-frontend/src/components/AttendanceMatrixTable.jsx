@@ -18,6 +18,7 @@ import { safeGet, safePost, sanitizeFormula, generateIdempotencyKey } from "../u
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { useDebouncedValue } from "../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
+import { formatViWorkday } from "../utils/viNumberFormat";
 import PeriodLockModal from "./PeriodLockModal";
 import { ROLES, hasPermission } from "../constants/roles";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "./ui";
@@ -577,7 +578,7 @@ export default function AttendanceMatrixTable({
                   <div className="grid grid-cols-4 gap-2">
                     <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 px-2 py-1.5 text-center">
                       <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300">Tổng công</div>
-                      <div className="text-sm font-black text-emerald-900 dark:text-emerald-200">{totalWorkDays}</div>
+                      <div className="text-sm font-black text-emerald-900 dark:text-emerald-200">{formatViWorkday(totalWorkDays)}</div>
                     </div>
                     <div className="rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/70 px-2 py-1.5 text-center">
                       <div className="text-xs font-bold text-amber-700 dark:text-amber-300">Nghỉ phép</div>

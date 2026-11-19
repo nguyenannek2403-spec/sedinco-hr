@@ -3,6 +3,8 @@
  * Đã xác minh qua bộ test tự động TC-PAY-01 đến TC-PAY-08
  */
 
+const { calculateDailyEarnedAmount } = require('./misaWorkdayEngine');
+
 function calculateEmployeeSalary({
     luong_cb,
     cong_chuan = 26,
@@ -47,6 +49,11 @@ function calculateEmployeeSalary({
     let tienOt = 0;
     let totalLateMinutes = 0;
     let lateOccurrences = 0;
+    let workedDays = 0;
+    let paidLeaveDays = 0;
+    let holidayDays = 0;
+    let totalOtHours = 0;
+    const daily_breakdown = [];
 
     // Chính sách đi trễ chuẩn hóa (MISA AMIS Smart Policy)
     const validLatePolicies = ['NONE', 'PER_MINUTE', 'PER_OCCURRENCE', 'DEDUCT_WORKDAY'];
@@ -131,18 +138,33 @@ function calculateEmployeeSalary({
 
         const isProbation = ngayChinhThuc && (logDate < ngayChinhThuc);
         const dayCredit = (unit) => (isExcessiveLateHalfDay && unit > 0.5 ? 0.5 : unit);
+        const hasExplicitCredit = log.work_credit !== undefined && log.work_credit !== null && log.work_credit !== '';
+        let appliedDayCredit = 0;
+        let appliedOtHours = 0;
 
-        if (log.status === '1') {
-            const credit = dayCredit(1);
+        if (log.status === '0' || log.duration_status === 'INVALID_SHORT_DURATION') {
+            appliedDayCredit = 0;
+        } else if (log.status === '1') {
+            const credit = hasExplicitCredit ? dayCredit(Math.max(0, Number(log.work_credit) || 0)) : dayCredit(1);
+            appliedDayCredit = credit;
+            workedDays += credit;
             if (isProbation) congThuViec += credit; else congChinhThuc += credit;
         } else if (log.status === '0.5') {
-            if (isProbation) congThuViec += 0.5; else congChinhThuc += 0.5;
+            const credit = hasExplicitCredit ? Math.max(0, Number(log.work_credit) || 0) : 0.5;
+            appliedDayCredit = credit;
+            workedDays += credit;
+            if (isProbation) congThuViec += credit; else congChinhThuc += credit;
         } else if (log.status === 'P' || log.status === 'L') {
             // Nghỉ phép năm có hưởng lương (P) & Nghỉ lễ/Tết hưởng nguyên lương (L) tính 1.0 công
+            appliedDayCredit = 1;
+            if (log.status === 'P') paidLeaveDays += 1;
+            else holidayDays += 1;
             if (isProbation) congThuViec += 1; else congChinhThuc += 1;
         } else if (log.status === 'OT' || log.status === '1/OT') {
             if (log.status === '1/OT') {
-                const credit = dayCredit(1);
+                const credit = hasExplicitCredit ? dayCredit(Math.max(0, Number(log.work_credit) || 0)) : dayCredit(1);
+                appliedDayCredit = credit;
+                workedDays += credit;
                 if (isProbation) congThuViec += credit; else congChinhThuc += credit;
             }
             let heSo = isHoliday ? otHoliday : (isSunday ? otWeekend : otWeekday);
@@ -165,11 +187,29 @@ function calculateEmployeeSalary({
                 }
             }
 
+            appliedOtHours = soGioOT;
+            totalOtHours += soGioOT;
+
             const otBaseHourly = (!probationAllowanceFull && isProbation && customOtHourly <= 0)
                 ? (luong1Gio * probationRatio)
                 : luong1Gio;
             tienOt += (otBaseHourly * soGioOT * heSo);
         }
+
+        const dailyEarnedAmount = calculateDailyEarnedAmount({
+            luong_cb: luongCb,
+            cong_chuan: congChuan,
+            probationRatio: isProbation ? probationRatio : 1,
+            workCredit: appliedDayCredit
+        });
+
+        daily_breakdown.push({
+            ...log,
+            work_credit: appliedDayCredit,
+            ot_hours_applied: appliedOtHours,
+            is_probation_day: Boolean(isProbation),
+            daily_earned_amount: dailyEarnedAmount
+        });
     });
 
     const tongPhuCapCoDinh = (Number(allowances.an_trua) || 0) +
@@ -226,12 +266,20 @@ function calculateEmployeeSalary({
         ? Math.abs(rawNetSalary)
         : 0;
 
+    const unitDailyWage = congChuan > 0 ? Math.round(luongCb / congChuan) : 0;
+
     return {
         baseSalary: luongCb,
         standardWorkDays: congChuan,
+        unitDailyWage,
+        probationPercent: isProbationProfile || congThuViec > 0 ? probationPercent : 100,
         insuranceRatePercent,
         congThuViec,
         congChinhThuc,
+        workedDays,
+        paidLeaveDays,
+        holidayDays,
+        totalOtHours: Number(totalOtHours.toFixed(2)),
         totalWorkDays: actualWorkDays,
         actualWorkDays,
         effectiveDays,
@@ -257,6 +305,7 @@ function calculateEmployeeSalary({
         otCalculationMode,
         freeLateExemptsHalfday,
         negativeSalaryPolicy,
+        daily_breakdown,
         warning
     };
 }

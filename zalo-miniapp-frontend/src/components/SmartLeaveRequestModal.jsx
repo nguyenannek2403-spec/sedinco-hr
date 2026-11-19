@@ -15,6 +15,7 @@ import { safePost, generateIdempotencyKey } from "../utils/api";
 import { pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { analyzeLeaveRequest, formatDateKey } from "../utils/holidayUtils";
 import { CORRECTION_MODES, getRequestTypeLabel } from "../utils/viLabels";
+import { formatViCurrency, formatViNumber, parseViNumberInput } from "../utils/viNumberFormat";
 import { AppButton, AppModal, FormRow } from "./ui";
 
 const LEAVE_TYPES = [
@@ -29,7 +30,7 @@ const LEAVE_TYPES = [
 
 const QUICK_ADVANCE_AMOUNTS = [500000, 1000000, 2000000, 5000000];
 
-const formatVnd = (n) => `${Math.round(Number(n) || 0).toLocaleString("vi-VN")} đ`;
+const formatVnd = (n) => formatViCurrency(n, true);
 
 const compressProofImage = (file) =>
   new Promise((resolve, reject) => {
@@ -154,7 +155,7 @@ export default function SmartLeaveRequestModal({
   const isExceedingBalance =
     requestType === "P" && (availableLeaveDays <= 0 || analysis.actualDeductedDays > availableLeaveDays);
 
-  const parsedAdvanceNum = Math.round(Number(String(advanceAmount).replace(/[^0-9]/g, "")) || 0);
+  const parsedAdvanceNum = Math.max(0, Math.round(parseViNumberInput(advanceAmount)));
 
   // Xử lý chọn ảnh chứng minh (nén nhẹ <= 180KB)
   const handlePickEvidence = async (e) => {
@@ -409,13 +410,11 @@ export default function SmartLeaveRequestModal({
                   Số tiền muốn ứng (VNĐ)
                 </label>
                 <input
-                  type="number"
-                  min={0}
-                  max={500000000}
-                  step={50000}
-                  value={advanceAmount}
-                  onChange={(e) => setAdvanceAmount(e.target.value)}
-                  placeholder="Ví dụ: 2000000"
+                  type="text"
+                  inputMode="numeric"
+                  value={parsedAdvanceNum > 0 ? formatViNumber(parsedAdvanceNum, 0) : ""}
+                  onChange={(e) => setAdvanceAmount(String(Math.max(0, Math.round(parseViNumberInput(e.target.value)))))}
+                  placeholder="Ví dụ: 2.000.000"
                   className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-base font-bold focus:outline-none focus:border-emerald-600 dark:focus:border-emerald-400"
                 />
                 <div className="mt-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
@@ -439,7 +438,7 @@ export default function SmartLeaveRequestModal({
                             : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
                         }`}
                       >
-                        {amt.toLocaleString("vi-VN")} đ
+                        {formatViCurrency(amt)}
                       </button>
                     );
                   })}

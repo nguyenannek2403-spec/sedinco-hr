@@ -157,6 +157,10 @@ async function initDatabase() {
         await query("ALTER TABLE attendance_logs ADD COLUMN suspicious_reason TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs MODIFY COLUMN suspicious_reason TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN device_fingerprint VARCHAR(150) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN morning_worked_minutes INT DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN afternoon_worked_minutes INT DEFAULT 0").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN work_credit DECIMAL(4,2) DEFAULT NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN duration_status VARCHAR(40) DEFAULT NULL").catch(() => {});
         await query("CREATE INDEX idx_att_record_date ON attendance_logs (record_date)").catch(() => {});
 
         // 5. Bảng Đơn từ (requests)

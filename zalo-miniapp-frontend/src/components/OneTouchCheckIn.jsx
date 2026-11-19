@@ -16,6 +16,7 @@ import {
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
 import { getDeviceIdentity } from "../utils/deviceIdentity";
+import { formatViWorkday } from "../utils/viNumberFormat";
 import { useSpamClickGuard, SPAM_WARNING_MESSAGE } from "../hooks/useAttendanceCheckIn";
 import { useTheme } from "../context/ThemeContext";
 import { AppButton, AppModal, SedincoMascot } from "./ui";
@@ -215,7 +216,7 @@ export default function OneTouchCheckIn({
         : [];
 
       if (rawData && !Array.isArray(rawData)) {
-        setForgottenCheckout(rawData.forgotten_checkout || null);
+        setForgottenCheckout(rawData.unclosed_previous_record || rawData.forgotten_checkout || null);
         setShiftInfo(rawData.shift_info || null);
         if (rawData.summary) {
           setAttendanceSummary((prev) => ({
@@ -233,6 +234,10 @@ export default function OneTouchCheckIn({
         list.find((r) => String(r.work_date || r.record_date || "").slice(0, 10) === todayIso) ||
         null;
       setLiveTodayRecord(todayRec);
+      if (!todayRec || !todayRec.check_in_time) {
+        setLastCheckAction(null);
+        setServerTimeResult("");
+      }
     } catch (e) {}
   }, [evaluateFriendlyLocation]);
 
@@ -464,10 +469,10 @@ export default function OneTouchCheckIn({
           ...result.data,
           matched_location_name: result.data.location_name || prev?.location_name || "Văn phòng SEDINCO"
         }));
+        setLastCheckAction(checkinType);
       }
 
       setServerTimeResult(serverTime);
-      setLastCheckAction(checkinType);
       setStage(STAGES.SUCCESS);
       setIsFieldWorkMode(false);
       setFieldNote("");
@@ -593,6 +598,31 @@ export default function OneTouchCheckIn({
       ? String(effectiveToday?.check_out_time || serverTimeResult || "").slice(0, 8)
       : String(effectiveToday?.check_in_time || serverTimeResult || "").slice(0, 8);
 
+  const todaySessionSummary = (() => {
+    if (!hasCheckedOut) return "";
+    if (effectiveToday?.session_summary) return effectiveToday.session_summary;
+    const dur = effectiveToday?.duration_status;
+    if (dur === "INVALID_SHORT_DURATION") {
+      return "0 công (Thời gian làm quá ngắn)";
+    }
+    if (effectiveToday?.work_credit !== null && effectiveToday?.work_credit !== undefined) {
+      const creditNum = Number(effectiveToday.work_credit) || 0;
+      const suffix =
+        dur === "MORNING_ONLY"
+          ? " (Ca sáng)"
+          : dur === "AFTERNOON_ONLY"
+          ? " (Ca chiều)"
+          : creditNum >= 1
+          ? " (Cả ngày)"
+          : "";
+      return `${formatViWorkday(creditNum)} công${suffix}`;
+    }
+    if (effectiveToday?.status === "0.5") return "0,5 công";
+    if (effectiveToday?.status === "0") return "0 công (Chưa đủ giờ)";
+    if (effectiveToday?.status === "1" || effectiveToday?.status === "1/OT") return "1 công (Cả ngày)";
+    return "";
+  })();
+
   return (
     <div className="w-full px-3.5 pt-3.5 flex flex-col space-y-3.5">
       {/* KHU VỰC 1: ĐẦU TRANG — TIÊU ĐỀ HỆ THỐNG, ĐỒNG HỒ SỐ THỰC TẾ & MẶT TRỜI / MẶT TRĂNG */}
@@ -647,7 +677,7 @@ export default function OneTouchCheckIn({
 
       {/* KHU VỰC 3: KHUNG THÔNG BÁO XÁC NHẬN TRẠNG THÁI CHẤM CÔNG */}
       {(hasCheckedIn || stage === STAGES.SUCCESS) && (
-        <div className="w-full rounded-2xl border-2 border-emerald-500 bg-emerald-50/75 dark:bg-slate-900 p-3.5 shadow-sm space-y-1">
+        <div className="w-full rounded-2xl border-2 border-emerald-500 bg-emerald-50/75 dark:bg-slate-900 p-3.5 shadow-sm space-y-1.5">
           <div className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 leading-snug">
             <CheckCircle2 size={18} className="shrink-0" />
             <span>
@@ -659,6 +689,11 @@ export default function OneTouchCheckIn({
             <strong>{currentUser?.ho_ten || "Nhân viên"}</strong> đã ghi nhận chấm công tại{" "}
             {effectiveToday?.matched_location_name || effectiveToday?.location_name || "Văn phòng SEDINCO"}!
           </p>
+          {todaySessionSummary && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/90 dark:bg-slate-800 border border-emerald-300 dark:border-emerald-600/50 text-emerald-800 dark:text-emerald-200 text-xs font-bold">
+              <span>Công thực tế hôm nay: {todaySessionSummary}</span>
+            </div>
+          )}
           {effectiveToday?.proxy_by && (
             <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-200 text-xs font-semibold">
               Quản lý chấm hộ{effectiveToday.proxy_note ? `: ${effectiveToday.proxy_note}` : ""}
@@ -672,6 +707,7 @@ export default function OneTouchCheckIn({
         {/* NÚT 1: CHẤM CÔNG VÀO (VÀO CA) */}
         <button
           id={!hasCheckedIn ? "btn-start-checkin" : undefined}
+          data-testid="btn-checkin"
           type="button"
           disabled={!checkInBtnEnabled}
           onClick={() => handleStartCheckIn(false)}
@@ -705,7 +741,7 @@ export default function OneTouchCheckIn({
                 {isLockedPeriod
                   ? "Kỳ công tháng này đã chốt"
                   : hasCheckedIn
-                  ? `Đã ghi nhận vào ca lúc ${String(effectiveToday?.check_in_time || serverTimeResult).slice(0, 5)}`
+                  ? `Đã vào ca lúc ${String(effectiveToday?.check_in_time || serverTimeResult).slice(0, 8)}`
                   : `Bắt đầu ca làm việc hôm nay (${effStart})`}
               </div>
             </div>
@@ -713,9 +749,10 @@ export default function OneTouchCheckIn({
           <Clock className="w-5 h-5 shrink-0 opacity-90" />
         </button>
 
-        {/* NÚT 2: CHẤM CÔNG RA (TAN CA — VỀ THÔI!!!) */}
+        {/* NÚT 2: CHẤM CÔNG RA (TAN CA — LUÔN SÁNG & BẤM ĐƯỢC NGAY SAU KHI ĐÃ VÀO CA) */}
         <button
           id={hasCheckedIn ? "btn-start-checkin" : undefined}
+          data-testid="btn-checkout"
           type="button"
           disabled={!checkOutBtnEnabled}
           onClick={() => handleStartCheckIn(false)}
@@ -732,10 +769,10 @@ export default function OneTouchCheckIn({
             <div className="min-w-0 flex-1">
               <div className="text-sm sm:text-base font-extrabold leading-tight break-words">
                 {hasCheckedIn && !hasCheckedOut && stage === STAGES.SUBMITTING
-                  ? "ĐANG GỬI TAN CA..."
+                  ? "ĐANG GỬI CHẤM CÔNG RA..."
                   : hasCheckedIn && !hasCheckedOut && stage === STAGES.LOCATING
                   ? "ĐANG ĐỊNH VỊ GPS..."
-                  : "VỀ THÔI!!! 🏃‍♂️ (TAN CA)"}
+                  : "CHẤM CÔNG RA — VỀ THÔI!!! 🏃‍♂️ (TAN CA)"}
               </div>
               <div
                 className={`text-xs font-semibold mt-0.5 leading-snug ${
@@ -745,9 +782,9 @@ export default function OneTouchCheckIn({
                 }`}
               >
                 {hasCheckedOut
-                  ? `Đã hoàn thành ca làm việc (${String(effectiveToday?.check_out_time || serverTimeResult).slice(0, 5)})`
+                  ? "Đã hoàn thành chấm công hôm nay"
                   : hasCheckedIn
-                  ? `Bấm để kết thúc ca làm việc (${effEnd})`
+                  ? `Bấm bất kỳ lúc nào để chốt giờ ra (${effEnd})`
                   : "Chưa vào ca làm việc"}
               </div>
             </div>

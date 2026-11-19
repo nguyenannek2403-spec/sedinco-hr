@@ -15,6 +15,7 @@ import {
 import { safePost, sanitizeFormula, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
+import { formatViCurrency, formatViWorkday, formatViNumber } from "../utils/viNumberFormat";
 import { AppButton, AppModal, StatusBadge } from "./ui";
 
 /**
@@ -60,10 +61,7 @@ export default function SalarySlipModal({
     if (showToast) showToast(msg, type);
   };
 
-  const formatCurrency = (val) => {
-    const num = Number(val) || 0;
-    return Math.round(num).toLocaleString("vi-VN") + " đ";
-  };
+  const formatCurrency = (val) => formatViCurrency(val, true);
 
   const b = item.allowances_breakdown || {};
 
@@ -274,7 +272,7 @@ export default function SalarySlipModal({
 
   // Chia sẻ nhanh qua Zalo / Mobile Share
   const handleShareZalo = async () => {
-    const shareText = `📄 PHIẾU LƯƠNG SEDINCO - THÁNG ${thang}/${nam}\n👤 NV: ${item.ho_ten} (${maNv})\n📅 Ngày công: ${item.totalWorkDays || 0}/${item.standardDays || 26}\n💰 Thực lĩnh (NET): ${formatCurrency(item.netSalary)}\n📌 Trạng thái: ${confirmStatus === "CONFIRMED" ? "Đã xác nhận" : confirmStatus === "DISPUTED" ? "Đang khiếu nại" : "Chờ xác nhận"}`;
+    const shareText = `📄 PHIẾU LƯƠNG SEDINCO - THÁNG ${thang}/${nam}\n👤 NV: ${item.ho_ten} (${maNv})\n📅 Ngày công: ${formatViWorkday(item.totalWorkDays || 0)}/${formatViWorkday(item.standardWorkDays || item.standardDays || 26)}\n💰 Thực lĩnh (NET): ${formatCurrency(item.netSalary)}\n📌 Trạng thái: ${confirmStatus === "CONFIRMED" ? "Đã xác nhận" : confirmStatus === "DISPUTED" ? "Đang khiếu nại" : "Chờ xác nhận"}`;
     try {
       if (navigator.share) {
         await navigator.share({
@@ -390,7 +388,7 @@ export default function SalarySlipModal({
                 Ngày Công Thực Tế
               </span>
               <span className="font-extrabold text-emerald-700 dark:text-emerald-300">
-                {item.totalWorkDays || 0} / {item.standardDays || 26} công
+                {formatViWorkday(item.totalWorkDays || 0)} / {formatViWorkday(item.standardWorkDays || item.standardDays || 26)} công
               </span>
             </div>
           </div>
@@ -405,7 +403,7 @@ export default function SalarySlipModal({
             <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
               <div className="px-3.5 py-2.5 flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-300">
-                  1. Lương cơ bản hợp đồng (Định mức {item.standardDays || 26} ngày)
+                  1. Lương cơ bản hợp đồng (Định mức {formatViWorkday(item.standardWorkDays || item.standardDays || 26)} ngày)
                 </span>
                 <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
                   {formatCurrency(item.baseSalary)}
@@ -414,7 +412,7 @@ export default function SalarySlipModal({
 
               <div className="px-3.5 py-2.5 flex justify-between items-center bg-slate-50/60 dark:bg-slate-800/40">
                 <span className="font-semibold text-slate-800 dark:text-slate-100">
-                  2. Lương chính theo ngày công ({item.totalWorkDays || 0} ngày)
+                  2. Lương chính theo ngày công ({formatViWorkday(item.totalWorkDays || 0)} ngày)
                 </span>
                 <span className="font-mono font-bold text-slate-900 dark:text-white">
                   {formatCurrency(item.salaryByWork)}
@@ -458,7 +456,7 @@ export default function SalarySlipModal({
 
               <div className="px-3.5 py-2.5 flex justify-between items-center">
                 <span className="font-semibold text-slate-800 dark:text-slate-100">
-                  4. Lương làm thêm giờ (Tăng ca / OT: {item.totalOtHours || 0} giờ)
+                  4. Lương làm thêm giờ (Tăng ca / OT: {formatViNumber(item.totalOtHours || 0)} giờ)
                 </span>
                 <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">
                   +{formatCurrency(item.otAmount)}

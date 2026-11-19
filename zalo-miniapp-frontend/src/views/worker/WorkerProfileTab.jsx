@@ -16,6 +16,7 @@ import {
 import { safePost, safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import { getShiftLabel } from "../../utils/viLabels";
+import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
 import { getDeviceIdentity, getDeviceIdentitySync, formatEmployeeDeviceLabel } from "../../utils/deviceIdentity";
 import { ThemeToggleButton } from "../../context/ThemeContext";
 import { AppButton, AppModal, FormRow } from "../../components/ui";
@@ -227,19 +228,19 @@ export default function WorkerProfileTab({
           <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl px-2 py-2.5">
             <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Tổng công</div>
             <div className="text-sm font-extrabold text-[#0068FF] dark:text-blue-300 mt-0.5">
-              {attendanceSummary?.total_work_days || 0} công
+              {formatViWorkday(attendanceSummary?.total_work_days || 0)} công
             </div>
           </div>
           <div className="bg-emerald-50/75 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl px-2 py-2.5">
             <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Đúng giờ</div>
             <div className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5">
-              {attendanceSummary?.on_time_count || 0} ngày
+              {formatViNumber(attendanceSummary?.on_time_count || 0, 0)} ngày
             </div>
           </div>
           <div className="bg-amber-50/75 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/60 rounded-xl px-2 py-2.5">
             <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Đi muộn</div>
             <div className="text-sm font-extrabold text-amber-700 dark:text-amber-300 mt-0.5">
-              {attendanceSummary?.late_count || 0} lần
+              {formatViNumber(attendanceSummary?.late_count || 0, 0)} lần
             </div>
           </div>
         </div>

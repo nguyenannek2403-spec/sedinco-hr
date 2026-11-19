@@ -2,6 +2,7 @@ const { query, withTransaction } = require('../config/db');
 const attendanceService = require('./attendanceService');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
 const { getVietnamDateString } = require('../utils/timeHelper');
+const { evaluateMisaDailyAttendance } = require('../utils/misaWorkdayEngine');
 
 function extractIsoDateStr(val) {
     if (!val) return null;
@@ -542,24 +543,50 @@ class RequestService {
                         [row.employee_id, dateStr, approvedOtHours, row.reason || 'Duyệt từ đơn tăng ca', actorId || 'admin']
                     );
                 } else if (isUnpaidLeave) {
-                    await txQuery(
-                        `INSERT INTO attendance_logs (employee_id, record_date, status)
-                         VALUES (?, ?, 'KP')
-                         ON DUPLICATE KEY UPDATE status = 'KP'`,
+                    const isHalfDayUnpaid = type.includes('nửa ngày') || type.includes('0.5') || type.includes('buổi');
+                    if (isHalfDayUnpaid) {
+                        await txQuery(
+                            `INSERT INTO attendance_logs (employee_id, record_date, status, work_credit)
+                             VALUES (?, ?, 'KP', 0)
+                             ON DUPLICATE KEY UPDATE
+                                status = CASE
+                                    WHEN check_in_time IS NOT NULL AND check_out_time IS NOT NULL AND status IN ('0.5', '1') THEN status
+                                    ELSE 'KP'
+                                END,
+                                work_credit = CASE
+                                    WHEN check_in_time IS NOT NULL AND check_out_time IS NOT NULL AND COALESCE(work_credit, 0) > 0 THEN work_credit
+                                    ELSE 0
+                                END`,
+                            [row.employee_id, dateStr]
+                        );
+                    } else {
+                        await txQuery(
+                            `INSERT INTO attendance_logs (employee_id, record_date, status, work_credit)
+                             VALUES (?, ?, 'KP', 0)
+                             ON DUPLICATE KEY UPDATE status = 'KP', work_credit = 0`,
+                            [row.employee_id, dateStr]
+                        );
+                    }
+                } else if (type.includes('nửa ngày') || type.includes('0.5')) {
+                    const existingHalf = await txQuery(
+                        'SELECT status, check_in_time, check_out_time, work_credit FROM attendance_logs WHERE employee_id = ? AND record_date = ? FOR UPDATE',
                         [row.employee_id, dateStr]
                     );
-                } else if (type.includes('nửa ngày') || type.includes('0.5')) {
+                    const ex = existingHalf && existingHalf[0];
+                    const hasHalfWorked = Boolean(ex && ex.check_in_time && (ex.status === '0.5' || Number(ex.work_credit) === 0.5));
+                    const nextSt = hasHalfWorked ? '1' : '0.5';
+                    const nextCred = hasHalfWorked ? 1 : 0.5;
                     await txQuery(
-                        `INSERT INTO attendance_logs (employee_id, record_date, status)
-                         VALUES (?, ?, '0.5')
-                         ON DUPLICATE KEY UPDATE status = '0.5'`,
-                        [row.employee_id, dateStr]
+                        `INSERT INTO attendance_logs (employee_id, record_date, status, work_credit)
+                         VALUES (?, ?, ?, ?)
+                         ON DUPLICATE KEY UPDATE status = ?, work_credit = ?`,
+                        [row.employee_id, dateStr, nextSt, nextCred, nextSt, nextCred]
                     );
                 } else if (type === 'p' || type === 'leave' || type.includes('phép') || type.includes('nghỉ') || type.includes('leave_annual')) {
                     await txQuery(
-                        `INSERT INTO attendance_logs (employee_id, record_date, status)
-                         VALUES (?, ?, 'P')
-                         ON DUPLICATE KEY UPDATE status = 'P'`,
+                        `INSERT INTO attendance_logs (employee_id, record_date, status, work_credit)
+                         VALUES (?, ?, 'P', 1)
+                         ON DUPLICATE KEY UPDATE status = 'P', work_credit = 1`,
                         [row.employee_id, dateStr]
                     );
                 } else if (type === 'ct' || type.includes('cập nhật công') || type.includes('bổ sung') || type.includes('quên chấm công') || type.includes('giờ ra') || type.includes('forgot_checkin') || type.includes('late_early')) {
@@ -567,23 +594,81 @@ class RequestService {
                     const reqIn = row.check_in_time || null;
                     const reqOut = row.check_out_time || null;
 
+                    const existingRows = await txQuery(
+                        'SELECT check_in_time, check_out_time, ot_hours, shift_type FROM attendance_logs WHERE employee_id = ? AND record_date = ? FOR UPDATE',
+                        [row.employee_id, dateStr]
+                    );
+                    const existingAtt = existingRows && existingRows.length > 0 ? existingRows[0] : null;
+                    const csRows = await txQuery('SELECT work_start, lunch_start, lunch_end, work_end FROM company_settings LIMIT 1').catch(() => []);
+                    const cs = (csRows && csRows[0]) ? csRows[0] : {};
+
+                    let finalIn = existingAtt?.check_in_time || null;
+                    let finalOut = existingAtt?.check_out_time || null;
                     if (mode === 'BOTH' || mode === 'SHIFT_CHANGE') {
-                        const finalIn = reqIn || '08:00:00';
-                        const finalOut = reqOut || '17:30:00';
+                        finalIn = reqIn || finalIn || '08:00:00';
+                        finalOut = reqOut || finalOut || '17:30:00';
+                    } else if (mode === 'CHECK_IN' || (!mode && type.includes('giờ vào'))) {
+                        finalIn = reqIn || finalIn || '08:00:00';
+                    } else {
+                        finalOut = reqOut || finalOut || '17:30:00';
+                    }
+
+                    if (finalIn && finalOut) {
+                        const approvedOtRows = await txQuery(
+                            "SELECT expected_hours FROM ot_registrations WHERE employee_id = ? AND work_date = ? AND status = 'approved' LIMIT 1",
+                            [row.employee_id, dateStr]
+                        );
+                        const hasApprovedOt = Boolean(approvedOtRows && approvedOtRows.length > 0);
+                        const approvedOtHours = hasApprovedOt ? (Number(approvedOtRows[0].expected_hours) || 0) : 0;
+
+                        const misaEval = evaluateMisaDailyAttendance({
+                            checkInTime: finalIn,
+                            checkOutTime: finalOut,
+                            workStartStr: cs.work_start || '08:00',
+                            lunchStartStr: cs.lunch_start || '12:00',
+                            lunchEndStr: cs.lunch_end || '13:30',
+                            workEndStr: cs.work_end || '17:30',
+                            shiftCode: existingAtt?.shift_type || 'FULL_DAY',
+                            hasApprovedOt,
+                            approvedOtHours,
+                            existingOtHours: existingAtt?.ot_hours || 0
+                        });
+
                         await txQuery(
-                            `INSERT INTO attendance_logs (employee_id, record_date, status, check_in_time, check_out_time, late_minutes, is_suspicious, is_low_trust)
-                             VALUES (?, ?, '1', ?, ?, 0, 0, 0)
+                            `INSERT INTO attendance_logs (
+                                employee_id, record_date, status, check_in_time, check_out_time,
+                                late_minutes, early_leave_minutes, work_hours,
+                                morning_worked_minutes, afternoon_worked_minutes, work_credit, duration_status,
+                                is_suspicious, is_low_trust
+                             ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 0, 0)
                              ON DUPLICATE KEY UPDATE
-                                status = '1',
-                                check_in_time = ?,
-                                check_out_time = ?,
+                                status = VALUES(status),
+                                check_in_time = VALUES(check_in_time),
+                                check_out_time = VALUES(check_out_time),
                                 late_minutes = 0,
+                                early_leave_minutes = VALUES(early_leave_minutes),
+                                work_hours = VALUES(work_hours),
+                                morning_worked_minutes = VALUES(morning_worked_minutes),
+                                afternoon_worked_minutes = VALUES(afternoon_worked_minutes),
+                                work_credit = VALUES(work_credit),
+                                duration_status = VALUES(duration_status),
                                 is_suspicious = 0,
                                 is_low_trust = 0`,
-                            [row.employee_id, dateStr, finalIn, finalOut, finalIn, finalOut]
+                            [
+                                row.employee_id,
+                                dateStr,
+                                misaEval.status,
+                                finalIn,
+                                finalOut,
+                                misaEval.early_leave_minutes,
+                                misaEval.work_hours,
+                                misaEval.morning_worked_minutes,
+                                misaEval.afternoon_worked_minutes,
+                                misaEval.work_credit,
+                                misaEval.duration_status
+                            ]
                         );
-                    } else if (mode === 'CHECK_IN' || (!mode && type.includes('giờ vào'))) {
-                        const finalIn = reqIn || '08:00:00';
+                    } else if (finalIn && !finalOut) {
                         await txQuery(
                             `INSERT INTO attendance_logs (employee_id, record_date, status, check_in_time, late_minutes, is_suspicious, is_low_trust)
                              VALUES (?, ?, '1', ?, 0, 0, 0)
@@ -596,7 +681,7 @@ class RequestService {
                             [row.employee_id, dateStr, finalIn, finalIn]
                         );
                     } else {
-                        const finalOut = reqOut || '17:30:00';
+                        const fallbackOut = finalOut || '17:30:00';
                         await txQuery(
                             `INSERT INTO attendance_logs (employee_id, record_date, status, check_out_time, is_suspicious, is_low_trust)
                              VALUES (?, ?, '1', ?, 0, 0)
@@ -605,7 +690,7 @@ class RequestService {
                                 check_out_time = COALESCE(NULLIF(?, ''), NULLIF(check_out_time, ''), '17:30:00'),
                                 is_suspicious = 0,
                                 is_low_trust = 0`,
-                            [row.employee_id, dateStr, finalOut, finalOut]
+                            [row.employee_id, dateStr, fallbackOut, fallbackOut]
                         );
                     }
                 }

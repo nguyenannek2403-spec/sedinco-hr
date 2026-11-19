@@ -12,6 +12,7 @@ import {
 import { safeGet } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 import { getAttendanceStatusInfo } from "../../utils/viLabels";
+import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
 import { AppButton, AppModal, StatusBadge, SkeletonList } from "../../components/ui";
 
 const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -237,17 +238,17 @@ export default function WorkerHistoryTab({ currentUser, showToast }) {
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-emerald-50/75 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl p-2.5 text-center">
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Ngày công</div>
-              <div className="text-lg font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5">{summary.total_work_days || 0}</div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">/ {summary.standard_days || 26} công</div>
+              <div className="text-lg font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5">{formatViWorkday(summary.total_work_days || 0)}</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">/ {formatViWorkday(summary.standard_days || 26)} công</div>
             </div>
             <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl p-2.5 text-center">
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Tăng ca OT</div>
-              <div className="text-lg font-extrabold text-[#0068FF] dark:text-blue-300 mt-0.5">{summary.total_ot_hours || 0}h</div>
+              <div className="text-lg font-extrabold text-[#0068FF] dark:text-blue-300 mt-0.5">{formatViNumber(summary.total_ot_hours || 0)}h</div>
               <div className="text-xs text-slate-600 dark:text-slate-300">ngoài giờ</div>
             </div>
             <div className="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 rounded-xl p-2.5 text-center">
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Nghỉ phép</div>
-              <div className="text-lg font-extrabold text-indigo-700 dark:text-indigo-300 mt-0.5">{summary.total_leave_days || 0}</div>
+              <div className="text-lg font-extrabold text-indigo-700 dark:text-indigo-300 mt-0.5">{formatViWorkday(summary.total_leave_days || 0)}</div>
               <div className="text-xs text-slate-600 dark:text-slate-300">hưởng lương</div>
             </div>
           </div>

@@ -49,7 +49,15 @@ class PayrollService {
         const placeholders = maNvs.map(() => '?').join(',');
 
         const logs = await query(
-            `SELECT employee_id, record_date, status, ot_hours, late_minutes, early_leave_minutes, work_hours, DAYOFWEEK(record_date) as dow FROM attendance_logs WHERE employee_id IN (${placeholders}) AND record_date >= ? AND record_date < ?`,
+            `SELECT employee_id, DATE_FORMAT(record_date, "%Y-%m-%d") as record_date_iso, record_date,
+                    status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours,
+                    COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
+                    COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
+                    work_credit, duration_status, location_name, work_location_type,
+                    DAYOFWEEK(record_date) as dow
+             FROM attendance_logs
+             WHERE employee_id IN (${placeholders}) AND record_date >= ? AND record_date < ?
+             ORDER BY record_date ASC`,
             [...maNvs, startDateStr, endDateStr]
         );
         const safeLogs = logs || [];
@@ -109,11 +117,18 @@ class PayrollService {
                 nam: y,
                 baseSalary: calc.baseSalary,
                 standardWorkDays: calc.standardWorkDays,
+                unitDailyWage: calc.unitDailyWage,
+                probationPercent: calc.probationPercent,
                 insuranceRatePercent: calc.insuranceRatePercent,
                 congThuViec: calc.congThuViec,
                 congChinhThuc: calc.congChinhThuc,
+                workedDays: calc.workedDays,
+                paidLeaveDays: calc.paidLeaveDays,
+                holidayDays: calc.holidayDays,
+                totalOtHours: calc.totalOtHours,
                 totalWorkDays: calc.totalWorkDays,
                 actualWorkDays: calc.actualWorkDays,
+                daily_logs: calc.daily_breakdown || empLogs,
                 totalLateMinutes: calc.totalLateMinutes,
                 lateOccurrences: calc.lateOccurrences || 0,
                 billableLateOccurrences: calc.billableLateOccurrences || 0,
@@ -179,7 +194,15 @@ class PayrollService {
         const { startDateStr, endDateStr } = getMonthDateBounds(m, y);
 
         const logs = await query(
-            'SELECT employee_id, DATE_FORMAT(record_date, "%Y-%m-%d") as record_date_iso, record_date, status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours, location_name, work_location_type, DAYOFWEEK(record_date) as dow FROM attendance_logs WHERE employee_id = ? AND record_date >= ? AND record_date < ? ORDER BY record_date ASC',
+            `SELECT employee_id, DATE_FORMAT(record_date, "%Y-%m-%d") as record_date_iso, record_date,
+                    status, ot_hours, check_in_time, check_out_time, late_minutes, early_leave_minutes, work_hours,
+                    COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
+                    COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
+                    work_credit, duration_status, location_name, work_location_type,
+                    DAYOFWEEK(record_date) as dow
+             FROM attendance_logs
+             WHERE employee_id = ? AND record_date >= ? AND record_date < ?
+             ORDER BY record_date ASC`,
             [ma_nv, startDateStr, endDateStr]
         );
         const safeLogs = logs || [];
@@ -236,9 +259,15 @@ class PayrollService {
             nam: y,
             baseSalary: calc.baseSalary,
             standardWorkDays: calc.standardWorkDays,
+            unitDailyWage: calc.unitDailyWage,
+            probationPercent: calc.probationPercent,
             insuranceRatePercent: calc.insuranceRatePercent,
             congThuViec: calc.congThuViec,
             congChinhThuc: calc.congChinhThuc,
+            workedDays: calc.workedDays,
+            paidLeaveDays: calc.paidLeaveDays,
+            holidayDays: calc.holidayDays,
+            totalOtHours: calc.totalOtHours,
             totalWorkDays: calc.totalWorkDays,
             actualWorkDays: calc.actualWorkDays,
             totalLateMinutes: calc.totalLateMinutes,
@@ -270,7 +299,7 @@ class PayrollService {
             admin_response: emp.admin_response || null,
             confirmed_at: emp.confirmed_at || null,
             warning: calc.warning || null,
-            daily_logs: safeLogs
+            daily_logs: calc.daily_breakdown || safeLogs
         };
     }
 

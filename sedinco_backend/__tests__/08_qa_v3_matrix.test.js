@@ -262,23 +262,22 @@ test('QA3-ATT-01: Checkout preserves DEDUCT_WORKDAY 0.5 penalty & blocks 1.0 wor
     const vnToday = getVietnamDateString(new Date());
     const nowVn = new Date(Date.now() + 7 * 3600 * 1000);
     const curMins = nowVn.getUTCHours() * 60 + nowVn.getUTCMinutes();
-    const inMins = Math.max(0, curMins - 20);
-    const inHh = String(Math.floor(inMins / 60)).padStart(2, '0');
-    const inMm = String(inMins % 60).padStart(2, '0');
-    const pastEndMins = Math.max(1, curMins - 5);
-    const endHh = String(Math.floor(pastEndMins / 60)).padStart(2, '0');
-    const endMm = String(pastEndMins % 60).padStart(2, '0');
+    // Mô phỏng ca làm việc hợp lệ 3,0 giờ (180 phút >= ngưỡng 120p/buổi và <= 4,5h) trong ngày
+    const inMins = Math.max(0, curMins - 180);
+    const startMins = Math.max(0, inMins - 30);
+    const lunchStartMins = Math.max(curMins, inMins + 180);
+    const lunchEndMins = Math.min(1435, lunchStartMins + 10);
+    const endMins = Math.max(1, curMins - 5);
+    const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-    // Set work_end slightly BEFORE now so checkout enters the >= work_end branch while work_hours is ~0.3h <= 4.5h
-    await query('UPDATE company_settings SET work_end = ?, late_policy_type = ?, max_late_minutes_for_half_day = ?', [
-        `${endHh}:${endMm}:00`,
-        'DEDUCT_WORKDAY',
-        60
-    ]);
+    await query(
+        'UPDATE company_settings SET work_start = ?, lunch_start = ?, lunch_end = ?, work_end = ?, late_policy_type = ?, max_late_minutes_for_half_day = ?',
+        [fmt(startMins), fmt(lunchStartMins), fmt(lunchEndMins), fmt(endMins), 'DEDUCT_WORKDAY', 60]
+    );
 
     await query(
         "INSERT INTO attendance_logs (employee_id, record_date, check_in_time, status, late_minutes, work_location_type) VALUES (?, ?, ?, '0.5', 75, 'OFFICE') ON DUPLICATE KEY UPDATE check_in_time = VALUES(check_in_time), check_out_time = NULL, status = '0.5', late_minutes = 75",
-        [w1Id, vnToday, `${inHh}:${inMm}:00`]
+        [w1Id, vnToday, `${fmt(inMins)}:00`]
     );
 
     const outRes = await apiRequest(baseUrl, 'POST', '/api/attendance/check-in', {
@@ -289,7 +288,7 @@ test('QA3-ATT-01: Checkout preserves DEDUCT_WORKDAY 0.5 penalty & blocks 1.0 wor
     assert.equal(outRes.status, 200, `Checkout failed: ${outRes.raw}`);
 
     const [logRow] = await query('SELECT status, work_hours FROM attendance_logs WHERE employee_id = ? AND record_date = ?', [w1Id, vnToday]);
-    assert.equal(logRow.status, '0.5', `Checkout with ~0.3h worked & DEDUCT_WORKDAY half-day check-in MUST remain '0.5', got '${logRow.status}'`);
+    assert.equal(logRow.status, '0.5', `Checkout with ~3.0h worked & DEDUCT_WORKDAY half-day check-in MUST remain '0.5', got '${logRow.status}'`);
 });
 
 test('QA3-ATT-02: Manual attendance update rejects unknown ma_nv (404) & deletion writes DELETE_ATTENDANCE audit', async () => {

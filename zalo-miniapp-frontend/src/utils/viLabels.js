@@ -200,7 +200,16 @@ export function getAttendanceStatusInfo(status) {
       badgeClass: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
     };
   }
-  if (s === '0' || !s) {
+  if (s === '0') {
+    return {
+      label: 'Không tính công / Chưa đủ giờ',
+      shortLabel: '0 công',
+      credit: 0,
+      creditText: '0 công',
+      badgeClass: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/70'
+    };
+  }
+  if (!s) {
     return {
       label: 'Chưa ghi nhận công',
       shortLabel: 'Nghỉ / Trống',

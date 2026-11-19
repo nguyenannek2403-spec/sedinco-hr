@@ -1172,6 +1172,18 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             8000,
             'NV003 check-in transitioned mascot to waving_hello and showed VÀO CA THÀNH CÔNG'
         );
+        const immediateCheckoutReady = await session.evaluate(`(() => {
+            const btnIn = document.querySelector('button[data-testid="btn-checkin"]');
+            const btnOut = document.querySelector('button[data-testid="btn-checkout"]');
+            return {
+                hasCheckoutBtn: Boolean(btnOut),
+                checkoutEnabled: Boolean(btnOut && !btnOut.disabled),
+                checkinDisabled: Boolean(btnIn && btnIn.disabled)
+            };
+        })()`);
+        assert.equal(immediateCheckoutReady.hasCheckoutBtn, true, 'Checkout button must render cleanly');
+        assert.equal(immediateCheckoutReady.checkoutEnabled, true, 'V24: Checkout button must immediately become enabled after morning/any check-in');
+        assert.equal(immediateCheckoutReady.checkinDisabled, true, 'Check-in button must disable after check-in');
         const checkInTs = Date.now();
         await dismissToastIfVisible(session);
 
@@ -1681,9 +1693,28 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await clickInPage(session, { text: 'Tất cả nhân sự', inTopModal: false });
         await sleep(200);
 
-        // 3C: Trung tâm Quản trị (Phân mục B: Giám sát Lương) — Inspect "Trả lại Kế toán" modal, then Approve ("Chốt & Phát hành")
+        // 3C: Trung tâm Quản trị (Phân mục B: Giám sát Lương) — Test Overview vs Detailed Mode + "Trả lại Kế toán" & Approve
         await openAdminSubTab('management', 'payroll');
-        await inspectPhysicsAndGeometry(session, 'Admin SubTab: management -> payroll', { expectModal: false, testScrollBleed: false });
+        await inspectPhysicsAndGeometry(session, 'Admin SubTab: management -> payroll (Overview)', { expectModal: false, testScrollBleed: false });
+
+        // Switch to Detailed Payroll Mode (📑 Bảng lương chi tiết) and inspect breakdown + daily logs
+        await clickInPage(session, { selector: 'button[data-testid="payroll-mode-detailed"]', inTopModal: false });
+        await waitForCondition(
+            session,
+            `Boolean(document.querySelector('[data-testid^="detailed-payroll-card-"]'))`,
+            4000,
+            'Detailed payroll breakdown cards rendered for Admin'
+        );
+        const toggleDailyBtn = await session.evaluate(`(() => {
+            const btn = document.querySelector('button[data-testid^="toggle-daily-logs-"]');
+            if (!btn) return false;
+            btn.click();
+            return true;
+        })()`);
+        if (toggleDailyBtn) await sleep(220);
+        await inspectPhysicsAndGeometry(session, 'Admin SubTab: management -> payroll (Detailed Mode)', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[data-testid="payroll-mode-overview"]', inTopModal: false });
+        await sleep(220);
         const hasReturnBtn = await session.evaluate(`(() => {
             const isVis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; };
             return Array.from(document.querySelectorAll('#app button')).some((b) => isVis(b) && (b.innerText || '').includes('Trả lại Kế toán'));

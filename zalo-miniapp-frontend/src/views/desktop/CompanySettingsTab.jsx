@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
 import { zmpAdapter } from "../../adapters/zmp/sdkAdapter";
+import { formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
 import { AppButton, FormRow, SkeletonList } from "../../components/ui";
 
 const toNum = (val, fallback) => {
@@ -718,10 +719,10 @@ export default function CompanySettingsTab({ showToast }) {
               Đơn giá tăng ca cố định / giờ (VNĐ)
             </label>
             <input
-              type="number"
-              min="0"
-              value={config.custom_ot_hourly_rate ?? 0}
-              onChange={(e) => updateField("custom_ot_hourly_rate", e.target.value)}
+              type="text"
+              inputMode="numeric"
+              value={formatViNumber(config.custom_ot_hourly_rate ?? 0, 0)}
+              onChange={(e) => updateField("custom_ot_hourly_rate", Math.max(0, Math.round(parseViNumberInput(e.target.value))))}
               className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -874,12 +875,13 @@ export default function CompanySettingsTab({ showToast }) {
                   Tiền phạt đi trễ mỗi phút (VNĐ)
                 </label>
                 <input
-                  type="number"
-                  min="0"
-                  value={config.late_penalty_per_minute ?? config.penalty_per_minute ?? 2000}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatViNumber(config.late_penalty_per_minute ?? config.penalty_per_minute ?? 2000, 0)}
                   onChange={(e) => {
-                    updateField("late_penalty_per_minute", e.target.value);
-                    updateField("penalty_per_minute", e.target.value);
+                    const num = Math.max(0, Math.round(parseViNumberInput(e.target.value)));
+                    updateField("late_penalty_per_minute", num);
+                    updateField("penalty_per_minute", num);
                   }}
                   className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
                 />
@@ -892,12 +894,13 @@ export default function CompanySettingsTab({ showToast }) {
                   Tiền phạt mỗi lần đi trễ (VNĐ)
                 </label>
                 <input
-                  type="number"
-                  min="0"
-                  value={config.late_penalty_amount ?? config.penalty_fixed_block ?? 50000}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatViNumber(config.late_penalty_amount ?? config.penalty_fixed_block ?? 50000, 0)}
                   onChange={(e) => {
-                    updateField("late_penalty_amount", e.target.value);
-                    updateField("penalty_fixed_block", e.target.value);
+                    const num = Math.max(0, Math.round(parseViNumberInput(e.target.value)));
+                    updateField("late_penalty_amount", num);
+                    updateField("penalty_fixed_block", num);
                   }}
                   className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
                 />
