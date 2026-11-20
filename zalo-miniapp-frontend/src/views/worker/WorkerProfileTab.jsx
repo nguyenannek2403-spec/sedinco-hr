@@ -17,7 +17,7 @@ import { getShiftLabel } from "../../utils/viLabels";
 import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
 import { getDeviceIdentity, getDeviceIdentitySync, formatEmployeeDeviceLabel } from "../../utils/deviceIdentity";
 import { AppButton, AppModal } from "../../components/ui";
-import { FontScaleSelector, useFontScale } from "../../modules/accessibility/FontScaleContext";
+import { FontScaleSelector } from "../../modules/accessibility/FontScaleContext";
 
 export default function WorkerProfileTab({
   currentUser,
@@ -26,7 +26,6 @@ export default function WorkerProfileTab({
   onChangePasswordRequest,
   onOpenPayslip = null
 }) {
-  const { fontScale } = useFontScale();
   const [fallbackSlipOpen, setFallbackSlipOpen] = useState(false);
   const [attendanceSummary, setAttendanceSummary] = useState({
     total_work_days: 0,
@@ -193,7 +192,7 @@ export default function WorkerProfileTab({
           </h3>
         </div>
 
-        <div className={`grid gap-2 text-center ${fontScale >= 150 ? "grid-cols-1" : "grid-cols-3"}`}>
+        <div className="grid grid-cols-3 gap-2 text-center">
           <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl px-2 py-2.5">
             <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Tổng công</div>
             <div className="text-sm font-extrabold text-[#0068FF] dark:text-blue-300 mt-0.5">

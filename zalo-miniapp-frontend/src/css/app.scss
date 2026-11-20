@@ -630,8 +630,20 @@ html.dark .zaui-ticket-divider,
 }
 
 /* ============================================================================
-   V29 — ACCESSIBILITY: HIGH-CONTRAST FOCUS INDICATOR & REDUCED MOTION SUPPORT
+   V29/V30 — ACCESSIBILITY: PROPORTIONAL FONT SCALE, FOCUS & REDUCED MOTION
    ============================================================================ */
+html[data-font-scale="150"] body,
+html[data-font-scale="175"] body,
+html[data-font-scale="200"] body {
+  line-height: 1.5;
+}
+
+html[data-font-scale="150"] button,
+html[data-font-scale="175"] button,
+html[data-font-scale="200"] button {
+  min-height: 46px;
+}
+
 :focus-visible {
   outline: 2px solid #0068ff;
   outline-offset: 2px;

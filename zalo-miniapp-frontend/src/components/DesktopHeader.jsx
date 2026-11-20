@@ -1,17 +1,15 @@
-import React, { useLayoutEffect, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Clock,
   RefreshCw,
   ChevronRight,
   Menu,
   Bell,
-  ShieldAlert,
   ArrowLeft,
   LogOut,
-  KeyRound,
-  X
+  KeyRound
 } from "lucide-react";
-import { ROLE_LABELS, ROLES } from "../constants/roles";
+import { getDefaultTabForRole, ROLE_LABELS, ROLES } from "../constants/roles";
 import { ThemeToggleButton } from "../context/ThemeContext";
 import { useNotifications } from "../modules/notifications/useNotifications";
 import NotificationCenterPanel from "../modules/notifications/NotificationCenterPanel";
@@ -21,14 +19,12 @@ export default function DesktopHeader({
   currentTab,
   setCurrentTab,
   onNavigateAlert,
-  managementSubTab = "employees",
   settingsSubTab = "company",
   activeRole,
   dynamicPerms = {},
   onLogout,
   onChangePasswordRequest,
   currentTime,
-  alertsSummary = {},
   onRefresh,
   refreshSignal = 0,
   isLoading,
@@ -55,27 +51,6 @@ export default function DesktopHeader({
   useEffect(() => {
     fetchNotifications({ filterOverride: filter, offset: 0, append: false });
   }, [refreshSignal, currentTab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useLayoutEffect(() => {
-    if (!showAlertPanel || typeof document === "undefined") return undefined;
-    document.documentElement.classList.add("body-modal-open");
-    document.body.classList.add("body-modal-open");
-    const bgContainers = document.querySelectorAll(
-      "#app main, #app [data-scroll-container], #app .overflow-y-auto"
-    );
-    const lockedEls = [];
-    bgContainers.forEach((el) => {
-      if (!el.closest?.('[data-modal-root="true"]')) {
-        el.classList.add("bg-scroll-locked");
-        lockedEls.push(el);
-      }
-    });
-    return () => {
-      document.documentElement.classList.remove("body-modal-open");
-      document.body.classList.remove("body-modal-open");
-      lockedEls.forEach((el) => el.classList.remove("bg-scroll-locked"));
-    };
-  }, [showAlertPanel]);
 
   const handleTogglePanel = () => {
     const next = !showAlertPanel;
@@ -115,33 +90,29 @@ export default function DesktopHeader({
   ).length;
   const totalBellCount = unreadCount;
 
+  const defaultTab = getDefaultTabForRole(activeRole, dynamicPerms);
+
   const getTabTitle = () => {
     switch (currentTab) {
-      case "overview":
-        return "Tổng Quan Điều Hành";
+      case "employees":
+        return "Nhân Sự & Thiết Bị";
       case "matrix":
-        return activeRole === "accountant"
+        return activeRole === ROLES.ACCOUNTANT
           ? "Bảng Chấm Công Ma Trận"
           : "Bảng Công Ma Trận (Toàn Công Ty)";
       case "requests":
-        return "Xét Duyệt Đơn Từ";
-      case "management":
-        if (activeRole !== ROLES.ADMIN) return "Quản Lý Nhân Sự";
-        if (managementSubTab === "payroll") return "Trung Tâm Quản Trị • Giám Sát Lương";
-        if (managementSubTab === "audit_logs") return "Trung Tâm Quản Trị • Nhật Ký & An Ninh";
-        return "Trung Tâm Quản Trị • Nhân Sự & Thiết Bị";
-      case "settings":
-        if (settingsSubTab === "permissions") return "Cài Đặt Hệ Thống • Phân Quyền Kế Toán";
-        if (settingsSubTab === "holidays") return "Cài Đặt Hệ Thống • Lịch Nghỉ Lễ (x3)";
-        return "Cài Đặt Hệ Thống • Công Ty & GPS";
-      case "qa_center":
-        return "QA Center • Kiểm Thử Chất Lượng";
+        return "Duyệt Đơn Từ & OT";
       case "payroll":
-        return "Bảng Lương & Đối Soát Khiếu Nại";
+        return "Bảng Lương & Phiếu Lương";
+      case "settings":
+        if (settingsSubTab === "permissions") return "Cài Đặt • Phân Quyền Kế Toán";
+        if (settingsSubTab === "holidays") return "Cài Đặt • Lịch Nghỉ Lễ (x3)";
+        if (settingsSubTab === "audit_logs") return "Cài Đặt • Nhật Ký & An Ninh";
+        return "Cài Đặt • Công Ty & GPS";
       case "profile":
         return activeRole === ROLES.ADMIN
           ? "Hồ Sơ Quản Trị Hệ Thống"
-          : "Hồ Sơ Cá Nhân & Phiếu Lương";
+          : "Hồ Sơ Cá Nhân & Cỡ Chữ";
       default:
         return "Bảng Điều Khiển Sedinco HR";
     }
@@ -150,10 +121,9 @@ export default function DesktopHeader({
   const displayTime = currentTime instanceof Date ? currentTime : new Date();
 
   return (
+    <>
     <header
-      className={`bg-white/95 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-[10px] sm:px-6 lg:px-8 pb-2.5 flex items-center justify-between gap-[6px] sm:gap-2 sticky top-0 select-none shadow-[0_2px_14px_-2px_rgba(15,23,42,0.06)] transition-colors duration-200 ${
-        showAlertPanel ? "z-[125]" : "z-40"
-      }`}
+      className="bg-white/95 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-[10px] sm:px-6 lg:px-8 pb-2.5 flex items-center justify-between gap-[6px] sm:gap-2 sticky top-0 z-40 select-none shadow-[0_2px_14px_-2px_rgba(15,23,42,0.06)] transition-colors duration-200"
       style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
     >
       {/* Trái: Nút Menu Mobile + Nút Trở về trên tab phụ + Tiêu đề tab */}
@@ -170,15 +140,15 @@ export default function DesktopHeader({
           </button>
         )}
 
-        {currentTab && currentTab !== "overview" && currentTab !== "matrix" && typeof setCurrentTab === "function" && (
+        {currentTab && currentTab !== defaultTab && typeof setCurrentTab === "function" && (
           <button
             type="button"
             aria-label="Trở về"
-            onClick={() => setCurrentTab("overview")}
+            onClick={() => setCurrentTab(defaultTab)}
             className="hidden sm:flex min-w-[44px] min-h-[44px] px-3 py-1.5 rounded-full bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-600/20 dark:hover:bg-blue-600/30 text-[#0068FF] dark:text-blue-300 border border-blue-200 dark:border-blue-500/40 items-center justify-center gap-1 text-xs font-extrabold shrink-0"
           >
             <ArrowLeft size={15} className="shrink-0" />
-            <span className="hidden sm:inline">Tổng quan</span>
+            <span className="hidden sm:inline">Trang chính</span>
           </button>
         )}
 
@@ -296,89 +266,30 @@ export default function DesktopHeader({
           </button>
         )}
 
-        {/* Popover Trung tâm Thông báo V29 */}
-        {showAlertPanel && (
-          <>
-            <div
-              className="fixed top-0 right-0 bottom-0 left-0 z-[120] bg-slate-950/35 dark:bg-slate-950/60"
-              aria-hidden="true"
-              onClick={() => setShowAlertPanel(false)}
-              onWheel={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onTouchMove={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-            />
-            <div
-              data-testid="notification-popover"
-              data-modal-root="true"
-              role="dialog"
-              aria-modal="true"
-              aria-label={`Thông báo & Cảnh báo (${totalBellCount})`}
-              onWheel={(e) => e.stopPropagation()}
-              onTouchMove={(e) => {
-                if (!e.target?.closest?.(".modal-scroll-area")) e.preventDefault();
-                e.stopPropagation();
-              }}
-              className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+64px)] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[440px] z-[125] max-h-[78vh] flex flex-col rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in"
-            >
-              <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <ShieldAlert className="w-4 h-4 text-[#0068FF] dark:text-blue-400 shrink-0" />
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
-                      Trung tâm Thông báo ({unreadCount} chưa đọc)
-                    </h3>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug truncate">
-                      Lưu đầy đủ lịch sử • Bấm để xem chi tiết
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAlertPanel(false)}
-                  aria-label="Đóng"
-                  className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/80 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="flex-1 min-h-0 overflow-y-auto modal-scroll-area p-3.5 bg-white dark:bg-slate-900">
-                <NotificationCenterPanel
-                  mode="desktop"
-                  notifications={notifications}
-                  unreadCount={unreadCount}
-                  readCount={readCount}
-                  totalCount={totalCount}
-                  filter={filter}
-                  onFilterChange={changeFilter}
-                  hasMore={hasMore}
-                  loading={loadingNotifs}
-                  loadingMore={loadingMore}
-                  onLoadMore={loadMore}
-                  onMarkAllRead={markAllRead}
-                  onMarkSingleRead={markRead}
-                  onClickItem={handleClickNotification}
-                />
-              </div>
-
-              <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowAlertPanel(false)}
-                  className="w-full min-h-[44px] py-2 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 text-xs font-bold cursor-pointer transition-colors"
-                >
-                  Đóng / Quay lại
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+        {/* Popover Trung tâm Thông báo render qua createPortal(document.body) */}
       </div>
     </header>
+
+    <NotificationCenterPanel
+      open={showAlertPanel}
+      onClose={() => setShowAlertPanel(false)}
+      mode="desktop"
+      title={`Trung tâm Thông báo (${unreadCount} chưa đọc)`}
+      subtitle="Lưu đầy đủ lịch sử • Bấm để xem chi tiết"
+      notifications={notifications}
+      unreadCount={unreadCount}
+      readCount={readCount}
+      totalCount={totalCount}
+      filter={filter}
+      onFilterChange={changeFilter}
+      hasMore={hasMore}
+      loading={loadingNotifs}
+      loadingMore={loadingMore}
+      onLoadMore={loadMore}
+      onMarkAllRead={markAllRead}
+      onMarkSingleRead={markRead}
+      onClickItem={handleClickNotification}
+    />
+    </>
   );
 }

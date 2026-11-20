@@ -272,7 +272,7 @@ test('V29-ARCH-01: Zero circular dependencies, role separation in PayslipActionF
 
     const footerSrc = fs.readFileSync(path.join(FE_SRC, 'modules/payroll/PayslipActionFooter.jsx'), 'utf8');
     assert.ok(footerSrc.includes('payslip-admin-footer') && footerSrc.includes('payslip-worker-footer'));
-    assert.ok(footerSrc.includes('Điều chỉnh Thưởng/Phạt/Ứng') && footerSrc.includes('Tải / In Phiếu lương'));
+    assert.ok(footerSrc.includes('Điều chỉnh') && footerSrc.includes('Xuất phiếu'));
     assert.ok(footerSrc.includes('Xác nhận đúng lương') && footerSrc.includes('Báo sai sót') && footerSrc.includes('Bảng lương tạm tính'));
 
     const modalSrc = fs.readFileSync(path.join(FE_SRC, 'components/ui/AppModal.jsx'), 'utf8');

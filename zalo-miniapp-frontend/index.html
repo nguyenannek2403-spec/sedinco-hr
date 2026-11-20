@@ -23,11 +23,11 @@
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute('content', mode === 'dark' ? '#090d16' : '#f8fafc');
           var rawScale = Number(localStorage.getItem('sedinco_font_scale') || 100);
-          var validScales = [100, 110, 125, 150, 175, 200];
-          var scale = validScales.indexOf(rawScale) >= 0 ? rawScale : 100;
+          var rootPxMap = { 100: 16, 110: 17, 125: 18, 150: 19.5, 175: 21, 200: 22 };
+          var scale = rootPxMap[rawScale] ? rawScale : 100;
           root.setAttribute('data-font-scale', String(scale));
           if (scale !== 100) {
-            root.style.fontSize = (16 * scale) / 100 + 'px';
+            root.style.fontSize = rootPxMap[scale] + 'px';
           }
         } catch (e) {}
       })();

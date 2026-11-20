@@ -48,7 +48,7 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.ACCOUNTANT]: {
     name: "Kế Toán",
-    allowedTabs: ["overview", "matrix", "requests", "payroll", "profile"],
+    allowedTabs: ["matrix", "payroll", "requests", "employees", "profile"],
     defaultTab: "matrix",
     canCheckIn: false,
     canViewOwnAttendance: false,
@@ -73,8 +73,8 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.ADMIN]: {
     name: "Quản Trị Viên (Giám Đốc)",
-    allowedTabs: ["overview", "matrix", "requests", "management", "settings", "qa_center", "profile"],
-    defaultTab: "matrix",
+    allowedTabs: ["employees", "matrix", "requests", "payroll", "settings", "profile"],
+    defaultTab: "employees",
     canCheckIn: false,
     canViewOwnAttendance: false,
     canViewAllAttendance: true,
@@ -103,17 +103,19 @@ export const ROLE_PERMISSIONS = {
 export const isTabAllowedForRole = (tab, role, dynamicPermissions = {}) => {
   const normalizedRole = role === "employee" ? ROLES.WORKER : (role || ROLES.WORKER);
   const perm = ROLE_PERMISSIONS[normalizedRole] || ROLE_PERMISSIONS[ROLES.WORKER];
-  
-  if (normalizedRole === ROLES.ADMIN) return true;
-  
+
+  if (normalizedRole === ROLES.ADMIN) {
+    return ROLE_PERMISSIONS[ROLES.ADMIN].allowedTabs.includes(tab);
+  }
+
   // Với Kế toán: Ràng buộc nghiêm ngặt theo dynamic_permissions
   if (normalizedRole === ROLES.ACCOUNTANT) {
     const dp = dynamicPermissions || {};
-    if (tab === "overview" || tab === "profile") return true;
+    if (tab === "profile") return true;
     if (tab === "matrix") return dp.attendance_view_all !== false;
     if (tab === "payroll") return dp.payroll_view_all !== false;
     if (tab === "requests") return dp.leave_view_all !== false;
-    if (tab === "management") return Boolean(dp.employee_view);
+    if (tab === "employees") return Boolean(dp.employee_view);
     return false;
   }
 
@@ -126,7 +128,7 @@ export const isTabAllowedForRole = (tab, role, dynamicPermissions = {}) => {
 export const getDefaultTabForRole = (role, dynamicPermissions = {}) => {
   const normalizedRole = role === "employee" ? ROLES.WORKER : (role || ROLES.WORKER);
   if (normalizedRole === ROLES.ACCOUNTANT) {
-    const candidateTabs = ["matrix", "payroll", "requests", "management", "profile"];
+    const candidateTabs = ["matrix", "payroll", "requests", "employees", "profile"];
     const firstAllowed = candidateTabs.find((t) => isTabAllowedForRole(t, ROLES.ACCOUNTANT, dynamicPermissions));
     return firstAllowed || "profile";
   }

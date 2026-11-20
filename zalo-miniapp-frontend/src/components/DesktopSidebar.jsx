@@ -11,9 +11,7 @@ import {
   LogOut,
   RotateCcw,
   Menu,
-  X,
-  LayoutDashboard,
-  Activity
+  X
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../constants/roles";
 import useLockBodyScroll from "../hooks/useLockBodyScroll";
@@ -30,49 +28,55 @@ export function getSidebarMenuItems({
   const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
   const fraudCount = Number(alertsSummary?.fraud_count) || 0;
   const devicePendingCount = Number(alertsSummary?.pending_device_count) || 0;
-  const managementAlertTotal = disputedCount + fraudCount + devicePendingCount;
 
   if (activeRole === ROLES.ADMIN) {
     return [
-      { id: "overview", group: "Vận hành", label: "Tổng quan", shortLabel: "Tổng quan", icon: LayoutDashboard },
-      { id: "matrix", group: "Vận hành", label: "Bảng công", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
+      {
+        id: "employees",
+        label: "Nhân sự & Thiết bị",
+        shortLabel: "Nhân sự",
+        icon: Users,
+        badge: devicePendingCount > 0 ? String(devicePendingCount) : null,
+        badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
+      },
+      { id: "matrix", label: "Bảng công", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
       {
         id: "requests",
-        group: "Vận hành",
-        label: "Xét duyệt đơn từ",
+        label: "Duyệt đơn từ",
         shortLabel: "Đơn từ",
         icon: FileText,
-        badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
+        badge: pendingRequestsCount > 0 ? String(pendingRequestsCount) : null,
         badgeColor: "bg-amber-500 text-slate-950 border-amber-300"
       },
       {
-        id: "management",
-        group: "Quản trị & Nhân sự",
-        label: "Trung tâm Quản trị",
-        shortLabel: "Quản trị",
-        icon: Users,
-        badge: managementAlertTotal > 0 ? `${managementAlertTotal}` : null,
+        id: "payroll",
+        label: "Bảng lương",
+        shortLabel: "Bảng lương",
+        icon: DollarSign,
+        badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
         badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
       },
-      { id: "settings", group: "Hệ thống & Chất lượng", label: "Cài đặt Hệ thống", shortLabel: "Cài đặt", icon: Settings },
-      { id: "qa_center", group: "Hệ thống & Chất lượng", label: "QA Center", shortLabel: "QA", icon: Activity },
-      { id: "profile", group: "Hệ thống & Chất lượng", label: "Hồ sơ Quản trị", shortLabel: "Hồ sơ", icon: User }
+      {
+        id: "settings",
+        label: "Cài đặt & Nhật ký",
+        shortLabel: "Cài đặt",
+        icon: Settings,
+        badge: fraudCount > 0 ? String(fraudCount) : null,
+        badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
+      }
     ];
   }
 
   if (activeRole === ROLES.ACCOUNTANT) {
-    const items = [
-      { id: "overview", group: "Vận hành", label: "Tổng quan", shortLabel: "Tổng quan", icon: LayoutDashboard }
-    ];
+    const items = [];
     if (dynamicPerms.attendance_view_all !== false) {
-      items.push({ id: "matrix", group: "Vận hành", label: "Bảng Công Kỳ Lương", shortLabel: "Bảng công", icon: Calendar, badge: "Chốt sổ" });
+      items.push({ id: "matrix", label: "Bảng công", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" });
     }
     if (dynamicPerms.payroll_view_all !== false) {
       items.push({
         id: "payroll",
-        group: "Vận hành",
-        label: "Tính Lương & Điều Chỉnh",
-        shortLabel: "Tính lương",
+        label: "Bảng lương",
+        shortLabel: "Bảng lương",
         icon: DollarSign,
         badge: disputedCount > 0 ? `${disputedCount} Khiếu nại` : null,
         badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
@@ -81,24 +85,22 @@ export function getSidebarMenuItems({
     if (dynamicPerms.leave_view_all !== false) {
       items.push({
         id: "requests",
-        group: "Vận hành",
-        label: "Đơn Từ & Tạm Ứng",
+        label: "Duyệt đơn từ",
         shortLabel: "Đơn từ",
         icon: FileText,
-        badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
-        badgeColor: "bg-rose-500 text-white"
+        badge: pendingRequestsCount > 0 ? String(pendingRequestsCount) : null,
+        badgeColor: "bg-amber-500 text-slate-950 border-amber-300"
       });
     }
     if (dynamicPerms.employee_view === true) {
-      items.push({ id: "management", group: "Quản trị & Nhân sự", label: "Nhân sự & Thiết bị", shortLabel: "Nhân sự", icon: Users });
+      items.push({ id: "employees", label: "Nhân sự & Thiết bị", shortLabel: "Nhân sự", icon: Users });
     }
-    items.push({ id: "profile", group: "Hệ thống & Chất lượng", label: "Hồ Sơ Kế Toán", shortLabel: "Hồ sơ", icon: User });
     return items;
   }
 
   return [
     { id: "checkin", label: "Điểm Danh 1 Chạm", shortLabel: "Chấm công", icon: Clock, badge: "1 Chạm" },
-    { id: "history", label: "Bảng Công Tháng (31 Ngày)", shortLabel: "Lịch sử", icon: Calendar },
+    { id: "history", label: "Bảng Công Tháng (31 Ngày)", shortLabel: "Lịch công", icon: Calendar },
     { id: "requests", label: "Đơn Từ Của Tôi", shortLabel: "Đơn từ", icon: FileText },
     { id: "payroll", label: "Phiếu Lương Điện Tử", shortLabel: "Phiếu lương", icon: DollarSign },
     { id: "profile", label: "Hồ Sơ Cá Nhân", shortLabel: "Hồ sơ", icon: User }
@@ -230,60 +232,64 @@ export default function DesktopSidebar({
         </div>
       </div>
 
-      {/* 3. Danh Sách Menu Điều Hướng (Phân ngăn rõ ràng theo nghiệp vụ) */}
+      {/* 3. Danh Sách Menu Điều Hướng (Đúng 5 ngăn nghiệp vụ sạch, không trùng lặp) */}
       <nav
         data-filter-group="sidebar-menu"
-        className="p-3 sm:p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area space-y-1.5"
+        className="p-3 sm:p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area space-y-2"
       >
-        {menuItems.map((item, idx) => {
+        {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
-          const showGroupHeader = item.group && (idx === 0 || menuItems[idx - 1]?.group !== item.group);
           return (
-            <React.Fragment key={item.id}>
-              {showGroupHeader && (
-                <div className="px-3 pt-2.5 pb-1 text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  {item.group}
-                </div>
-              )}
-              <button
-                type="button"
-                data-tab={item.id}
-                data-active={isActive ? "true" : "false"}
-                title={item.label}
-                onClick={() => handleSelect(item.id)}
-                className={`w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer border ${
-                  isActive
-                    ? "bg-[#0068FF] bg-gradient-to-r from-[#0068FF] to-[#0091FF] text-white border-blue-500 dark:from-blue-600 dark:to-sky-600 dark:text-white dark:border-blue-400 shadow-[0_6px_16px_-3px_rgba(0,104,255,0.3)]"
-                    : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/80"
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Icon size={18} className={`shrink-0 ${isActive ? "text-white" : "text-slate-500 dark:text-slate-400"}`} />
-                  <span className="truncate">{item.label}</span>
-                </div>
+            <button
+              key={item.id}
+              type="button"
+              data-tab={item.id}
+              data-active={isActive ? "true" : "false"}
+              title={item.label}
+              onClick={() => handleSelect(item.id)}
+              className={`w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer border ${
+                isActive
+                  ? "bg-[#0068FF] bg-gradient-to-r from-[#0068FF] to-[#0091FF] text-white border-blue-500 dark:from-blue-600 dark:to-sky-600 dark:text-white dark:border-blue-400 shadow-[0_6px_16px_-3px_rgba(0,104,255,0.3)]"
+                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/80"
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <Icon size={18} className={`shrink-0 ${isActive ? "text-white" : "text-slate-500 dark:text-slate-400"}`} />
+                <span className="truncate">{item.label}</span>
+              </div>
 
-                {item.badge && (
-                  <span
-                    className={`text-xs px-2.5 py-0.5 rounded-full font-black border shrink-0 ${
-                      item.badgeColor || (isActive ? "bg-white/20 text-white border-white/40" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700")
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            </React.Fragment>
+              {item.badge && (
+                <span
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-black border shrink-0 ${
+                    item.badgeColor || (isActive ? "bg-white/20 text-white border-white/40" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700")
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </button>
           );
         })}
       </nav>
 
-      {/* 4. Footer Sidebar: Người Dùng & Nút Đăng Xuất */}
+      {/* 4. Footer Sidebar: Nút Hồ Sơ Cá Nhân / Cỡ chữ & Đăng xuất */}
       <div
         className="p-4 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 space-y-3"
         style={isMobileDrawer ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" } : undefined}
       >
-        <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
+        <button
+          type="button"
+          data-tab="profile"
+          data-active={currentTab === "profile" ? "true" : "false"}
+          onClick={() => handleSelect("profile")}
+          title="Mở Hồ sơ cá nhân & Cỡ chữ"
+          className={`w-full min-h-[56px] p-3 rounded-2xl border shadow-sm flex items-center gap-3 text-left cursor-pointer transition-all ${
+            currentTab === "profile"
+              ? "bg-blue-50 dark:bg-blue-950/60 border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/20"
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-600"
+          }`}
+        >
           <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-2xl border-2 border-slate-300 dark:border-slate-600 shadow-sm overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-800">
             <img
               src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
@@ -299,10 +305,10 @@ export default function DesktopSidebar({
                 TK: {currentUser?.login_username || currentUser?.ma_nv}
               </span>
               <span className="text-xs text-slate-400 dark:text-slate-500">•</span>
-              <span className="text-xs text-slate-600 dark:text-slate-300 truncate font-semibold">{ROLE_LABELS[activeRole]}</span>
+              <span className="text-xs text-slate-600 dark:text-slate-300 truncate font-semibold">Hồ sơ &amp; Cỡ chữ</span>
             </div>
           </div>
-        </div>
+        </button>
 
         <div className="flex items-center gap-2 pt-1">
           {onClearCache && (

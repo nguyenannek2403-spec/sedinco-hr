@@ -152,7 +152,7 @@ test('UI-02: Semantic A11y & V15 Portal Architecture — switches, portals, scro
 
     // Zero inline fixed-inset-0 overlays outside AppModal, DesktopSidebar & index (Toast)
     const allSrcFiles = listFilesRecursive(FE_SRC, '.jsx');
-    const allowedOverlayFiles = new Set(['AppModal.jsx', 'DesktopSidebar.jsx', 'index.jsx']);
+    const allowedOverlayFiles = new Set(['AppModal.jsx', 'DesktopSidebar.jsx', 'NotificationCenterPanel.jsx', 'index.jsx']);
     for (const file of allSrcFiles) {
         const base = path.basename(file);
         if (allowedOverlayFiles.has(base)) continue;
@@ -1065,8 +1065,16 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             [prevMonth, prevYear]
         );
         await query(
-            `INSERT INTO user_notifications (recipient_ma_nv, type, title, message, ref_month, ref_year, target_ma_nv, is_read)
-             VALUES ('NV003', 'PERIOD_LOCKED_PAYROLL', ?, ?, ?, ?, 'NV003', 0)`,
+            `INSERT INTO user_notifications (recipient_ma_nv, alert_key, type, category, severity, title, message, target_ma_nv, is_read)
+             VALUES ('NV003', 'V30_WORKER_INFO', 'GENERAL_INFO', 'general', 'info', ?, ?, 'NV003', 0)`,
+            [
+                '📌 Nhắc nhở cập nhật hồ sơ ca làm việc',
+                'Vui lòng kiểm tra thông tin ca làm việc và thiết bị định danh của bạn trong mục Tài khoản.'
+            ]
+        );
+        await query(
+            `INSERT INTO user_notifications (recipient_ma_nv, type, category, title, message, ref_month, ref_year, target_ma_nv, is_read)
+             VALUES ('NV003', 'PERIOD_LOCKED_PAYROLL', 'period_locked', ?, ?, ?, ?, 'NV003', 0)`,
             [
                 `📢 Đã chốt kỳ công & Bảng lương Tháng ${curMonth}/${curYear}`,
                 `Kỳ công và phiếu lương Tháng ${curMonth}/${curYear} của bạn đã được chốt minh bạch. Bấm để xem chi tiết từng ngày công và bảng lương.`,
@@ -1150,6 +1158,8 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // ROUND 1: WORKER (NV003 — Mobile 360x780)
         // =================================================================
         await loginThroughAuthView(session, 'NV003', '123456');
+        const hasOverviewOnWorker = await session.evaluate(`Boolean(document.querySelector('[data-testid="role-overview-dashboard"]'))`);
+        assert.equal(hasOverviewOnWorker, false, 'V30: Worker must land directly on OneTouchCheckIn without RoleOverviewDashboard');
         await inspectPhysicsAndGeometry(session, 'Worker Tab 1: Chấm công', { expectModal: false, testScrollBleed: false });
 
         // V23 Check: Minimalist UI (no CÔNG THÁNG / Chụp ảnh Selfie on check-in screen) & mascot starts sleeping
@@ -1173,22 +1183,49 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
         await sleep(240);
 
-        // V25 + V29 Test 6 (Worker Bell -> 3 Tabs & Read/Unread History -> Deep-Link Payslip + Daily Attendance + Draft Footer + History Switch)
+        // V25 + V29 + V30 (Worker Bell Portal -> e.stopPropagation() Single Mark-Read -> Deep-Link Payslip + Daily Attendance + Draft Footer)
         const bellBadgeBefore = await session.evaluate(`document.querySelector('[data-testid="worker-bell-badge"]')?.innerText?.trim() || null`);
-        assert.equal(bellBadgeBefore, '1', 'V25 Worker Header Bell must display unread badge "1"');
+        assert.equal(bellBadgeBefore, '2', 'V30 Worker Header Bell must display unread badge "2"');
         await clickInPage(session, { selector: 'button[data-testid="worker-bell-btn"]', inTopModal: false });
-        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="worker-notification-modal"]'))`, 4000, 'Worker notification modal opened');
-        const workerBellControls = await session.evaluate(`(() => ({
-            hasAllTab: Boolean(document.querySelector('[data-testid="notif-tab-all"]')),
-            hasUnreadTab: Boolean(document.querySelector('[data-testid="notif-tab-unread"]')),
-            hasReadTab: Boolean(document.querySelector('[data-testid="notif-tab-read"]')),
-            hasMarkAll: Boolean(document.querySelector('[data-testid="notif-mark-all-read-btn"]')),
-            hasSingleMark: Boolean(document.querySelector('[data-testid^="notif-mark-read-"]'))
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="worker-notification-modal"]'))`, 4000, 'Worker notification portal opened');
+        const workerPortalMeta = await session.evaluate(`(() => {
+            const pop = document.querySelector('[data-testid="notification-popover"]');
+            const root = pop?.closest('[data-modal-root="true"]');
+            return {
+                mountedInBody: Boolean(root && root.parentElement === document.body),
+                zIndex: root ? Number(getComputedStyle(root).zIndex || 0) : 0,
+                hasAllTab: Boolean(document.querySelector('[data-testid="notif-tab-all"]')),
+                hasUnreadTab: Boolean(document.querySelector('[data-testid="notif-tab-unread"]')),
+                hasReadTab: Boolean(document.querySelector('[data-testid="notif-tab-read"]')),
+                hasMarkAll: Boolean(document.querySelector('[data-testid="notif-mark-all-read-btn"]')),
+                hasSingleMark: Boolean(document.querySelector('[data-testid^="notif-mark-read-"]'))
+            };
+        })()`);
+        assert.equal(workerPortalMeta.mountedInBody, true, 'V30 BUG-002: Worker notification panel must render via createPortal in document.body');
+        assert.ok(workerPortalMeta.zIndex >= 125, `V30 Notification Portal z-index must be >= 125, got ${workerPortalMeta.zIndex}`);
+        assert.ok(workerPortalMeta.hasAllTab && workerPortalMeta.hasUnreadTab && workerPortalMeta.hasReadTab, 'Worker Bell must render All/Unread/Read filter tabs');
+        assert.ok(workerPortalMeta.hasMarkAll && workerPortalMeta.hasSingleMark, 'Worker Bell must render mark-all & single mark-read buttons');
+        await inspectPhysicsAndGeometry(session, 'V30 Worker Notification Bell Portal', { expectModal: true });
+
+        // Test e.stopPropagation(): clicking "Đánh dấu đã đọc" on GENERAL_INFO must keep popover open & decrement badge 2 -> 1!
+        const clickedSingleReadWorker = await session.evaluate(`(() => {
+            const generalItem = document.querySelector('[data-modal-root="true"] button[data-alert-category="general"]');
+            const card = generalItem?.closest('[data-notif-unread]');
+            const markBtn = card?.querySelector('button[data-testid^="notif-mark-read-"]');
+            if (markBtn) { markBtn.click(); return true; }
+            return false;
+        })()`);
+        assert.equal(clickedSingleReadWorker, true, 'Must find small single mark-read button on V30_WORKER_INFO row');
+        await sleep(320);
+        const afterSingleReadWorker = await session.evaluate(`(() => ({
+            popoverStillOpen: Boolean(document.querySelector('[data-testid="notification-popover"]')),
+            badgeAfter: document.querySelector('[data-testid="worker-bell-badge"]')?.innerText?.trim() || null
         }))()`);
-        assert.ok(workerBellControls.hasAllTab && workerBellControls.hasUnreadTab && workerBellControls.hasReadTab, 'Worker Bell must render All/Unread/Read filter tabs');
-        assert.ok(workerBellControls.hasMarkAll && workerBellControls.hasSingleMark, 'Worker Bell must render mark-all & single mark-read buttons');
-        await inspectPhysicsAndGeometry(session, 'V25/V29 Worker Notification Bell Modal', { expectModal: true });
-        await clickInPage(session, { selector: 'button[data-testid^="worker-notif-item-"]', inTopModal: true });
+        assert.equal(afterSingleReadWorker.popoverStillOpen, true, 'V30: Clicking "Đánh dấu đã đọc" MUST stopPropagation and keep Notification Panel open');
+        assert.equal(afterSingleReadWorker.badgeAfter, '1', 'V30: Worker bell badge must decrement immediately 2 -> 1');
+
+        // Now click the PERIOD_LOCKED_PAYROLL row -> closes portal, badge -> 0, opens unified SalarySlipModal Part A + Part B
+        await clickInPage(session, { selector: 'button[data-alert-category="period_locked"]', inTopModal: true });
         await waitForCondition(
             session,
             `Boolean(document.querySelector('[data-testid="payslip-part-a"]') && document.querySelector('[data-testid="payslip-daily-attendance-section"]'))`,
@@ -1339,9 +1376,9 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await dismissToastIfVisible(session);
 
         // 1B: WorkerHistoryTab — click completed Day 2 & forgotten-checkout Day 3
-        await clickInPage(session, { text: 'Lịch sử', inTopModal: false });
+        await clickInPage(session, { text: 'Lịch công', inTopModal: false });
         await sleep(450);
-        await inspectPhysicsAndGeometry(session, 'Worker Tab 2: Lịch sử', { expectModal: false, testScrollBleed: false });
+        await inspectPhysicsAndGeometry(session, 'Worker Tab 2: Lịch công', { expectModal: false, testScrollBleed: false });
 
         // Click Day 2 cell
         await clickInPage(session, { selector: '.grid-cols-7 button', text: '2', exact: true, inTopModal: false });
@@ -1617,9 +1654,9 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await dismissModalIfOpen(session);
         }
 
-        // 2F: Management Tab (Exclusive Headcount Bar + LiveAttendanceBoardModal + Hồ sơ 360°)
-        await openDesktopTabViaDrawer('management', 'Accountant');
-        await inspectPhysicsAndGeometry(session, 'Accountant Tab: management', { expectModal: false, testScrollBleed: false });
+        // 2F: Employees Tab (Exclusive Headcount Bar + LiveAttendanceBoardModal + Hồ sơ 360°)
+        await openDesktopTabViaDrawer('employees', 'Accountant');
+        await inspectPhysicsAndGeometry(session, 'Accountant Tab: employees', { expectModal: false, testScrollBleed: false });
         const hasExclusiveHeadcountBar = await session.evaluate(`Boolean(document.querySelector('[data-testid="employee-hub-headcount-bar"]'))`);
         assert.ok(hasExclusiveHeadcountBar, 'EmployeeManagementTab must exclusively render headcount bar');
         await clickInPage(session, { text: 'Xem bảng live chi tiết', inTopModal: false });
@@ -1676,15 +1713,26 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
         await sleep(240);
 
-        // 3A: Verify V17 Pure Manager Isolation (zero Role Switcher) & 4 Clean Sidebar Modules + Profile
-        const adminShellAudit = await session.evaluate(`(() => {
+        // 3A: Verify V30 Role-Native Admin Landing (employees directly), 5 Operational Nav Drawers (no Overview, no QA Center), & zero Role Switcher
+        const adminLandingCheck = await session.evaluate(`(() => {
             const bodyTxt = document.body.innerText || '';
+            const sidebarTabs = Array.from(document.querySelectorAll('nav[data-filter-group="sidebar-menu"] button[data-tab]'))
+                .map((b) => b.getAttribute('data-tab'));
             return {
                 hasRoleSwitchText: bodyTxt.includes('Chế độ NV') || bodyTxt.includes('Chấm công Cá nhân'),
-                bottomBtns: Array.from(document.querySelectorAll('nav button')).map((b) => (b.innerText || '').trim())
+                hasHeadcountBarOnLanding: Boolean(document.querySelector('[data-testid="employee-hub-headcount-bar"]')),
+                hasOverview: Boolean(document.querySelector('[data-testid="role-overview-dashboard"]')),
+                sidebarTabs
             };
         })()`);
-        assert.equal(adminShellAudit.hasRoleSwitchText, false, 'Admin UI must NOT contain any Role Switcher button or text');
+        assert.equal(adminLandingCheck.hasRoleSwitchText, false, 'Admin UI must NOT contain any Role Switcher button or text');
+        assert.equal(adminLandingCheck.hasHeadcountBarOnLanding, true, 'V30: Admin MUST land directly on Nhân sự & Thiết bị (employee-hub-headcount-bar visible immediately)');
+        assert.equal(adminLandingCheck.hasOverview, false, 'V30: Admin MUST NOT render removed RoleOverviewDashboard');
+        assert.deepEqual(
+            adminLandingCheck.sidebarTabs,
+            ['employees', 'matrix', 'requests', 'payroll', 'settings'],
+            'V30: Admin sidebar must contain strictly 5 clean operational drawers without overview or qa_center'
+        );
 
         async function openAdminSubTab(hubTabId, subTabId) {
             await openDesktopTabViaDrawer(hubTabId, 'Admin');
@@ -1693,13 +1741,62 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await waitForNoBlockingLoading(session);
         }
 
-        // 3A-Bell: Test V29 Notification Lifecycle + Deep-Link 1-tap from Header Bell Popover at 360px -> Optimistic Badge Decrement & Opens Admin SalarySlipModal with Sticky Action Bar
+        // 3A-Bell: Test V30 Portal Notification Lifecycle + e.stopPropagation() Single Mark-Read + Desktop & Mobile Portal Bounds + Deep-Link to Payroll
         await waitForCondition(session, `Boolean(document.querySelector('[data-testid="desktop-bell-badge"]'))`, 5000, 'Admin Bell displays unread badge');
         const adminBellBefore = Number(await session.evaluate(`document.querySelector('[data-testid="desktop-bell-badge"]')?.innerText?.trim() || '0'`));
-        assert.ok(adminBellBefore >= 1, `Expected Admin bell unread badge >= 1, got ${adminBellBefore}`);
+        assert.ok(adminBellBefore >= 2, `Expected Admin bell unread badge >= 2 (dispute + pending request/device), got ${adminBellBefore}`);
         await clickInPage(session, { selector: 'button[data-bell-button="true"]', inTopModal: false });
-        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="notification-popover"]'))`, 4000, 'Admin Bell Alert Popover opened at 360px');
-        await inspectPhysicsAndGeometry(session, 'Admin Header V29 Bell Popover @ 360px', { expectModal: true });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="notification-popover"]'))`, 4000, 'Admin Bell Alert Portal opened at 360px');
+
+        const adminPortalMeta = await session.evaluate(`(() => {
+            const pop = document.querySelector('[data-testid="notification-popover"]');
+            const root = pop?.closest('[data-modal-root="true"]');
+            return {
+                mountedInBody: Boolean(root && root.parentElement === document.body),
+                zIndex: root ? Number(getComputedStyle(root).zIndex || 0) : 0
+            };
+        })()`);
+        assert.equal(adminPortalMeta.mountedInBody, true, 'V30 BUG-002: Desktop notification panel MUST render via createPortal in document.body');
+        assert.ok(adminPortalMeta.zIndex >= 125, `V30 Desktop Notification Portal z-index must be >= 125, got ${adminPortalMeta.zIndex}`);
+        await inspectPhysicsAndGeometry(session, 'Admin Header V30 Bell Portal @ 360px', { expectModal: true });
+
+        // Test e.stopPropagation(): clicking small "Đánh dấu đã đọc" keeps popover open & decrements badge immediately
+        const clickedSingleAdminRead = await session.evaluate(`(() => {
+            const cards = Array.from(document.querySelectorAll('[data-modal-root="true"] [data-notif-unread="true"]'));
+            const nonDisputeCard = cards.find((c) => !c.querySelector('button[data-alert-category="salary_dispute"]')) || cards[0];
+            const btn = nonDisputeCard?.querySelector('button[data-testid^="notif-mark-read-"]');
+            if (btn) { btn.click(); return true; }
+            return false;
+        })()`);
+        assert.equal(clickedSingleAdminRead, true, 'Admin notification list must have small single mark-read button');
+        await sleep(320);
+        const afterSingleAdmin = await session.evaluate(`(() => ({
+            popoverStillOpen: Boolean(document.querySelector('[data-testid="notification-popover"]')),
+            badgeAfter: Number(document.querySelector('[data-testid="desktop-bell-badge"]')?.innerText?.trim() || '0')
+        }))()`);
+        assert.equal(afterSingleAdmin.popoverStillOpen, true, 'V30: Admin "Đánh dấu đã đọc" MUST stopPropagation and keep Notification Panel open');
+        assert.equal(
+            afterSingleAdmin.badgeAfter,
+            Math.max(0, adminBellBefore - 1),
+            `V30 BUG-002: Admin single mark-read must decrement badge (${adminBellBefore} -> ${adminBellBefore - 1}), got ${afterSingleAdmin.badgeAfter}`
+        );
+
+        // Verify Desktop 1024x768 Popover Portal positioning & bounds cleanly, then return to 360x780
+        await setViewportAndScale(session, 1024, 768, 100);
+        await sleep(160);
+        const desktopPopRect = await session.evaluate(`(() => {
+            const pop = document.querySelector('[data-testid="notification-popover"]');
+            if (!pop) return null;
+            const r = pop.getBoundingClientRect();
+            return { left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), bottom: Math.round(r.bottom), vw: window.innerWidth, vh: window.innerHeight };
+        })()`);
+        assert.ok(
+            desktopPopRect && desktopPopRect.left >= 8 && desktopPopRect.right <= desktopPopRect.vw - 8 && desktopPopRect.bottom <= desktopPopRect.vh - 4,
+            `Desktop 1024x768 Notification Portal bounds invalid: ${JSON.stringify(desktopPopRect)}`
+        );
+        await setViewportAndScale(session, 360, 780, 100);
+        await sleep(160);
+
         const clickedDisputeAlert = await session.evaluate(`(() => {
             const btn = document.querySelector('[data-modal-root="true"] button[data-alert-category="salary_dispute"]');
             if (btn) { btn.click(); return true; }
@@ -1708,24 +1805,27 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         if (clickedDisputeAlert) {
             await waitForCondition(
                 session,
-                `Boolean(document.querySelector('[data-subtab="payroll"].bg-blue-600'))`,
+                `Boolean(document.querySelector('[data-testid="payroll-mode-overview"]'))`,
                 5000,
-                'Deep-link transitioned straight into Management -> Payroll sub-tab'
+                'Deep-link transitioned straight into Bảng lương tab'
             );
             await sleep(450);
             const adminBellAfter = Number(await session.evaluate(`document.querySelector('[data-testid="desktop-bell-badge"]')?.innerText?.trim() || '0'`));
-            assert.equal(adminBellAfter, Math.max(0, adminBellBefore - 1), `V29 BUG-001 FIX: Admin bell badge MUST decrement immediately (${adminBellBefore} -> ${adminBellBefore - 1}), got ${adminBellAfter}`);
+            assert.equal(
+                adminBellAfter,
+                Math.max(0, afterSingleAdmin.badgeAfter - 1),
+                `V30: Clicking alert item must decrement badge (${afterSingleAdmin.badgeAfter} -> ${afterSingleAdmin.badgeAfter - 1}), got ${adminBellAfter}`
+            );
             const autoOpenedModal = await session.evaluate(`Boolean(document.querySelector('[data-modal-root="true"]'))`);
             if (autoOpenedModal) {
                 const adminSlipFooterAudit = await session.evaluate(`(() => ({
                     hasAdminFooter: Boolean(document.querySelector('[data-testid="payslip-admin-footer"]')),
                     hasCloseBtn: Boolean(document.querySelector('[data-testid="payslip-close-btn"]')),
-                    hasAdjustBtn: Boolean(document.querySelector('[data-testid="payslip-admin-adjust-btn"]')),
                     hasExportBtn: Boolean(document.querySelector('[data-testid="payslip-admin-export-btn"]')),
                     hasWorkerFooter: Boolean(document.querySelector('[data-testid="payslip-worker-footer"]'))
                 }))()`);
-                assert.equal(adminSlipFooterAudit.hasAdminFooter, true, 'V29 BUG-002 FIX: Admin SalarySlipModal must render payslip-admin-footer');
-                assert.ok(adminSlipFooterAudit.hasCloseBtn && adminSlipFooterAudit.hasAdjustBtn && adminSlipFooterAudit.hasExportBtn, 'Admin Sticky Footer must contain Close, Adjust & Export buttons');
+                assert.equal(adminSlipFooterAudit.hasAdminFooter, true, 'V30 BUG-003: Admin SalarySlipModal must render payslip-admin-footer');
+                assert.ok(adminSlipFooterAudit.hasCloseBtn && adminSlipFooterAudit.hasExportBtn, 'Admin Sticky Footer must contain Close & Export buttons');
                 assert.equal(adminSlipFooterAudit.hasWorkerFooter, false, 'Admin SalarySlipModal must NEVER render worker confirm/dispute footer');
                 await inspectPhysicsAndGeometry(session, 'Admin Bell Deep-Link Opened SalarySlipModal (Sticky Action Bar)', { expectModal: true });
                 await dismissModalIfOpen(session);
@@ -1734,28 +1834,18 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await dismissModalIfOpen(session);
         }
 
-        // Verify V29 Overview Dashboard & Admin-Only QA Center + Responsive 320px..1440px Sweep
-        await openDesktopTabViaDrawer('overview', 'Admin');
-        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="role-overview-dashboard"]'))`, 5000, 'Admin RoleOverviewDashboard rendered');
-        await inspectPhysicsAndGeometry(session, 'Admin Tab: Overview Dashboard @ 360px', { expectModal: false, testScrollBleed: false });
-
+        // Responsive 320px..1440px Sweep on Admin Landing Hub (employees)
+        await openDesktopTabViaDrawer('employees', 'Admin');
         for (const [vpW, vpH] of [[320, 640], [430, 932], [768, 1024], [1024, 768], [1440, 900]]) {
             await setViewportAndScale(session, vpW, vpH, 100);
             await sleep(140);
             const overflowInfo = await session.evaluate(`document.documentElement.scrollWidth - window.innerWidth`);
-            assert.ok(overflowInfo <= 2, `Overview Dashboard horizontal overflow at ${vpW}x${vpH}: ${overflowInfo}px`);
+            assert.ok(overflowInfo <= 2, `Admin Employees Hub horizontal overflow at ${vpW}x${vpH}: ${overflowInfo}px`);
         }
         await setViewportAndScale(session, 360, 780, 100);
 
-        await openDesktopTabViaDrawer('qa_center', 'Admin');
-        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="qa-center-tab"]'))`, 5000, 'Admin QaCenterTab rendered');
-        await inspectPhysicsAndGeometry(session, 'Admin Tab: QA Center @ 360px', { expectModal: false, testScrollBleed: false });
-        await clickInPage(session, { selector: 'button[data-testid="qa-run-safe-checks-btn"]', inTopModal: false });
-        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="qa-safe-run-result"]'))`, 6000, 'QA Center Safe Checks completed and displayed results');
-        await dismissToastIfVisible(session);
-
-        // 3B: Trung tâm Quản trị (Phân mục A: Nhân sự & Thiết bị) — Add NV_UI_TEMP, Quick Filters, Open Unified 360° Modal, Approve Device
-        await openAdminSubTab('management', 'employees');
+        // 3B: Nhân sự & Thiết bị — Add NV_UI_TEMP, Quick Filters, Open Unified 360° Modal, Approve Device
+        await openDesktopTabViaDrawer('employees', 'Admin');
         await clickInPage(session, { text: 'Thêm nhân viên', inTopModal: false });
         await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 4000, 'Add Employee modal opened');
         await inspectPhysicsAndGeometry(session, 'Admin Add Employee Modal', { expectModal: true });
@@ -1827,9 +1917,20 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await clickInPage(session, { text: 'Tất cả nhân sự', inTopModal: false });
         await sleep(200);
 
-        // 3C: Trung tâm Quản trị (Phân mục B: Giám sát Lương) — Test Overview vs Detailed Mode + "Trả lại Kế toán" & Approve
-        await openAdminSubTab('management', 'payroll');
-        await inspectPhysicsAndGeometry(session, 'Admin SubTab: management -> payroll (Overview)', { expectModal: false, testScrollBleed: false });
+        // 3C: Bảng lương trực tiếp — Overview vs Detailed Mode + Stacked Adjustment Modal (z-[115]) & Live Refresh + "Trả lại Kế toán" & Approve
+        await openDesktopTabViaDrawer('payroll', 'Admin');
+        const showingCurPayroll = await session.evaluate(`(document.body.innerText || '').includes('Tháng ' + ${curMonth} + '/' + ${curYear})`);
+        if (!showingCurPayroll) {
+            await clickInPage(session, { selector: 'button[aria-label="Tháng sau"]', inTopModal: false });
+            await waitForCondition(
+                session,
+                `(document.body.innerText || '').includes('Tháng ' + ${curMonth} + '/' + ${curYear})`,
+                4000,
+                'Switched PayrollGridTable back to unlocked current month'
+            );
+            await waitForNoBlockingLoading(session);
+        }
+        await inspectPhysicsAndGeometry(session, 'Admin Tab: payroll (Overview)', { expectModal: false, testScrollBleed: false });
 
         // Switch to Detailed Payroll Mode (📑 Bảng lương chi tiết) and inspect breakdown + daily logs
         await clickInPage(session, { selector: 'button[data-testid="payroll-mode-detailed"]', inTopModal: false });
@@ -1846,7 +1947,49 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             return true;
         })()`);
         if (toggleDailyBtn) await sleep(220);
-        await inspectPhysicsAndGeometry(session, 'Admin SubTab: management -> payroll (Detailed Mode)', { expectModal: false, testScrollBleed: false });
+        await inspectPhysicsAndGeometry(session, 'Admin Tab: payroll (Detailed Mode)', { expectModal: false, testScrollBleed: false });
+
+        // Test V30 Stacked Adjustment Modal inside unlocked curMonth SalarySlipModal -> z-[115] > z-[100] & Live Refresh!
+        await clickInPage(session, { selector: 'button[data-testid="payroll-view-detail-btn-NV003"]', inTopModal: false });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="payslip-part-a"]'))`, 5000, 'Admin opened NV003 SalarySlipModal');
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="payslip-admin-adjust-btn"]'))`, 4000, 'Unlocked SalarySlipModal shows Adjust button');
+        await clickInPage(session, { selector: 'button[data-testid="payslip-admin-adjust-btn"]', inTopModal: true });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="payroll-adjust-form"]'))`, 4000, 'Adjustment Modal opened on top of SalarySlipModal');
+        const stackedZCheck = await session.evaluate(`(() => {
+            const ms = Array.from(document.querySelectorAll('[data-modal-root="true"]'))
+                .filter((e) => getComputedStyle(e).display !== 'none')
+                .map((e) => ({
+                    hasForm: Boolean(e.querySelector('[data-testid="payroll-adjust-form"]')),
+                    hasSlip: Boolean(e.querySelector('[data-testid="payslip-part-a"]')),
+                    z: Number(getComputedStyle(e).zIndex || 0)
+                }));
+            const slip = ms.find((m) => m.hasSlip);
+            const adj = ms.find((m) => m.hasForm);
+            return {
+                count: ms.length,
+                slipZ: slip ? slip.z : 0,
+                adjZ: adj ? adj.z : 0
+            };
+        })()`);
+        assert.ok(stackedZCheck.count >= 2, `Expected >= 2 stacked modals, got ${stackedZCheck.count}`);
+        assert.ok(stackedZCheck.adjZ >= 115 && stackedZCheck.adjZ > stackedZCheck.slipZ, `V30: Adjustment modal z-index (${stackedZCheck.adjZ}) must be >= 115 and > SalarySlipModal (${stackedZCheck.slipZ})`);
+        await inspectPhysicsAndGeometry(session, 'Admin Stacked Adjustment Modal (z-[115]) above SalarySlipModal', { expectModal: true });
+
+        await setReactInputValue(session, { selector: 'input[data-testid="adj-bonus-input"]', value: '500.000', inTopModal: true });
+        await clickInPage(session, { text: 'Lưu điều chỉnh', inTopModal: true });
+        await waitForCondition(session, `!document.querySelector('[data-testid="payroll-adjust-form"]')`, 6000, 'Adjustment modal closed after save');
+        await waitForCondition(
+            session,
+            `(() => {
+                const slipTxt = document.querySelector('[data-testid="payslip-part-a"]')?.innerText || '';
+                return slipTxt.includes('Thưởng nóng') && slipTxt.includes('500.000');
+            })()`,
+            6000,
+            'V30: Open SalarySlipModal immediately refreshed with saved 500.000 bonus'
+        );
+        await dismissModalIfOpen(session);
+        await dismissToastIfVisible(session);
+
         await clickInPage(session, { selector: 'button[data-testid="payroll-mode-overview"]', inTopModal: false });
         await sleep(220);
         const hasReturnBtn = await session.evaluate(`(() => {
@@ -1880,9 +2023,9 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await dismissToastIfVisible(session);
         }
 
-        // 3D: Trung tâm Quản trị (Phân mục C: Nhật ký & An ninh) — Filter Category Pill + Pinned Toggle
-        await openAdminSubTab('management', 'audit_logs');
-        await inspectPhysicsAndGeometry(session, 'Admin SubTab: management -> audit_logs', { expectModal: false, testScrollBleed: false });
+        // 3D: Cài đặt & Nhật ký — Nhật ký & An ninh — Filter Category Pill + Pinned Toggle
+        await openAdminSubTab('settings', 'audit_logs');
+        await inspectPhysicsAndGeometry(session, 'Admin SubTab: settings -> audit_logs', { expectModal: false, testScrollBleed: false });
         await clickInPage(session, { selector: '[data-filter-group="audit-category-filter"] button', text: 'Chấm công', inTopModal: false });
         await sleep(250);
         await clickInPage(session, { text: 'Đã ghim', inTopModal: false });

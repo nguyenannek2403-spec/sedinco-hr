@@ -47,6 +47,7 @@ export default function SalarySlipModal({
   onSelectEmployee = null,
   canAdjust = false,
   onOpenAdjustment = null,
+  refreshKey = 0,
   showToast,
   onStatusUpdated,
   onClose
@@ -138,6 +139,12 @@ export default function SalarySlipModal({
       fetchPeriodSlip(selectedMonth, selectedYear, activeMaNv);
     }
   }, [selectedMonth, selectedYear, activeMaNv, propMaNv, initialItem, initialMonth, initialYear, fetchPeriodSlip]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (refreshKey > 0) {
+      fetchPeriodSlip(selectedMonth, selectedYear, activeMaNv);
+    }
+  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const item = loadedItem || initialItem;
   const thang = Number(selectedMonth || item?.thang || now.getMonth() + 1);
@@ -501,66 +508,16 @@ export default function SalarySlipModal({
           </AppButton>
         </div>
       }
-      footer={
-        <PayslipActionFooter
-          isAdminOrAccountant={isAdminOrAccountant}
-          item={item}
-          confirmStatus={confirmStatus}
-          submitting={submitting}
-          resolving={resolving}
-          canAdjust={canAdjust}
-          isLockedOrPaid={isLockedOrPaid}
-          onClose={onClose}
-          onOpenAdjustment={onOpenAdjustment}
-          onExportSlip={handleExportSingleSlipExcel}
-          onConfirmSalary={handleConfirmSalary}
-          onToggleDispute={handleToggleDispute}
-        />
-      }
-    >
-      <div className="p-4 sm:p-6 space-y-4 text-slate-800 dark:text-slate-100">
-        {/* Bộ chọn Tháng / Năm lịch sử + Chuyển nhanh Nhân viên cho Quản trị viên */}
-        <div className="print:hidden flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+      subHeader={
+        <div className="print:hidden flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
             <Calendar className="w-4 h-4 text-[#0068FF] dark:text-blue-400 shrink-0" />
-            <span>Chọn kỳ lịch sử:</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 flex-1 sm:flex-initial justify-end">
-            {isAdminOrAccountant && Array.isArray(employeeList) && employeeList.length > 1 && currentEmpIdx >= 0 && (
-              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-1">
-                <button
-                  type="button"
-                  data-testid="payslip-prev-emp-btn"
-                  aria-label="Nhân viên trước"
-                  title="Nhân viên trước"
-                  onClick={() => handleStepEmployee(-1)}
-                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-[#0068FF] dark:hover:text-blue-300 cursor-pointer"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="text-xs font-mono font-bold px-1 text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                  {currentEmpIdx + 1}/{employeeList.length}
-                </span>
-                <button
-                  type="button"
-                  data-testid="payslip-next-emp-btn"
-                  aria-label="Nhân viên tiếp theo"
-                  title="Nhân viên tiếp theo"
-                  onClick={() => handleStepEmployee(1)}
-                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-[#0068FF] dark:hover:text-blue-300 cursor-pointer"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            )}
-
             <select
               data-testid="payslip-month-select"
               aria-label="Chọn tháng phiếu lương"
               value={thang}
               onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
             >
               {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                 <option key={m} value={m}>
@@ -573,7 +530,7 @@ export default function SalarySlipModal({
               aria-label="Chọn năm phiếu lương"
               value={nam}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
             >
               {yearOptions.map((y) => (
                 <option key={y} value={y}>
@@ -587,11 +544,62 @@ export default function SalarySlipModal({
               loading={loadingPeriod}
               onClick={() => fetchPeriodSlip(thang, nam, maNv)}
               aria-label="Tải lại kỳ lương"
-              className="min-w-[44px] min-h-[44px] px-2.5 py-2"
+              className="min-w-[44px] min-h-[44px] px-2.5 py-1.5"
             />
           </div>
-        </div>
 
+          {isAdminOrAccountant && Array.isArray(employeeList) && employeeList.length > 1 && currentEmpIdx >= 0 && (
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-1">
+              <button
+                type="button"
+                data-testid="payslip-prev-emp-btn"
+                aria-label="Nhân viên trước"
+                title="NV trước"
+                onClick={() => handleStepEmployee(-1)}
+                className="min-w-[44px] min-h-[44px] px-2 flex items-center gap-0.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-[#0068FF] dark:hover:text-blue-300 cursor-pointer"
+              >
+                <ChevronLeft size={15} />
+                <span className="hidden sm:inline">NV trước</span>
+              </button>
+              <span className="text-xs font-mono font-bold px-1.5 text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                {currentEmpIdx + 1}/{employeeList.length}
+              </span>
+              <button
+                type="button"
+                data-testid="payslip-next-emp-btn"
+                aria-label="Nhân viên tiếp theo"
+                title="NV sau"
+                onClick={() => handleStepEmployee(1)}
+                className="min-w-[44px] min-h-[44px] px-2 flex items-center gap-0.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-[#0068FF] dark:hover:text-blue-300 cursor-pointer"
+              >
+                <span className="hidden sm:inline">NV sau</span>
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
+        </div>
+      }
+      footer={
+        <PayslipActionFooter
+          isAdminOrAccountant={isAdminOrAccountant}
+          item={item}
+          confirmStatus={confirmStatus}
+          submitting={submitting}
+          resolving={resolving}
+          canAdjust={canAdjust}
+          isLockedOrPaid={isLockedOrPaid}
+          thang={thang}
+          nam={nam}
+          maNv={maNv}
+          onClose={onClose}
+          onOpenAdjustment={onOpenAdjustment}
+          onExportSlip={handleExportSingleSlipExcel}
+          onConfirmSalary={handleConfirmSalary}
+          onToggleDispute={handleToggleDispute}
+        />
+      }
+    >
+      <div className="p-4 sm:p-6 space-y-4 text-slate-800 dark:text-slate-100">
         {loadingPeriod ? (
           <SkeletonList rows={4} label={`Đang tải phiếu lương & bảng công Tháng ${thang}/${nam}...`} />
         ) : loadError ? (

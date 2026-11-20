@@ -14,6 +14,15 @@ export const FONT_SCALE_OPTIONS = [
   { value: 200, label: "200%", description: "Thị lực kém" }
 ];
 
+export const FONT_SCALE_ROOT_PX = {
+  100: 16,
+  110: 17,
+  125: 18,
+  150: 19.5,
+  175: 21,
+  200: 22
+};
+
 const VALID_SCALES = FONT_SCALE_OPTIONS.map((o) => o.value);
 
 export function normalizeFontScale(val) {
@@ -40,7 +49,7 @@ function applyFontScaleToDom(scale) {
   try {
     const root = document.documentElement;
     root.setAttribute("data-font-scale", String(normalized));
-    root.style.fontSize = normalized === 100 ? "" : `${(16 * normalized) / 100}px`;
+    root.style.fontSize = normalized === 100 ? "" : `${FONT_SCALE_ROOT_PX[normalized] || 16}px`;
   } catch {
     // ignore DOM errors
   }
@@ -151,11 +160,7 @@ export function FontScaleSelector({ className = "" }) {
       <div
         role="group"
         aria-label="Chọn cỡ chữ hiển thị"
-        className={`grid gap-1.5 ${
-          fontScale >= 125
-            ? "grid-cols-2 md:grid-cols-6"
-            : "grid-cols-2 sm:grid-cols-3 md:grid-cols-6"
-        }`}
+        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5"
       >
         {FONT_SCALE_OPTIONS.map((opt) => {
           const active = fontScale === opt.value;

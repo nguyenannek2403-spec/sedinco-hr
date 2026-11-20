@@ -20,6 +20,7 @@ export default function AppModal({
   subtitle = "",
   icon = null,
   headerExtra = null,
+  subHeader = null,
   footer = null,
   closeLabel = "Đóng / Quay lại",
   theme = "auto",
@@ -191,6 +192,20 @@ export default function AppModal({
             )}
           </div>
         </div>
+
+        {/* Thanh điều khiển phụ cố định dưới tiêu đề (nếu có) */}
+        {subHeader && (
+          <div
+            className={`px-4 py-2 border-b shrink-0 ${
+              isDark
+                ? "bg-slate-900/95 border-slate-800"
+                : "bg-slate-50/90 border-slate-200/80 dark:bg-slate-900/95 dark:border-slate-800"
+            }`}
+            onWheel={(e) => e.stopPropagation()}
+          >
+            {subHeader}
+          </div>
+        )}
 
         {/* Nội dung Modal cuộn mượt, cách ly cuộn nền 100% */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area">

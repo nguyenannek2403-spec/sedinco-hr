@@ -23,7 +23,7 @@ const MODULE_CATALOG = [
         apis: ['GET /api/notifications/summary'],
         db_tables: ['employees', 'attendance_logs', 'requests', 'ot_registrations', 'payroll_periods', 'period_locks'],
         permissions: ['attendance_view_all', 'payroll_view_all', 'leave_view_all', 'employee_view'],
-        fe_files: ['src/modules/dashboard/RoleOverviewDashboard.jsx', 'src/views/desktop/DesktopDashboard.jsx', 'src/components/LiveAttendanceBoardModal.jsx'],
+        fe_files: ['src/views/desktop/DesktopDashboard.jsx', 'src/components/LiveAttendanceBoardModal.jsx'],
         be_files: ['src/services/permissionService.js', 'src/controllers/permissionController.js'],
         test_suites: ['09_phase9_audit.test.js', '12_v29_quality_notif_payslip_qa_center.test.js', '07_ui_a11y.test.js']
     },

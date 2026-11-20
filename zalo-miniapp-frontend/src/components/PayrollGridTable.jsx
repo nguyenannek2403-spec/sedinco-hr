@@ -62,6 +62,7 @@ export default function PayrollGridTable({
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [selectedDepartment, setSelectedDepartment] = useState("ALL");
   const [selectedSlipItem, setSelectedSlipItem] = useState(null);
+  const [slipRefreshTick, setSlipRefreshTick] = useState(0);
   const [internalPayroll, setInternalPayroll] = useState([]);
   const [periodStatus, setPeriodStatus] = useState(null);
   const [loadingPayroll, setLoadingPayroll] = useState(false);
@@ -231,7 +232,13 @@ export default function PayrollGridTable({
   };
 
   const handleOpenAdjustmentModal = (item) => {
-    setAdjustItem(item);
+    const targetMonth = Number(item?.thang || month);
+    const targetYear = Number(item?.nam || year);
+    setAdjustItem({
+      ...item,
+      _targetMonth: targetMonth,
+      _targetYear: targetYear
+    });
     setAdjForm({
       bonus_amount: Math.max(0, Math.round(Number(item.bonusAmount) || 0)),
       penalty_amount: Math.max(0, Math.round(Number(item.penaltyAmount) || 0)),
@@ -245,6 +252,8 @@ export default function PayrollGridTable({
     e.preventDefault();
     if (!adjustItem || adjInFlightRef.current) return;
     const empId = adjustItem.ma_nv || adjustItem.id_nhan_vien;
+    const targetMonth = Number(adjustItem._targetMonth || month);
+    const targetYear = Number(adjustItem._targetYear || year);
     adjInFlightRef.current = true;
     setAdjSaving(true);
     setAdjError("");
@@ -253,8 +262,8 @@ export default function PayrollGridTable({
         "/payroll/adjustments",
         {
           ma_nv: empId,
-          month,
-          year,
+          month: targetMonth,
+          year: targetYear,
           bonus_amount: Math.max(0, Math.round(Number(adjForm.bonus_amount) || 0)),
           penalty_amount: Math.max(0, Math.round(Number(adjForm.penalty_amount) || 0)),
           advance_deduction: Math.max(0, Math.round(Number(adjForm.advance_deduction) || 0)),
@@ -271,6 +280,7 @@ export default function PayrollGridTable({
           const refreshedSlip = updatedList.find((r) => (r.ma_nv || r.id_nhan_vien) === openId);
           if (refreshedSlip) setSelectedSlipItem(refreshedSlip);
         }
+        setSlipRefreshTick((t) => t + 1);
         if (onRefresh) onRefresh();
       } else {
         setAdjError(res?.message || "Không thể lưu điều chỉnh.");
@@ -1322,13 +1332,40 @@ export default function PayrollGridTable({
 
       </div>
 
-      {/* Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2) */}
+      {/* Modal Phiếu Lương & Bảng Công Chi Tiết */}
+      {selectedSlipItem && (
+        <SalarySlipModal
+          payrollItem={selectedSlipItem}
+          targetMaNv={selectedSlipItem.ma_nv || selectedSlipItem.id_nhan_vien}
+          month={month}
+          year={year}
+          isAdminOrAccountant={isAdmin || isAccountant}
+          employeeList={filteredList}
+          onSelectEmployee={(emp) => setSelectedSlipItem(emp)}
+          canAdjust={isAdmin || canCalculatePayroll}
+          onOpenAdjustment={(slip) => handleOpenAdjustmentModal(slip)}
+          refreshKey={slipRefreshTick}
+          showToast={notify}
+          onStatusUpdated={() => {
+            fetchPayrollFromApi();
+            if (onRefresh) onRefresh();
+          }}
+          onClose={() => setSelectedSlipItem(null)}
+        />
+      )}
+
+      {/* Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2) — z-[115] luôn nổi trên SalarySlipModal */}
       <AppModal
         open={Boolean(adjustItem)}
         onClose={() => !adjSaving && setAdjustItem(null)}
         disableClose={adjSaving}
+        zIndexClass="z-[115]"
         title="Điều chỉnh thưởng / phạt"
-        subtitle={adjustItem ? `${adjustItem.ho_ten} (${adjustItem.ma_nv || adjustItem.id_nhan_vien}) • Tháng ${month}/${year}` : ""}
+        subtitle={
+          adjustItem
+            ? `${adjustItem.ho_ten} (${adjustItem.ma_nv || adjustItem.id_nhan_vien}) • Tháng ${adjustItem._targetMonth || month}/${adjustItem._targetYear || year}`
+            : ""
+        }
         maxWidthClass="max-w-md"
         footer={
           <div className="flex gap-2.5">
@@ -1356,6 +1393,7 @@ export default function PayrollGridTable({
         {adjustItem && (
           <form
             id="payroll-adjust-form"
+            data-testid="payroll-adjust-form"
             onSubmit={handleSaveAdjustment}
             className="p-4 space-y-4"
           >
@@ -1369,6 +1407,7 @@ export default function PayrollGridTable({
               <FormRow label="Tiền thưởng thêm (VNĐ)">
                 <input
                   type="text"
+                  data-testid="adj-bonus-input"
                   inputMode="numeric"
                   value={formatViNumber(adjForm.bonus_amount, 0)}
                   onChange={(e) => setAdjForm((f) => ({ ...f, bonus_amount: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
@@ -1378,6 +1417,7 @@ export default function PayrollGridTable({
               <FormRow label="Khấu trừ phạt (VNĐ)">
                 <input
                   type="text"
+                  data-testid="adj-penalty-input"
                   inputMode="numeric"
                   value={formatViNumber(adjForm.penalty_amount, 0)}
                   onChange={(e) => setAdjForm((f) => ({ ...f, penalty_amount: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
@@ -1387,6 +1427,7 @@ export default function PayrollGridTable({
               <FormRow label="Tạm ứng đã trừ (VNĐ)">
                 <input
                   type="text"
+                  data-testid="adj-advance-input"
                   inputMode="numeric"
                   value={formatViNumber(adjForm.advance_deduction, 0)}
                   onChange={(e) => setAdjForm((f) => ({ ...f, advance_deduction: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
@@ -1462,24 +1503,6 @@ export default function PayrollGridTable({
           </div>
         </form>
       </AppModal>
-
-      {/* Modal Phiếu Lương & Bảng Công Chi Tiết */}
-      {selectedSlipItem && (
-        <SalarySlipModal
-          payrollItem={selectedSlipItem}
-          targetMaNv={selectedSlipItem.ma_nv || selectedSlipItem.id_nhan_vien}
-          month={month}
-          year={year}
-          isAdminOrAccountant={isAdmin || isAccountant}
-          employeeList={filteredList}
-          onSelectEmployee={(emp) => setSelectedSlipItem(emp)}
-          canAdjust={isAdmin || canCalculatePayroll}
-          onOpenAdjustment={(slip) => handleOpenAdjustmentModal(slip)}
-          showToast={notify}
-          onStatusUpdated={() => fetchPayrollFromApi()}
-          onClose={() => setSelectedSlipItem(null)}
-        />
-      )}
 
     </div>
   );

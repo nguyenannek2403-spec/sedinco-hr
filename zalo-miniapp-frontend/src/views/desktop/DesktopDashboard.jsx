@@ -14,8 +14,6 @@ import { AppButton } from "../../components/ui";
 import { FontScaleSelector } from "../../modules/accessibility/FontScaleContext";
 import {
   RefreshCw,
-  Users,
-  DollarSign,
   ShieldAlert,
   Building2,
   ShieldCheck,
@@ -28,8 +26,6 @@ import {
 const AttendanceMatrixTable = lazy(() => import("../../components/AttendanceMatrixTable"));
 const PayrollGridTable = lazy(() => import("../../components/PayrollGridTable"));
 const AccountantPermissionView = lazy(() => import("../../components/AccountantPermissionView"));
-const RoleOverviewDashboard = lazy(() => import("../../modules/dashboard/RoleOverviewDashboard"));
-const QaCenterTab = lazy(() => import("../../modules/qa-center/QaCenterTab"));
 
 export default function DesktopDashboard({
   currentUser,
@@ -43,8 +39,7 @@ export default function DesktopDashboard({
     const r = activeRole || currentUser?.role;
     return getDefaultTabForRole(r, currentUser?.dynamic_permissions || {});
   });
-  const [managementSubTab, setManagementSubTab] = useState("employees"); // 'employees' | 'payroll' | 'audit_logs'
-  const [settingsSubTab, setSettingsSubTab] = useState("company"); // 'company' | 'permissions' | 'holidays'
+  const [settingsSubTab, setSettingsSubTab] = useState("company"); // 'company' | 'permissions' | 'holidays' | 'audit_logs'
   const [focusTarget, setFocusTarget] = useState(null);
   const [liveDynamicPerms, setLiveDynamicPerms] = useState(null);
 
@@ -129,36 +124,34 @@ export default function DesktopDashboard({
   };
 
   const navigateToTarget = useCallback((rawTab, subTabOverride = null) => {
-    let nextTab = rawTab || "matrix";
+    let nextTab = rawTab || getDefaultTabForRole(resolvedRole, effectiveDynamicPerms);
     let nextSubTab = subTabOverride;
 
-    if (resolvedRole === ROLES.ADMIN) {
-      if (nextTab === "employees" || nextTab === "devices") {
-        nextTab = "management";
-        nextSubTab = nextSubTab || "employees";
-      } else if (nextTab === "payroll") {
-        nextTab = "management";
-        nextSubTab = nextSubTab || "payroll";
-      } else if (nextTab === "audit_logs") {
-        nextTab = "management";
-        nextSubTab = nextSubTab || "audit_logs";
-      } else if (nextTab === "company") {
+    if (nextTab === "management") {
+      if (nextSubTab === "payroll") {
+        nextTab = "payroll";
+      } else if (nextSubTab === "audit_logs" && resolvedRole === ROLES.ADMIN) {
         nextTab = "settings";
-        nextSubTab = nextSubTab || "company";
-      } else if (nextTab === "permissions") {
-        nextTab = "settings";
-        nextSubTab = nextSubTab || "permissions";
-      } else if (nextTab === "holidays") {
-        nextTab = "settings";
-        nextSubTab = nextSubTab || "holidays";
+        nextSubTab = "audit_logs";
+      } else {
+        nextTab = "employees";
       }
+    } else if (nextTab === "devices") {
+      nextTab = "employees";
+    } else if (nextTab === "audit_logs" && resolvedRole === ROLES.ADMIN) {
+      nextTab = "settings";
+      nextSubTab = "audit_logs";
+    } else if (
+      (nextTab === "company" || nextTab === "permissions" || nextTab === "holidays") &&
+      resolvedRole === ROLES.ADMIN
+    ) {
+      nextSubTab = nextTab;
+      nextTab = "settings";
     }
 
     if (!isTabAllowedForRole(nextTab, resolvedRole, effectiveDynamicPerms)) return;
     setCurrentTab(nextTab);
-    if (nextTab === "management" && nextSubTab) {
-      setManagementSubTab(nextSubTab);
-    } else if (nextTab === "settings" && nextSubTab) {
+    if (nextTab === "settings" && nextSubTab) {
       setSettingsSubTab(nextSubTab);
     }
     setIsMobileMenuOpen(false);
@@ -199,7 +192,10 @@ export default function DesktopDashboard({
       {/* Sidebar Trái (Tự động chuyển thành Drawer Portal + Bottom Nav khi mở trên điện thoại < 1024px) */}
       <DesktopSidebar
         currentTab={effectiveTab}
-        setCurrentTab={(tabId) => navigateToTarget(tabId)}
+        setCurrentTab={(tabId) => {
+          setFocusTarget(null);
+          navigateToTarget(tabId);
+        }}
         activeRole={resolvedRole}
         dynamicPerms={effectiveDynamicPerms}
         currentUser={currentUser}
@@ -221,9 +217,11 @@ export default function DesktopDashboard({
           activeRole={resolvedRole}
           dynamicPerms={effectiveDynamicPerms}
           currentTab={effectiveTab}
-          managementSubTab={managementSubTab}
           settingsSubTab={settingsSubTab}
-          setCurrentTab={(tabId) => navigateToTarget(tabId)}
+          setCurrentTab={(tabId) => {
+          setFocusTarget(null);
+          navigateToTarget(tabId);
+        }}
           onNavigateAlert={handleNavigateAlert}
           onLogout={onLogout}
           onChangePasswordRequest={onChangePasswordRequest}
@@ -251,24 +249,24 @@ export default function DesktopDashboard({
               </div>
             }
           >
-            {/* 0. Tổng quan Điều hành theo Vai trò */}
-            {effectiveTab === "overview" && (
-              <RoleOverviewDashboard
+            {/* 1. Nhân sự & Thiết bị (Hồ sơ 360° & Quân số 6 KPI) */}
+            {effectiveTab === "employees" && (
+              <EmployeeManagementTab
+                key={`employees-${refreshTick}`}
                 currentUser={currentUser}
                 activeRole={resolvedRole}
                 dynamicPerms={effectiveDynamicPerms}
+                showToast={showToast}
+                initialFilter={resolvedRole === ROLES.ADMIN ? mgmtInitialFilter : "all"}
+                focusTarget={focusTarget}
                 alertsSummary={alertsSummary}
-                isLoading={alertsLoading}
-                onNavigate={(tabId, subTab) => navigateToTarget(tabId, subTab)}
                 onOpenLiveBoard={(initialTab = "present") => setLiveBoardModal({ open: true, initialTab })}
-                onRefresh={() => {
-                  setRefreshTick((t) => t + 1);
-                  fetchAlertsSummary();
-                }}
+                pendingDeviceCount={alertsSummary?.pending_device_count || 0}
+                onRefreshAlerts={fetchAlertsSummary}
               />
             )}
 
-            {/* 1. Ma Trận Chấm Công Toàn Công Ty */}
+            {/* 2. Ma Trận Chấm Công Toàn Công Ty */}
             {effectiveTab === "matrix" && (
               <AttendanceMatrixTable
                 key={`matrix-${selectedMonth}-${selectedYear}-${refreshTick}`}
@@ -280,23 +278,6 @@ export default function DesktopDashboard({
                 year={selectedYear}
                 onMonthChange={handleMonthChange}
                 onRefresh={fetchAlertsSummary}
-                showToast={showToast}
-                onShowToast={showToast}
-              />
-            )}
-
-            {/* 2. Bảng Tính Lương (Role Kế toán truy cập trực tiếp) */}
-            {effectiveTab === "payroll" && (
-              <PayrollGridTable
-                key={`payroll-${selectedMonth}-${selectedYear}-${refreshTick}`}
-                currentUser={currentUser}
-                activeRole={resolvedRole}
-                userRole={resolvedRole}
-                dynamicPerms={effectiveDynamicPerms}
-                month={selectedMonth}
-                year={selectedYear}
-                onMonthChange={handleMonthChange}
-                focusTarget={focusTarget}
                 showToast={showToast}
                 onShowToast={showToast}
               />
@@ -314,134 +295,25 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 4. Trung Tâm Quản Trị (Hợp nhất Nhân sự & Thiết bị, Giám sát Lương, Nhật ký & An ninh) */}
-            {effectiveTab === "management" && (
-              resolvedRole === ROLES.ADMIN ? (
-                <div className="space-y-4">
-                  {/* Thanh Phân mục Trung tâm Quản trị — ZaUI Segmented Pills */}
-                  <div
-                    data-filter-group="management-subtabs"
-                    className="bg-white border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)]"
-                  >
-                    <button
-                      type="button"
-                      data-subtab="employees"
-                      data-active={managementSubTab === "employees" ? "true" : "false"}
-                      onClick={() => setManagementSubTab("employees")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        managementSubTab === "employees"
-                          ? "bg-blue-600 bg-gradient-to-r from-[#0068FF] to-[#0091FF] text-white shadow-sm dark:from-blue-600 dark:to-sky-600 dark:text-white"
-                          : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
-                      }`}
-                    >
-                      <Users size={16} className="shrink-0" />
-                      <span>Nhân sự &amp; Thiết bị</span>
-                      {Number(alertsSummary?.pending_device_count) > 0 && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-rose-600 text-white font-black">
-                          {alertsSummary.pending_device_count}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      data-subtab="payroll"
-                      data-active={managementSubTab === "payroll" ? "true" : "false"}
-                      onClick={() => setManagementSubTab("payroll")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        managementSubTab === "payroll"
-                          ? "bg-blue-600 bg-gradient-to-r from-[#0068FF] to-[#0091FF] text-white shadow-sm dark:from-blue-600 dark:to-sky-600 dark:text-white"
-                          : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
-                      }`}
-                    >
-                      <DollarSign size={16} className="shrink-0" />
-                      <span>Giám sát Lương</span>
-                      {Number(alertsSummary?.disputed_salary_count) > 0 && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-amber-500 text-slate-950 font-black">
-                          {alertsSummary.disputed_salary_count}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      data-subtab="audit_logs"
-                      data-active={managementSubTab === "audit_logs" ? "true" : "false"}
-                      onClick={() => setManagementSubTab("audit_logs")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        managementSubTab === "audit_logs"
-                          ? "bg-blue-600 bg-gradient-to-r from-[#0068FF] to-[#0091FF] text-white shadow-sm dark:from-blue-600 dark:to-sky-600 dark:text-white"
-                          : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
-                      }`}
-                    >
-                      <ShieldAlert size={16} className="shrink-0" />
-                      <span>Nhật ký &amp; An ninh</span>
-                      {Number(alertsSummary?.fraud_count) > 0 && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-rose-600 text-white font-black">
-                          {alertsSummary.fraud_count}
-                        </span>
-                      )}
-                    </button>
-                  </div>
-
-                  {managementSubTab === "employees" && (
-                    <EmployeeManagementTab
-                      key={`management-emp-${refreshTick}`}
-                      currentUser={currentUser}
-                      activeRole={resolvedRole}
-                      dynamicPerms={effectiveDynamicPerms}
-                      showToast={showToast}
-                      initialFilter={mgmtInitialFilter}
-                      focusTarget={focusTarget}
-                      alertsSummary={alertsSummary}
-                      onOpenLiveBoard={(initialTab = "present") => setLiveBoardModal({ open: true, initialTab })}
-                      pendingDeviceCount={alertsSummary?.pending_device_count || 0}
-                      onRefreshAlerts={fetchAlertsSummary}
-                    />
-                  )}
-
-                  {managementSubTab === "payroll" && (
-                    <PayrollGridTable
-                      key={`management-payroll-${selectedMonth}-${selectedYear}-${refreshTick}`}
-                      currentUser={currentUser}
-                      activeRole={resolvedRole}
-                      userRole={resolvedRole}
-                      dynamicPerms={effectiveDynamicPerms}
-                      month={selectedMonth}
-                      year={selectedYear}
-                      onMonthChange={handleMonthChange}
-                      focusTarget={focusTarget}
-                      showToast={showToast}
-                      onShowToast={showToast}
-                    />
-                  )}
-
-                  {managementSubTab === "audit_logs" && (
-                    <AuditLogsTab
-                      key={`management-audit-${refreshTick}`}
-                      currentUser={currentUser}
-                      showToast={showToast}
-                      focusTarget={focusTarget}
-                      onRefreshAlerts={fetchAlertsSummary}
-                    />
-                  )}
-                </div>
-              ) : (
-                <EmployeeManagementTab
-                  key={`management-acc-${refreshTick}`}
-                  currentUser={currentUser}
-                  activeRole={resolvedRole}
-                  dynamicPerms={effectiveDynamicPerms}
-                  showToast={showToast}
-                  initialFilter="all"
-                  focusTarget={focusTarget}
-                  alertsSummary={alertsSummary}
-                  onOpenLiveBoard={(initialTab = "present") => setLiveBoardModal({ open: true, initialTab })}
-                  pendingDeviceCount={alertsSummary?.pending_device_count || 0}
-                  onRefreshAlerts={fetchAlertsSummary}
-                />
-              )
+            {/* 4. Bảng Lương (Admin & Kế toán truy cập trực tiếp) */}
+            {effectiveTab === "payroll" && (
+              <PayrollGridTable
+                key={`payroll-${selectedMonth}-${selectedYear}-${refreshTick}`}
+                currentUser={currentUser}
+                activeRole={resolvedRole}
+                userRole={resolvedRole}
+                dynamicPerms={effectiveDynamicPerms}
+                month={selectedMonth}
+                year={selectedYear}
+                onMonthChange={handleMonthChange}
+                focusTarget={focusTarget}
+                onRefresh={fetchAlertsSummary}
+                showToast={showToast}
+                onShowToast={showToast}
+              />
             )}
 
-            {/* 5. Cài Đặt Hệ Thống (Công ty & GPS, Phân quyền Kế toán, Lịch nghỉ lễ) */}
+            {/* 5. Cài Đặt & Nhật Ký (Công ty & GPS, Phân quyền Kế toán, Lịch nghỉ lễ, Nhật ký An ninh) */}
             {effectiveTab === "settings" && resolvedRole === ROLES.ADMIN && (
               <div className="space-y-4">
                 <div
@@ -490,6 +362,25 @@ export default function DesktopDashboard({
                     <Gift size={16} className="shrink-0" />
                     <span>Lịch nghỉ lễ (x3)</span>
                   </button>
+                  <button
+                    type="button"
+                    data-subtab="audit_logs"
+                    data-active={settingsSubTab === "audit_logs" ? "true" : "false"}
+                    onClick={() => setSettingsSubTab("audit_logs")}
+                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                      settingsSubTab === "audit_logs"
+                        ? "bg-[#0068FF] text-white shadow-sm dark:bg-blue-600 dark:text-white"
+                        : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
+                    }`}
+                  >
+                    <ShieldAlert size={16} className="shrink-0" />
+                    <span>Nhật ký &amp; An ninh</span>
+                    {Number(alertsSummary?.fraud_count) > 0 && (
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-rose-600 text-white font-black">
+                        {alertsSummary.fraud_count}
+                      </span>
+                    )}
+                  </button>
                 </div>
 
                 {settingsSubTab === "company" && (
@@ -510,15 +401,16 @@ export default function DesktopDashboard({
                     showToast={showToast}
                   />
                 )}
+                {settingsSubTab === "audit_logs" && (
+                  <AuditLogsTab
+                    key={`settings-audit-${refreshTick}`}
+                    currentUser={currentUser}
+                    showToast={showToast}
+                    focusTarget={focusTarget}
+                    onRefreshAlerts={fetchAlertsSummary}
+                  />
+                )}
               </div>
-            )}
-
-            {/* 5B. QA Center — Trung tâm Kiểm thử Chất lượng (Chỉ Admin) */}
-            {effectiveTab === "qa_center" && resolvedRole === ROLES.ADMIN && (
-              <QaCenterTab
-                key={`qa-center-${refreshTick}`}
-                showToast={showToast}
-              />
             )}
 
             {/* 6. Hồ Sơ Quản Trị (Tách biệt hoàn toàn khỏi chấm công/lương cá nhân) / Hồ Sơ Kế Toán */}
@@ -597,7 +489,10 @@ export default function DesktopDashboard({
           alertsSummary={alertsSummary}
           pendingRequestsCount={alertsSummary.pending_requests_count || 0}
           currentTab={effectiveTab}
-          setCurrentTab={(tabId) => navigateToTarget(tabId)}
+          setCurrentTab={(tabId) => {
+          setFocusTarget(null);
+          navigateToTarget(tabId);
+        }}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
       </div>

@@ -17,8 +17,6 @@ import SalarySlipModal from "../../components/SalarySlipModal";
 import { ThemeToggleButton } from "../../context/ThemeContext";
 import { useNotifications } from "../../modules/notifications/useNotifications";
 import NotificationCenterPanel from "../../modules/notifications/NotificationCenterPanel";
-import { AppModal } from "../../components/ui";
-import { useFontScale } from "../../modules/accessibility/FontScaleContext";
 
 export default function WorkerDashboard({
   currentUser,
@@ -26,8 +24,6 @@ export default function WorkerDashboard({
   showToast,
   onChangePasswordRequest
 }) {
-  const { fontScale } = useFontScale();
-  const isLargeFont = fontScale >= 150;
   const [activeTab, setActiveTab] = useState("checkin"); // 'checkin', 'history', 'requests', 'profile'
   const [fixCheckoutInfo, setFixCheckoutInfo] = useState(null);
 
@@ -104,47 +100,35 @@ export default function WorkerDashboard({
     >
       {/* Top ZaUI Doctor Gradient Header — Chừa vùng an toàn pr-[96px] cho cụm nút Zalo */}
       <header
-        className={`shrink-0 z-40 w-full bg-[#0055D4] bg-gradient-to-r from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 text-white pb-2.5 flex flex-col gap-1.5 transition-colors duration-200 ${
+        className={`shrink-0 z-40 w-full bg-[#0055D4] bg-gradient-to-r from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 text-white px-3.5 pb-2.5 flex flex-col gap-1.5 transition-colors duration-200 ${
           activeTab !== "checkin" ? "rounded-b-[24px] shadow-md" : ""
         }`}
-        style={{
-          paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)",
-          paddingLeft: "14px",
-          paddingRight: "14px"
-        }}
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
       >
         {/* Hàng 1: Định danh nhân sự / Quay lại + vùng chừa capsule Zalo */}
-        <div
-          className={`flex ${
-            isLargeFont
-              ? "flex-col items-start gap-2"
-              : "items-center gap-2.5 pr-[96px] sm:pr-0 min-h-[44px]"
-          }`}
-        >
-          <div className={isLargeFont ? "w-full pr-[96px] sm:pr-0 flex items-center min-h-[44px]" : "shrink-0"}>
-            {activeTab !== "checkin" ? (
-              <button
-                type="button"
-                onClick={() => setActiveTab("checkin")}
-                aria-label="Trở về"
-                className="min-w-[44px] min-h-[44px] px-2.5 py-2 rounded-full bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 text-white border border-white/25 flex items-center justify-center gap-1 text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4 shrink-0" />
-                <span>Trở về</span>
-              </button>
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-white/95 dark:bg-slate-800 border-2 border-white/50 dark:border-slate-700 flex items-center justify-center shadow-sm shrink-0 text-sm font-extrabold text-[#0068FF] dark:text-blue-300">
-                {initials}
-              </div>
-            )}
-          </div>
+        <div className="flex items-center gap-2.5 pr-[96px] sm:pr-0 min-h-[44px]">
+          {activeTab !== "checkin" ? (
+            <button
+              type="button"
+              onClick={() => setActiveTab("checkin")}
+              aria-label="Trở về"
+              className="min-w-[44px] min-h-[44px] px-2.5 py-2 rounded-full bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 text-white border border-white/25 flex items-center justify-center gap-1 text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4 shrink-0" />
+              <span>Trở về</span>
+            </button>
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-white/95 dark:bg-slate-800 border-2 border-white/50 dark:border-slate-700 flex items-center justify-center shadow-sm shrink-0 text-sm font-extrabold text-[#0068FF] dark:text-blue-300">
+              {initials}
+            </div>
+          )}
 
-          <div className={`${isLargeFont ? "w-full" : "flex-1"} min-w-0 text-left`}>
+          <div className="flex-1 min-w-0 text-left">
             <div className="text-sm font-extrabold text-white leading-tight break-words">
               {activeTab === "checkin"
                 ? `Xin chào, ${currentUser?.ho_ten || "Nhân viên"}`
                 : activeTab === "history"
-                  ? "Lịch sử Chấm công"
+                  ? "Lịch công Tháng"
                   : activeTab === "requests"
                     ? "Đơn từ & Phép năm"
                     : "Tài khoản Cá nhân"}
@@ -162,12 +146,12 @@ export default function WorkerDashboard({
 
         {/* Hàng 2: Trạng thái + Chuông thông báo + Sáng/Tối + Thoát */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-900/45 dark:bg-slate-800/90 border border-white/20 text-xs font-semibold text-white">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-900/45 dark:bg-slate-800/90 border border-white/20 text-xs font-semibold text-white whitespace-nowrap shrink-0">
             <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
             <span>Trực tuyến</span>
           </span>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 ml-auto">
             <button
               type="button"
               data-testid="worker-bell-btn"
@@ -248,7 +232,7 @@ export default function WorkerDashboard({
       >
         {[
           { key: "checkin", label: "Chấm công", Icon: Clock },
-          { key: "history", label: "Lịch sử", Icon: Calendar },
+          { key: "history", label: "Lịch công", Icon: Calendar },
           { key: "requests", label: "Đơn từ", Icon: FileText },
           { key: "profile", label: "👤 Tài khoản", Icon: User }
         ].map(({ key, label, Icon }) => {
@@ -277,34 +261,27 @@ export default function WorkerDashboard({
         })}
       </nav>
 
-      {/* Modal Chuông Thông Báo Nhân Viên */}
-      <AppModal
+      {/* Trung tâm Thông báo Nhân viên render qua createPortal(document.body) */}
+      <NotificationCenterPanel
         open={isBellOpen}
         onClose={() => setIsBellOpen(false)}
+        mode="worker"
         title="Thông báo của bạn"
         subtitle={unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Đã xem tất cả"}
-        icon={<Bell className="w-5 h-5 text-[#0068FF] dark:text-blue-400 shrink-0" />}
-        maxWidthClass="max-w-md"
-      >
-        <div data-testid="worker-notification-modal" className="p-4">
-          <NotificationCenterPanel
-            mode="worker"
-            notifications={notifications}
-            unreadCount={unreadCount}
-            readCount={readCount}
-            totalCount={totalCount}
-            filter={notifFilter}
-            onFilterChange={changeNotifFilter}
-            hasMore={hasMoreNotifs}
-            loading={loadingNotifs}
-            loadingMore={loadingMoreNotifs}
-            onLoadMore={loadMoreNotifs}
-            onMarkAllRead={handleMarkAllRead}
-            onMarkSingleRead={markRead}
-            onClickItem={handleClickNotification}
-          />
-        </div>
-      </AppModal>
+        notifications={notifications}
+        unreadCount={unreadCount}
+        readCount={readCount}
+        totalCount={totalCount}
+        filter={notifFilter}
+        onFilterChange={changeNotifFilter}
+        hasMore={hasMoreNotifs}
+        loading={loadingNotifs}
+        loadingMore={loadingMoreNotifs}
+        onLoadMore={loadMoreNotifs}
+        onMarkAllRead={handleMarkAllRead}
+        onMarkSingleRead={markRead}
+        onClickItem={handleClickNotification}
+      />
 
       {/* Modal Phiếu Lương & Bảng Công Chi Tiết Thống Nhất */}
       {payslipModal.open && (

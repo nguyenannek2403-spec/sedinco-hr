@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  ArrowLeft,
   SlidersHorizontal,
   Download,
   CheckCircle2,
@@ -10,10 +9,10 @@ import {
 import { AppButton } from "../../components/ui";
 
 /**
- * Thanh Thao Tác Đáy Cố Định (Sticky Bottom Action Bar) của Phiếu lương,
- * tách biệt 100% theo vai trò:
- * - Admin / Kế toán: [← Đóng], [✏️ Điều chỉnh Thưởng/Phạt/Ứng], [📄 Tải / In Phiếu lương]
- * - Worker: Kỳ đã chốt -> [✓ Xác nhận đúng lương & công], [⚠️ Báo sai sót], [Đóng];
+ * Thanh Thao Tác Đáy Cố Định (Sticky Bottom Action Bar) của Phiếu lương V30:
+ * - Gọn 1–2 hàng, cân đối đều trên màn hình 320px–1440px, nút >= 44px
+ * - Admin / Kế toán: [Đóng], [✏️ Điều chỉnh] (khi kỳ chưa khóa), [📄 Xuất phiếu]
+ * - Worker: Kỳ đã chốt -> [✓ Xác nhận đúng lương], [⚠️ Báo sai sót], [Đóng];
  *           Đã xác nhận -> Huy hiệu xanh + [Đóng];
  *           Bản nháp -> Chú thích tạm tính + [Đóng].
  */
@@ -25,6 +24,9 @@ export default function PayslipActionFooter({
   resolving = false,
   canAdjust = false,
   isLockedOrPaid = false,
+  thang = null,
+  nam = null,
+  maNv = null,
   onClose,
   onOpenAdjustment,
   onExportSlip,
@@ -32,7 +34,18 @@ export default function PayslipActionFooter({
   onToggleDispute
 }) {
   if (isAdminOrAccountant) {
-    const canClickAdjust = Boolean(item && canAdjust && typeof onOpenAdjustment === "function" && !isLockedOrPaid);
+    const showAdjustBtn = Boolean(
+      item && !isLockedOrPaid && canAdjust && typeof onOpenAdjustment === "function"
+    );
+    const payload = item
+      ? {
+          ...item,
+          thang: thang || item.thang,
+          nam: nam || item.nam,
+          ma_nv: maNv || item.ma_nv || item.id_nhan_vien
+        }
+      : null;
+
     return (
       <div
         data-testid="payslip-admin-footer"
@@ -41,46 +54,37 @@ export default function PayslipActionFooter({
         <AppButton
           data-testid="payslip-close-btn"
           variant="secondary"
-          icon={ArrowLeft}
           disabled={resolving}
           onClick={onClose}
-          className="flex-1 sm:flex-initial min-w-[96px]"
+          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[84px]"
         >
-          ← Đóng
+          Đóng
         </AppButton>
 
-        <div className="flex flex-wrap items-center gap-2 flex-1 justify-end">
-          {typeof onOpenAdjustment === "function" && (
-            <AppButton
-              data-testid="payslip-admin-adjust-btn"
-              variant="warning"
-              icon={SlidersHorizontal}
-              disabled={!canClickAdjust || resolving}
-              title={
-                isLockedOrPaid
-                  ? "Kỳ lương đã khóa hoặc đã chi trả, không thể điều chỉnh"
-                  : !canAdjust
-                  ? "Bạn không có quyền điều chỉnh thưởng/phạt"
-                  : "Điều chỉnh Thưởng / Phạt / Tạm ứng"
-              }
-              onClick={() => item && onOpenAdjustment(item)}
-              className="flex-1 sm:flex-initial text-xs sm:text-sm"
-            >
-              ✏️ Điều chỉnh Thưởng/Phạt/Ứng
-            </AppButton>
-          )}
-
+        {showAdjustBtn && (
           <AppButton
-            data-testid="payslip-admin-export-btn"
-            variant="primary"
-            icon={Download}
-            disabled={!item || resolving}
-            onClick={onExportSlip}
-            className="flex-1 sm:flex-initial text-xs sm:text-sm"
+            data-testid="payslip-admin-adjust-btn"
+            variant="warning"
+            icon={SlidersHorizontal}
+            disabled={resolving}
+            title="Điều chỉnh Thưởng / Phạt / Tạm ứng"
+            onClick={() => payload && onOpenAdjustment(payload)}
+            className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm"
           >
-            📄 Tải / In Phiếu lương
+            ✏️ Điều chỉnh
           </AppButton>
-        </div>
+        )}
+
+        <AppButton
+          data-testid="payslip-admin-export-btn"
+          variant="primary"
+          icon={Download}
+          disabled={!item || resolving}
+          onClick={onExportSlip}
+          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm"
+        >
+          📄 Xuất phiếu
+        </AppButton>
       </div>
     );
   }
@@ -100,17 +104,17 @@ export default function PayslipActionFooter({
       >
         <span
           data-testid="payslip-worker-confirmed-badge"
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs sm:text-sm font-bold flex-1 min-w-[200px]"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs sm:text-sm font-semibold flex-1 min-w-[180px]"
         >
           <CheckCircle2 size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <span>✓ Bạn đã xác nhận phiếu lương kỳ này</span>
+          <span>✓ Bạn đã xác nhận đúng lương</span>
         </span>
         <AppButton
           data-testid="payslip-close-btn"
           variant="secondary"
           disabled={submitting}
           onClick={onClose}
-          className="w-full sm:w-auto min-w-[110px]"
+          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[96px]"
         >
           Đóng
         </AppButton>
@@ -129,11 +133,11 @@ export default function PayslipActionFooter({
           variant="success"
           icon={CheckCircle2}
           loading={submitting}
-          loadingText="Đang xác nhận..."
+          loadingText="Đang lưu..."
           onClick={onConfirmSalary}
-          className="flex-1 min-w-[190px] text-xs sm:text-sm"
+          className="min-h-[44px] rounded-xl font-semibold flex-1 min-w-[160px] text-xs sm:text-sm"
         >
-          ✓ Xác nhận đúng lương &amp; công
+          ✓ Xác nhận đúng lương
         </AppButton>
         <AppButton
           data-testid="payslip-worker-dispute-btn"
@@ -141,7 +145,7 @@ export default function PayslipActionFooter({
           icon={AlertTriangle}
           disabled={submitting}
           onClick={onToggleDispute}
-          className="flex-1 sm:flex-initial text-xs sm:text-sm"
+          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm"
         >
           ⚠️ Báo sai sót
         </AppButton>
@@ -150,7 +154,7 @@ export default function PayslipActionFooter({
           variant="secondary"
           disabled={submitting}
           onClick={onClose}
-          className="w-full sm:w-auto"
+          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[84px]"
         >
           Đóng
         </AppButton>
@@ -165,16 +169,16 @@ export default function PayslipActionFooter({
     >
       <div
         data-testid="payslip-draft-notice"
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-700/70 text-amber-900 dark:text-amber-200 text-xs font-semibold flex-1 min-w-[210px]"
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-700/70 text-amber-900 dark:text-amber-200 text-xs font-semibold flex-1 min-w-[190px]"
       >
         <Clock size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
-        <span>Bảng lương tạm tính — Đang chờ Quản trị viên chốt kỳ</span>
+        <span>Bảng lương tạm tính — Đang chờ chốt kỳ</span>
       </div>
       <AppButton
         data-testid="payslip-close-btn"
         variant="secondary"
         onClick={onClose}
-        className="w-full sm:w-auto min-w-[110px]"
+        className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[96px]"
       >
         Đóng
       </AppButton>
