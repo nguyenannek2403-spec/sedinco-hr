@@ -45,9 +45,11 @@ async function resolveZaloAndDeviceIdentity() {
   return { zalo_user_id, zalo_access_token, device_id, device_name, device_info };
 }
 
-export function useAuth({ onThemeSync } = {}) {
+export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
   const onThemeSyncRef = useRef(onThemeSync);
   onThemeSyncRef.current = onThemeSync;
+  const onFontScaleSyncRef = useRef(onFontScaleSync);
+  onFontScaleSyncRef.current = onFontScaleSync;
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -151,6 +153,7 @@ export function useAuth({ onThemeSync } = {}) {
           dien_thoai: rawUser.phone || rawUser.dien_thoai || "",
           login_username: rawUser.login_username || rawUser.phone || rawUser.ma_nv || rawUser.username || u,
           theme_preference: rawUser.theme_preference === "dark" ? "dark" : "light",
+          font_scale: Number(rawUser.font_scale) || 100,
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
           role: resolvedRole,
           dynamic_permissions: rawUser.dynamic_permissions || {},
@@ -160,6 +163,9 @@ export function useAuth({ onThemeSync } = {}) {
 
         if (rawUser.theme_preference) {
           onThemeSyncRef.current?.(safeUser);
+        }
+        if (rawUser.font_scale !== undefined) {
+          onFontScaleSyncRef.current?.(safeUser);
         }
 
         const newMeta = {
@@ -400,6 +406,7 @@ export function useAuth({ onThemeSync } = {}) {
           dien_thoai: rawUser.phone || rawUser.dien_thoai || "",
           login_username: rawUser.login_username || rawUser.phone || rawUser.ma_nv || rawUser.username || rawIdentifier,
           theme_preference: rawUser.theme_preference === "dark" ? "dark" : "light",
+          font_scale: Number(rawUser.font_scale) || 100,
           email: rawUser.email || `${u.toLowerCase()}@sedinco.vn`,
           role: resolvedRole,
           dynamic_permissions: rawUser.dynamic_permissions || {},
@@ -409,6 +416,9 @@ export function useAuth({ onThemeSync } = {}) {
 
         if (rawUser.theme_preference) {
           onThemeSyncRef.current?.(safeUser);
+        }
+        if (rawUser.font_scale !== undefined) {
+          onFontScaleSyncRef.current?.(safeUser);
         }
 
         // Lưu metadata liên kết Zalo 1 chạm trên thiết bị
@@ -487,11 +497,15 @@ export function useAuth({ onThemeSync } = {}) {
           dien_thoai: fresh.phone ?? fresh.dien_thoai ?? currentUser.dien_thoai ?? "",
           login_username: fresh.login_username || fresh.phone || fresh.ma_nv || fresh.username || currentUser.login_username,
           theme_preference: fresh.theme_preference === "dark" ? "dark" : "light",
+          font_scale: Number(fresh.font_scale) || 100,
           dynamic_permissions: fresh.dynamic_permissions || currentUser.dynamic_permissions || {},
           must_change_password: Boolean(fresh.must_change_password)
         });
         if (fresh.theme_preference) {
           onThemeSyncRef.current?.(fresh);
+        }
+        if (fresh.font_scale !== undefined) {
+          onFontScaleSyncRef.current?.(fresh);
         }
       })
       .catch(() => {});

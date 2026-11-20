@@ -426,17 +426,54 @@ async function initDatabase() {
         await query(`CREATE TABLE IF NOT EXISTS user_notifications (
             id INT AUTO_INCREMENT PRIMARY KEY,
             recipient_ma_nv VARCHAR(50) NOT NULL,
+            alert_key VARCHAR(120) NULL,
             type VARCHAR(50) NOT NULL,
+            category VARCHAR(50) NOT NULL DEFAULT 'general',
+            severity VARCHAR(20) NOT NULL DEFAULT 'info',
             title VARCHAR(255) NOT NULL,
             message TEXT NOT NULL,
             ref_month INT NULL,
             ref_year INT NULL,
             target_ma_nv VARCHAR(50) NULL,
+            target_tab VARCHAR(50) NULL,
+            target_subtab VARCHAR(50) NULL,
+            target_id VARCHAR(64) NULL,
             is_read TINYINT(1) NOT NULL DEFAULT 0,
+            read_at DATETIME NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_notif_recipient_read (recipient_ma_nv, is_read, created_at)
+            INDEX idx_notif_recipient_read (recipient_ma_nv, is_read, created_at),
+            UNIQUE INDEX uniq_notif_recipient_alert_key (recipient_ma_nv, alert_key)
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
         await query('CREATE INDEX idx_notif_recipient_read ON user_notifications (recipient_ma_nv, is_read, created_at)').catch(() => {});
+
+        // V29: Bổ sung cột vòng đời thông báo (alert_key, read_at, category, severity, target_tab/subtab/id) + font_scale + bảng qa_test_runs
+        await query("ALTER TABLE user_notifications ADD COLUMN alert_key VARCHAR(120) NULL").catch(() => {});
+        await query("ALTER TABLE user_notifications ADD COLUMN category VARCHAR(50) NOT NULL DEFAULT 'general'").catch(() => {});
+        await query("ALTER TABLE user_notifications ADD COLUMN severity VARCHAR(20) NOT NULL DEFAULT 'info'").catch(() => {});
+        await query("ALTER TABLE user_notifications ADD COLUMN target_tab VARCHAR(50) NULL").catch(() => {});
+        await query("ALTER TABLE user_notifications ADD COLUMN target_subtab VARCHAR(50) NULL").catch(() => {});
+        await query("ALTER TABLE user_notifications ADD COLUMN target_id VARCHAR(64) NULL").catch(() => {});
+        await query("ALTER TABLE user_notifications ADD COLUMN read_at DATETIME NULL").catch(() => {});
+        await query("CREATE UNIQUE INDEX uniq_notif_recipient_alert_key ON user_notifications (recipient_ma_nv, alert_key)").catch(() => {});
+
+        await query("ALTER TABLE employees ADD COLUMN font_scale INT NOT NULL DEFAULT 100").catch(() => {});
+        await query("ALTER TABLE admins ADD COLUMN font_scale INT NOT NULL DEFAULT 100").catch(() => {});
+
+        await query(`CREATE TABLE IF NOT EXISTS qa_test_runs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            version VARCHAR(32) NOT NULL,
+            run_type VARCHAR(40) NOT NULL,
+            environment VARCHAR(32) NOT NULL,
+            total_cases INT NOT NULL DEFAULT 0,
+            passed INT NOT NULL DEFAULT 0,
+            failed INT NOT NULL DEFAULT 0,
+            blocked INT NOT NULL DEFAULT 0,
+            not_tested INT NOT NULL DEFAULT 0,
+            duration_ms INT NOT NULL DEFAULT 0,
+            triggered_by VARCHAR(64) NULL,
+            summary_json LONGTEXT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
 
         // V18: Account Phone/Custom Username & Persistent Theme Preference + Cleanup Legacy Multi-Model Device Names
         await query("ALTER TABLE employees ADD COLUMN phone VARCHAR(30) NULL").catch(() => {});
@@ -499,10 +536,13 @@ async function initDatabase() {
             }
         }
 
-        // V23: Composite Indexes & Auto-Prune để tối ưu hiệu năng và dung lượng TiDB Cloud
+        // V23 + V29: Composite Indexes & Auto-Prune để tối ưu hiệu năng và dung lượng TiDB Cloud
         await query("CREATE INDEX idx_att_logs_emp_date ON attendance_logs (employee_id, record_date)").catch(() => {});
         await query("CREATE INDEX idx_att_emp_period ON attendance (ma_nv, nam, thang)").catch(() => {});
+        await query("CREATE INDEX idx_att_confirm_status ON attendance (salary_confirm_status, nam, thang)").catch(() => {});
         await query("CREATE INDEX idx_req_emp_status ON requests (employee_id, status, created_at)").catch(() => {});
+        await query("CREATE INDEX idx_req_status_created ON requests (status, created_at)").catch(() => {});
+        await query("CREATE INDEX idx_ot_status ON ot_registrations (status)").catch(() => {});
         await query("CREATE INDEX idx_audit_created ON audit_logs (created_at, is_pinned)").catch(() => {});
         await query("UPDATE attendance_logs SET check_in_image = NULL WHERE check_in_image IS NOT NULL").catch(() => {});
         await query("DELETE FROM idempotency_keys WHERE created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)").catch(() => {});

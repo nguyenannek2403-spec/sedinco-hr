@@ -6,15 +6,14 @@ import {
   DollarSign,
   FileText,
   Users,
-  Building,
-  Gift,
-  ShieldCheck,
   Settings,
   User,
   LogOut,
   RotateCcw,
   Menu,
-  X
+  X,
+  LayoutDashboard,
+  Activity
 } from "lucide-react";
 import { ROLES, ROLE_LABELS } from "../constants/roles";
 import useLockBodyScroll from "../hooks/useLockBodyScroll";
@@ -35,9 +34,11 @@ export function getSidebarMenuItems({
 
   if (activeRole === ROLES.ADMIN) {
     return [
-      { id: "matrix", label: "Bảng công", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
+      { id: "overview", group: "Vận hành", label: "Tổng quan", shortLabel: "Tổng quan", icon: LayoutDashboard },
+      { id: "matrix", group: "Vận hành", label: "Bảng công", shortLabel: "Bảng công", icon: Calendar, badge: "31 Ngày" },
       {
         id: "requests",
+        group: "Vận hành",
         label: "Xét duyệt đơn từ",
         shortLabel: "Đơn từ",
         icon: FileText,
@@ -46,25 +47,30 @@ export function getSidebarMenuItems({
       },
       {
         id: "management",
+        group: "Quản trị & Nhân sự",
         label: "Trung tâm Quản trị",
         shortLabel: "Quản trị",
         icon: Users,
         badge: managementAlertTotal > 0 ? `${managementAlertTotal}` : null,
         badgeColor: "bg-rose-600 text-white border-rose-400 animate-pulse"
       },
-      { id: "settings", label: "Cài đặt Hệ thống", shortLabel: "Cài đặt", icon: Settings },
-      { id: "profile", label: "Hồ sơ Quản trị", shortLabel: "Hồ sơ", icon: User }
+      { id: "settings", group: "Hệ thống & Chất lượng", label: "Cài đặt Hệ thống", shortLabel: "Cài đặt", icon: Settings },
+      { id: "qa_center", group: "Hệ thống & Chất lượng", label: "QA Center", shortLabel: "QA", icon: Activity },
+      { id: "profile", group: "Hệ thống & Chất lượng", label: "Hồ sơ Quản trị", shortLabel: "Hồ sơ", icon: User }
     ];
   }
 
   if (activeRole === ROLES.ACCOUNTANT) {
-    const items = [];
+    const items = [
+      { id: "overview", group: "Vận hành", label: "Tổng quan", shortLabel: "Tổng quan", icon: LayoutDashboard }
+    ];
     if (dynamicPerms.attendance_view_all !== false) {
-      items.push({ id: "matrix", label: "Bảng Công Kỳ Lương", shortLabel: "Bảng công", icon: Calendar, badge: "Chốt sổ" });
+      items.push({ id: "matrix", group: "Vận hành", label: "Bảng Công Kỳ Lương", shortLabel: "Bảng công", icon: Calendar, badge: "Chốt sổ" });
     }
     if (dynamicPerms.payroll_view_all !== false) {
       items.push({
         id: "payroll",
+        group: "Vận hành",
         label: "Tính Lương & Điều Chỉnh",
         shortLabel: "Tính lương",
         icon: DollarSign,
@@ -75,6 +81,7 @@ export function getSidebarMenuItems({
     if (dynamicPerms.leave_view_all !== false) {
       items.push({
         id: "requests",
+        group: "Vận hành",
         label: "Đơn Từ & Tạm Ứng",
         shortLabel: "Đơn từ",
         icon: FileText,
@@ -83,9 +90,9 @@ export function getSidebarMenuItems({
       });
     }
     if (dynamicPerms.employee_view === true) {
-      items.push({ id: "management", label: "Nhân sự & Thiết bị", shortLabel: "Nhân sự", icon: Users });
+      items.push({ id: "management", group: "Quản trị & Nhân sự", label: "Nhân sự & Thiết bị", shortLabel: "Nhân sự", icon: Users });
     }
-    items.push({ id: "profile", label: "Hồ Sơ Kế Toán", shortLabel: "Hồ sơ", icon: User });
+    items.push({ id: "profile", group: "Hệ thống & Chất lượng", label: "Hồ Sơ Kế Toán", shortLabel: "Hồ sơ", icon: User });
     return items;
   }
 
@@ -223,43 +230,50 @@ export default function DesktopSidebar({
         </div>
       </div>
 
-      {/* 3. Danh Sách Menu Điều Hướng */}
+      {/* 3. Danh Sách Menu Điều Hướng (Phân ngăn rõ ràng theo nghiệp vụ) */}
       <nav
         data-filter-group="sidebar-menu"
         className="p-3 sm:p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area space-y-1.5"
       >
-        {menuItems.map(item => {
+        {menuItems.map((item, idx) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
+          const showGroupHeader = item.group && (idx === 0 || menuItems[idx - 1]?.group !== item.group);
           return (
-            <button
-              key={item.id}
-              type="button"
-              data-tab={item.id}
-              data-active={isActive ? "true" : "false"}
-              title={item.label}
-              onClick={() => handleSelect(item.id)}
-              className={`w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer border ${
-                isActive
-                  ? "bg-[#0068FF] bg-gradient-to-r from-[#0068FF] to-[#0091FF] text-white border-blue-500 dark:from-blue-600 dark:to-sky-600 dark:text-white dark:border-blue-400 shadow-[0_6px_16px_-3px_rgba(0,104,255,0.3)]"
-                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/80"
-              }`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <Icon size={18} className={`shrink-0 ${isActive ? "text-white" : "text-slate-500 dark:text-slate-400"}`} />
-                <span className="truncate">{item.label}</span>
-              </div>
-
-              {item.badge && (
-                <span
-                  className={`text-xs px-2.5 py-0.5 rounded-full font-black border shrink-0 ${
-                    item.badgeColor || (isActive ? "bg-white/20 text-white border-white/40" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700")
-                  }`}
-                >
-                  {item.badge}
-                </span>
+            <React.Fragment key={item.id}>
+              {showGroupHeader && (
+                <div className="px-3 pt-2.5 pb-1 text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {item.group}
+                </div>
               )}
-            </button>
+              <button
+                type="button"
+                data-tab={item.id}
+                data-active={isActive ? "true" : "false"}
+                title={item.label}
+                onClick={() => handleSelect(item.id)}
+                className={`w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer border ${
+                  isActive
+                    ? "bg-[#0068FF] bg-gradient-to-r from-[#0068FF] to-[#0091FF] text-white border-blue-500 dark:from-blue-600 dark:to-sky-600 dark:text-white dark:border-blue-400 shadow-[0_6px_16px_-3px_rgba(0,104,255,0.3)]"
+                    : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/80"
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icon size={18} className={`shrink-0 ${isActive ? "text-white" : "text-slate-500 dark:text-slate-400"}`} />
+                  <span className="truncate">{item.label}</span>
+                </div>
+
+                {item.badge && (
+                  <span
+                    className={`text-xs px-2.5 py-0.5 rounded-full font-black border shrink-0 ${
+                      item.badgeColor || (isActive ? "bg-white/20 text-white border-white/40" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700")
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            </React.Fragment>
           );
         })}
       </nav>

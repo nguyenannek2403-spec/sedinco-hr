@@ -109,25 +109,29 @@ export default function PayrollGridTable({
 
   const fetchPayrollFromApi = useCallback(async () => {
     fetchPeriodStatus();
-    if (Array.isArray(payrollData)) return;
+    if (Array.isArray(payrollData)) return payrollData;
     setLoadingPayroll(true);
     setPayrollError("");
     try {
       const res = await safeGet("/payroll", { month, year }, { cancelPrevious: true });
       if (Array.isArray(res?.data) && res.data.length > 0) {
         setInternalPayroll(res.data);
+        return res.data;
       } else {
         // Nếu chưa có bản lưu, tự động gọi /payroll/calculate để hiển thị bảng tính lương tạm tính
         const calcRes = await safeGet("/payroll/calculate", { month, year }, { cancelPrevious: true });
         if (Array.isArray(calcRes?.data)) {
           setInternalPayroll(calcRes.data);
+          return calcRes.data;
         } else {
           setInternalPayroll([]);
+          return [];
         }
       }
     } catch (e) {
       console.warn("Lỗi tải bảng lương:", e);
       setPayrollError(e?.message || "Không thể tải bảng lương. Vui lòng thử lại.");
+      return [];
     } finally {
       setLoadingPayroll(false);
     }
@@ -261,7 +265,12 @@ export default function PayrollGridTable({
       if (res?.success) {
         if (notify) notify(`Đã cập nhật thưởng / phạt / tạm ứng cho ${adjustItem.ho_ten || empId}!`, "success");
         setAdjustItem(null);
-        await fetchPayrollFromApi();
+        const updatedList = await fetchPayrollFromApi();
+        if (selectedSlipItem && Array.isArray(updatedList)) {
+          const openId = selectedSlipItem.ma_nv || selectedSlipItem.id_nhan_vien;
+          const refreshedSlip = updatedList.find((r) => (r.ma_nv || r.id_nhan_vien) === openId);
+          if (refreshedSlip) setSelectedSlipItem(refreshedSlip);
+        }
         if (onRefresh) onRefresh();
       } else {
         setAdjError(res?.message || "Không thể lưu điều chỉnh.");
@@ -1462,6 +1471,10 @@ export default function PayrollGridTable({
           month={month}
           year={year}
           isAdminOrAccountant={isAdmin || isAccountant}
+          employeeList={filteredList}
+          onSelectEmployee={(emp) => setSelectedSlipItem(emp)}
+          canAdjust={isAdmin || canCalculatePayroll}
+          onOpenAdjustment={(slip) => handleOpenAdjustmentModal(slip)}
           showToast={notify}
           onStatusUpdated={() => fetchPayrollFromApi()}
           onClose={() => setSelectedSlipItem(null)}

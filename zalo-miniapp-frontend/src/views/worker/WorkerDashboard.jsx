@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Clock,
   Calendar,
@@ -6,9 +6,7 @@ import {
   User,
   LogOut,
   ArrowLeft,
-  Bell,
-  CheckCheck,
-  ChevronRight
+  Bell
 } from "lucide-react";
 import OneTouchCheckIn from "../../components/OneTouchCheckIn";
 import WorkerHistoryTab from "./WorkerHistoryTab";
@@ -17,8 +15,10 @@ import WorkerProfileTab from "./WorkerProfileTab";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import { ThemeToggleButton } from "../../context/ThemeContext";
-import { safeGet, safePut } from "../../utils/api";
-import { AppButton, AppModal } from "../../components/ui";
+import { useNotifications } from "../../modules/notifications/useNotifications";
+import NotificationCenterPanel from "../../modules/notifications/NotificationCenterPanel";
+import { AppModal } from "../../components/ui";
+import { useFontScale } from "../../modules/accessibility/FontScaleContext";
 
 export default function WorkerDashboard({
   currentUser,
@@ -26,13 +26,27 @@ export default function WorkerDashboard({
   showToast,
   onChangePasswordRequest
 }) {
+  const { fontScale } = useFontScale();
+  const isLargeFont = fontScale >= 150;
   const [activeTab, setActiveTab] = useState("checkin"); // 'checkin', 'history', 'requests', 'profile'
   const [fixCheckoutInfo, setFixCheckoutInfo] = useState(null);
 
-  // Thông báo chốt kỳ công & deep-link mở thẳng Phiếu lương + Bảng công chi tiết
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loadingNotifs, setLoadingNotifs] = useState(false);
+  // Thông báo chốt kỳ công & lịch sử đã đọc/chưa đọc
+  const {
+    filter: notifFilter,
+    changeFilter: changeNotifFilter,
+    notifications,
+    unreadCount,
+    readCount,
+    totalCount,
+    hasMore: hasMoreNotifs,
+    loading: loadingNotifs,
+    loadingMore: loadingMoreNotifs,
+    fetchNotifications,
+    loadMore: loadMoreNotifs,
+    markRead,
+    markAllRead
+  } = useNotifications({ limit: 20, autoFetch: true });
   const [isBellOpen, setIsBellOpen] = useState(false);
 
   // Một modal Phiếu lương & Bảng công chi tiết duy nhất dùng chung cho Chuông, Hồ sơ & Lịch sử
@@ -42,47 +56,14 @@ export default function WorkerDashboard({
     year: new Date().getFullYear()
   });
 
-  const fetchNotifications = useCallback(async () => {
-    setLoadingNotifs(true);
-    try {
-      const res = await safeGet("/notifications/my", { limit: 30 }, { cancelPrevious: false });
-      if (res?.success && res.data) {
-        setNotifications(Array.isArray(res.data.notifications) ? res.data.notifications : []);
-        setUnreadCount(Number(res.data.unread_count) || 0);
-      }
-    } catch {
-      // Giữ trạng thái an toàn nếu mạng yếu
-    } finally {
-      setLoadingNotifs(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
-
   const handleOpenBell = () => {
     setIsBellOpen(true);
-    fetchNotifications();
+    fetchNotifications({ filterOverride: notifFilter, offset: 0, append: false });
   };
 
   const handleClickNotification = async (notif) => {
     if (!notif) return;
-    if (!notif.is_read) {
-      setNotifications((prev) =>
-        prev.map((item) => (item.id === notif.id ? { ...item, is_read: 1 } : item))
-      );
-      setUnreadCount((c) => Math.max(0, c - 1));
-      try {
-        const res = await safePut(`/notifications/${notif.id}/read`, {});
-        if (res?.success && res.data) {
-          setUnreadCount(Number(res.data.unread_count) || 0);
-        }
-      } catch {
-        // Không chặn người dùng mở phiếu lương nếu mạng chậm
-      }
-    }
-
+    await markRead(notif);
     setIsBellOpen(false);
     if (notif.ref_month && notif.ref_year) {
       setPayslipModal({
@@ -95,9 +76,7 @@ export default function WorkerDashboard({
 
   const handleMarkAllRead = async () => {
     try {
-      await safePut("/notifications/read-all", {});
-      setNotifications((prev) => prev.map((item) => ({ ...item, is_read: 1 })));
-      setUnreadCount(0);
+      await markAllRead();
       if (showToast) showToast("Đã đánh dấu tất cả thông báo là đã đọc!", "success");
     } catch (err) {
       if (showToast) showToast(err?.message || "Không thể cập nhật thông báo.", "error");
@@ -125,30 +104,42 @@ export default function WorkerDashboard({
     >
       {/* Top ZaUI Doctor Gradient Header — Chừa vùng an toàn pr-[96px] cho cụm nút Zalo */}
       <header
-        className={`shrink-0 z-40 w-full bg-[#0055D4] bg-gradient-to-r from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 text-white px-3.5 pb-2.5 flex flex-col gap-1.5 transition-colors duration-200 ${
+        className={`shrink-0 z-40 w-full bg-[#0055D4] bg-gradient-to-r from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 text-white pb-2.5 flex flex-col gap-1.5 transition-colors duration-200 ${
           activeTab !== "checkin" ? "rounded-b-[24px] shadow-md" : ""
         }`}
-        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
+        style={{
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)",
+          paddingLeft: "14px",
+          paddingRight: "14px"
+        }}
       >
         {/* Hàng 1: Định danh nhân sự / Quay lại + vùng chừa capsule Zalo */}
-        <div className="flex items-center gap-2.5 pr-[96px] sm:pr-0 min-h-[44px]">
-          {activeTab !== "checkin" ? (
-            <button
-              type="button"
-              onClick={() => setActiveTab("checkin")}
-              aria-label="Trở về"
-              className="min-w-[44px] min-h-[44px] px-2.5 py-2 rounded-full bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 text-white border border-white/25 flex items-center justify-center gap-1 text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4 shrink-0" />
-              <span>Trở về</span>
-            </button>
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-white/95 dark:bg-slate-800 border-2 border-white/50 dark:border-slate-700 flex items-center justify-center shadow-sm shrink-0 text-sm font-extrabold text-[#0068FF] dark:text-blue-300">
-              {initials}
-            </div>
-          )}
+        <div
+          className={`flex ${
+            isLargeFont
+              ? "flex-col items-start gap-2"
+              : "items-center gap-2.5 pr-[96px] sm:pr-0 min-h-[44px]"
+          }`}
+        >
+          <div className={isLargeFont ? "w-full pr-[96px] sm:pr-0 flex items-center min-h-[44px]" : "shrink-0"}>
+            {activeTab !== "checkin" ? (
+              <button
+                type="button"
+                onClick={() => setActiveTab("checkin")}
+                aria-label="Trở về"
+                className="min-w-[44px] min-h-[44px] px-2.5 py-2 rounded-full bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 text-white border border-white/25 flex items-center justify-center gap-1 text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 shrink-0" />
+                <span>Trở về</span>
+              </button>
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-white/95 dark:bg-slate-800 border-2 border-white/50 dark:border-slate-700 flex items-center justify-center shadow-sm shrink-0 text-sm font-extrabold text-[#0068FF] dark:text-blue-300">
+                {initials}
+              </div>
+            )}
+          </div>
 
-          <div className="flex-1 min-w-0 text-left">
+          <div className={`${isLargeFont ? "w-full" : "flex-1"} min-w-0 text-left`}>
             <div className="text-sm font-extrabold text-white leading-tight break-words">
               {activeTab === "checkin"
                 ? `Xin chào, ${currentUser?.ho_ten || "Nhân viên"}`
@@ -170,7 +161,7 @@ export default function WorkerDashboard({
         </div>
 
         {/* Hàng 2: Trạng thái + Chuông thông báo + Sáng/Tối + Thoát */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-900/45 dark:bg-slate-800/90 border border-white/20 text-xs font-semibold text-white">
             <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
             <span>Trực tuyến</span>
@@ -294,79 +285,24 @@ export default function WorkerDashboard({
         subtitle={unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Đã xem tất cả"}
         icon={<Bell className="w-5 h-5 text-[#0068FF] dark:text-blue-400 shrink-0" />}
         maxWidthClass="max-w-md"
-        footer={
-          <div className="flex gap-2">
-            {unreadCount > 0 && (
-              <AppButton
-                variant="secondary"
-                icon={CheckCheck}
-                onClick={handleMarkAllRead}
-                className="flex-1 text-xs"
-              >
-                Đọc tất cả
-              </AppButton>
-            )}
-            <AppButton
-              variant="primary"
-              onClick={() => setIsBellOpen(false)}
-              className="flex-1"
-            >
-              Đóng / Quay lại
-            </AppButton>
-          </div>
-        }
       >
-        <div data-testid="worker-notification-modal" className="p-4 space-y-2.5">
-          {loadingNotifs && notifications.length === 0 ? (
-            <p className="text-xs text-center text-slate-600 dark:text-slate-300 py-6">
-              Đang tải thông báo...
-            </p>
-          ) : notifications.length === 0 ? (
-            <div className="py-8 px-4 text-center space-y-1.5">
-              <Bell className="w-8 h-8 text-slate-400 mx-auto" />
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Chưa có thông báo mới</p>
-              <p className="text-xs text-slate-600 dark:text-slate-300">
-                Khi Kế toán chốt kỳ công hoặc có phiếu lương mới, thông báo sẽ hiện ngay tại đây.
-              </p>
-            </div>
-          ) : (
-            notifications.map((notif) => {
-              const isUnread = !notif.is_read;
-              return (
-                <button
-                  key={notif.id}
-                  type="button"
-                  data-testid={`worker-notif-item-${notif.id}`}
-                  onClick={() => handleClickNotification(notif)}
-                  className={`perf-list-item w-full text-left p-3.5 rounded-2xl border transition cursor-pointer space-y-1.5 ${
-                    isUnread
-                      ? "bg-blue-50/90 hover:bg-blue-100/80 dark:bg-blue-950/60 dark:hover:bg-blue-900/70 border-blue-300 dark:border-blue-500/50"
-                      : "bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/70 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-snug">
-                      {notif.title}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {isUnread && (
-                        <span className="w-2.5 h-2.5 rounded-full bg-rose-600 shrink-0" aria-label="Chưa đọc" />
-                      )}
-                      <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-300" />
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
-                    {notif.message}
-                  </p>
-                  {notif.created_at && (
-                    <div className="text-xs text-slate-500 dark:text-slate-300 font-medium">
-                      {new Date(notif.created_at).toLocaleString("vi-VN")}
-                    </div>
-                  )}
-                </button>
-              );
-            })
-          )}
+        <div data-testid="worker-notification-modal" className="p-4">
+          <NotificationCenterPanel
+            mode="worker"
+            notifications={notifications}
+            unreadCount={unreadCount}
+            readCount={readCount}
+            totalCount={totalCount}
+            filter={notifFilter}
+            onFilterChange={changeNotifFilter}
+            hasMore={hasMoreNotifs}
+            loading={loadingNotifs}
+            loadingMore={loadingMoreNotifs}
+            onLoadMore={loadMoreNotifs}
+            onMarkAllRead={handleMarkAllRead}
+            onMarkSingleRead={markRead}
+            onClickItem={handleClickNotification}
+          />
         </div>
       </AppModal>
 

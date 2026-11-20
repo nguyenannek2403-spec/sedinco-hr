@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Printer,
-  Download,
   Share2,
-  CheckCircle2,
   AlertTriangle,
   Camera,
   Video,
@@ -13,107 +11,30 @@ import {
   Calendar,
   Clock,
   RefreshCw,
-  Lock
+  Lock,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
-import {
-  safeGet,
-  safePost,
-  sanitizeFormula,
-  formatCsvCellRFC4180,
-  generateIdempotencyKey
-} from "../utils/api";
+import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { formatViCurrency, formatViWorkday, formatViNumber } from "../utils/viNumberFormat";
 import { AppButton, AppModal, StatusBadge, SkeletonList } from "./ui";
-
-const ALLOWANCE_DEFS = [
-  { key: "an_trua", alt: "an_ca", label: "Phụ cấp ăn trưa" },
-  { key: "xang_xe", alt: "xang", label: "Phụ cấp xăng xe" },
-  { key: "nha_o", alt: "doc_hai", label: "Phụ cấp nhà ở" },
-  { key: "thuong_htcv", label: "Thưởng hoàn thành công việc" },
-  { key: "trach_nhiem", label: "Phụ cấp trách nhiệm" },
-  { key: "tiep_khach", alt: "dien_thoai", label: "Phụ cấp điện thoại / tiếp khách" }
-];
-
-const VI_WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-
-function formatDayWithWeekday(isoStr, fallbackLabel = "") {
-  if (fallbackLabel) return fallbackLabel;
-  const clean = String(isoStr || "").trim().slice(0, 10);
-  const m = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return clean || "--/--";
-  const y = parseInt(m[1], 10);
-  const mo = parseInt(m[2], 10);
-  const d = parseInt(m[3], 10);
-  const dt = new Date(Date.UTC(y, mo - 1, d));
-  const wd = VI_WEEKDAYS[dt.getUTCDay()] || "";
-  return `${String(d).padStart(2, "0")}/${String(mo).padStart(2, "0")} (${wd})`;
-}
-
-function getPositiveAllowances(slip) {
-  if (!slip) return [];
-  if (Array.isArray(slip.allowances)) {
-    return slip.allowances
-      .map((a) => ({
-        key: a.key,
-        label: a.label,
-        amount: Number(a.amount) || 0
-      }))
-      .filter((a) => a.amount > 0);
-  }
-  const b = slip.allowances_breakdown || {};
-  return ALLOWANCE_DEFS.map((def) => ({
-    key: def.key,
-    label: def.label,
-    amount: Number(b[def.key] ?? (def.alt ? b[def.alt] : 0)) || 0
-  })).filter((a) => a.amount > 0);
-}
-
-function resolveLogNote(log) {
-  if (!log) return "";
-  if (log.attendance_note && String(log.attendance_note).trim()) {
-    return String(log.attendance_note).trim();
-  }
-  const late = Math.max(0, Math.round(Number(log.late_minutes) || 0));
-  const early = Math.max(0, Math.round(Number(log.early_leave_minutes) || 0));
-  const parts = [];
-  if (late > 0) parts.push(`Vào muộn ${late} phút`);
-  if (early > 0) parts.push(`Ra sớm ${early} phút`);
-  if (parts.length > 0) return parts.join(" • ");
-  const st = String(log.status || "").toUpperCase();
-  if (st === "P") return "Nghỉ phép hưởng lương (P)";
-  if (st === "L") return "Nghỉ lễ hưởng lương (L)";
-  if (log.check_in_time && !log.check_out_time) return "Chưa chấm công ra (Quên check-out)";
-  if (st === "0" || st === "KP" || st === "V") return "Không tính công";
-  return "Đúng giờ • Đủ công";
-}
-
-function getNoteBadgeClass(noteText) {
-  const lower = String(noteText || "").toLowerCase();
-  if (
-    lower.includes("vào muộn") ||
-    lower.includes("ra sớm") ||
-    lower.includes("quên check-out") ||
-    lower.includes("quá ngắn")
-  ) {
-    return "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70";
-  }
-  if (lower.includes("không lương") || lower.includes("vắng") || lower.includes("chưa đủ")) {
-    return "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/70";
-  }
-  if (lower.includes("nghỉ phép") || lower.includes("nghỉ lễ")) {
-    return "bg-purple-50 text-purple-800 border-purple-200 dark:bg-purple-950/60 dark:text-purple-200 dark:border-purple-800/70";
-  }
-  return "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70";
-}
+import PayslipActionFooter from "../modules/payroll/PayslipActionFooter";
+import {
+  formatDayWithWeekday,
+  getPositiveAllowances,
+  resolveLogNote,
+  getNoteBadgeClass,
+  buildSingleSlipCsv
+} from "../modules/payroll/payslipHelpers";
 
 /**
- * SalarySlipModal V25
+ * SalarySlipModal V29
  * - Hợp nhất Phiếu lương Chi tiết (Phần A) + Bảng công Từng ngày (Phần B)
- * - Bộ chọn Tháng / Năm lịch sử ngay trên đầu Modal (live fetch cho cả Worker & Admin/Accountant)
+ * - Bộ chọn Tháng / Năm lịch sử ngay trên đầu Modal + Chuyển nhanh Nhân viên Trước/Sau (cho Quản lý)
+ * - Thanh Thao Tác Đáy Cố Định (Sticky Bottom Action Bar) tách bạch 100% theo vai trò Admin vs Worker
  * - Hiển thị Phụ cấp có điều kiện (> 0 mới hiện, = 0 ẩn hoàn toàn)
- * - Ghi chú Vào muộn / Ra sớm nổi bật bằng huy hiệu màu hổ phách dịu mắt
  */
 export default function SalarySlipModal({
   payrollItem = null,
@@ -122,6 +43,10 @@ export default function SalarySlipModal({
   month,
   year,
   isAdminOrAccountant = false,
+  employeeList = [],
+  onSelectEmployee = null,
+  canAdjust = false,
+  onOpenAdjustment = null,
   showToast,
   onStatusUpdated,
   onClose
@@ -130,8 +55,9 @@ export default function SalarySlipModal({
   const now = new Date();
   const initialMonth = Number(month || initialItem?.thang || now.getMonth() + 1);
   const initialYear = Number(year || initialItem?.nam || now.getFullYear());
-  const fixedMaNv = targetMaNv || initialItem?.ma_nv || initialItem?.id_nhan_vien || "";
+  const propMaNv = targetMaNv || initialItem?.ma_nv || initialItem?.id_nhan_vien || "";
 
+  const [activeMaNv, setActiveMaNv] = useState(propMaNv);
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const [selectedYear, setSelectedYear] = useState(initialYear);
   const [loadedItem, setLoadedItem] = useState(initialItem);
@@ -150,17 +76,33 @@ export default function SalarySlipModal({
   const [resolving, setResolving] = useState(false);
 
   const fileInputRef = useRef(null);
+  const disputeSectionRef = useRef(null);
   const submittingRef = useRef(false);
   const resolvingRef = useRef(false);
   const fetchSeqRef = useRef(0);
 
-  const fetchPeriodSlip = useCallback(async (m, y) => {
+  useEffect(() => {
+    setActiveMaNv(propMaNv);
+  }, [propMaNv]);
+
+  useEffect(() => {
+    if (initialItem) {
+      setLoadedItem(initialItem);
+      setConfirmStatus(initialItem.salary_confirm_status || "PENDING");
+      setDisputeReason(initialItem.dispute_reason || "");
+      setEvidenceMedia(initialItem.dispute_evidence_media || "");
+      setAdminResponse(initialItem.admin_response || "");
+    }
+  }, [initialItem]);
+
+  const fetchPeriodSlip = useCallback(async (m, y, overrideMaNv = null) => {
     const seq = ++fetchSeqRef.current;
+    const empCode = overrideMaNv || activeMaNv || propMaNv;
     setLoadingPeriod(true);
     setLoadError("");
     try {
-      const endpoint = isAdminOrAccountant && fixedMaNv
-        ? `/payroll/employee/${encodeURIComponent(fixedMaNv)}`
+      const endpoint = isAdminOrAccountant && empCode
+        ? `/payroll/employee/${encodeURIComponent(empCode)}`
         : "/payroll/me";
       const res = await safeGet(endpoint, { month: m, year: y }, { cancelPrevious: false });
       if (seq !== fetchSeqRef.current) return;
@@ -180,24 +122,45 @@ export default function SalarySlipModal({
     } finally {
       if (seq === fetchSeqRef.current) setLoadingPeriod(false);
     }
-  }, [isAdminOrAccountant, fixedMaNv]);
+  }, [isAdminOrAccountant, activeMaNv, propMaNv]);
 
   useEffect(() => {
+    const currentItemCode = loadedItem?.ma_nv || loadedItem?.id_nhan_vien || "";
     const matchesInitial =
       Boolean(initialItem) &&
+      activeMaNv === propMaNv &&
+      currentItemCode === activeMaNv &&
       Number(selectedMonth) === Number(initialMonth) &&
       Number(selectedYear) === Number(initialYear) &&
       Array.isArray(initialItem.daily_logs) &&
       Array.isArray(initialItem.allowances);
     if (!matchesInitial) {
-      fetchPeriodSlip(selectedMonth, selectedYear);
+      fetchPeriodSlip(selectedMonth, selectedYear, activeMaNv);
     }
-  }, [selectedMonth, selectedYear, initialItem, initialMonth, initialYear, fetchPeriodSlip]);
+  }, [selectedMonth, selectedYear, activeMaNv, propMaNv, initialItem, initialMonth, initialYear, fetchPeriodSlip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const item = loadedItem || initialItem;
   const thang = Number(selectedMonth || item?.thang || now.getMonth() + 1);
   const nam = Number(selectedYear || item?.nam || now.getFullYear());
-  const maNv = fixedMaNv || item?.ma_nv || item?.id_nhan_vien || "NV";
+  const maNv = activeMaNv || item?.ma_nv || item?.id_nhan_vien || "NV";
+
+  const currentEmpIdx = useMemo(() => {
+    if (!Array.isArray(employeeList) || employeeList.length <= 1) return -1;
+    return employeeList.findIndex((e) => (e.ma_nv || e.id_nhan_vien) === maNv);
+  }, [employeeList, maNv]);
+
+  const handleStepEmployee = (delta) => {
+    if (!Array.isArray(employeeList) || employeeList.length <= 1 || currentEmpIdx < 0) return;
+    const nextIdx = (currentEmpIdx + delta + employeeList.length) % employeeList.length;
+    const nextEmp = employeeList[nextIdx];
+    const nextCode = nextEmp?.ma_nv || nextEmp?.id_nhan_vien;
+    if (!nextCode) return;
+    setActiveMaNv(nextCode);
+    setLoadedItem(nextEmp);
+    if (typeof onSelectEmployee === "function") {
+      onSelectEmployee(nextEmp);
+    }
+  };
 
   const notify = (msg, type = "info") => {
     if (showToast) showToast(msg, type);
@@ -271,7 +234,6 @@ export default function SalarySlipModal({
     return rows;
   }, [item, attendanceViewMode, thang, nam]);
 
-  // Nén ảnh (<50KB) hoặc kiểm tra video ngắn (<800KB)
   const handleSelectEvidenceFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -365,6 +327,18 @@ export default function SalarySlipModal({
     }
   };
 
+  const handleToggleDispute = () => {
+    setShowDisputeForm((prev) => {
+      const next = !prev;
+      if (next) {
+        setTimeout(() => {
+          disputeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 120);
+      }
+      return next;
+    });
+  };
+
   const handleSubmitDispute = async (e) => {
     e.preventDefault();
     if (submittingRef.current) return;
@@ -435,36 +409,17 @@ export default function SalarySlipModal({
 
   const handleExportSingleSlipExcel = async () => {
     if (!item) return;
-    const rows = [
-      ["PHIẾU LƯƠNG ĐIỆN TỬ SEDINCO", `Kỳ lương: Tháng ${thang}/${nam}`],
-      ["Mã nhân viên", sanitizeFormula(maNv)],
-      ["Họ và tên", sanitizeFormula(item.ho_ten || "")],
-      ["Chức danh", sanitizeFormula(item.chuc_danh || "Nhân viên")],
-      ["Ngày công thực tế", `${item.totalWorkDays || 0} / ${item.standardWorkDays || item.standardDays || 26}`],
-      ["Lương cơ bản HĐ", Number(item.baseSalary || 0)],
-      ["Lương theo ngày công", Number(item.salaryByWork || 0)],
-      ...(showAllowancesBlock
-        ? [
-            ["Tổng phụ cấp", Number(totalPositiveAllowance || 0)],
-            ...positiveAllowances.map((a) => [a.label, a.amount])
-          ]
-        : []),
-      ["Lương tăng ca (OT)", Number(item.otAmount || 0)],
-      ["Thưởng thêm", Number(item.bonusAmount || 0)],
-      ["Khấu trừ BHXH", -Number(item.totalInsurance || item.insuranceDeduction || 0)],
-      ["Phạt đi muộn", -Number(item.latePenaltyAmount || 0)],
-      ["Phạt / Khấu trừ khác", -Number(item.penaltyAmount || 0)],
-      ["Trừ tạm ứng lương", -Number(item.advanceDeduction || 0)],
-      ["THỰC LĨNH (NET)", Number(item.netSalary || 0)],
-      ...(Number(item.carryOverDebt || item.carry_over_debt || 0) > 0
-        ? [["Khoản nợ chuyển kỳ lương sau", Number(item.carryOverDebt || item.carry_over_debt || 0)]]
-        : []),
-      ["Trạng thái xác nhận", confirmStatus]
-    ];
-
-    const csvContent =
-      "\uFEFF" +
-      rows.map((r) => r.map((c) => formatCsvCellRFC4180(c)).join(",")).join("\r\n");
+    const csvContent = buildSingleSlipCsv({
+      item,
+      maNv,
+      thang,
+      nam,
+      confirmStatus,
+      positiveAllowances,
+      totalPositiveAllowance,
+      showAllowancesBlock,
+      dailyRows: displayedDailyRows
+    });
 
     try {
       await zmpAdapter.saveFile({
@@ -472,7 +427,7 @@ export default function SalarySlipModal({
         content: csvContent,
         mimeType: "text/csv;charset=utf-8;"
       });
-      notify("Đã tải xuống Phiếu lương Excel/CSV!", "success");
+      notify("Đã tải xuống Phiếu lương & Bảng công chi tiết!", "success");
     } catch (err) {
       notify(err?.message || "Không thể tải xuống phiếu lương lúc này!", "error");
     }
@@ -496,24 +451,19 @@ export default function SalarySlipModal({
     }
   };
 
+  const isLockedOrPaid = Boolean(
+    item && (item.payment_status === "PAID" || item.payroll_period_status === "APPROVED" || item.period_locked)
+  );
+
   const periodLockBadge = (() => {
     if (!item) return null;
     if (item.payment_status === "PAID") {
-      return {
-        label: "Đã chi trả",
-        cls: "bg-emerald-800/85 border-emerald-300/40 text-white"
-      };
+      return { label: "Đã chi trả", cls: "bg-emerald-800/85 border-emerald-300/40 text-white" };
     }
     if (item.period_locked || item.payroll_period_status === "APPROVED") {
-      return {
-        label: "Đã chốt sổ",
-        cls: "bg-blue-900/65 border-blue-200/40 text-white"
-      };
+      return { label: "Đã chốt sổ", cls: "bg-blue-900/65 border-blue-200/40 text-white" };
     }
-    return {
-      label: "Bản nháp / Tạm tính",
-      cls: "bg-slate-800/75 border-white/25 text-white"
-    };
+    return { label: "Bản nháp / Tạm tính", cls: "bg-slate-800/75 border-white/25 text-white" };
   })();
 
   const otRowNumber = showAllowancesBlock ? 4 : 3;
@@ -521,25 +471,15 @@ export default function SalarySlipModal({
 
   return (
     <AppModal
-      open={Boolean(item || fixedMaNv || loadingPeriod)}
+      open={Boolean(item || propMaNv || loadingPeriod)}
       onClose={onClose}
       disableClose={submitting || resolving}
-      showCloseX={false}
+      showCloseX={true}
       maxWidthClass="sm:max-w-2xl"
       maxHeightClass="max-h-[92vh]"
       title={`Lương & Công T${thang}/${nam} — ${maNv}`}
       headerExtra={
         <div className="flex items-center gap-1.5 print:hidden">
-          <AppButton
-            variant="success"
-            icon={Download}
-            disabled={!item || loadingPeriod}
-            onClick={handleExportSingleSlipExcel}
-            className="min-h-[44px] px-3 py-2 text-xs font-bold"
-            title="Tải phiếu lương Excel/CSV"
-          >
-            Excel
-          </AppButton>
           <AppButton
             variant="primary"
             icon={Share2}
@@ -561,15 +501,60 @@ export default function SalarySlipModal({
           </AppButton>
         </div>
       }
+      footer={
+        <PayslipActionFooter
+          isAdminOrAccountant={isAdminOrAccountant}
+          item={item}
+          confirmStatus={confirmStatus}
+          submitting={submitting}
+          resolving={resolving}
+          canAdjust={canAdjust}
+          isLockedOrPaid={isLockedOrPaid}
+          onClose={onClose}
+          onOpenAdjustment={onOpenAdjustment}
+          onExportSlip={handleExportSingleSlipExcel}
+          onConfirmSalary={handleConfirmSalary}
+          onToggleDispute={handleToggleDispute}
+        />
+      }
     >
       <div className="p-4 sm:p-6 space-y-4 text-slate-800 dark:text-slate-100">
-        {/* Bộ chọn Tháng / Năm lịch sử ngay trên đầu Modal */}
+        {/* Bộ chọn Tháng / Năm lịch sử + Chuyển nhanh Nhân viên cho Quản trị viên */}
         <div className="print:hidden flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
             <Calendar className="w-4 h-4 text-[#0068FF] dark:text-blue-400 shrink-0" />
             <span>Chọn kỳ lịch sử:</span>
           </div>
+
           <div className="flex flex-wrap items-center gap-2 flex-1 sm:flex-initial justify-end">
+            {isAdminOrAccountant && Array.isArray(employeeList) && employeeList.length > 1 && currentEmpIdx >= 0 && (
+              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-1">
+                <button
+                  type="button"
+                  data-testid="payslip-prev-emp-btn"
+                  aria-label="Nhân viên trước"
+                  title="Nhân viên trước"
+                  onClick={() => handleStepEmployee(-1)}
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-[#0068FF] dark:hover:text-blue-300 cursor-pointer"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="text-xs font-mono font-bold px-1 text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                  {currentEmpIdx + 1}/{employeeList.length}
+                </span>
+                <button
+                  type="button"
+                  data-testid="payslip-next-emp-btn"
+                  aria-label="Nhân viên tiếp theo"
+                  title="Nhân viên tiếp theo"
+                  onClick={() => handleStepEmployee(1)}
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-[#0068FF] dark:hover:text-blue-300 cursor-pointer"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+
             <select
               data-testid="payslip-month-select"
               aria-label="Chọn tháng phiếu lương"
@@ -600,7 +585,7 @@ export default function SalarySlipModal({
               variant="secondary"
               icon={RefreshCw}
               loading={loadingPeriod}
-              onClick={() => fetchPeriodSlip(thang, nam)}
+              onClick={() => fetchPeriodSlip(thang, nam, maNv)}
               aria-label="Tải lại kỳ lương"
               className="min-w-[44px] min-h-[44px] px-2.5 py-2"
             />
@@ -612,7 +597,7 @@ export default function SalarySlipModal({
         ) : loadError ? (
           <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 text-xs font-bold flex items-center justify-between gap-3">
             <span>{loadError}</span>
-            <AppButton variant="danger" onClick={() => fetchPeriodSlip(thang, nam)} className="text-xs px-3 py-1.5 shrink-0">
+            <AppButton variant="danger" onClick={() => fetchPeriodSlip(thang, nam, maNv)} className="text-xs px-3 py-1.5 shrink-0">
               Thử lại
             </AppButton>
           </div>
@@ -640,7 +625,7 @@ export default function SalarySlipModal({
                   )}
                   {confirmStatus === "CONFIRMED" && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-800/80 border border-emerald-300/40 text-white text-xs font-bold">
-                      <CheckCircle2 size={12} /> Đã xác nhận đúng lương
+                      ✓ Đã xác nhận đúng lương
                     </span>
                   )}
                   {confirmStatus === "DISPUTED" && (
@@ -720,7 +705,6 @@ export default function SalarySlipModal({
                   </span>
                 </div>
 
-                {/* Module 4: Chỉ hiển thị Phụ cấp khi thực sự phát sinh > 0; = 0 ẩn hoàn toàn */}
                 {showAllowancesBlock && (
                   <div data-testid="payslip-allowances-section" className="px-3.5 py-2.5">
                     <div className="flex justify-between items-center font-semibold text-slate-800 dark:text-slate-100 mb-1.5">
@@ -883,10 +867,7 @@ export default function SalarySlipModal({
                     const log = row.log;
                     const noteClass = getNoteBadgeClass(row.note);
                     return (
-                      <div
-                        key={row.key}
-                        className="perf-list-item px-3.5 py-2.5 space-y-1.5"
-                      >
+                      <div key={row.key} className="perf-list-item px-3.5 py-2.5 space-y-1.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex flex-wrap items-center gap-2 min-w-0">
                             <span className="font-mono font-bold text-slate-900 dark:text-white">
@@ -927,6 +908,80 @@ export default function SalarySlipModal({
                 </div>
               )}
             </div>
+
+            {/* Form gửi khiếu nại cho Nhân viên khi bấm nút [⚠️ Báo sai sót] ở Thanh đáy */}
+            {!isAdminOrAccountant && showDisputeForm && (
+              <form
+                ref={disputeSectionRef}
+                onSubmit={handleSubmitDispute}
+                data-testid="payslip-worker-dispute-form"
+                className="bg-amber-50/70 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-2xl p-4 space-y-3 print:hidden"
+              >
+                <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-extrabold text-xs sm:text-sm">
+                  <AlertTriangle size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>Gửi Phản hồi Sai sót Lương / Ngày công</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                    Lý do sai lệch (ghi rõ ngày công, giờ tăng ca hoặc phụ cấp bị thiếu):
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={disputeReason}
+                    onChange={(e) => setDisputeReason(e.target.value)}
+                    placeholder="VD: Ngày 12/11 em có tăng ca 2 tiếng nhưng chưa thấy cộng vào phiếu lương..."
+                    className="w-full p-3 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">
+                    Đính kèm Ảnh minh chứng (&lt;50KB) hoặc Video ngắn (&lt;800KB):
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <AppButton
+                      variant="secondary"
+                      icon={Camera}
+                      onClick={() => handlePickDisputeMedia(["camera"])}
+                      className="text-xs px-3 py-2"
+                    >
+                      Chụp ảnh Camera
+                    </AppButton>
+                    <AppButton
+                      variant="secondary"
+                      icon={ImageIcon}
+                      onClick={() => handlePickDisputeMedia(["album"])}
+                      className="text-xs px-3 py-2"
+                    >
+                      <Video size={14} className="inline mr-1" />
+                      Chọn Thư viện / Video
+                    </AppButton>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={handleSelectEvidenceFile}
+                    className="hidden"
+                  />
+                  {mediaNotice && (
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300 font-bold">{mediaNotice}</p>
+                  )}
+                </div>
+
+                <AppButton
+                  type="submit"
+                  variant="danger"
+                  icon={Send}
+                  fullWidth
+                  loading={submitting}
+                  loadingText="Đang gửi báo cáo..."
+                >
+                  Gửi Báo Cáo Tới Kế Toán &amp; Admin
+                </AppButton>
+              </form>
+            )}
 
             {/* HIỂN THỊ KHIẾU NẠI & BẰNG CHỨNG (NẾU CÓ) */}
             {(confirmStatus === "DISPUTED" || item.dispute_reason || item.admin_response) && (
@@ -1007,120 +1062,6 @@ export default function SalarySlipModal({
                       </AppButton>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* KHU VỰC XÁC NHẬN LƯƠNG DÀNH CHO CÔNG NHÂN */}
-            {!isAdminOrAccountant && (
-              <div className="bg-slate-50 dark:bg-slate-800/70 border-2 border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 space-y-3 print:hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase">
-                    Xác Nhận Phiếu Lương Của Bạn
-                  </span>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    {confirmStatus === "CONFIRMED"
-                      ? "Đã đồng ý"
-                      : confirmStatus === "DISPUTED"
-                      ? "Đã gửi báo cáo"
-                      : "Chưa xác nhận"}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <AppButton
-                    variant="success"
-                    icon={CheckCircle2}
-                    loading={submitting}
-                    disabled={confirmStatus === "CONFIRMED"}
-                    loadingText="Đang xác nhận..."
-                    onClick={handleConfirmSalary}
-                    className={
-                      confirmStatus === "CONFIRMED"
-                        ? "!bg-emerald-100 !text-emerald-800 !border-emerald-300 dark:!bg-emerald-950/70 dark:!text-emerald-200 dark:!border-emerald-700"
-                        : ""
-                    }
-                  >
-                    {confirmStatus === "CONFIRMED"
-                      ? "✅ Đã Xác Nhận Đúng Lương"
-                      : "✅ Xác Nhận Đúng Lương"}
-                  </AppButton>
-
-                  <AppButton
-                    variant="warning"
-                    icon={AlertTriangle}
-                    disabled={submitting}
-                    onClick={() => setShowDisputeForm((v) => !v)}
-                  >
-                    ⚠️ Báo Cáo Sai Lương
-                  </AppButton>
-                </div>
-
-                {showDisputeForm && (
-                  <form
-                    onSubmit={handleSubmitDispute}
-                    className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-3"
-                  >
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
-                        Lý do sai lệch (ghi rõ ngày công, giờ tăng ca hoặc phụ cấp bị thiếu):
-                      </label>
-                      <textarea
-                        rows={3}
-                        required
-                        value={disputeReason}
-                        onChange={(e) => setDisputeReason(e.target.value)}
-                        placeholder="VD: Ngày 12/11 em có tăng ca 2 tiếng nhưng chưa thấy cộng vào phiếu lương..."
-                        className="w-full p-3 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">
-                        Đính kèm Ảnh minh chứng (&lt;50KB) hoặc Video ngắn (&lt;800KB):
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <AppButton
-                          variant="secondary"
-                          icon={Camera}
-                          onClick={() => handlePickDisputeMedia(["camera"])}
-                          className="text-xs px-3 py-2"
-                        >
-                          📷 Chụp ảnh Camera
-                        </AppButton>
-                        <AppButton
-                          variant="secondary"
-                          icon={ImageIcon}
-                          onClick={() => handlePickDisputeMedia(["album"])}
-                          className="text-xs px-3 py-2"
-                        >
-                          <Video size={14} className="inline mr-1" />
-                          Chọn Thư viện / Video
-                        </AppButton>
-                      </div>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={handleSelectEvidenceFile}
-                        className="hidden"
-                      />
-                      {mediaNotice && (
-                        <p className="text-xs text-emerald-700 dark:text-emerald-300 font-bold">{mediaNotice}</p>
-                      )}
-                    </div>
-
-                    <AppButton
-                      type="submit"
-                      variant="danger"
-                      icon={Send}
-                      fullWidth
-                      loading={submitting}
-                      loadingText="Đang gửi báo cáo..."
-                    >
-                      Gửi Báo Cáo Tới Kế Toán &amp; Admin
-                    </AppButton>
-                  </form>
                 )}
               </div>
             )}

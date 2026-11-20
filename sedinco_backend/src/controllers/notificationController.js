@@ -3,8 +3,8 @@ const notificationService = require('../services/notificationService');
 class NotificationController {
     async getMyNotifications(req, res, next) {
         try {
-            const limit = req.query?.limit;
-            const data = await notificationService.getMyNotifications(req.user, { limit });
+            const { limit, offset, filter } = req.query || {};
+            const data = await notificationService.getMyNotifications(req.user, { limit, offset, filter });
             return res.json({ success: true, data });
         } catch (err) {
             next(err);

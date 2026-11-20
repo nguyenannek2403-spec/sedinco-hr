@@ -855,9 +855,9 @@ test('P9-SEC-LOGIN-01: Special/Unicode passwords, SQLi, Account Enumeration (P1 
 // =========================================================================
 // GROUP 4: COMPLETE 132-ROUTE RBAC, 1:1 16-KEY PERMISSION MATRIX & SOD
 // =========================================================================
-test('P9-RBAC-ALL: Route Inventory (140 Routes), Auth Boundaries, 16-Key 1:1 Matrix & SoD Verification', async () => {
+test('P9-RBAC-ALL: Route Inventory (147 Routes), Auth Boundaries, 16-Key 1:1 Matrix & SoD Verification', async () => {
     const routes = listExpressRoutes(app);
-    assert.equal(routes.length, 140, `Expected 140 Express routes, observed ${routes.length}`);
+    assert.equal(routes.length, 147, `Expected 147 Express routes, observed ${routes.length}`);
 
     const publicWhitelist = new Set([
         'GET /api/health',
@@ -994,7 +994,13 @@ test('P9-RBAC-ALL: Route Inventory (140 Routes), Auth Boundaries, 16-Key 1:1 Mat
         ['PUT', `/api/audit-logs/keep-employee/${W2}`],
         ['POST', `/api/audit-logs/keep-employee/${W2}`],
         ['POST', '/api/audit-logs/cleanup'],
-        ['GET', '/api/notifications/summary']
+        ['GET', '/api/notifications/summary'],
+        ['GET', '/api/qa-center/overview'],
+        ['GET', '/api/qa-center/test-cases'],
+        ['GET', '/api/qa-center/bugs'],
+        ['GET', '/api/qa-center/history'],
+        ['POST', '/api/qa-center/run-safe-checks', {}],
+        ['GET', '/api/qa-center/export']
     ];
     for (const [method, endpoint, body] of nonWorkerRoutes) {
         const res = await apiRequest(baseUrl, method, endpoint, { token: w1Token, body });
@@ -1059,7 +1065,13 @@ test('P9-RBAC-ALL: Route Inventory (140 Routes), Auth Boundaries, 16-Key 1:1 Mat
         ['PUT', '/api/settings/penalties', {}],
         ['PUT', '/api/settings/accountant-permissions', { permissions: {} }],
         ['GET', '/api/audit-logs'],
-        ['POST', '/api/audit-logs/cleanup']
+        ['POST', '/api/audit-logs/cleanup'],
+        ['GET', '/api/qa-center/overview'],
+        ['GET', '/api/qa-center/test-cases'],
+        ['GET', '/api/qa-center/bugs'],
+        ['GET', '/api/qa-center/history'],
+        ['POST', '/api/qa-center/run-safe-checks', {}],
+        ['GET', '/api/qa-center/export']
     ];
     for (const [method, endpoint, body] of adminImmutableRoutes) {
         const res = await apiRequest(baseUrl, method, endpoint, { token: accToken, body });

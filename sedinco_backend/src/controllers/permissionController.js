@@ -63,7 +63,7 @@ class PermissionController {
 
     async getAlertsSummary(req, res, next) {
         try {
-            const data = await permissionService.getAlertsSummary();
+            const data = await permissionService.getAlertsSummary(req.user);
             return res.json({ success: true, data });
         } catch (err) {
             next(err);

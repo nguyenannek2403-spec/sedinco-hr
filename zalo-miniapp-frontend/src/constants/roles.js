@@ -48,7 +48,7 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.ACCOUNTANT]: {
     name: "Kế Toán",
-    allowedTabs: ["matrix", "requests", "payroll", "profile"],
+    allowedTabs: ["overview", "matrix", "requests", "payroll", "profile"],
     defaultTab: "matrix",
     canCheckIn: false,
     canViewOwnAttendance: false,
@@ -73,7 +73,7 @@ export const ROLE_PERMISSIONS = {
 
   [ROLES.ADMIN]: {
     name: "Quản Trị Viên (Giám Đốc)",
-    allowedTabs: ["matrix", "requests", "management", "settings", "profile"],
+    allowedTabs: ["overview", "matrix", "requests", "management", "settings", "qa_center", "profile"],
     defaultTab: "matrix",
     canCheckIn: false,
     canViewOwnAttendance: false,
@@ -109,7 +109,7 @@ export const isTabAllowedForRole = (tab, role, dynamicPermissions = {}) => {
   // Với Kế toán: Ràng buộc nghiêm ngặt theo dynamic_permissions
   if (normalizedRole === ROLES.ACCOUNTANT) {
     const dp = dynamicPermissions || {};
-    if (tab === "profile") return true;
+    if (tab === "overview" || tab === "profile") return true;
     if (tab === "matrix") return dp.attendance_view_all !== false;
     if (tab === "payroll") return dp.payroll_view_all !== false;
     if (tab === "requests") return dp.leave_view_all !== false;

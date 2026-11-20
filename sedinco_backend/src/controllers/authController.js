@@ -140,6 +140,20 @@ class AuthController {
         }
     }
 
+    async updatePreferences(req, res, next) {
+        try {
+            const theme_preference = req.body.theme_preference ?? req.body.theme;
+            const font_scale = req.body.font_scale;
+            const result = await authService.updateUserPreferences(req.user, { theme_preference, font_scale });
+            if (!result.success) {
+                return res.status(result.statusCode || 400).json({ success: false, message: result.message });
+            }
+            return res.json({ success: true, data: result.data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async updateAvatar(req, res, next) {
         try {
             const { ma_nv, avatar_url } = req.body;

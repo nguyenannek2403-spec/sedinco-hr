@@ -198,7 +198,7 @@ function listExpressRoutes(appInstance) {
             const probes = [
                 '/api', '/attendance', '/payroll', '/requests', '/employees',
                 '/company', '/holidays', '/settings', '/permissions',
-                '/diagnostics', '/client-errors', '/notifications', '/auth', '/admin'
+                '/diagnostics', '/client-errors', '/notifications', '/qa-center', '/auth', '/admin'
             ];
             for (const p of probes) {
                 try {

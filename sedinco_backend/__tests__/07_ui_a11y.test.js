@@ -978,10 +978,14 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
     const now = new Date();
     const curYear = now.getFullYear();
     const curMonth = now.getMonth() + 1;
+    const prevMonth = curMonth > 1 ? curMonth - 1 : 12;
+    const prevYear = curMonth > 1 ? curYear : curYear - 1;
     const pad2 = (n) => String(n).padStart(2, '0');
     const ymPrefix = `${curYear}-${pad2(curMonth)}`;
+    const prevYmPrefix = `${prevYear}-${pad2(prevMonth)}`;
     const day2Str = `${ymPrefix}-02`;
     const day3Str = `${ymPrefix}-03`;
+    const prevDay2Str = `${prevYmPrefix}-02`;
     const leaveDateStr = `${ymPrefix}-25`;
     const otDateStr = `${ymPrefix}-26`;
 
@@ -1006,10 +1010,10 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // Snapshot DB baseline & max IDs so all UI test mutations are 100% restored in finally
         settingsSnap = await snapshotSettings();
         coreUsersBefore = await query(
-            "SELECT ma_nv, ho_ten, chuc_danh, role, status, is_locked, password, must_change_password, phone, login_username, theme_preference, phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, bound_device_id, bound_device_name, pending_device_id, pending_device_name, device_change_reason, device_binding_mode, known_devices_json, multi_device_alert, token_version FROM employees WHERE ma_nv IN ('NV001','NV002','NV003')"
+            "SELECT ma_nv, ho_ten, chuc_danh, role, status, is_locked, password, must_change_password, phone, login_username, theme_preference, COALESCE(font_scale, 100) as font_scale, phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, bound_device_id, bound_device_name, pending_device_id, pending_device_name, device_change_reason, device_binding_mode, known_devices_json, multi_device_alert, token_version FROM employees WHERE ma_nv IN ('NV001','NV002','NV003')"
         );
-        adminBefore = await query('SELECT username, password, must_change_password, phone, login_username, theme_preference, token_version FROM admins WHERE username = "admin"');
-        for (const tbl of ['attendance_logs', 'requests', 'ot_registrations', 'payroll_periods', 'period_locks', 'public_holidays', 'audit_logs', 'user_notifications']) {
+        adminBefore = await query('SELECT username, password, must_change_password, phone, login_username, theme_preference, COALESCE(font_scale, 100) as font_scale, token_version FROM admins WHERE username = "admin"');
+        for (const tbl of ['attendance_logs', 'requests', 'ot_registrations', 'payroll_periods', 'period_locks', 'public_holidays', 'audit_logs', 'user_notifications', 'qa_test_runs']) {
             const [r] = await query(`SELECT COALESCE(MAX(id), 0) as m FROM ${tbl}`);
             maxIds[tbl] = Number(r?.m || 0);
         }
@@ -1017,12 +1021,12 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // Prepare predictable real DB state for core accounts & current month logs
         const pw123456 = bcrypt.hashSync('123456', 10);
         await query(
-            "UPDATE employees SET password = ?, must_change_password = 0, is_locked = 0, status = 'active', bound_device_id = NULL, bound_device_name = NULL, pending_device_id = NULL, pending_device_name = NULL, device_change_reason = NULL, device_binding_mode = 'recording', known_devices_json = NULL, multi_device_alert = 0 WHERE ma_nv IN ('NV001','NV002','NV003')",
+            "UPDATE employees SET password = ?, must_change_password = 0, is_locked = 0, status = 'active', theme_preference = 'light', font_scale = 100, bound_device_id = NULL, bound_device_name = NULL, pending_device_id = NULL, pending_device_name = NULL, device_change_reason = NULL, device_binding_mode = 'recording', known_devices_json = NULL, multi_device_alert = 0 WHERE ma_nv IN ('NV001','NV002','NV003')",
             [pw123456]
         );
         await query("UPDATE employees SET role = 'worker' WHERE ma_nv = 'NV003'");
         await query("UPDATE employees SET role = 'accountant' WHERE ma_nv = 'NV002'");
-        await query('UPDATE admins SET password = ?, must_change_password = 0 WHERE username = "admin"', [pw123456]);
+        await query('UPDATE admins SET password = ?, must_change_password = 0, theme_preference = "light", font_scale = 100 WHERE username = "admin"', [pw123456]);
         await query("DELETE FROM login_rate_limits WHERE identifier IN ('NV001','NV002','NV003','admin') OR key_name LIKE '%127.0.0.1%'").catch(() => {});
 
         // Align company_settings geofence with CDP geolocation override
@@ -1031,19 +1035,19 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             [JSON.stringify([{ name: 'Trụ sở chính Đà Nẵng', lat: 16.0544, lng: 108.2022, radius: 200 }])]
         );
 
-        // Clear any leftover NV003 current-month logs/requests/locks so Round 1-3 execute deterministically
-        await query('DELETE FROM period_locks WHERE month = ? AND year = ?', [curMonth, curYear]);
-        await query('DELETE FROM payroll_periods WHERE month = ? AND year = ?', [curMonth, curYear]);
-        await query('DELETE FROM attendance_logs WHERE employee_id = "NV003" AND record_date IN (?, ?, CURDATE())', [day2Str, day3Str]);
-        await query('DELETE FROM attendance WHERE ma_nv IN ("NV003", "NV002", "NV001") AND thang = ? AND nam = ?', [curMonth, curYear]);
+        // Clear any leftover NV003 current/prev month logs/requests/locks so Round 1-3 execute deterministically
+        await query('DELETE FROM period_locks WHERE (month = ? AND year = ?) OR (month = ? AND year = ?)', [curMonth, curYear, prevMonth, prevYear]);
+        await query('DELETE FROM payroll_periods WHERE (month = ? AND year = ?) OR (month = ? AND year = ?)', [curMonth, curYear, prevMonth, prevYear]);
+        await query('DELETE FROM attendance_logs WHERE employee_id = "NV003" AND record_date IN (?, ?, ?, CURDATE())', [day2Str, day3Str, prevDay2Str]);
+        await query('DELETE FROM attendance WHERE ma_nv IN ("NV003", "NV002", "NV001") AND ((thang = ? AND nam = ?) OR (thang = ? AND nam = ?))', [curMonth, curYear, prevMonth, prevYear]);
         await query('DELETE FROM requests WHERE employee_id = "NV003" AND (request_date IN (?, ?, ?, CURDATE()) OR (MONTH(request_date) = ? AND YEAR(request_date) = ?))', [day3Str, leaveDateStr, otDateStr, curMonth, curYear]);
         await query('DELETE FROM ot_registrations WHERE employee_id = "NV003" AND work_date = ?', [otDateStr]);
 
-        // Seed 1 late+early day & 1 forgotten-checkout day + zero allowances on NV003 + 1 unread PERIOD_LOCKED_PAYROLL notification for V25 Test 6
+        // Seed 1 late+early day & 1 forgotten-checkout day + 1 prevMonth published period for Worker Sticky Footer confirmation/dispute + 1 unread PERIOD_LOCKED_PAYROLL notification
         await query(
             "UPDATE employees SET phu_cap_an_trua = 0, phu_cap_xang_xe = 0, phu_cap_nha_o = 0, thuong_htcv = 0, phu_cap_trach_nhiem = 0, phu_cap_tiep_khach = 0 WHERE ma_nv = 'NV003'"
         );
-        await query('DELETE FROM user_notifications WHERE recipient_ma_nv = "NV003" AND is_read = 0');
+        await query('DELETE FROM user_notifications WHERE recipient_ma_nv IN ("NV003", "ADMIN")');
         await query(
             "INSERT INTO attendance_logs (employee_id, record_date, check_in_time, check_out_time, status, ot_hours, late_minutes, early_leave_minutes) VALUES ('NV003', ?, '08:25:00', '17:05:00', '1', 0, 25, 15)",
             [day2Str]
@@ -1051,6 +1055,14 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await query(
             "INSERT INTO attendance_logs (employee_id, record_date, check_in_time, check_out_time, status, ot_hours) VALUES ('NV003', ?, '07:58:00', NULL, '0.5', 0)",
             [day3Str]
+        );
+        await query(
+            "INSERT INTO attendance_logs (employee_id, record_date, check_in_time, check_out_time, status, ot_hours) VALUES ('NV003', ?, '08:00:00', '17:30:00', '1', 0)",
+            [prevDay2Str]
+        );
+        await query(
+            "INSERT INTO payroll_periods (month, year, status, approved_by, approved_at) VALUES (?, ?, 'APPROVED', 'admin', NOW())",
+            [prevMonth, prevYear]
         );
         await query(
             `INSERT INTO user_notifications (recipient_ma_nv, type, title, message, ref_month, ref_year, target_ma_nv, is_read)
@@ -1161,12 +1173,21 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await clickInPage(session, { selector: 'button[data-testid="theme-toggle-btn"]', inTopModal: false });
         await sleep(240);
 
-        // V25 Test 6 (Worker Bell -> Notification Modal -> Deep-Link Payslip + Daily Attendance + Hidden 0-Allowances + History Switch)
+        // V25 + V29 Test 6 (Worker Bell -> 3 Tabs & Read/Unread History -> Deep-Link Payslip + Daily Attendance + Draft Footer + History Switch)
         const bellBadgeBefore = await session.evaluate(`document.querySelector('[data-testid="worker-bell-badge"]')?.innerText?.trim() || null`);
         assert.equal(bellBadgeBefore, '1', 'V25 Worker Header Bell must display unread badge "1"');
         await clickInPage(session, { selector: 'button[data-testid="worker-bell-btn"]', inTopModal: false });
         await waitForCondition(session, `Boolean(document.querySelector('[data-testid="worker-notification-modal"]'))`, 4000, 'Worker notification modal opened');
-        await inspectPhysicsAndGeometry(session, 'V25 Worker Notification Bell Modal', { expectModal: true });
+        const workerBellControls = await session.evaluate(`(() => ({
+            hasAllTab: Boolean(document.querySelector('[data-testid="notif-tab-all"]')),
+            hasUnreadTab: Boolean(document.querySelector('[data-testid="notif-tab-unread"]')),
+            hasReadTab: Boolean(document.querySelector('[data-testid="notif-tab-read"]')),
+            hasMarkAll: Boolean(document.querySelector('[data-testid="notif-mark-all-read-btn"]')),
+            hasSingleMark: Boolean(document.querySelector('[data-testid^="notif-mark-read-"]'))
+        }))()`);
+        assert.ok(workerBellControls.hasAllTab && workerBellControls.hasUnreadTab && workerBellControls.hasReadTab, 'Worker Bell must render All/Unread/Read filter tabs');
+        assert.ok(workerBellControls.hasMarkAll && workerBellControls.hasSingleMark, 'Worker Bell must render mark-all & single mark-read buttons');
+        await inspectPhysicsAndGeometry(session, 'V25/V29 Worker Notification Bell Modal', { expectModal: true });
         await clickInPage(session, { selector: 'button[data-testid^="worker-notif-item-"]', inTopModal: true });
         await waitForCondition(
             session,
@@ -1174,25 +1195,33 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             6000,
             'Clicking notification opened unified SalarySlipModal Part A + Part B'
         );
-        await inspectPhysicsAndGeometry(session, 'V25 Bell-Opened Historical SalarySlipModal (Light & Dark)', { expectModal: true });
+        await inspectPhysicsAndGeometry(session, 'V25/V29 Bell-Opened Historical SalarySlipModal (Light & Dark)', { expectModal: true });
         const slipDomAudit = await session.evaluate(`(() => {
             const modal = document.querySelector('[data-modal-root="true"]');
             const txt = modal ? (modal.innerText || '') : '';
             const hasAllowanceSection = Boolean(modal?.querySelector('[data-testid="payslip-allowances-section"]'));
             const hasZeroAllowanceLine = /Phụ cấp[^\\n]*:\\s*0\\s*đ/i.test(txt);
             const hasLateEarlyNote = txt.includes('Vào muộn 25 phút • Ra sớm 15 phút');
+            const hasDraftNotice = Boolean(modal?.querySelector('[data-testid="payslip-draft-notice"]'));
+            const hasWorkerConfirmOnDraft = Boolean(modal?.querySelector('[data-testid="payslip-worker-confirm-btn"]'));
             const bellBadgeAfter = document.querySelector('[data-testid="worker-bell-badge"]')?.innerText?.trim() || null;
-            return { hasAllowanceSection, hasZeroAllowanceLine, hasLateEarlyNote, bellBadgeAfter };
+            return { hasAllowanceSection, hasZeroAllowanceLine, hasLateEarlyNote, hasDraftNotice, hasWorkerConfirmOnDraft, bellBadgeAfter };
         })()`);
         assert.equal(slipDomAudit.hasAllowanceSection, false, 'V25 LAW-4: Allowances section must be completely hidden when all allowances = 0');
         assert.equal(slipDomAudit.hasZeroAllowanceLine, false, 'V25 LAW-4: Must NEVER render any 0 đ allowance line');
         assert.equal(slipDomAudit.hasLateEarlyNote, true, 'V25 LAW-3: Must render exact late/early note "Vào muộn 25 phút • Ra sớm 15 phút"');
-        assert.equal(slipDomAudit.bellBadgeAfter, null, 'V25: Unread bell badge must clear after reading notification');
+        assert.equal(slipDomAudit.hasDraftNotice, true, 'V29 Worker SalarySlipModal must show Draft notice in sticky footer when period not published');
+        assert.equal(slipDomAudit.hasWorkerConfirmOnDraft, false, 'V29 Draft SalarySlip must NOT show Confirm button');
+        assert.equal(slipDomAudit.bellBadgeAfter, null, 'V25/V29: Unread bell badge must clear after reading notification');
 
-        // Test historical month switcher inside SalarySlipModal
-        const prevM = curMonth > 1 ? curMonth - 1 : 12;
-        await setReactInputValue(session, { selector: 'select[data-testid="payslip-month-select"]', value: prevM, inTopModal: true });
-        await sleep(350);
+        // Close SalarySlipModal & confirm Read notification stays in Worker Bell Read History tab
+        await dismissModalIfOpen(session);
+        await clickInPage(session, { selector: 'button[data-testid="worker-bell-btn"]', inTopModal: false });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="worker-notification-modal"]'))`, 4000, 'Reopened Worker notification modal');
+        await clickInPage(session, { selector: 'button[data-testid="notif-tab-read"]', inTopModal: true });
+        await sleep(250);
+        const readHistoryPersisted = await session.evaluate(`(document.querySelector('[data-testid="worker-notification-modal"]')?.innerText || '').includes('Đã đọc')`);
+        assert.equal(readHistoryPersisted, true, 'V29 Worker Bell Read History tab must persist previously read notification');
         await dismissModalIfOpen(session);
         await dismissToastIfVisible(session);
 
@@ -1394,24 +1423,33 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await sleep(450);
         await dismissToastIfVisible(session);
 
-        // 1D: WorkerProfileTab — SalarySlipModal + Dispute, Device Change, Change Password Modal, Logout
+        // 1D: WorkerProfileTab — V29 6-Step Font Scale (100%..200%) + Published prevMonth SalarySlip Sticky Footer + Dispute, Device Change, Change Password Modal, Logout
         await clickInPage(session, { text: 'Tài khoản', inTopModal: false });
         await sleep(350);
         await inspectPhysicsAndGeometry(session, 'Worker Tab 4: Tài khoản', { expectModal: false, testScrollBleed: false });
 
-        // Open SalarySlipModal & submit a salary dispute so Accountant/Admin see it!
+        // V29 Centralized 6-Step Font Scale test (100% -> 200% -> 100%)
+        await clickInPage(session, { selector: 'button[data-testid="font-scale-btn-200"]', inTopModal: false });
+        await sleep(220);
+        const appliedScale200 = await session.evaluate(`document.documentElement.getAttribute('data-font-scale')`);
+        assert.equal(appliedScale200, '200', 'V29 FontScaleSelector must update data-font-scale to 200');
+        await inspectPhysicsAndGeometry(session, 'Worker Profile Tab @ 200% Font Scale', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[data-testid="font-scale-btn-100"]', inTopModal: false });
+        await sleep(180);
+
+        // Open SalarySlipModal -> Switch to published prevMonth -> Verify Sticky Worker Footer & submit a salary dispute so Accountant/Admin see it!
         await clickInPage(session, { text: 'Xem phiếu lương tháng', inTopModal: false });
         await waitForCondition(session, `Boolean(document.querySelector('[data-modal-root="true"]'))`, 5000, 'Worker SalarySlipModal opened');
-        await inspectPhysicsAndGeometry(session, 'Worker SalarySlipModal', { expectModal: true });
-        const hasDisputeBtn = await session.evaluate(`Array.from(document.querySelectorAll('[data-modal-root="true"] button')).some((b) => (b.innerText || '').includes('Báo Cáo Sai Lương'))`);
-        if (hasDisputeBtn) {
-            await clickInPage(session, { text: 'Báo Cáo Sai Lương', inTopModal: true });
-            await sleep(220);
-            await inspectPhysicsAndGeometry(session, 'Worker SalarySlip Dispute Form', { expectModal: true });
-            await setReactInputValue(session, { selector: 'textarea', value: 'Kiểm thử báo cáo sai lương V15', inTopModal: true });
-            await clickInPage(session, { text: 'Gửi Báo Cáo Tới Kế Toán & Admin', inTopModal: true });
-            await sleep(450);
-        }
+        await setReactInputValue(session, { selector: 'select[data-testid="payslip-month-select"]', value: prevMonth, inTopModal: true });
+        await setReactInputValue(session, { selector: 'select[data-testid="payslip-year-select"]', value: prevYear, inTopModal: true });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="payslip-worker-confirm-btn"]'))`, 5000, 'Published prevMonth SalarySlip sticky footer shows Confirm & Dispute buttons');
+        await inspectPhysicsAndGeometry(session, 'Worker Published SalarySlipModal Sticky Footer', { expectModal: true });
+        await clickInPage(session, { selector: 'button[data-testid="payslip-worker-dispute-btn"]', inTopModal: true });
+        await sleep(220);
+        await inspectPhysicsAndGeometry(session, 'Worker SalarySlip Dispute Form', { expectModal: true });
+        await setReactInputValue(session, { selector: '[data-testid="payslip-worker-dispute-form"] textarea', value: 'Kiểm thử báo cáo sai lương V29', inTopModal: true });
+        await clickInPage(session, { text: 'Gửi Báo Cáo Tới Kế Toán & Admin', inTopModal: true });
+        await sleep(450);
         await dismissModalIfOpen(session);
         await dismissToastIfVisible(session);
 
@@ -1655,10 +1693,13 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await waitForNoBlockingLoading(session);
         }
 
-        // 3A-Bell: Test Deep-Link 1-tap from Header Bell Popover at 360px -> Opens SalarySlipModal on Disputed NV003 Slip directly
+        // 3A-Bell: Test V29 Notification Lifecycle + Deep-Link 1-tap from Header Bell Popover at 360px -> Optimistic Badge Decrement & Opens Admin SalarySlipModal with Sticky Action Bar
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="desktop-bell-badge"]'))`, 5000, 'Admin Bell displays unread badge');
+        const adminBellBefore = Number(await session.evaluate(`document.querySelector('[data-testid="desktop-bell-badge"]')?.innerText?.trim() || '0'`));
+        assert.ok(adminBellBefore >= 1, `Expected Admin bell unread badge >= 1, got ${adminBellBefore}`);
         await clickInPage(session, { selector: 'button[data-bell-button="true"]', inTopModal: false });
         await waitForCondition(session, `Boolean(document.querySelector('[data-testid="notification-popover"]'))`, 4000, 'Admin Bell Alert Popover opened at 360px');
-        await inspectPhysicsAndGeometry(session, 'Admin Header Deep-Link Bell Popover @ 360px', { expectModal: true });
+        await inspectPhysicsAndGeometry(session, 'Admin Header V29 Bell Popover @ 360px', { expectModal: true });
         const clickedDisputeAlert = await session.evaluate(`(() => {
             const btn = document.querySelector('[data-modal-root="true"] button[data-alert-category="salary_dispute"]');
             if (btn) { btn.click(); return true; }
@@ -1672,14 +1713,46 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
                 'Deep-link transitioned straight into Management -> Payroll sub-tab'
             );
             await sleep(450);
+            const adminBellAfter = Number(await session.evaluate(`document.querySelector('[data-testid="desktop-bell-badge"]')?.innerText?.trim() || '0'`));
+            assert.equal(adminBellAfter, Math.max(0, adminBellBefore - 1), `V29 BUG-001 FIX: Admin bell badge MUST decrement immediately (${adminBellBefore} -> ${adminBellBefore - 1}), got ${adminBellAfter}`);
             const autoOpenedModal = await session.evaluate(`Boolean(document.querySelector('[data-modal-root="true"]'))`);
             if (autoOpenedModal) {
-                await inspectPhysicsAndGeometry(session, 'Admin Bell Deep-Link Opened SalarySlipModal', { expectModal: true });
+                const adminSlipFooterAudit = await session.evaluate(`(() => ({
+                    hasAdminFooter: Boolean(document.querySelector('[data-testid="payslip-admin-footer"]')),
+                    hasCloseBtn: Boolean(document.querySelector('[data-testid="payslip-close-btn"]')),
+                    hasAdjustBtn: Boolean(document.querySelector('[data-testid="payslip-admin-adjust-btn"]')),
+                    hasExportBtn: Boolean(document.querySelector('[data-testid="payslip-admin-export-btn"]')),
+                    hasWorkerFooter: Boolean(document.querySelector('[data-testid="payslip-worker-footer"]'))
+                }))()`);
+                assert.equal(adminSlipFooterAudit.hasAdminFooter, true, 'V29 BUG-002 FIX: Admin SalarySlipModal must render payslip-admin-footer');
+                assert.ok(adminSlipFooterAudit.hasCloseBtn && adminSlipFooterAudit.hasAdjustBtn && adminSlipFooterAudit.hasExportBtn, 'Admin Sticky Footer must contain Close, Adjust & Export buttons');
+                assert.equal(adminSlipFooterAudit.hasWorkerFooter, false, 'Admin SalarySlipModal must NEVER render worker confirm/dispute footer');
+                await inspectPhysicsAndGeometry(session, 'Admin Bell Deep-Link Opened SalarySlipModal (Sticky Action Bar)', { expectModal: true });
                 await dismissModalIfOpen(session);
             }
         } else {
             await dismissModalIfOpen(session);
         }
+
+        // Verify V29 Overview Dashboard & Admin-Only QA Center + Responsive 320px..1440px Sweep
+        await openDesktopTabViaDrawer('overview', 'Admin');
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="role-overview-dashboard"]'))`, 5000, 'Admin RoleOverviewDashboard rendered');
+        await inspectPhysicsAndGeometry(session, 'Admin Tab: Overview Dashboard @ 360px', { expectModal: false, testScrollBleed: false });
+
+        for (const [vpW, vpH] of [[320, 640], [430, 932], [768, 1024], [1024, 768], [1440, 900]]) {
+            await setViewportAndScale(session, vpW, vpH, 100);
+            await sleep(140);
+            const overflowInfo = await session.evaluate(`document.documentElement.scrollWidth - window.innerWidth`);
+            assert.ok(overflowInfo <= 2, `Overview Dashboard horizontal overflow at ${vpW}x${vpH}: ${overflowInfo}px`);
+        }
+        await setViewportAndScale(session, 360, 780, 100);
+
+        await openDesktopTabViaDrawer('qa_center', 'Admin');
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="qa-center-tab"]'))`, 5000, 'Admin QaCenterTab rendered');
+        await inspectPhysicsAndGeometry(session, 'Admin Tab: QA Center @ 360px', { expectModal: false, testScrollBleed: false });
+        await clickInPage(session, { selector: 'button[data-testid="qa-run-safe-checks-btn"]', inTopModal: false });
+        await waitForCondition(session, `Boolean(document.querySelector('[data-testid="qa-safe-run-result"]'))`, 6000, 'QA Center Safe Checks completed and displayed results');
+        await dismissToastIfVisible(session);
 
         // 3B: Trung tâm Quản trị (Phân mục A: Nhân sự & Thiết bị) — Add NV_UI_TEMP, Quick Filters, Open Unified 360° Modal, Approve Device
         await openAdminSubTab('management', 'employees');
@@ -1735,7 +1808,7 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
                 await waitForCondition(session, `document.querySelectorAll('[data-modal-root="true"]').length >= 2`, 5000, 'Stacked SalarySlipModal opened from 360 modal');
                 await waitForCondition(session, `Boolean(document.querySelector('[data-testid="payslip-part-a"]'))`, 5000, 'Admin 360° SalarySlipModal loaded');
                 await inspectPhysicsAndGeometry(session, 'Admin 360° Stacked SalarySlipModal', { expectModal: true });
-                await clickInPage(session, { text: 'Đóng / Quay lại', inTopModal: true });
+                await clickInPage(session, { selector: 'button[data-testid="payslip-close-btn"]', inTopModal: true });
                 await sleep(250);
             }
             const hasApproveInside360 = await session.evaluate(`(() => {
@@ -1878,9 +1951,10 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await query("DELETE FROM public_holidays WHERE id > ? OR holiday_name = 'QA_UI_HOLIDAY'", [maxIds.public_holidays]).catch(() => {});
             await query('DELETE FROM audit_logs WHERE id > ?', [maxIds.audit_logs]).catch(() => {});
             await query('DELETE FROM user_notifications WHERE id > ?', [maxIds.user_notifications]).catch(() => {});
+            await query('DELETE FROM qa_test_runs WHERE id > ?', [maxIds.qa_test_runs]).catch(() => {});
         }
         await query("DELETE FROM idempotency_keys WHERE actor_id IN ('NV001','NV002','NV003','admin','NV_UI_TEMP')").catch(() => {});
-        await query('DELETE FROM attendance WHERE ma_nv IN ("NV001","NV002","NV003","NV_UI_TEMP") AND thang = ? AND nam = ?', [curMonth, curYear]).catch(() => {});
+        await query('DELETE FROM attendance WHERE ma_nv IN ("NV001","NV002","NV003","NV_UI_TEMP") AND ((thang = ? AND nam = ?) OR (thang = ? AND nam = ?))', [curMonth, curYear, prevMonth, prevYear]).catch(() => {});
         await query("DELETE FROM employees WHERE ma_nv = 'NV_UI_TEMP'").catch(() => {});
         await query("DELETE FROM login_rate_limits WHERE identifier IN ('NV001','NV002','NV003','admin') OR key_name LIKE '%127.0.0.1%'").catch(() => {});
 
@@ -1888,7 +1962,7 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
             await query(
                 `UPDATE employees SET
                     ho_ten = ?, chuc_danh = ?, role = ?, status = ?, is_locked = ?,
-                    password = ?, must_change_password = ?, phone = ?, login_username = ?, theme_preference = ?,
+                    password = ?, must_change_password = ?, phone = ?, login_username = ?, theme_preference = ?, font_scale = ?,
                     phu_cap_an_trua = ?, phu_cap_xang_xe = ?, phu_cap_nha_o = ?, thuong_htcv = ?, phu_cap_trach_nhiem = ?, phu_cap_tiep_khach = ?,
                     bound_device_id = ?, bound_device_name = ?,
                     pending_device_id = ?, pending_device_name = ?, device_change_reason = ?,
@@ -1896,7 +1970,7 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
                  WHERE ma_nv = ?`,
                 [
                     emp.ho_ten, emp.chuc_danh, emp.role, emp.status, emp.is_locked,
-                    emp.password, emp.must_change_password, emp.phone, emp.login_username, emp.theme_preference || 'light',
+                    emp.password, emp.must_change_password, emp.phone, emp.login_username, emp.theme_preference || 'light', emp.font_scale || 100,
                     emp.phu_cap_an_trua ?? 0, emp.phu_cap_xang_xe ?? 0, emp.phu_cap_nha_o ?? 0, emp.thuong_htcv ?? 0, emp.phu_cap_trach_nhiem ?? 0, emp.phu_cap_tiep_khach ?? 0,
                     emp.bound_device_id, emp.bound_device_name,
                     emp.pending_device_id, emp.pending_device_name, emp.device_change_reason,
@@ -1907,8 +1981,8 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         }
         for (const adm of adminBefore || []) {
             await query(
-                'UPDATE admins SET password = ?, must_change_password = ?, phone = ?, login_username = ?, theme_preference = ?, token_version = ? WHERE username = ?',
-                [adm.password, adm.must_change_password, adm.phone, adm.login_username, adm.theme_preference || 'light', adm.token_version, adm.username]
+                'UPDATE admins SET password = ?, must_change_password = ?, phone = ?, login_username = ?, theme_preference = ?, font_scale = ?, token_version = ? WHERE username = ?',
+                [adm.password, adm.must_change_password, adm.phone, adm.login_username, adm.theme_preference || 'light', adm.font_scale || 100, adm.token_version, adm.username]
             ).catch(() => {});
         }
         if (settingsSnap) {

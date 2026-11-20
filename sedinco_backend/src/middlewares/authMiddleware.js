@@ -360,7 +360,7 @@ async function logAuditEvent({ actor_id, actor_role, action, resource, details, 
 }
 
 // Danh sách các cột an toàn khi SELECT bảng employees (không bao giờ SELECT password)
-const SAFE_EMPLOYEE_FIELDS = `ma_nv, ho_ten, ngay_sinh, dien_thoai, phone, login_username, COALESCE(NULLIF(theme_preference, ''), 'light') as theme_preference, email, chuc_danh, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department, role, 
+const SAFE_EMPLOYEE_FIELDS = `ma_nv, ho_ten, ngay_sinh, dien_thoai, phone, login_username, COALESCE(NULLIF(theme_preference, ''), 'light') as theme_preference, COALESCE(font_scale, 100) as font_scale, email, chuc_danh, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department, role, 
     ngay_bat_dau_lam, ngay_chinh_thuc, avatar_url, luong_cb, 
     phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, thuong_htcv, 
     phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance, status, is_locked,

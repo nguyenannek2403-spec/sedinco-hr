@@ -11,6 +11,7 @@ import LiveAttendanceBoardModal from "../../components/LiveAttendanceBoardModal"
 import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from "../../constants/roles";
 import { safeGet, safePut } from "../../utils/api";
 import { AppButton } from "../../components/ui";
+import { FontScaleSelector } from "../../modules/accessibility/FontScaleContext";
 import {
   RefreshCw,
   Users,
@@ -27,6 +28,8 @@ import {
 const AttendanceMatrixTable = lazy(() => import("../../components/AttendanceMatrixTable"));
 const PayrollGridTable = lazy(() => import("../../components/PayrollGridTable"));
 const AccountantPermissionView = lazy(() => import("../../components/AccountantPermissionView"));
+const RoleOverviewDashboard = lazy(() => import("../../modules/dashboard/RoleOverviewDashboard"));
+const QaCenterTab = lazy(() => import("../../modules/qa-center/QaCenterTab"));
 
 export default function DesktopDashboard({
   currentUser,
@@ -163,10 +166,12 @@ export default function DesktopDashboard({
 
   const handleNavigateAlert = useCallback((alert) => {
     if (!alert) return;
-    if (alert.notification_id) {
+    if (alert.notification_id && !alert._alreadyMarkedRead) {
       safePut(`/notifications/${alert.notification_id}/read`, {})
         .then(() => fetchAlertsSummary())
         .catch(() => {});
+    } else if (alert._alreadyMarkedRead) {
+      fetchAlertsSummary();
     }
     if (alert.month && alert.year) {
       setSelectedMonth(Number(alert.month));
@@ -223,6 +228,7 @@ export default function DesktopDashboard({
           onLogout={onLogout}
           onChangePasswordRequest={onChangePasswordRequest}
           alertsSummary={alertsSummary}
+          refreshSignal={refreshTick}
           isLoading={alertsLoading}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           onRefresh={() => {
@@ -245,6 +251,23 @@ export default function DesktopDashboard({
               </div>
             }
           >
+            {/* 0. Tổng quan Điều hành theo Vai trò */}
+            {effectiveTab === "overview" && (
+              <RoleOverviewDashboard
+                currentUser={currentUser}
+                activeRole={resolvedRole}
+                dynamicPerms={effectiveDynamicPerms}
+                alertsSummary={alertsSummary}
+                isLoading={alertsLoading}
+                onNavigate={(tabId, subTab) => navigateToTarget(tabId, subTab)}
+                onOpenLiveBoard={(initialTab = "present") => setLiveBoardModal({ open: true, initialTab })}
+                onRefresh={() => {
+                  setRefreshTick((t) => t + 1);
+                  fetchAlertsSummary();
+                }}
+              />
+            )}
+
             {/* 1. Ma Trận Chấm Công Toàn Công Ty */}
             {effectiveTab === "matrix" && (
               <AttendanceMatrixTable
@@ -490,10 +513,18 @@ export default function DesktopDashboard({
               </div>
             )}
 
+            {/* 5B. QA Center — Trung tâm Kiểm thử Chất lượng (Chỉ Admin) */}
+            {effectiveTab === "qa_center" && resolvedRole === ROLES.ADMIN && (
+              <QaCenterTab
+                key={`qa-center-${refreshTick}`}
+                showToast={showToast}
+              />
+            )}
+
             {/* 6. Hồ Sơ Quản Trị (Tách biệt hoàn toàn khỏi chấm công/lương cá nhân) / Hồ Sơ Kế Toán */}
             {effectiveTab === "profile" && (
               resolvedRole === ROLES.ADMIN ? (
-                <div className="max-w-lg mx-auto">
+                <div className="max-w-lg mx-auto space-y-4">
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
                     <div className="flex items-center gap-4">
                       <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-500/20 border-2 border-amber-300 dark:border-amber-400/60 flex items-center justify-center shrink-0">
@@ -542,6 +573,7 @@ export default function DesktopDashboard({
                       )}
                     </div>
                   </div>
+                  <FontScaleSelector />
                 </div>
               ) : (
                 <div className="max-w-lg mx-auto">

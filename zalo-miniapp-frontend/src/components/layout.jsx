@@ -11,6 +11,7 @@ import { BrowserRouter, Routes } from "react-router-dom";
 
 import HomePage from "../pages/index";
 import { ThemeProvider, useTheme } from "../context/ThemeContext";
+import { FontScaleProvider } from "../modules/accessibility/FontScaleContext";
 
 // Error Boundary to prevent blank screens on uncaught render errors
 class ErrorBoundary extends React.Component {
@@ -192,7 +193,9 @@ const Layout = () => {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <ThemedApp />
+        <FontScaleProvider>
+          <ThemedApp />
+        </FontScaleProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

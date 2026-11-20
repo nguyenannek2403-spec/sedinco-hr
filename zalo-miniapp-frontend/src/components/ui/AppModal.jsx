@@ -35,6 +35,36 @@ export default function AppModal({
   const visible = open !== undefined ? Boolean(open) : Boolean(isOpen);
   const { zIndex, isTopModal } = useModalStack(visible, 100);
   const dialogCardRef = useRef(null);
+  const previousFocusRef = useRef(null);
+
+  useEffect(() => {
+    if (visible) {
+      previousFocusRef.current = typeof document !== "undefined" ? document.activeElement : null;
+      return undefined;
+    }
+    const prevEl = previousFocusRef.current;
+    previousFocusRef.current = null;
+    if (prevEl && prevEl.isConnected && typeof prevEl.focus === "function") {
+      try {
+        prevEl.focus({ preventScroll: true });
+      } catch {
+        // ignore focus error
+      }
+    }
+    return undefined;
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !isTopModal || disableClose || typeof window === "undefined") return undefined;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && typeof onClose === "function") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [visible, isTopModal, disableClose, onClose]);
 
   useEffect(() => {
     if (dialogCardRef.current) {

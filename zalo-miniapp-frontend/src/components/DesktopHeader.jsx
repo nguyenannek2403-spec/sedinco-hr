@@ -1,23 +1,20 @@
-import React, { useLayoutEffect, useState } from "react";
+import React, { useLayoutEffect, useEffect, useState } from "react";
 import {
   Clock,
-  Smartphone,
   RefreshCw,
   ChevronRight,
   Menu,
   Bell,
   ShieldAlert,
-  AlertTriangle,
-  FileText,
-  DollarSign,
   ArrowLeft,
   LogOut,
   KeyRound,
-  X,
-  CheckCircle2
+  X
 } from "lucide-react";
 import { ROLE_LABELS, ROLES } from "../constants/roles";
 import { ThemeToggleButton } from "../context/ThemeContext";
+import { useNotifications } from "../modules/notifications/useNotifications";
+import NotificationCenterPanel from "../modules/notifications/NotificationCenterPanel";
 
 export default function DesktopHeader({
   currentUser,
@@ -33,10 +30,31 @@ export default function DesktopHeader({
   currentTime,
   alertsSummary = {},
   onRefresh,
+  refreshSignal = 0,
   isLoading,
   onOpenMobileMenu
 }) {
   const [showAlertPanel, setShowAlertPanel] = useState(false);
+
+  const {
+    filter,
+    changeFilter,
+    notifications,
+    unreadCount,
+    readCount,
+    totalCount,
+    hasMore,
+    loading: loadingNotifs,
+    loadingMore,
+    fetchNotifications,
+    loadMore,
+    markRead,
+    markAllRead
+  } = useNotifications({ limit: 20, autoFetch: true });
+
+  useEffect(() => {
+    fetchNotifications({ filterOverride: filter, offset: 0, append: false });
+  }, [refreshSignal, currentTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
     if (!showAlertPanel || typeof document === "undefined") return undefined;
@@ -59,82 +77,48 @@ export default function DesktopHeader({
     };
   }, [showAlertPanel]);
 
-  const fraudCount = Number(alertsSummary?.fraud_count) || 0;
-  const disputedCount = Number(alertsSummary?.disputed_salary_count) || 0;
-  const deviceCount = Number(alertsSummary?.pending_device_count) || 0;
-  const pendingReqCount = Number(alertsSummary?.pending_requests_count) || 0;
-
-  const isAlertVisibleForRole = (item) => {
-    if (activeRole === ROLES.ADMIN) return true;
-    if (item.category === "salary_dispute") return dynamicPerms?.payroll_view_all !== false;
-    if (item.category === "pending_request") return dynamicPerms?.leave_view_all !== false;
-    return false;
+  const handleTogglePanel = () => {
+    const next = !showAlertPanel;
+    setShowAlertPanel(next);
+    if (next) {
+      fetchNotifications({ filterOverride: filter, offset: 0, append: false });
+    }
   };
 
-  const rawActionable = Array.isArray(alertsSummary?.actionable_alerts)
-    ? alertsSummary.actionable_alerts
-    : null;
+  const handleClickNotification = async (notif) => {
+    if (!notif) return;
+    await markRead(notif);
+    setShowAlertPanel(false);
+    if (typeof onNavigateAlert === "function") {
+      onNavigateAlert({
+        id: notif.id,
+        notification_id: notif.id,
+        category: notif.category || (notif.type === "PERIOD_LOCKED_PAYROLL" ? "period_locked" : "general"),
+        severity: notif.severity || "info",
+        title: notif.title,
+        description: notif.message,
+        target_tab: notif.target_tab || (activeRole === ROLES.ADMIN ? "management" : "payroll"),
+        target_subtab: notif.target_subtab || null,
+        target_ma_nv: notif.target_ma_nv || null,
+        target_id: notif.target_id || notif.id,
+        month: notif.ref_month || null,
+        year: notif.ref_year || null,
+        _alreadyMarkedRead: true
+      });
+    } else if (setCurrentTab && notif.target_tab) {
+      setCurrentTab(notif.target_tab);
+    }
+  };
 
-  const fallbackAlerts = [];
-  if (fraudCount > 0) {
-    fallbackAlerts.push({
-      id: "summary_fraud",
-      category: "fraud",
-      severity: "critical",
-      title: `${fraudCount} Cảnh báo Vị trí / Thiết bị lạ`,
-      description: "Nhấn để mở Nhật ký Giám sát, xem chi tiết vị trí/thiết bị và xử lý tài khoản.",
-      target_tab: "management",
-      target_subtab: "audit_logs"
-    });
-  }
-  if (deviceCount > 0) {
-    fallbackAlerts.push({
-      id: "summary_device",
-      category: "device",
-      severity: "high",
-      title: `${deviceCount} Cảnh báo đa thiết bị / Đổi máy`,
-      description: "Nhấn để mở Hồ sơ 360° kiểm tra và khóa cố định 1 thiết bị cho nhân viên.",
-      target_tab: "management",
-      target_subtab: "employees"
-    });
-  }
-  if (disputedCount > 0) {
-    fallbackAlerts.push({
-      id: "summary_dispute",
-      category: "salary_dispute",
-      severity: "high",
-      title: `${disputedCount} Khiếu nại sai lương từ Nhân viên`,
-      description: "Nhân viên đã gửi báo cáo sai lương kèm minh chứng. Nhấn để đối soát ngay.",
-      target_tab: activeRole === ROLES.ADMIN ? "management" : "payroll",
-      target_subtab: activeRole === ROLES.ADMIN ? "payroll" : null
-    });
-  }
-  if (pendingReqCount > 0) {
-    fallbackAlerts.push({
-      id: "summary_requests",
-      category: "pending_request",
-      severity: "medium",
-      title: `${pendingReqCount} Đơn từ nhân sự đang chờ duyệt`,
-      description: "Nghỉ phép, bổ sung công, ứng lương hoặc tăng ca chờ phê duyệt.",
-      target_tab: "requests",
-      target_subtab: null
-    });
-  }
-
-  const visibleAlerts = (rawActionable || fallbackAlerts)
-    .filter(isAlertVisibleForRole)
-    .map((item) => {
-      if (activeRole === ROLES.ACCOUNTANT && item.category === "salary_dispute") {
-        return { ...item, target_tab: "payroll", target_subtab: null };
-      }
-      return item;
-    });
-
-  const criticalOrHighCount = visibleAlerts.filter((a) => a.severity === "critical" || a.severity === "high").length;
-  const totalBellCount = visibleAlerts.length;
+  const unreadCriticalCount = notifications.filter(
+    (n) => Number(n.is_read || 0) === 0 && (n.severity === "critical" || n.severity === "high")
+  ).length;
+  const totalBellCount = unreadCount;
 
   const getTabTitle = () => {
     switch (currentTab) {
+      case "overview":
+        return "Tổng Quan Điều Hành";
       case "matrix":
         return activeRole === "accountant"
           ? "Bảng Chấm Công Ma Trận"
@@ -150,6 +134,8 @@ export default function DesktopHeader({
         if (settingsSubTab === "permissions") return "Cài Đặt Hệ Thống • Phân Quyền Kế Toán";
         if (settingsSubTab === "holidays") return "Cài Đặt Hệ Thống • Lịch Nghỉ Lễ (x3)";
         return "Cài Đặt Hệ Thống • Công Ty & GPS";
+      case "qa_center":
+        return "QA Center • Kiểm Thử Chất Lượng";
       case "payroll":
         return "Bảng Lương & Đối Soát Khiếu Nại";
       case "profile":
@@ -184,15 +170,15 @@ export default function DesktopHeader({
           </button>
         )}
 
-        {currentTab && currentTab !== "matrix" && typeof setCurrentTab === "function" && (
+        {currentTab && currentTab !== "overview" && currentTab !== "matrix" && typeof setCurrentTab === "function" && (
           <button
             type="button"
             aria-label="Trở về"
-            onClick={() => setCurrentTab("matrix")}
+            onClick={() => setCurrentTab("overview")}
             className="hidden sm:flex min-w-[44px] min-h-[44px] px-3 py-1.5 rounded-full bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-600/20 dark:hover:bg-blue-600/30 text-[#0068FF] dark:text-blue-300 border border-blue-200 dark:border-blue-500/40 items-center justify-center gap-1 text-xs font-extrabold shrink-0"
           >
             <ArrowLeft size={15} className="shrink-0" />
-            <span className="hidden sm:inline">Trở về</span>
+            <span className="hidden sm:inline">Tổng quan</span>
           </button>
         )}
 
@@ -221,7 +207,6 @@ export default function DesktopHeader({
 
       {/* Phải: Giao diện, Tài khoản, Thông báo, Làm mới & Đăng xuất */}
       <div className="flex items-center gap-[6px] sm:gap-1.5 shrink-0 relative">
-        {/* Đồng hồ số thời gian thực (Desktop) */}
         <div className="hidden xl:flex items-center gap-2 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-3 py-1.5 rounded-full text-xs font-mono font-bold text-slate-700 dark:text-slate-200">
           <Clock size={14} className="text-[#0068FF] dark:text-blue-400" />
           <span>
@@ -229,10 +214,8 @@ export default function DesktopHeader({
           </span>
         </div>
 
-        {/* Nút chuyển Sáng / Tối */}
         <ThemeToggleButton compact />
 
-        {/* Nút Tài khoản & Đổi Mật Khẩu */}
         {typeof onChangePasswordRequest === "function" && (
           <button
             type="button"
@@ -247,14 +230,15 @@ export default function DesktopHeader({
           </button>
         )}
 
-        {/* Nút Chuông Thông Báo & Cảnh Báo Deep-Link */}
+        {/* Nút Chuông Thông Báo & Cảnh Báo Deep-Link (Hiển thị đúng số CHƯA ĐỌC thật từ DB) */}
         <button
           type="button"
           data-bell-button="true"
-          onClick={() => setShowAlertPanel(!showAlertPanel)}
+          data-testid="desktop-bell-btn"
+          onClick={handleTogglePanel}
           aria-label="Trung tâm cảnh báo và thông báo"
-          className={`relative min-w-[44px] min-h-[44px] px-[8px] sm:px-3 py-1.5 rounded-2xl border flex items-center justify-center gap-1.5 text-xs font-black transition-all ${
-            criticalOrHighCount > 0
+          className={`relative min-w-[44px] min-h-[44px] px-[8px] sm:px-3 py-1.5 rounded-2xl border flex items-center justify-center gap-1.5 text-xs font-black transition-all cursor-pointer ${
+            unreadCriticalCount > 0
               ? "bg-rose-50 dark:bg-rose-600/20 border-rose-300 dark:border-rose-500 text-rose-700 dark:text-rose-300 shadow-sm"
               : totalBellCount > 0
               ? "bg-amber-50 dark:bg-amber-500/20 border-amber-300 dark:border-amber-400 text-amber-700 dark:text-amber-200 shadow-sm"
@@ -265,8 +249,8 @@ export default function DesktopHeader({
           <Bell
             size={16}
             className={
-              criticalOrHighCount > 0
-                ? "text-rose-600 dark:text-rose-400 animate-bounce"
+              unreadCriticalCount > 0
+                ? "text-rose-600 dark:text-rose-400"
                 : totalBellCount > 0
                 ? "text-amber-600 dark:text-amber-300"
                 : "text-slate-600 dark:text-slate-300"
@@ -274,8 +258,9 @@ export default function DesktopHeader({
           />
           {totalBellCount > 0 && (
             <span
+              data-testid="desktop-bell-badge"
               className={`px-1.5 py-0.5 text-xs leading-none rounded-full text-white font-black ${
-                criticalOrHighCount > 0 ? "bg-rose-600" : "bg-amber-600"
+                unreadCriticalCount > 0 ? "bg-rose-600" : "bg-amber-600"
               }`}
             >
               {totalBellCount}
@@ -283,34 +268,35 @@ export default function DesktopHeader({
           )}
         </button>
 
-        {/* Nút Làm mới dữ liệu (Desktop) */}
         {onRefresh && (
           <button
             type="button"
-            onClick={onRefresh}
+            onClick={() => {
+              onRefresh();
+              fetchNotifications({ filterOverride: filter, offset: 0, append: false });
+            }}
             aria-label="Làm mới dữ liệu"
-            className="hidden sm:flex min-w-[44px] min-h-[44px] p-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-2xl transition-all active:scale-95 items-center justify-center"
+            className="hidden sm:flex min-w-[44px] min-h-[44px] p-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-2xl transition-all active:scale-95 items-center justify-center cursor-pointer"
             title="Tải lại dữ liệu mới nhất"
           >
             <RefreshCw size={15} className={isLoading ? "animate-spin text-[#0068FF] dark:text-blue-400" : ""} />
           </button>
         )}
 
-        {/* Nút Đăng xuất rõ ràng kèm Icon */}
         {typeof onLogout === "function" && (
           <button
             type="button"
             aria-label="Đăng xuất"
             onClick={onLogout}
             title="Đăng xuất"
-            className="min-w-[44px] min-h-[44px] px-[10px] sm:px-3 py-2 rounded-2xl bg-slate-50 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-700 hover:text-rose-700 dark:text-slate-100 dark:hover:text-rose-200 border border-slate-200 dark:border-slate-700 hover:border-rose-400 flex items-center justify-center gap-1.5 text-xs font-bold shrink-0 transition-colors"
+            className="min-w-[44px] min-h-[44px] px-[10px] sm:px-3 py-2 rounded-2xl bg-slate-50 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-700 hover:text-rose-700 dark:text-slate-100 dark:hover:text-rose-200 border border-slate-200 dark:border-slate-700 hover:border-rose-400 flex items-center justify-center gap-1.5 text-xs font-bold shrink-0 transition-colors cursor-pointer"
           >
             <LogOut size={14} className="shrink-0" />
             <span className="hidden sm:inline">Đăng xuất</span>
           </button>
         )}
 
-        {/* Popover Trung tâm Thông báo & Cảnh báo 1 chạm (Cân đối trên Mobile 320px-430px & Desktop) */}
+        {/* Popover Trung tâm Thông báo V29 */}
         {showAlertPanel && (
           <>
             <div
@@ -337,18 +323,17 @@ export default function DesktopHeader({
                 if (!e.target?.closest?.(".modal-scroll-area")) e.preventDefault();
                 e.stopPropagation();
               }}
-              className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+64px)] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[380px] z-[125] max-h-[75vh] flex flex-col rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in"
+              className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+64px)] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[440px] z-[125] max-h-[78vh] flex flex-col rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in"
             >
-              {/* Popover Header */}
               <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  <ShieldAlert className="w-4 h-4 text-[#0068FF] dark:text-blue-400 shrink-0" />
                   <div className="min-w-0">
                     <h3 className="text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
-                      Thông báo &amp; Cảnh báo ({totalBellCount})
+                      Trung tâm Thông báo ({unreadCount} chưa đọc)
                     </h3>
                     <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug truncate">
-                      Chạm vào mục bất kỳ để mở thẳng nơi xử lý
+                      Lưu đầy đủ lịch sử • Bấm để xem chi tiết
                     </p>
                   </div>
                 </div>
@@ -362,104 +347,25 @@ export default function DesktopHeader({
                 </button>
               </div>
 
-              {/* Popover Scroll Body */}
-              <div className="flex-1 min-h-0 overflow-y-auto modal-scroll-area p-3.5 space-y-2.5 bg-white dark:bg-slate-900">
-                {visibleAlerts.length === 0 ? (
-                  <p className="text-xs text-slate-600 dark:text-slate-300 py-6 text-center leading-relaxed">
-                    Hệ thống ổn định. Không có cảnh báo vị trí/thiết bị, khiếu nại lương hay đơn từ nào đang chờ xử lý.
-                  </p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {visibleAlerts.map((alert) => {
-                      const styleMap = {
-                        fraud: {
-                          card: "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/75 dark:hover:bg-rose-900/80 border-rose-200 dark:border-rose-500/50",
-                          title: "text-rose-800 dark:text-rose-200",
-                          action: "Xem & Khóa →",
-                          Icon: ShieldAlert,
-                          iconColor: "text-rose-600 dark:text-rose-400"
-                        },
-                        device: {
-                          card: "bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/75 dark:hover:bg-indigo-900/80 border-indigo-200 dark:border-indigo-500/50",
-                          title: "text-indigo-800 dark:text-indigo-200",
-                          action: "Mở 360° →",
-                          Icon: Smartphone,
-                          iconColor: "text-indigo-600 dark:text-indigo-300"
-                        },
-                        salary_dispute: {
-                          card: "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/75 dark:hover:bg-amber-900/80 border-amber-200 dark:border-amber-500/50",
-                          title: "text-amber-900 dark:text-amber-200",
-                          action: "Xem phiếu →",
-                          Icon: DollarSign,
-                          iconColor: "text-amber-600 dark:text-amber-300"
-                        },
-                        pending_request: {
-                          card: "bg-blue-50 hover:bg-blue-100 dark:bg-slate-800/95 dark:hover:bg-slate-700/95 border-blue-200 dark:border-blue-500/40",
-                          title: "text-blue-800 dark:text-blue-200",
-                          action: "Duyệt đơn →",
-                          Icon: FileText,
-                          iconColor: "text-blue-600 dark:text-blue-300"
-                        },
-                        period_locked: {
-                          card: "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/75 dark:hover:bg-emerald-900/80 border-emerald-200 dark:border-emerald-500/50",
-                          title: "text-emerald-900 dark:text-emerald-200",
-                          action: "Xem bảng lương →",
-                          Icon: CheckCircle2,
-                          iconColor: "text-emerald-600 dark:text-emerald-400"
-                        }
-                      };
-                      const theme = styleMap[alert.category] || {
-                        card: "bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-600",
-                        title: "text-slate-900 dark:text-white",
-                        action: "Mở xử lý →",
-                        Icon: AlertTriangle,
-                        iconColor: "text-amber-600 dark:text-amber-300"
-                      };
-                      const IconComp = theme.Icon;
-
-                      return (
-                        <button
-                          key={alert.id}
-                          type="button"
-                          data-alert-item={alert.id}
-                          data-alert-category={alert.category}
-                          onClick={() => {
-                            setShowAlertPanel(false);
-                            if (typeof onNavigateAlert === "function") {
-                              onNavigateAlert(alert);
-                            } else if (setCurrentTab && alert.target_tab) {
-                              setCurrentTab(alert.target_tab);
-                            }
-                          }}
-                          className={`w-full min-h-[52px] text-left p-3.5 rounded-xl border space-y-1 transition cursor-pointer ${theme.card}`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <span className={`text-xs font-black flex items-center gap-1.5 leading-snug ${theme.title}`}>
-                              <IconComp size={14} className={`${theme.iconColor} shrink-0`} />
-                              <span>{alert.title}</span>
-                            </span>
-                            <span className={`text-xs font-bold underline shrink-0 whitespace-nowrap ${theme.title}`}>
-                              {theme.action}
-                            </span>
-                          </div>
-                          {alert.description && (
-                            <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed pl-5">
-                              {alert.description}
-                            </p>
-                          )}
-                          {alert.created_at && (
-                            <div className="text-xs text-slate-500 dark:text-slate-400 pl-5">
-                              {new Date(alert.created_at).toLocaleString("vi-VN")}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+              <div className="flex-1 min-h-0 overflow-y-auto modal-scroll-area p-3.5 bg-white dark:bg-slate-900">
+                <NotificationCenterPanel
+                  mode="desktop"
+                  notifications={notifications}
+                  unreadCount={unreadCount}
+                  readCount={readCount}
+                  totalCount={totalCount}
+                  filter={filter}
+                  onFilterChange={changeFilter}
+                  hasMore={hasMore}
+                  loading={loadingNotifs}
+                  loadingMore={loadingMore}
+                  onLoadMore={loadMore}
+                  onMarkAllRead={markAllRead}
+                  onMarkSingleRead={markRead}
+                  onClickItem={handleClickNotification}
+                />
               </div>
 
-              {/* Popover Footer */}
               <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 shrink-0">
                 <button
                   type="button"

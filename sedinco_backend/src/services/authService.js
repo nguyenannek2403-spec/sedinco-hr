@@ -54,6 +54,12 @@ const IP_LOCKOUT_MS = 15 * 60 * 1000;
 const IP_LOCKOUT_SEC = 15 * 60;
 
 const net = require('net');
+const VALID_FONT_SCALES = [100, 110, 125, 150, 175, 200];
+
+function normalizeFontScale(val) {
+    const n = Number(val);
+    return VALID_FONT_SCALES.includes(n) ? n : 100;
+}
 
 // Bộ nhớ đệm fallback và mock
 const accountAttempts = new Map();
@@ -430,6 +436,7 @@ class AuthService {
         safeEmp.phone = emp.phone || emp.dien_thoai || null;
         safeEmp.login_username = emp.login_username || emp.phone || emp.ma_nv;
         safeEmp.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
+        safeEmp.font_scale = normalizeFontScale(emp.font_scale);
         if (isPureAdmin) {
             safeEmp.bound_device_id = null;
             safeEmp.bound_device_name = null;
@@ -558,6 +565,7 @@ class AuthService {
         safeEmp.phone = emp.phone || emp.dien_thoai || null;
         safeEmp.login_username = emp.login_username || emp.phone || emp.ma_nv;
         safeEmp.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
+        safeEmp.font_scale = normalizeFontScale(emp.font_scale);
         if (isPureAdmin) {
             safeEmp.bound_device_id = null;
             safeEmp.bound_device_name = null;
@@ -682,6 +690,7 @@ class AuthService {
         safeAdmin.login_username = admin.login_username || admin.username;
         safeAdmin.phone = admin.phone || null;
         safeAdmin.theme_preference = admin.theme_preference === 'dark' ? 'dark' : 'light';
+        safeAdmin.font_scale = normalizeFontScale(admin.font_scale);
 
         const token = generateToken({
             id: admin.id,
@@ -1003,6 +1012,58 @@ class AuthService {
         };
     }
 
+    async updateUserPreferences(current_user, { theme_preference, font_scale } = {}) {
+        if (!current_user) {
+            return { success: false, statusCode: 401, message: 'Chưa đăng nhập!' };
+        }
+        const updates = [];
+        const params = [];
+        const responseData = {};
+
+        if (theme_preference !== undefined) {
+            const normalizedTheme = String(theme_preference || '').trim().toLowerCase();
+            if (normalizedTheme !== 'light' && normalizedTheme !== 'dark') {
+                return { success: false, statusCode: 400, message: 'Giao diện không hợp lệ (chỉ nhận light hoặc dark)!' };
+            }
+            updates.push('theme_preference = ?');
+            params.push(normalizedTheme);
+            responseData.theme_preference = normalizedTheme;
+        }
+
+        if (font_scale !== undefined) {
+            const parsedScale = Number(font_scale);
+            if (!VALID_FONT_SCALES.includes(parsedScale)) {
+                return {
+                    success: false,
+                    statusCode: 400,
+                    message: 'Cỡ chữ không hợp lệ! Chỉ hỗ trợ 100%, 110%, 125%, 150%, 175%, 200%.'
+                };
+            }
+            updates.push('font_scale = ?');
+            params.push(parsedScale);
+            responseData.font_scale = parsedScale;
+        }
+
+        if (updates.length === 0) {
+            return { success: false, statusCode: 400, message: 'Không có tùy chọn nào cần cập nhật!' };
+        }
+
+        if (current_user.ma_nv) {
+            await query(`UPDATE employees SET ${updates.join(', ')} WHERE ma_nv = ?`, [...params, current_user.ma_nv]);
+            invalidateUserCache(current_user.ma_nv);
+        } else if (current_user.username) {
+            await query(`UPDATE admins SET ${updates.join(', ')} WHERE username = ?`, [...params, current_user.username]);
+            invalidateUserCache(current_user.username);
+        } else {
+            return { success: false, statusCode: 400, message: 'Không xác định được tài khoản!' };
+        }
+
+        return {
+            success: true,
+            data: responseData
+        };
+    }
+
     async getProfile(current_user) {
         if (!current_user) return null;
         if (current_user.ma_nv) {
@@ -1015,6 +1076,7 @@ class AuthService {
                 safe.phone = emp.phone || emp.dien_thoai || null;
                 safe.login_username = emp.login_username || emp.phone || emp.ma_nv;
                 safe.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
+                safe.font_scale = normalizeFontScale(emp.font_scale);
                 if (role === 'admin') {
                     safe.bound_device_id = null;
                     safe.bound_device_name = null;
@@ -1035,7 +1097,7 @@ class AuthService {
         const admKey = current_user.username || current_user.ma_nv;
         if (admKey) {
             const admRows = await query(
-                'SELECT id, username, ho_ten, phone, login_username, theme_preference, must_change_password FROM admins WHERE username = ? LIMIT 1',
+                'SELECT id, username, ho_ten, phone, login_username, theme_preference, COALESCE(font_scale, 100) as font_scale, must_change_password FROM admins WHERE username = ? LIMIT 1',
                 [admKey]
             );
             if (admRows && admRows.length > 0) {
@@ -1045,6 +1107,7 @@ class AuthService {
                 safeAdm.phone = adm.phone || null;
                 safeAdm.login_username = adm.login_username || adm.username;
                 safeAdm.theme_preference = adm.theme_preference === 'dark' ? 'dark' : 'light';
+                safeAdm.font_scale = normalizeFontScale(adm.font_scale);
                 safeAdm.must_change_password = Boolean(adm.must_change_password);
                 safeAdm.bound_device_id = null;
                 safeAdm.bound_device_name = null;

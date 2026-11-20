@@ -243,9 +243,16 @@ class PermissionService {
         };
     }
 
-    async getAlertsSummary() {
-        const { getVietnamDateString } = require('../utils/timeHelper');
+    async getAlertsSummary(currentUser = null) {
+        const { getVietnamDateString, getVietnamDateParts } = require('../utils/timeHelper');
+        const notificationService = require('./notificationService');
         const todayStr = getVietnamDateString(new Date());
+        const nowParts = getVietnamDateParts(new Date());
+
+        if (currentUser) {
+            await notificationService.syncSystemAlertsForUser(currentUser).catch(() => {});
+        }
+        const recipientKey = currentUser ? notificationService.resolveRecipientKey(currentUser) : 'ADMIN';
 
         const parseJsonDetails = (raw) => {
             if (!raw) return {};
@@ -257,7 +264,7 @@ class PermissionService {
             }
         };
 
-        const [fraudRows, disputedRows, deviceRows, reqCountRows, reqItemRows, csRows, totalEmpRows, todayLogsRows, adminNotifRows] = await Promise.all([
+        const [fraudRows, disputedRows, deviceRows, reqCountRows, reqItemRows, csRows, totalEmpRows, todayLogsRows, adminNotifRows, syncedNotifRows, pendingOtRows, payPeriodRows, lockRows] = await Promise.all([
             query(`
                 SELECT a.id, a.actor_id, e.ho_ten, a.action, a.resource, a.details, a.created_at, COALESCE(e.is_locked, 0) as is_locked
                 FROM audit_logs a
@@ -306,13 +313,33 @@ class PermissionService {
             query("SELECT ma_nv, ho_ten, chuc_danh, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department, COALESCE(shift_type, 'FULL_DAY') as shift_type FROM employees WHERE status != 'inactive' AND (role IS NULL OR role != 'admin') ORDER BY ma_nv ASC").catch(() => []),
             query("SELECT a.employee_id, a.status, a.late_minutes, a.check_in_time, a.check_out_time, a.work_location_type, a.location_name, a.field_note, COALESCE(a.shift_type, 'FULL_DAY') as shift_type, CASE WHEN a.check_in_image IS NOT NULL AND LENGTH(a.check_in_image) > 100 THEN 1 ELSE 0 END as has_photo FROM attendance_logs a INNER JOIN employees e ON a.employee_id = e.ma_nv WHERE a.record_date = ? AND (e.role IS NULL OR e.role != 'admin')", [todayStr]).catch(() => []),
             query(`
-                SELECT id, type, title, message, ref_month, ref_year, target_ma_nv, created_at
+                SELECT id, type, title, message, ref_month, ref_year, target_ma_nv, is_read, read_at, created_at
                 FROM user_notifications
-                WHERE recipient_ma_nv = 'ADMIN' AND is_read = 0
+                WHERE recipient_ma_nv = 'ADMIN' AND type = 'PERIOD_LOCKED_PAYROLL' AND is_read = 0
                 ORDER BY created_at DESC, id DESC
                 LIMIT 10
-            `).catch(() => [])
+            `).catch(() => []),
+            query(`
+                SELECT id, alert_key, is_read, read_at
+                FROM user_notifications
+                WHERE recipient_ma_nv = ? AND alert_key IS NOT NULL
+                ORDER BY id DESC
+                LIMIT 120
+            `, [recipientKey]).catch(() => []),
+            query("SELECT COUNT(*) as cnt FROM ot_registrations WHERE status = 'pending'").catch(() => [{ cnt: 0 }]),
+            query('SELECT month, year, status, payment_status FROM payroll_periods WHERE month = ? AND year = ? LIMIT 1', [nowParts.month, nowParts.year]).catch(() => []),
+            query('SELECT is_locked FROM period_locks WHERE month = ? AND year = ? LIMIT 1', [nowParts.month, nowParts.year]).catch(() => [])
         ]);
+
+        const notifByKey = {};
+        for (const nr of syncedNotifRows || []) {
+            if (nr && nr.alert_key) notifByKey[nr.alert_key] = nr;
+        }
+        const pendingOtCount = pendingOtRows && pendingOtRows[0] ? (Number(pendingOtRows[0].cnt) || 0) : 0;
+        const payPeriod = payPeriodRows && payPeriodRows[0] ? payPeriodRows[0] : null;
+        const periodLock = lockRows && lockRows[0] ? Boolean(lockRows[0].is_locked) : false;
+        const unreadNotificationCount = (syncedNotifRows || []).filter((n) => Number(n.is_read) === 0).length
+            + (recipientKey === 'ADMIN' ? (Array.isArray(adminNotifRows) ? adminNotifRows.length : 0) : 0);
 
         const empList = Array.isArray(totalEmpRows) ? totalEmpRows : [];
         const empMap = {};
@@ -400,8 +427,12 @@ class PermissionService {
         fraudAlerts.forEach((f) => {
             const parsed = parseJsonDetails(f.details);
             const reasonText = parsed.reason || parsed.fraud_reason || parsed.fraud_type || 'Cảnh báo bất thường khi chấm công';
+            const synced = notifByKey[`fraud:${f.id}`];
             actionableAlerts.push({
                 id: `fraud_${f.id}`,
+                notification_id: synced ? synced.id : null,
+                is_read: synced ? Number(synced.is_read) : 0,
+                read_at: synced ? synced.read_at : null,
                 category: 'fraud',
                 severity: 'critical',
                 title: `Cảnh báo an ninh: ${f.ho_ten || f.actor_id} (${f.actor_id})`,
@@ -424,8 +455,12 @@ class PermissionService {
                 : isMulti
                     ? 'Phát hiện đăng nhập nhiều máy khác nhau — cần khóa cố định 1 máy'
                     : `Yêu cầu đổi sang ${d.pending_device_name || 'thiết bị mới'}: ${d.device_change_reason || 'Cập nhật thiết bị'}`;
+            const synced = notifByKey[`device:${d.ma_nv}`];
             actionableAlerts.push({
                 id: `device_${d.ma_nv}`,
+                notification_id: synced ? synced.id : null,
+                is_read: synced ? Number(synced.is_read) : 0,
+                read_at: synced ? synced.read_at : null,
                 category: 'device',
                 severity: 'high',
                 title: `${isMulti ? 'Cảnh báo thiết bị' : 'Duyệt đổi thiết bị'}: ${d.ho_ten || d.ma_nv} (${d.ma_nv})`,
@@ -441,8 +476,12 @@ class PermissionService {
         });
 
         salaryDisputes.forEach((s) => {
+            const synced = notifByKey[`dispute:${s.id}`];
             actionableAlerts.push({
                 id: `dispute_${s.id}`,
+                notification_id: synced ? synced.id : null,
+                is_read: synced ? Number(synced.is_read) : 0,
+                read_at: synced ? synced.read_at : null,
                 category: 'salary_dispute',
                 severity: 'high',
                 title: `Khiếu nại lương T${s.thang}/${s.nam}: ${s.ho_ten || s.ma_nv} (${s.ma_nv})`,
@@ -460,8 +499,12 @@ class PermissionService {
         pendingRequests.forEach((r) => {
             const rawType = String(r.request_type || '').trim();
             const typeLabel = REQUEST_TYPE_LABELS[rawType.toLowerCase()] || rawType || 'Đơn từ nhân sự';
+            const synced = notifByKey[`request:${r.id}`];
             actionableAlerts.push({
                 id: `request_${r.id}`,
+                notification_id: synced ? synced.id : null,
+                is_read: synced ? Number(synced.is_read) : 0,
+                read_at: synced ? synced.read_at : null,
                 category: 'pending_request',
                 severity: 'medium',
                 title: `${typeLabel}: ${r.ho_ten || r.ma_nv} (${r.ma_nv})`,
@@ -481,6 +524,8 @@ class PermissionService {
             actionableAlerts.push({
                 id: `notif_${n.id}`,
                 notification_id: n.id,
+                is_read: Number(n.is_read || 0),
+                read_at: n.read_at || null,
                 category: 'period_locked',
                 severity: 'info',
                 title: n.title,
@@ -505,8 +550,18 @@ class PermissionService {
             pending_device_count: pendingDevicesCount,
             pending_device_alerts: deviceAlerts,
             pending_requests_count: pendingRequestsCount,
+            pending_ot_count: pendingOtCount,
             pending_requests: pendingRequests,
             admin_notifications: adminNotifs,
+            unread_notification_count: unreadNotificationCount,
+            current_payroll_period: {
+                month: nowParts.month,
+                year: nowParts.year,
+                status: payPeriod?.status || 'DRAFT',
+                payment_status: payPeriod?.payment_status || 'UNPAID',
+                is_locked: periodLock
+            },
+            last_updated_at: new Date().toISOString(),
             total_red_alerts: totalRedAlerts,
             total_actionable_count: totalRedAlerts + pendingRequestsCount,
             actionable_alerts: actionableAlerts.slice(0, 30),
