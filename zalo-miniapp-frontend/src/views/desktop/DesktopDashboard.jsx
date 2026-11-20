@@ -313,74 +313,95 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 5. Cài Đặt & Nhật Ký (Công ty & GPS, Phân quyền Kế toán, Lịch nghỉ lễ, Nhật ký An ninh) */}
+            {/* 5. Cài Đặt & Nhật Ký (Công ty & GPS, Phân quyền Kế toán, Lịch nghỉ lễ, Nhật ký An ninh — Stitch Admin Screen 5) */}
             {effectiveTab === "settings" && resolvedRole === ROLES.ADMIN && (
               <div className="space-y-4">
-                <div
-                  data-filter-group="settings-subtabs"
-                  className="bg-white border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)]"
-                >
-                  <button
-                    type="button"
-                    data-subtab="company"
-                    data-active={settingsSubTab === "company" ? "true" : "false"}
-                    onClick={() => setSettingsSubTab("company")}
-                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                      settingsSubTab === "company"
-                        ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                        : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-[#F0F3FF] dark:hover:bg-slate-800/70"
-                    }`}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#B80035] dark:bg-rose-400 animate-pulse" />
+                      <span>SEDINCO ENTERPRISE ADMIN</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-xs font-bold text-[#16A34A] dark:text-emerald-300">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#16A34A] dark:text-emerald-400 shrink-0" />
+                      <span>Bảo vệ SSL 256-bit • Knox 24/7</span>
+                    </span>
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white tracking-tight">
+                      Cài đặt Hệ thống &amp; Bảo mật
+                    </h2>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                      Quản trị phân quyền và kiểm soát dữ liệu thiết bị thực địa
+                    </p>
+                  </div>
+
+                  <div
+                    data-filter-group="settings-subtabs"
+                    className="bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5"
                   >
-                    <Building2 size={16} className="shrink-0" />
-                    <span>Công ty &amp; Vị trí</span>
-                  </button>
-                  <button
-                    type="button"
-                    data-subtab="permissions"
-                    data-active={settingsSubTab === "permissions" ? "true" : "false"}
-                    onClick={() => setSettingsSubTab("permissions")}
-                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                      settingsSubTab === "permissions"
-                        ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                        : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-[#F0F3FF] dark:hover:bg-slate-800/70"
-                    }`}
-                  >
-                    <ShieldCheck size={16} className="shrink-0" />
-                    <span>Phân quyền Kế toán</span>
-                  </button>
-                  <button
-                    type="button"
-                    data-subtab="holidays"
-                    data-active={settingsSubTab === "holidays" ? "true" : "false"}
-                    onClick={() => setSettingsSubTab("holidays")}
-                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                      settingsSubTab === "holidays"
-                        ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                        : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-[#F0F3FF] dark:hover:bg-slate-800/70"
-                    }`}
-                  >
-                    <Gift size={16} className="shrink-0" />
-                    <span>Lịch nghỉ lễ (x3)</span>
-                  </button>
-                  <button
-                    type="button"
-                    data-subtab="audit_logs"
-                    data-active={settingsSubTab === "audit_logs" ? "true" : "false"}
-                    onClick={() => setSettingsSubTab("audit_logs")}
-                    className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                      settingsSubTab === "audit_logs"
-                        ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                        : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-[#F0F3FF] dark:hover:bg-slate-800/70"
-                    }`}
-                  >
-                    <ShieldAlert size={16} className="shrink-0" />
-                    <span>Nhật ký &amp; An ninh</span>
-                    {Number(alertsSummary?.fraud_count) > 0 && (
-                      <span className="px-2 py-0.5 text-xs rounded-full bg-rose-600 text-white font-black">
-                        {alertsSummary.fraud_count}
-                      </span>
-                    )}
-                  </button>
+                    <button
+                      type="button"
+                      data-subtab="company"
+                      data-active={settingsSubTab === "company" ? "true" : "false"}
+                      onClick={() => setSettingsSubTab("company")}
+                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                        settingsSubTab === "company"
+                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
+                      }`}
+                    >
+                      <Building2 size={16} className="shrink-0" />
+                      <span>Công ty &amp; Vị trí</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-subtab="permissions"
+                      data-active={settingsSubTab === "permissions" ? "true" : "false"}
+                      onClick={() => setSettingsSubTab("permissions")}
+                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                        settingsSubTab === "permissions"
+                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
+                      }`}
+                    >
+                      <ShieldCheck size={16} className="shrink-0" />
+                      <span>Phân quyền Kế toán</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-subtab="holidays"
+                      data-active={settingsSubTab === "holidays" ? "true" : "false"}
+                      onClick={() => setSettingsSubTab("holidays")}
+                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                        settingsSubTab === "holidays"
+                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
+                      }`}
+                    >
+                      <Gift size={16} className="shrink-0" />
+                      <span>Lịch nghỉ lễ (x3)</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-subtab="audit_logs"
+                      data-active={settingsSubTab === "audit_logs" ? "true" : "false"}
+                      onClick={() => setSettingsSubTab("audit_logs")}
+                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                        settingsSubTab === "audit_logs"
+                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
+                      }`}
+                    >
+                      <ShieldAlert size={16} className="shrink-0" />
+                      <span>Nhật ký &amp; An ninh</span>
+                      {Number(alertsSummary?.fraud_count) > 0 && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-rose-600 text-white font-black">
+                          {alertsSummary.fraud_count}
+                        </span>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {settingsSubTab === "company" && (

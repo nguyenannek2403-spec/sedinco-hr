@@ -310,18 +310,106 @@ export default function AttendanceMatrixTable({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100/90 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden mb-24">
-      
+    <div className="space-y-4 mb-24">
+      {/* STITCH ADMIN SCREEN 2 — TWO-CARD EXECUTIVE PERIOD LOCK HEADER */}
+      {(canLockPeriod || canUnlockPeriod) && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+          {/* Card 1: Perforated Review Status Ticket Card */}
+          <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="block text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  ● SEDINCO FACTORY OPERATIONS • T{month}/{year}
+                </span>
+                <h3 className="text-sm sm:text-base font-extrabold text-[#111C2D] dark:text-white tracking-tight mt-0.5">
+                  {isLocked ? "ĐÃ KHÓA SỔ KỲ CÔNG & PHÁT HÀNH PHIẾU LƯƠNG" : "ĐANG RÀ SOÁT DỮ LIỆU ĐỂ CHỐT"}
+                </h3>
+              </div>
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold border shrink-0 whitespace-nowrap ${
+                  isLocked
+                    ? "bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300"
+                    : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300"
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isLocked ? "bg-amber-500" : "bg-[#16A34A] animate-pulse"}`} />
+                <span>{isLocked ? "Đã chốt" : "Chờ duyệt"}</span>
+              </span>
+            </div>
+
+            <div className="sedinco-ticket-cutout">
+              <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:items-start gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-semibold">Nhân sự đủ 100%</span>
+                <strong className="text-[#111C2D] dark:text-white font-mono">{filteredData.length} hồ sơ</strong>
+              </div>
+              <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:items-start gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-semibold">Giải trình hợp lệ</span>
+                <strong className="text-[#16A34A] dark:text-emerald-300 font-mono">Chuẩn 8h (Sáng/Chiều)</strong>
+              </div>
+              <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:items-start gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-semibold">Máy quét &amp; GPS</span>
+                <strong className="text-[#0051CA] dark:text-blue-300 font-mono">100% Đồng bộ</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Crimson Executive Master Action Card */}
+          <div className="lg:col-span-5 bg-gradient-to-br from-[#B80035] to-[#E11D48] dark:from-[#9F1239] dark:to-rose-950 text-white rounded-2xl p-4 shadow-md border border-rose-500/40 flex flex-col justify-between gap-3">
+            <div>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-rose-100 block">
+                THAO TÁC THẨM QUYỀN
+              </span>
+              <h4 className="text-base font-extrabold text-white mt-0.5">
+                Khóa &amp; Ký chốt bảng công
+              </h4>
+              <p className="text-xs text-rose-100/95 leading-relaxed mt-1">
+                🔔 Sau khi chốt, hệ thống sẽ khóa chỉnh sửa công và tự động gửi thông báo xác nhận Phiếu lương qua Zalo Mini App đến toàn bộ công nhân.
+              </p>
+            </div>
+            <div className="pt-1">
+              {canLockPeriod && !isLocked && (
+                <AppButton
+                  variant="danger"
+                  icon={Lock}
+                  onClick={() => setShowLockModal(true)}
+                  className="w-full !bg-white !text-[#B80035] hover:!bg-rose-50 !border-white text-xs sm:text-sm py-2.5 font-extrabold shadow-sm"
+                >
+                  Chốt kỳ công
+                </AppButton>
+              )}
+              {canUnlockPeriod && isLocked && (
+                <AppButton
+                  variant="warning"
+                  icon={Unlock}
+                  onClick={() => setShowLockModal(true)}
+                  className="w-full text-xs sm:text-sm py-2.5 font-extrabold shadow-sm"
+                >
+                  Mở lại kỳ đã chốt
+                </AppButton>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
       {/* Header Điều Khiển & Tìm Kiếm */}
       <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-50/60 dark:bg-slate-900/90">
         <div>
-          <div className="flex items-center gap-2">
-            <Calendar className="text-[#E11D48] dark:text-rose-400 shrink-0" size={22} />
+          <span className="block text-xs font-extrabold uppercase tracking-wider text-[#B80035] dark:text-rose-400">
+            MA TRẬN ĐIỂM DANH &amp; CHẤM CÔNG HỘ
+          </span>
+          <div className="flex items-center gap-2 mt-0.5">
+            <Calendar className="text-[#E11D48] dark:text-rose-400 shrink-0" size={20} />
             <h3 className="font-extrabold text-lg leading-snug text-slate-900 dark:text-white">
               Bảng chấm công ma trận
             </h3>
           </div>
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-300 mt-1">
+          <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 mt-0.5">
             Tổng hợp dữ liệu điểm danh thực tế của toàn bộ cán bộ công nhân viên ({filteredData.length} nhân sự)
           </p>
         </div>
@@ -545,17 +633,21 @@ export default function AttendanceMatrixTable({
               const countP = days.filter((d) => d === "P").length;
               const countOT = days.filter((d) => String(d).includes("OT")).length;
               const countKP = days.filter((d) => d === "KP" || d === "KL").length;
+              const recent7Days = dayNumbers.slice(0, 7).map((dNum) => ({
+                dayNum: dNum,
+                val: days[dNum - 1] || "·"
+              }));
 
               return (
                 <button
                   key={emp.ma_nv || empIdx}
                   type="button"
                   onClick={() => setDetailEmpCode(emp.ma_nv)}
-                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-100/90 dark:border-slate-800 p-3.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] hover:border-rose-400 dark:hover:border-rose-500 active:scale-[0.99] transition flex flex-col gap-2.5"
+                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3.5 shadow-sm hover:border-rose-400 dark:hover:border-rose-500 active:scale-[0.99] transition flex flex-col gap-2.5"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 font-black flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800/70">
+                      <div className="w-10 h-10 rounded-2xl bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 font-black flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800/70">
                         {(emp.ho_ten || "N").charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
@@ -567,13 +659,30 @@ export default function AttendanceMatrixTable({
                         </div>
                       </div>
                     </div>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-rose-500/15 text-xs font-bold text-[#E11D48] dark:text-rose-300 shrink-0">
-                      {daysInMonth} ngày
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-rose-500/15 text-xs font-extrabold text-[#E11D48] dark:text-rose-300 shrink-0 font-mono">
+                      {formatViWorkday(totalWorkDays)} / {daysInMonth}
                       <ChevronRight size={14} />
                     </span>
                   </div>
 
-                  <div className="sedinco-ticket-divider !my-0" />
+                  {/* STITCH SCREEN 6 & 10 — 7-DAY RECENT ATTENDANCE STRIP */}
+                  <div className="grid grid-cols-7 gap-1 bg-[#F0F3FF] dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700 text-center">
+                    {recent7Days.map((cell) => (
+                      <div key={cell.dayNum} className="rounded-lg bg-white dark:bg-slate-900 py-1 px-0.5 border border-slate-200/60 dark:border-slate-700">
+                        <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 leading-none">
+                          N{cell.dayNum}
+                        </span>
+                        <span className="block text-xs font-black text-[#111C2D] dark:text-white mt-0.5 leading-none">
+                          {cell.val}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Perforated Ticket Cutout Divider */}
+                  <div className="sedinco-ticket-cutout">
+                    <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+                  </div>
 
                   <div className="grid grid-cols-4 gap-2">
                     <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 px-2 py-1.5 text-center">
@@ -1022,6 +1131,26 @@ export default function AttendanceMatrixTable({
         </AppModal>
       )}
 
+      {/* STITCH ADMIN SCREEN 2 — HISTORICAL LOCK TIMELINE FOOTER CARD */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-[#16A34A] dark:text-emerald-400 shrink-0">
+            <CheckCircle2 className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wider block">
+              NHẬT KÝ CHỐT CÔNG HỆ THỐNG
+            </span>
+            <span className="text-slate-600 dark:text-slate-300">
+              Kỳ Tháng {month}/{year}: {isLocked ? "Đã khóa sổ & gửi thông báo Zalo Mini App" : "Đang mở rà soát công ca thực tế"}
+            </span>
+          </div>
+        </div>
+        <span className="px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-slate-800 text-[#111C2D] dark:text-slate-200 font-mono font-bold">
+          Knox Audit 1:1
+        </span>
+      </div>
+
       {/* Modal Chốt / Mở Lại Kỳ Công */}
       {showLockModal && (
         <PeriodLockModal
@@ -1047,6 +1176,7 @@ export default function AttendanceMatrixTable({
         />
       )}
 
+    </div>
     </div>
   );
 }

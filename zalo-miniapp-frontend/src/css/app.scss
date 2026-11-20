@@ -577,7 +577,40 @@ html.dark .sedinco-ticket-divider,
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  overflow: hidden;
+  height: 16px;
+  my: 0.25rem;
+}
+
+.sedinco-ticket-cutout::before,
+.sedinco-ticket-cutout::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background-color: var(--surface-0);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.sedinco-ticket-cutout::before {
+  margin-left: -8px;
+}
+
+.sedinco-ticket-cutout::after {
+  margin-right: -8px;
+}
+
+html.dark .sedinco-ticket-cutout::before,
+html.dark .sedinco-ticket-cutout::after,
+[zaui-theme="dark"] .sedinco-ticket-cutout::before,
+[zaui-theme="dark"] .sedinco-ticket-cutout::after {
+  background-color: var(--surface-0);
+  border-color: rgba(51, 65, 85, 0.9);
+}
+
+.sedinco-crimson-gradient {
+  background: linear-gradient(135deg, #b80035 0%, #e11d48 100%);
 }
 
 /* ============================================================================

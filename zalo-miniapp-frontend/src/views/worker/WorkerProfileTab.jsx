@@ -9,7 +9,8 @@ import {
   Mail,
   Clock,
   Building2,
-  Calendar
+  Calendar,
+  CheckCircle2
 } from "lucide-react";
 import { safePost, safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
@@ -19,13 +20,23 @@ import { getDeviceIdentity, getDeviceIdentitySync, formatEmployeeDeviceLabel } f
 import { AppButton, AppModal } from "../../components/ui";
 import { FontScaleSelector } from "../../modules/accessibility/FontScaleContext";
 
+/**
+ * WorkerProfileTab — Google Stitch "Sedinco Pulse" Screen 5 (Tài khoản & Phiếu lương Nhân viên)
+ * - Header Row: "Tài khoản nhân sự" + "● Đang hoạt động" green badge
+ * - Employee Profile Ticket Card with perforated divider & 2 #F0F3FF tactical boxes (CA LÀM VIỆC CHUẨN & THIẾT BỊ ĐIỂM DANH CỐ ĐỊNH)
+ * - Monthly Payslip Hero Card with full-width Crimson CTA ("Xem phiếu lương tháng M/YYYY")
+ * - 3-Tile Monthly Attendance Stats Row ("Thống kê Công tháng M")
+ * - Preferences & Operational Settings Card ("CÀI ĐẶT & TRỢ NĂNG XƯỞNG") with 6-step Font Scale (100%–200%), Device Change, Password & Logout
+ */
 export default function WorkerProfileTab({
   currentUser,
   onLogout,
   showToast,
   onChangePasswordRequest,
-  onOpenPayslip = null
+  onOpenPayslip = null,
+  onOpenPeriodPayslip = null
 }) {
+  const handleOpenPayslipProp = onOpenPayslip || onOpenPeriodPayslip;
   const [fallbackSlipOpen, setFallbackSlipOpen] = useState(false);
   const [attendanceSummary, setAttendanceSummary] = useState({
     total_work_days: 0,
@@ -76,8 +87,8 @@ export default function WorkerProfileTab({
     const now = new Date();
     const curM = now.getMonth() + 1;
     const curY = now.getFullYear();
-    if (typeof onOpenPayslip === "function") {
-      onOpenPayslip(curM, curY);
+    if (typeof handleOpenPayslipProp === "function") {
+      handleOpenPayslipProp(curM, curY);
     } else {
       setFallbackSlipOpen(true);
     }
@@ -135,92 +146,175 @@ export default function WorkerProfileTab({
     .toUpperCase() || "NV";
 
   return (
-    <div className="p-3.5 pb-8 space-y-4">
-      {/* Thẻ Hồ Sơ Nhân Sự — Sedinco Pulse Ticket Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] relative overflow-hidden">
-        <div className="flex items-center gap-4 relative z-10">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#E11D48] to-[#FB7185] p-0.5 shadow-md shadow-rose-600/20 shrink-0">
-            {currentUser?.avatar_url ? (
-              <img
-                src={currentUser.avatar_url}
-                alt="Avatar"
-                className="w-full h-full object-cover rounded-full"
-              />
-            ) : (
-              <div className="w-full h-full rounded-full bg-[#F0F3FF] dark:bg-slate-800 flex items-center justify-center text-lg font-extrabold text-[#E11D48] dark:text-rose-300">
-                {initials}
+    <div className="space-y-4 pb-8">
+      {/* STITCH SCREEN 5 — SECTION 1: TOP TITLE & ACTIVE STATUS PILL */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-extrabold text-[#111C2D] dark:text-white tracking-tight">
+          Tài khoản nhân sự
+        </h2>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-xs font-extrabold text-[#16A34A] dark:text-emerald-300 shrink-0 whitespace-nowrap">
+          <span className="w-2 h-2 rounded-full bg-[#16A34A] shrink-0" />
+          <span className="whitespace-nowrap">Đang hoạt động</span>
+        </span>
+      </div>
+
+      {/* STITCH SCREEN 5 — SECTION 2: PERFORATED EMPLOYEE PROFILE TICKET CARD */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="flex items-start gap-3.5">
+          <div className="relative shrink-0">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#B80035] to-[#E11D48] p-0.5 shadow-md">
+              {currentUser?.avatar_url ? (
+                <img
+                  src={currentUser.avatar_url}
+                  alt="Avatar"
+                  className="w-full h-full object-cover rounded-[14px]"
+                />
+              ) : (
+                <div className="w-full h-full rounded-[14px] bg-[#F0F3FF] dark:bg-slate-800 flex items-center justify-center text-lg font-extrabold text-[#E11D48] dark:text-rose-300">
+                  {initials}
+                </div>
+              )}
+            </div>
+            <span
+              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#16A34A] text-white flex items-center justify-center ring-2 ring-white dark:ring-slate-900"
+              aria-hidden="true"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+            </span>
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h3 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white leading-snug break-words">
+                {currentUser?.ho_ten || "Cán bộ công nhân viên"}
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-xs font-mono font-extrabold text-[#B80035] dark:text-rose-300">
+                {currentUser?.ma_nv}
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm font-bold text-[#E11D48] dark:text-rose-400">
+              {currentUser?.chuc_danh || "Nhân viên Sedinco"}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+              <span className="inline-flex items-center gap-1">
+                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>{currentUser?.department || "Khối Công trình"}</span>
+              </span>
+              <span className="inline-flex items-center gap-1 font-mono">
+                <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>{currentUser?.phone || currentUser?.dien_thoai || currentUser?.login_username || currentUser?.ma_nv}</span>
+              </span>
+            </div>
+            {currentUser?.email && (
+              <div className="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                <Mail className="w-3.5 h-3.5 shrink-0" />
+                <span className="break-all">{currentUser.email}</span>
               </div>
             )}
           </div>
-          <div className="min-w-0">
-            <h2 className="text-lg font-extrabold leading-snug text-[#111C2D] dark:text-white break-words">{currentUser?.ho_ten || "Cán bộ công nhân viên"}</h2>
-            <p className="text-sm text-[#E11D48] dark:text-rose-400 font-semibold mt-0.5 leading-snug break-words">{currentUser?.chuc_danh || "Nhân viên Sedinco"}</p>
-            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-              <span className="inline-block px-2.5 py-0.5 bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-semibold text-[#111C2D] dark:text-slate-200 rounded-full whitespace-nowrap">
-                Mã NV: {currentUser?.ma_nv}
-              </span>
-              <span className="inline-block px-2.5 py-0.5 bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-xs font-mono font-semibold text-[#B80035] dark:text-rose-300 rounded-full whitespace-nowrap">
-                Tài khoản: {currentUser?.login_username || currentUser?.phone || currentUser?.ma_nv}
-              </span>
-            </div>
-          </div>
         </div>
 
-        <div className="sedinco-ticket-divider" />
+        {/* Perforated Ticket Cutout Divider */}
+        <div className="sedinco-ticket-cutout">
+          <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#F0F3FF]/70 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700">
-            <Phone className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
-            <span>{currentUser?.phone || currentUser?.dien_thoai || "Chưa cập nhật SĐT"}</span>
+        {/* 2 Tactical Info Boxes (#F0F3FF) */}
+        <div className="space-y-2 text-xs">
+          <div className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 text-[#E11D48] dark:text-rose-400 flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
+                  CA LÀM VIỆC CHUẨN
+                </span>
+                <strong className="text-[#111C2D] dark:text-white break-words">
+                  {effStart} – {effEnd} ({activeShiftLabel})
+                </strong>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#F0F3FF]/70 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 min-w-0">
-            <Mail className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
-            <span className="break-words">{currentUser?.email || "worker@sedinco.vn"}</span>
-          </div>
-          <div className="flex items-center gap-2 sm:col-span-2 px-3 py-2 rounded-xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-500/30 text-sky-800 dark:text-sky-200">
-            <Building2 className="w-3.5 h-3.5 shrink-0" />
-            <span className="font-medium">Khối / Bộ phận: {currentUser?.department || "Khối Công trình"}</span>
-          </div>
-          <div className="flex items-center gap-2 sm:col-span-2 px-3 py-2 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-500/30 text-indigo-800 dark:text-indigo-200">
-            <Clock className="w-3.5 h-3.5 shrink-0" />
-            <span className="font-medium">Ca làm việc: {activeShiftLabel} ({effStart} – {effEnd})</span>
-          </div>
-          <div className="flex items-center gap-2 sm:col-span-2 p-3 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-200 min-w-0">
-            <Smartphone className="w-4 h-4 text-[#16A34A] dark:text-emerald-400 shrink-0" />
-            <span className="font-semibold break-words">
-              Thiết bị: {formatEmployeeDeviceLabel(
-                currentUser?.ho_ten,
-                currentUser?.bound_device_name || getDeviceIdentitySync().device_model_name
-              )}
-            </span>
+
+          <div className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 text-[#16A34A] dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Smartphone className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
+                  THIẾT BỊ ĐIỂM DANH CỐ ĐỊNH
+                </span>
+                <strong className="text-[#111C2D] dark:text-white break-words">
+                  {formatEmployeeDeviceLabel(
+                    currentUser?.ho_ten,
+                    currentUser?.bound_device_name || getDeviceIdentitySync().device_model_name
+                  )}
+                </strong>
+              </div>
+            </div>
+            <CheckCircle2 className="w-4 h-4 text-[#16A34A] dark:text-emerald-400 shrink-0" />
           </div>
         </div>
       </div>
 
-      {/* Thẻ Thống kê Công trong tháng */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] space-y-3">
+      {/* STITCH SCREEN 5 — SECTION 3: MONTHLY PAYSLIP HERO CARD */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-[#E11D48] dark:text-rose-400 flex items-center justify-center shrink-0">
+              <DollarSign className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-xs font-extrabold uppercase tracking-wider text-[#B80035] dark:text-rose-400">
+                PHIẾU LƯƠNG &amp; BẢNG CÔNG
+              </span>
+              <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white">
+                Kỳ lương Tháng {currentMonthNum}/{currentYearNum}
+              </h3>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-[#111C2D] dark:text-slate-200 shrink-0 whitespace-nowrap">
+            Chuẩn 8h
+          </span>
+        </div>
+
+        <AppButton
+          variant="primary"
+          fullWidth
+          icon={DollarSign}
+          onClick={handleOpenSalarySlip}
+          className="min-h-[48px] rounded-xl font-extrabold shadow-[0_6px_18px_-3px_rgba(225,29,72,0.3)]"
+        >
+          Xem phiếu lương tháng {currentMonthNum}/{currentYearNum}
+        </AppButton>
+      </div>
+
+      {/* STITCH SCREEN 5 — SECTION 4: 3-TILE MONTHLY ATTENDANCE STATS ROW */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
-          <h3 className="text-sm font-bold text-[#111C2D] dark:text-white">
+          <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white">
             Thống kê Công tháng {currentMonthNum}
           </h3>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/70 dark:border-rose-800/60 rounded-xl px-2 py-2.5">
-            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Tổng công</div>
+          <div className="bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 rounded-xl px-2 py-2.5">
+            <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tổng công</div>
             <div className="text-sm font-extrabold text-[#E11D48] dark:text-rose-300 mt-0.5 font-mono">
               {formatViWorkday(attendanceSummary?.total_work_days || 0)} công
             </div>
           </div>
-          <div className="bg-emerald-50/75 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl px-2 py-2.5">
-            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Đúng giờ</div>
+          <div className="bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 rounded-xl px-2 py-2.5">
+            <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">Đúng giờ</div>
             <div className="text-sm font-extrabold text-[#16A34A] dark:text-emerald-300 mt-0.5 font-mono">
               {formatViNumber(attendanceSummary?.on_time_count || 0, 0)} ngày
             </div>
           </div>
-          <div className="bg-amber-50/75 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/60 rounded-xl px-2 py-2.5">
-            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Đi muộn</div>
+          <div className="bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 rounded-xl px-2 py-2.5">
+            <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">Đi muộn</div>
             <div className="text-sm font-extrabold text-amber-700 dark:text-amber-300 mt-0.5 font-mono">
               {formatViNumber(attendanceSummary?.late_count || 0, 0)} lần
             </div>
@@ -228,33 +322,10 @@ export default function WorkerProfileTab({
         </div>
       </div>
 
-      {/* Thẻ Cỡ chữ Hiển thị cho mọi độ tuổi */}
+      {/* STITCH SCREEN 5 — SECTION 5: ACCESSIBILITY FONT SCALE & ACCOUNT SECURITY */}
       <FontScaleSelector />
 
-      {/* Thẻ Phiếu Lương & Bảo mật Tài khoản */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] divide-y divide-slate-100 dark:divide-slate-800">
-        {/* Phiếu Lương & Bảng Công Lịch Sử */}
-        <div className="p-3.5 space-y-2.5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-[#E11D48] dark:text-rose-400 flex items-center justify-center shrink-0">
-              <DollarSign className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-[#111C2D] dark:text-white">Phiếu Lương &amp; Bảng Công</div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">Xem chi tiết lương, phụ cấp &amp; công từng ngày mọi tháng</div>
-            </div>
-          </div>
-
-          <AppButton
-            variant="primary"
-            fullWidth
-            icon={DollarSign}
-            onClick={handleOpenSalarySlip}
-          >
-            Xem phiếu lương tháng {currentMonthNum}/{currentYearNum}
-          </AppButton>
-        </div>
-
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
         {/* Yêu Cầu Đổi Thiết Bị */}
         <button
           type="button"
@@ -262,14 +333,14 @@ export default function WorkerProfileTab({
             setDeviceError("");
             setIsDeviceModalOpen(true);
           }}
-          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
+          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-[#F0F3FF]/60 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-white">Yêu cầu đổi thiết bị</div>
+              <div className="text-sm font-bold text-[#111C2D] dark:text-white">Yêu cầu đổi thiết bị</div>
               <div className="text-xs text-slate-600 dark:text-slate-300">Đăng ký đổi điện thoại chấm công mới</div>
             </div>
           </div>
@@ -280,14 +351,14 @@ export default function WorkerProfileTab({
         <button
           type="button"
           onClick={onChangePasswordRequest}
-          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
+          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-[#F0F3FF]/60 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-white">Tài khoản &amp; Mật khẩu</div>
+              <div className="text-sm font-bold text-[#111C2D] dark:text-white">Tài khoản &amp; Mật khẩu</div>
               <div className="text-xs text-slate-600 dark:text-slate-300">Đổi tên đăng nhập, SĐT hoặc mật khẩu bảo mật</div>
             </div>
           </div>

@@ -429,23 +429,59 @@ export default function PayrollGridTable({
 
   return (
     <div className="space-y-5 pb-28">
-      
+      {/* STITCH ADMIN SCREEN 4 — SEDINCO PAYROLL EXECUTIVE WORKFLOW BANNER & ADMIN EXCLUDED NOTICE */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase tracking-wider">
+              <span>{isAdmin ? "● SEDINCO PAYROLL EXECUTIVE" : "● NGHIỆP VỤ TIỀN LƯƠNG • KẾ TOÁN"}</span>
+            </span>
+            <h2 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white tracking-tight mt-1">
+              Bảng lương Doanh nghiệp Tháng {month} / {year}
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-extrabold">
+            <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300">
+              1. Kế toán lập
+            </span>
+            <span className="text-slate-400">→</span>
+            <span className="px-2.5 py-1 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-[#B80035] dark:text-rose-300">
+              2. Giám đốc duyệt
+            </span>
+            <span className="text-slate-400">→</span>
+            <span className="px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#0051CA] dark:text-blue-300">
+              3. Chi trả NH
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-[#F0F3FF] dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200/70 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
+          🛡️ Tài khoản <strong className="text-[#111C2D] dark:text-white">Quản trị (Admin)</strong> được thiết lập phân quyền điều hành cao cấp, độc lập hoàn toàn khỏi hạn mức quỹ chi trả và bảng tính công nhân viên.
+        </div>
+      </div>
+
       {/* 4 Card KPI Tổng Quan Tài Chính — ZaUI Squircle KPI Tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
-        {/* KPI 1: Tổng Quỹ Lương Net (Sedinco Pulse Hero) */}
-        <div className="bg-[#E11D48] bg-gradient-to-br from-[#E11D48] via-[#D81441] to-[#B80035] dark:bg-slate-900 dark:from-[#9F1239] dark:via-rose-950 dark:to-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-md border border-rose-500/40 relative overflow-hidden">
+        {/* KPI 1: Tổng Quỹ Lương Net (Sedinco Pulse Hero + Breakdown Progress Bar) */}
+        <div className="bg-[#E11D48] bg-gradient-to-br from-[#E11D48] via-[#B80035] to-[#263143] dark:bg-slate-900 dark:from-[#9F1239] dark:via-rose-950 dark:to-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-md border border-rose-500/40 relative overflow-hidden space-y-2.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-rose-100 font-semibold">Tổng quỹ lương (Net)</span>
-            <div className="p-2 bg-rose-950/35 dark:bg-slate-800 rounded-xl border border-white/25 shrink-0">
-              <DollarSign size={20} className="text-white" />
-            </div>
+            <span className="text-xs text-rose-100 font-semibold">Tổng ngân sách chi trả (Net Pay)</span>
+            <span className="px-2 py-0.5 rounded-full bg-white/15 text-white text-xs font-extrabold shrink-0">
+              {formatViNumber(totalEmployees, 0)} Nhân sự
+            </span>
           </div>
-          <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-extrabold text-white">
+          <div>
+            <span className="text-xl sm:text-2xl font-extrabold text-white font-mono">
               {formatViCurrency(totalNetSalary)}
             </span>
-            <span className="text-xs text-rose-100 block mt-1 font-medium">Chi trả kỳ tháng {month}/{year}</span>
+            <div className="h-1.5 w-full rounded-full bg-white/20 overflow-hidden flex mt-2">
+              <div className="h-full bg-white w-[82%]" />
+              <div className="h-full bg-emerald-400 w-[18%]" />
+            </div>
+            <span className="text-xs text-rose-100 block mt-1.5 font-medium">
+              Lương cơ bản + OT &amp; Phụ cấp • Kỳ tháng {month}/{year}
+            </span>
           </div>
         </div>
 
@@ -1073,41 +1109,57 @@ export default function PayrollGridTable({
                       <div className="min-w-0">
                         <div className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.ho_ten}</div>
                         <div className="text-xs text-slate-500 dark:text-slate-300 font-mono">
-                          {empId} • {formatViWorkday(item.totalWorkDays)} công
+                          {empId} • {item.chuc_danh || "Nhân viên"}
                         </div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-extrabold text-base text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
-                        {formatViCurrency(item.netSalary || 0)}
-                      </div>
-                      <div className="text-xs text-slate-600 dark:text-slate-300 font-medium">Thực lĩnh</div>
-                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-extrabold shrink-0 whitespace-nowrap">
+                      {formatViWorkday(item.totalWorkDays)} Công
+                    </span>
                   </div>
 
-                  {(bonusAmt > 0 || penaltyAmt > 0 || advAmt > 0) && (
-                    <div className="flex flex-wrap gap-1.5 text-xs">
-                      {bonusAmt > 0 && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
-                          +Thưởng {formatViCurrency(bonusAmt)}
-                        </span>
-                      )}
-                      {penaltyAmt > 0 && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-semibold whitespace-nowrap">
-                          -Phạt {formatViCurrency(penaltyAmt)}
-                        </span>
-                      )}
-                      {advAmt > 0 && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 font-semibold whitespace-nowrap">
-                          -Ứng {formatViCurrency(advAmt)}
-                        </span>
-                      )}
+                  {/* STITCH ADMIN SCREEN 4 — NET PAY TRANSFER POD */}
+                  <div className="bg-[#F0F3FF] dark:bg-slate-800/80 rounded-xl p-2.5 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Thực nhận chuyển khoản (Net)</span>
+                    <span className="font-extrabold text-base text-[#B80035] dark:text-rose-300 font-mono whitespace-nowrap">
+                      {formatViCurrency(item.netSalary || 0)}
+                    </span>
+                  </div>
+
+                  {/* Perforated Ticket Cutout Divider */}
+                  <div className="sedinco-ticket-cutout">
+                    <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+                  </div>
+
+                  {/* 5-Item Ledger Breakdown */}
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-600 dark:text-slate-300">1. Lương cơ bản chuẩn ({formatViWorkday(item.totalWorkDays)} công)</span>
+                      <span className="font-bold text-[#111C2D] dark:text-white font-mono whitespace-nowrap">{formatViCurrency(item.salaryByWork || 0)}</span>
                     </div>
-                  )}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-600 dark:text-slate-300">2. Tăng ca OT ({formatViNumber(item.totalOtHours || 0)}h)</span>
+                      <span className="font-bold text-[#16A34A] dark:text-emerald-300 font-mono whitespace-nowrap">+{formatViCurrency(item.otAmount || 0)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-600 dark:text-slate-300">3. Phụ cấp định mức</span>
+                      <span className="font-bold text-[#111C2D] dark:text-white font-mono whitespace-nowrap">+{formatViCurrency(item.totalAllowance || 0)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-600 dark:text-slate-300">4. Khấu trừ BHXH (10,5%)</span>
+                      <span className="font-bold text-[#DC2626] dark:text-rose-400 font-mono whitespace-nowrap">-{formatViCurrency(item.insuranceDeduction || item.totalInsurance || 0)}</span>
+                    </div>
+                    {(bonusAmt > 0 || penaltyAmt > 0 || advAmt > 0) && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-600 dark:text-slate-300">5. Thưởng / Phạt / Tạm ứng</span>
+                        <span className="font-bold text-[#0051CA] dark:text-blue-300 font-mono whitespace-nowrap">
+                          {formatViCurrency(bonusAmt - penaltyAmt - advAmt)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-                  <div className="sedinco-ticket-divider !my-2" />
-
-                  <div className={`grid ${canCalculatePayroll ? "grid-cols-2" : "grid-cols-1"} gap-2`}>
+                  <div className={`grid ${canCalculatePayroll ? "grid-cols-2" : "grid-cols-1"} gap-2 pt-1`}>
                     {canCalculatePayroll && (
                       <AppButton
                         variant="ghost"

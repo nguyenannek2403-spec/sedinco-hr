@@ -573,109 +573,136 @@ export default function EmployeeManagementTab({
 
   return (
     <div className="space-y-4 pb-8">
-      {/* 1. KHU VỰC 1 ĐỘC QUYỀN: QUÂN SỐ THỜI GIAN THỰC & THẺ LỌC NHANH NHÂN SỰ 360° — ZAUI HUB */}
-      {headcountToday && (
-        <div
-          data-testid="employee-hub-headcount-bar"
-          className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200">
-              📊 Quân số điểm danh hôm nay ({headcountToday.date || "Hôm nay"}) — Bấm để lọc nhanh nhân sự
-            </span>
-            {typeof onOpenLiveBoard === "function" && (
-              <button
-                type="button"
-                onClick={() => onOpenLiveBoard(todayFilter === "all" ? "present" : todayFilter)}
-                className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-rose-500/20 dark:hover:bg-rose-500/30 border border-slate-200 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-200 text-xs font-bold cursor-pointer transition"
-              >
-                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                <span>Xem bảng live chi tiết</span>
-              </button>
-            )}
+      {/* STITCH ADMIN SCREEN 1 — SECTION 1: EXECUTIVE HEADER & 6-TILE HEADCOUNT KPI GRID */}
+      <div
+        data-testid="employee-hub-headcount-bar"
+        className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white tracking-tight">
+                Nhân sự &amp; Thiết bị 360° {headcountToday?.date ? `(${headcountToday.date})` : ""}
+              </h2>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-extrabold">
+                <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
+                <span>Trực tiếp</span>
+              </span>
+            </div>
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">
+              Hệ thống giám sát định danh ca trực công xưởng • Knox 1:1
+            </p>
           </div>
+          {typeof onOpenLiveBoard === "function" && (
+            <button
+              type="button"
+              onClick={() => onOpenLiveBoard(todayFilter === "all" ? "present" : todayFilter)}
+              className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-rose-500/20 dark:hover:bg-rose-500/30 border border-slate-200 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-200 text-xs font-extrabold cursor-pointer transition"
+            >
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+              <span>Xem bảng live chi tiết</span>
+            </button>
+          )}
+        </div>
 
+        <div className="px-3 py-2 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span className="font-extrabold text-[#111C2D] dark:text-white">
+            ⚡ Sĩ số trực tiếp ca sản xuất hôm nay
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[#B80035] dark:text-rose-300 font-extrabold">
+            {headcountToday?.total_employees ?? totalCount} nhân sự
+          </span>
+        </div>
+
+        {/* 6-Tile Headcount KPI Grid (Stitch Screen 9) */}
+        {headcountToday && (
           <div
             data-filter-group="headcount-today-filter"
-            className="flex items-center gap-2 overflow-x-auto touch-scroll-x p-1.5 rounded-2xl bg-slate-100/90 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 text-xs font-semibold"
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs font-semibold"
           >
             <button
               type="button"
               data-active={todayFilter === "all" ? "true" : "false"}
               onClick={() => setTodayFilter("all")}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
                 todayFilter === "all"
-                  ? "bg-[#E11D48] text-white border-[#BE123C] dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-md"
-                  : "bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                  ? "bg-[#E11D48] text-white border-[#BE123C] dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-sm"
+                  : "bg-[#F0F3FF] hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-[#111C2D] dark:text-slate-200"
               }`}
             >
-              👥 Quân số: <strong>{headcountToday.total_employees}</strong>
+              <span className="text-xs font-bold opacity-90">👥 Quân số:</span>
+              <strong className="text-base font-black font-mono">{headcountToday.total_employees}</strong>
             </button>
             <button
               type="button"
               data-active={todayFilter === "present" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "present" ? "all" : "present"))}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
                 todayFilter === "present"
-                  ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 shadow-md"
+                  ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 shadow-sm"
                   : "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/80 border-emerald-200 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
               }`}
             >
-              🟢 Có mặt: <strong>{headcountToday.present}</strong>
-            </button>
-            <button
-              type="button"
-              data-active={todayFilter === "late" ? "true" : "false"}
-              onClick={() => setTodayFilter((p) => (p === "late" ? "all" : "late"))}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
-                todayFilter === "late"
-                  ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 shadow-md"
-                  : "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-300"
-              }`}
-            >
-              🟡 Đi muộn: <strong>{headcountToday.late}</strong>
+              <span className="text-xs font-bold">🟢 Có mặt:</span>
+              <strong className="text-base font-black font-mono">{headcountToday.present}</strong>
             </button>
             <button
               type="button"
               data-active={todayFilter === "field_work" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "field_work" ? "all" : "field_work"))}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
                 todayFilter === "field_work"
-                  ? "bg-orange-600 text-white border-orange-500 dark:bg-orange-600 dark:text-white dark:border-orange-400 shadow-md"
+                  ? "bg-orange-600 text-white border-orange-500 dark:bg-orange-600 dark:text-white dark:border-orange-400 shadow-sm"
                   : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/70 dark:hover:bg-orange-900/80 border-orange-200 dark:border-orange-500/40 text-orange-800 dark:text-orange-300"
               }`}
             >
-              🚧 Công trình: <strong>{headcountToday.field_work}</strong>
+              <span className="text-xs font-bold">🚧 Công trình:</span>
+              <strong className="text-base font-black font-mono">{headcountToday.field_work}</strong>
+            </button>
+            <button
+              type="button"
+              data-active={todayFilter === "late" ? "true" : "false"}
+              onClick={() => setTodayFilter((p) => (p === "late" ? "all" : "late"))}
+              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
+                todayFilter === "late"
+                  ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 shadow-sm"
+                  : "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-300"
+              }`}
+            >
+              <span className="text-xs font-bold">🟡 Đi muộn:</span>
+              <strong className="text-base font-black font-mono">{headcountToday.late}</strong>
             </button>
             <button
               type="button"
               data-active={todayFilter === "leave" ? "true" : "false"}
               onClick={() => setTodayFilter((p) => (p === "leave" ? "all" : "leave"))}
-              className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
                 todayFilter === "leave"
-                  ? "bg-purple-600 text-white border-purple-500 dark:bg-purple-600 dark:text-white dark:border-purple-400 shadow-md"
+                  ? "bg-purple-600 text-white border-purple-500 dark:bg-purple-600 dark:text-white dark:border-purple-400 shadow-sm"
                   : "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/70 dark:hover:bg-purple-900/80 border-purple-200 dark:border-purple-500/40 text-purple-800 dark:text-purple-300"
               }`}
             >
-              🟣 Nghỉ phép: <strong>{headcountToday.leave}</strong>
+              <span className="text-xs font-bold">🟣 Nghỉ phép:</span>
+              <strong className="text-base font-black font-mono">{headcountToday.leave}</strong>
             </button>
             {Array.isArray(liveBoard?.absent_list) && (
               <button
                 type="button"
                 data-active={todayFilter === "absent" ? "true" : "false"}
                 onClick={() => setTodayFilter((p) => (p === "absent" ? "all" : "absent"))}
-                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
+                className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
                   todayFilter === "absent"
-                    ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-md"
+                    ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-sm"
                     : "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/70 dark:hover:bg-rose-900/80 border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300"
                 }`}
               >
-                ⚪ Chưa chấm: <strong>{liveBoard.absent_list.length}</strong>
+                <span className="text-xs font-bold">⚪ Chưa chấm:</span>
+                <strong className="text-base font-black font-mono">{liveBoard.absent_list.length}</strong>
               </button>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 4 Thẻ Lọc Nhanh Trạng Thái Tài Khoản & Thiết Bị — ZaUI Squircle KPI Tiles */}
       <div
@@ -849,148 +876,181 @@ export default function EmployeeManagementTab({
             return (
               <div
                 key={emp.ma_nv}
-                className={`perf-list-item bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3 transition ${
-                  devSummary.hasAnyAlert ? "border-rose-400 dark:border-rose-500/70" : "border-slate-100/90 dark:border-slate-800"
+                className={`perf-list-item bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden shadow-sm transition ${
+                  devSummary.hasAnyAlert
+                    ? "border-2 border-[#E11D48] dark:border-rose-500"
+                    : "border-slate-200/80 dark:border-slate-800"
                 }`}
               >
-                {/* Header Card — ZaUI Doctor Profile Row */}
-                <div className="flex items-start justify-between gap-2.5">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className="w-11 h-11 rounded-full bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-extrabold text-sm flex items-center justify-center shrink-0">
-                      {empInitial}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-bold text-base text-slate-900 dark:text-white break-words leading-snug">
-                          {emp.ho_ten}
+                {/* STITCH ADMIN SCREEN 1 — GRADIENT CRIMSON TOP ALERT RIBBON ON DEVICE CONFLICT CARDS */}
+                {devSummary.hasAnyAlert && (
+                  <div className="bg-gradient-to-r from-[#B80035] to-[#E11D48] text-white px-4 py-2.5 flex items-center justify-between gap-2 text-xs font-extrabold">
+                    <div className="min-w-0">
+                      <span className="inline-flex items-center gap-1.5 uppercase tracking-wider">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        <span>
+                          {devSummary.hasMultiAlert ? "CẢNH BÁO XUNG ĐỘT THIẾT BỊ" : "YÊU CẦU ĐỔI THIẾT BỊ MỚI"}
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#E11D48] dark:text-rose-300">
-                          {emp.ma_nv}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/35 text-indigo-700 dark:text-indigo-200 text-xs font-semibold">
-                          {ROLE_LABELS[emp.role] || "Nhân viên"}
-                        </span>
-                        {todayBadge && (
-                          <span className={`px-2.5 py-0.5 rounded-full border text-xs font-semibold ${todayBadge.cls}`}>
-                            {todayBadge.label}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Body Meta Pills */}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
-                        <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-mono font-semibold">
-                          <Phone className="w-3.5 h-3.5 shrink-0" />
-                          <span>TK: {displayLogin}{displayPhone && displayPhone !== displayLogin ? ` (${displayPhone})` : ""}</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-cyan-700 dark:text-cyan-300 font-medium">
-                          <Building2 className="w-3.5 h-3.5 shrink-0" />
-                          <span>{emp.department || "Khối Công trình"} • {emp.chuc_danh || "Nhân viên"}</span>
-                        </span>
-                        {emp.role !== "admin" && (
-                          <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-300 font-medium">
-                            <Clock className="w-3.5 h-3.5 shrink-0" />
-                            <span>{getShiftWindowText(emp)}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <StatusBadge type="employee" status={isLocked ? "locked" : "active"} />
-                </div>
-
-                {/* Dòng 3: Hiển thị Thiết bị (chỉ áp dụng với Nhân viên & Kế toán, ẩn với Quản trị viên) */}
-                {emp.role !== "admin" && (
-                  <div className="px-3 py-2.5 rounded-xl bg-emerald-50/75 dark:bg-slate-800/95 border border-emerald-200/80 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span className="font-bold text-emerald-900 dark:text-emerald-200 break-words">
-                        📱 {devSummary.primaryLabel}
+                      </span>
+                      <span className="block text-xs text-rose-100 font-semibold mt-0.5">
+                        {devSummary.hasMultiAlert ? "Phát hiện 2 máy cùng điểm danh đồng thời" : "Nhân viên đề xuất liên kết điện thoại mới"}
                       </span>
                     </div>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full font-semibold shrink-0 ${
-                        emp.device_binding_mode === "enforced"
-                          ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
-                          : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600"
-                      }`}
-                    >
-                      {emp.device_binding_mode === "enforced" ? "🔒 Khóa 1 máy" : "Ghi nhận"}
+                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#B80035] font-extrabold shrink-0 whitespace-nowrap">
+                      {devSummary.hasMultiAlert ? "Khẩn cấp" : "Chờ duyệt"}
                     </span>
                   </div>
                 )}
 
-                {/* Băng cảnh báo đỏ nếu phát hiện >= 2 thiết bị dùng chung tài khoản hoặc yêu cầu đổi máy */}
-                {devSummary.hasMultiAlert && (
-                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-500/70 text-xs text-rose-800 dark:text-rose-100 space-y-2">
-                    <div className="flex items-start gap-2 font-bold text-rose-900 dark:text-rose-200 leading-snug">
-                      <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-                      <span>
-                        🚨 Phát hiện {Math.max(2, devSummary.known.length)} thiết bị dùng chung tài khoản:{" "}
-                        {devSummary.known.length >= 2
-                          ? devSummary.known
-                              .map((d) => `${sanitizeSingleDeviceModelName(d.device_name || UNKNOWN_DEVICE_LABEL)} (#${d.short_tag || computeDeviceShortTag(d.device_id)})`)
-                              .join(" & ")
-                          : "Đã ghi nhận đăng nhập từ máy thứ 2"}
+                <div className="p-4 space-y-3">
+                  {/* Header Card — Stitch Profile Row */}
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className="w-11 h-11 rounded-2xl bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-extrabold text-sm flex items-center justify-center shrink-0">
+                        {empInitial}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-extrabold text-base text-[#111C2D] dark:text-white break-words leading-snug">
+                            {emp.ho_ten}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#E11D48] dark:text-rose-300">
+                            {emp.ma_nv}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/35 text-indigo-700 dark:text-indigo-200 text-xs font-semibold">
+                            {ROLE_LABELS[emp.role] || "Nhân viên"}
+                          </span>
+                          {todayBadge && (
+                            <span className={`px-2.5 py-0.5 rounded-full border text-xs font-semibold ${todayBadge.cls}`}>
+                              {todayBadge.label}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">
+                          {emp.department || "Khối Công trình"} • {emp.chuc_danh || "Nhân viên"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <StatusBadge type="employee" status={isLocked ? "locked" : "active"} />
+                  </div>
+
+                  {/* 2-Column Tactical Info Pod (#F0F3FF) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 text-xs">
+                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-mono font-semibold">
+                      <Phone className="w-3.5 h-3.5 text-[#16A34A] dark:text-emerald-400 shrink-0" />
+                      <span className="truncate">
+                        TK: {displayLogin}{displayPhone && displayPhone !== displayLogin ? ` (${displayPhone})` : ""}
                       </span>
                     </div>
-                  </div>
-                )}
-
-                {devSummary.hasPendingChange && (
-                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/65 border border-amber-300 dark:border-amber-500/60 text-xs text-amber-900 dark:text-amber-100 space-y-1">
-                    <div className="font-bold text-amber-950 dark:text-amber-200">
-                      📱 Yêu cầu đổi sang máy mới: {sanitizeSingleDeviceModelName(emp.pending_device_name || emp.pending_device_id)}
-                    </div>
-                    {emp.device_change_reason && (
-                      <div className="opacity-90">Lý do: {emp.device_change_reason}</div>
+                    {emp.role !== "admin" ? (
+                      <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-medium">
+                        <Clock className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
+                        <span className="truncate">{getShiftWindowText(emp)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-semibold">
+                        <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                        <span>Điều hành hệ thống</span>
+                      </div>
                     )}
                   </div>
-                )}
 
-                <div className="sedinco-ticket-divider !my-2" />
-
-                {/* Thanh Hành Động Nhanh trên Thẻ */}
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  {emp.role === "admin" ? (
-                    <span className="text-xs text-amber-700 dark:text-amber-300 font-semibold">
-                      🛡️ Quản trị điều hành (Không tính lương)
-                    </span>
-                  ) : (
-                    <span className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 font-mono font-semibold whitespace-nowrap">
-                      Lương CB: {formatViCurrency(emp.luong_cb || 0)}
-                    </span>
-                  )}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <AppButton
-                      variant={devSummary.hasAnyAlert ? "danger" : "primary"}
-                      icon={devSummary.hasAnyAlert ? ShieldCheck : Edit3}
-                      onClick={() => handleOpen360Modal(emp)}
-                      className="text-xs px-3.5 py-2"
-                    >
-                      {devSummary.hasAnyAlert
-                        ? "Xử lý thiết bị & 360°"
-                        : canEditEmployees
-                        ? "Hồ sơ 360°"
-                        : "Xem hồ sơ"}
-                    </AppButton>
-
-                    {isAdmin && emp.role !== "admin" && (
-                      <AppButton
-                        variant="secondary"
-                        icon={isLocked ? Unlock : Lock}
-                        onClick={() => handleToggleLock(emp)}
-                        aria-label={isLocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}
-                        className={`min-w-[44px] px-3 py-2 text-xs ${
-                          isLocked
-                            ? "!border-emerald-500/50 !text-emerald-700 dark:!text-emerald-300"
-                            : "!border-rose-500/50 !text-rose-700 dark:!text-rose-300"
+                  {/* Dòng 3: Hiển thị Thiết bị (chỉ áp dụng với Nhân viên & Kế toán, ẩn với Quản trị viên) */}
+                  {emp.role !== "admin" && (
+                    <div className="px-3 py-2.5 rounded-xl bg-emerald-50/75 dark:bg-slate-800/95 border border-emerald-200/80 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="font-bold text-emerald-900 dark:text-emerald-200 break-words">
+                          📱 {devSummary.primaryLabel}
+                        </span>
+                      </div>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full font-semibold shrink-0 ${
+                          emp.device_binding_mode === "enforced"
+                            ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
+                            : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600"
                         }`}
                       >
-                        {isLocked ? "Mở khóa" : "Khóa"}
-                      </AppButton>
+                        {emp.device_binding_mode === "enforced" ? "🔒 Khóa 1 máy" : "Ghi nhận"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Băng cảnh báo đỏ nếu phát hiện >= 2 thiết bị dùng chung tài khoản hoặc yêu cầu đổi máy */}
+                  {devSummary.hasMultiAlert && (
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-500/70 text-xs text-rose-800 dark:text-rose-100 space-y-1">
+                      <div className="flex items-start gap-2 font-bold text-rose-900 dark:text-rose-200 leading-snug">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                        <span>
+                          Nguy cơ chấm công hộ! Phát hiện {Math.max(2, devSummary.known.length)} thiết bị dùng chung tài khoản:{" "}
+                          {devSummary.known.length >= 2
+                            ? devSummary.known
+                                .map((d) => `${sanitizeSingleDeviceModelName(d.device_name || UNKNOWN_DEVICE_LABEL)} (#${d.short_tag || computeDeviceShortTag(d.device_id)})`)
+                                .join(" & ")
+                            : "Đã ghi nhận đăng nhập từ máy thứ 2"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {devSummary.hasPendingChange && (
+                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/65 border border-amber-300 dark:border-amber-500/60 text-xs text-amber-900 dark:text-amber-100 space-y-1">
+                      <div className="font-bold text-amber-950 dark:text-amber-200">
+                        📱 Yêu cầu đổi sang máy mới: {sanitizeSingleDeviceModelName(emp.pending_device_name || emp.pending_device_id)}
+                      </div>
+                      {emp.device_change_reason && (
+                        <div className="opacity-90">Lý do: {emp.device_change_reason}</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Perforated Ticket Cutout Divider */}
+                  <div className="sedinco-ticket-cutout">
+                    <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+                  </div>
+
+                  {/* Thanh Hành Động Nhanh trên Thẻ */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    {emp.role === "admin" ? (
+                      <span className="text-xs text-amber-700 dark:text-amber-300 font-semibold">
+                        🛡️ Quản trị điều hành (Không tính lương)
+                      </span>
+                    ) : (
+                      <span className="text-xs sm:text-sm text-[#111C2D] dark:text-slate-200 font-mono font-bold whitespace-nowrap">
+                        Lương CB: {formatViCurrency(emp.luong_cb || 0)}
+                      </span>
                     )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <AppButton
+                        variant={devSummary.hasAnyAlert ? "danger" : "primary"}
+                        icon={devSummary.hasAnyAlert ? ShieldCheck : Edit3}
+                        onClick={() => handleOpen360Modal(emp)}
+                        className="text-xs px-3.5 py-2"
+                      >
+                        {devSummary.hasAnyAlert
+                          ? "Xử lý thiết bị & 360°"
+                          : canEditEmployees
+                          ? "Hồ sơ 360°"
+                          : "Xem hồ sơ"}
+                      </AppButton>
+
+                      {isAdmin && emp.role !== "admin" && (
+                        <AppButton
+                          variant="secondary"
+                          icon={isLocked ? Unlock : Lock}
+                          onClick={() => handleToggleLock(emp)}
+                          aria-label={isLocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}
+                          className={`min-w-[44px] px-3 py-2 text-xs ${
+                            isLocked
+                              ? "!border-emerald-500/50 !text-emerald-700 dark:!text-emerald-300"
+                              : "!border-rose-500/50 !text-rose-700 dark:!text-rose-300"
+                          }`}
+                        >
+                          {isLocked ? "Mở khóa" : "Khóa"}
+                        </AppButton>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -998,6 +1058,27 @@ export default function EmployeeManagementTab({
           })}
         </div>
       )}
+
+      {/* STITCH ADMIN SCREEN 1 — SEDINCO KNOX SECURITY GUARD V2.4.12 FOOTER CARD */}
+      <div className="bg-[#F0F3FF] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-[#B80035] dark:text-rose-400 shadow-xs shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="font-extrabold text-[#111C2D] dark:text-white text-sm">
+              Sedinco Knox Security Guard v2.4.12
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+              Khóa cứng IMEI phần cứng • Chống giả lập GPS • Mã hóa định danh thiết bị 1:1
+            </p>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 font-extrabold text-[#16A34A] dark:text-emerald-300 shrink-0 whitespace-nowrap">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
+          <span>Cụm máy chủ Sedinco: Sẵn sàng ({totalCount} hồ sơ)</span>
+        </span>
+      </div>
 
       <ConfirmDialog
         open={confirmAction.open}

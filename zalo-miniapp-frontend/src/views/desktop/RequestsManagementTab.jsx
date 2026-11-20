@@ -199,18 +199,27 @@ export default function RequestsManagementTab({
 
   return (
     <div className="space-y-4 pb-28">
-      {/* Header and Controls — ZaUI Header Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-extrabold text-slate-900 dark:text-white leading-snug flex items-center gap-2">
-            <FileText className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />
-            Xét duyệt đơn từ &amp; Nghỉ phép
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
-            Duyệt đơn nghỉ phép, bổ sung công, ứng lương và tăng ca của nhân viên
-          </p>
+      {/* STITCH ADMIN SCREEN 3 — EXECUTIVE APPROVAL HEADER & FILTER HUB */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase tracking-wider">
+            <span>🛡️ THẨM QUYỀN PHÊ DUYỆT CẤP CAO</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-extrabold">
+            <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
+            <span>{eligiblePendingIds.length} đơn chờ xử lý</span>
+          </span>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-extrabold text-slate-900 dark:text-white leading-snug flex items-center gap-2">
+              <FileText className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />
+              <span>Duyệt đơn từ &amp; Đề xuất Quản trị</span>
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
+              Quyền hạn ký số trực tiếp của Ban Điều Hành Nhà Máy • Nghỉ phép, bổ sung công, ứng lương &amp; OT
+            </p>
+          </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           {/* Search box */}
@@ -552,6 +561,19 @@ export default function RequestsManagementTab({
           </div>
           </>
         )}
+      </div>
+
+      {/* STITCH ADMIN SCREEN 3 — OPERATIONAL COUNTDOWN FOOTER NOTICE */}
+      <div className="bg-[#F0F3FF] dark:bg-slate-900 rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-800 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-[#B80035] dark:text-rose-400 shadow-xs shrink-0">
+          <Clock className="w-4 h-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-extrabold text-[#111C2D] dark:text-white">Thời hạn chốt phê duyệt kỳ này</p>
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+            Hoàn tất phê duyệt trước khi khóa sổ kỳ công để hệ thống tự động kết chuyển vào bảng lương tháng.
+          </p>
+        </div>
       </div>
 
       <ConfirmDialog

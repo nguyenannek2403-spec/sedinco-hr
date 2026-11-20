@@ -368,12 +368,18 @@ const formatDetails = (rawDetails, action = "") => {
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              Nhật ký hoạt động & Kiểm tra chấm công
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <span>Nhật ký An ninh (Audit Logs)</span>
+              </h2>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-extrabold">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A] animate-pulse" />
+                <span>Real-time</span>
+              </span>
+            </div>
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-              Ghi vết thời gian thực theo từng mã nhân viên • Tự động dọn dẹp dữ liệu định kỳ
+              Ghi vết bất biến mọi thao tác quản trị &amp; cảnh báo thiết bị • Tự động dọn dẹp dữ liệu định kỳ
             </p>
           </div>
 
@@ -727,6 +733,28 @@ const formatDetails = (rawDetails, action = "") => {
           </div>
           </>
         )}
+      </div>
+
+      {/* STITCH ADMIN SCREEN 5 — DARK INVERSE KNOX HARDWARE IDENTIFICATION ENGINE FOOTER CARD */}
+      <div className="bg-[#263143] dark:bg-slate-950 text-white rounded-2xl p-4 shadow-md border border-slate-700/80">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-[#FFB3B4] shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 inline-flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>KNOX ACTIVE • PROTECTED</span>
+              </span>
+              <span className="text-xs font-mono text-white/70">v2.4.12-enterprise</span>
+            </div>
+            <h3 className="text-sm font-extrabold text-white">Sedinco Hardware Identification Engine</h3>
+            <p className="text-xs text-white/80 leading-relaxed mt-1">
+              Mọi thao tác chấm công và phê duyệt quản trị đều được ký số định danh phần cứng 1:1, chống giả lập vị trí GPS và ngăn chặn chấm công hộ tuyệt đối.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

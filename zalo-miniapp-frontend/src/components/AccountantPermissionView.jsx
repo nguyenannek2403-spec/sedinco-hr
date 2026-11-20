@@ -288,20 +288,31 @@ export default function AccountantPermissionView({ showToast }) {
             );
           })}
 
-          {/* Chốt chặn Phân tách Nhiệm vụ (Độc quyền Ban Giám Đốc) */}
+          {/* Chốt chặn Phân tách Nhiệm vụ (Độc quyền Ban Giám Đốc — Stitch Admin Screen 5) */}
           <div className="bg-amber-50/70 dark:bg-amber-950/50 rounded-2xl border border-amber-200 dark:border-amber-800/70 p-4 sm:p-6 space-y-3">
-            <div className="flex items-center gap-2.5 text-amber-950 dark:text-amber-200 font-bold text-sm sm:text-base">
-              <Lock className="w-5 h-5 text-amber-700 dark:text-amber-300 shrink-0" />
-              <span>Chốt chặn Phân tách Nhiệm vụ (Độc quyền Quản trị viên / Giám đốc)</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 text-amber-950 dark:text-amber-200 font-bold text-sm sm:text-base">
+                <Lock className="w-5 h-5 text-[#B80035] dark:text-rose-400 shrink-0" />
+                <span>Chốt chặn Phân tách Nhiệm vụ (Độc quyền Quản trị viên / Giám đốc)</span>
+              </div>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FFE4E6] dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 text-[#B80035] dark:text-rose-300 text-xs font-extrabold shrink-0">
+                <Lock className="w-3.5 h-3.5 shrink-0" />
+                <span>KHÓA CỨNG</span>
+              </span>
             </div>
             <p className="text-xs sm:text-sm text-amber-900 dark:text-amber-200/90 leading-relaxed">
               Các chức năng quản trị tối cao dưới đây luôn được khóa cứng chỉ dành riêng cho Giám đốc, không cho phép Kế toán tự ý thao tác để bảo đảm kiểm soát nội bộ:
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {ADMIN_SOD_EXCLUSIVE_ITEMS.map((sod, idx) => (
-                <div key={idx} className="bg-white/90 dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 space-y-1">
-                  <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">{sod.name}</div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{sod.desc}</p>
+                <div key={idx} className="bg-white/90 dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 flex items-start justify-between gap-2">
+                  <div className="space-y-1 min-w-0">
+                    <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">{sod.name}</div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{sod.desc}</p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-extrabold shrink-0">
+                    KHÓA
+                  </span>
                 </div>
               ))}
             </div>

@@ -8,7 +8,10 @@ import {
   FilePlus2,
   MapPin,
   UserCheck,
-  FileSpreadsheet
+  FileSpreadsheet,
+  CheckCircle2,
+  Clock,
+  AlertTriangle
 } from "lucide-react";
 import { safeGet } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
@@ -21,7 +24,7 @@ const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 function getHeatmapCellStyle(log, dayNum, isFuture, isSunday = false) {
   if (isFuture) {
     return {
-      cellClass: "bg-slate-100 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800/70 text-slate-500 dark:text-slate-400",
+      cellClass: "bg-[#F0F3FF]/60 dark:bg-slate-900/50 border-slate-200/70 dark:border-slate-800/70 text-slate-500 dark:text-slate-400",
       dotClass: "bg-slate-400 dark:bg-slate-600",
       shortCode: "",
       badgeText: "Chưa tới",
@@ -30,7 +33,7 @@ function getHeatmapCellStyle(log, dayNum, isFuture, isSunday = false) {
   }
   if (!log && isSunday) {
     return {
-      cellClass: "bg-slate-100 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800/70 text-slate-500 dark:text-slate-300",
+      cellClass: "bg-[#F0F3FF] dark:bg-slate-900/50 border-slate-200 dark:border-slate-800/70 text-slate-500 dark:text-slate-300",
       dotClass: "bg-slate-400 dark:bg-slate-500",
       shortCode: "CN",
       badgeText: "Cuối tuần",
@@ -112,7 +115,21 @@ function getHeatmapCellStyle(log, dayNum, isFuture, isSunday = false) {
   };
 }
 
-export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip = null }) {
+/**
+ * WorkerHistoryTab — Google Stitch "Sedinco Pulse" Screen 3 (Lịch công & Bảng chấm công)
+ * - Pill Month Navigator + "Chuẩn: 26 công" badge
+ * - 3 KPI Summary Cards in a Row (Tổng công, Đúng giờ, Đi muộn)
+ * - Heatmap Card with pulsing red dot header, 7-column grid, perforated cutout divider & 7-item legend
+ * - Perforated Daily Attendance Ticket Cards ("Chi tiết ngày công gần nhất") + "Tạo giải trình ->"
+ * - Bottom full-width Crimson CTA ("Xem Bảng lương & Bảng công chi tiết")
+ */
+export default function WorkerHistoryTab({
+  currentUser,
+  showToast,
+  onOpenPayslip = null,
+  onOpenPeriodPayslip = null
+}) {
+  const handleOpenPayslip = onOpenPayslip || onOpenPeriodPayslip;
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [logs, setLogs] = useState([]);
@@ -205,132 +222,129 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
     return cells;
   }, [logs, month, year]);
 
+  const stdDays = Number(summary?.standard_days || 26);
+  const earnedDays = Number(summary?.total_work_days || 0);
+  const pctEarned = stdDays > 0 ? Math.min(100, Math.round((earnedDays / stdDays) * 100)) : 0;
+
   return (
-    <div className="p-3.5 pb-28 space-y-4">
-      {/* Sedinco Pulse Month Navigator Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 flex items-center justify-between shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)]">
-        <button
-          type="button"
-          onClick={prevMonth}
-          aria-label="Tháng trước"
-          className="min-w-[44px] min-h-[44px] p-2 bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[#111C2D] hover:text-[#E11D48] dark:text-slate-100 rounded-xl flex items-center justify-center cursor-pointer transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-
-        <div className="text-center">
-          <div className="text-xs font-bold uppercase tracking-wider text-[#E11D48] dark:text-rose-400">
-            Lịch công Heatmap
-          </div>
-          <div className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white">
-            Tháng {month} / {year}
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={nextMonth}
-          aria-label="Tháng sau"
-          className="min-w-[44px] min-h-[44px] p-2 bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[#111C2D] hover:text-[#E11D48] dark:text-slate-100 rounded-xl flex items-center justify-center cursor-pointer transition-colors"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-
-      {/* KPI Summary Ticket Card */}
-      {summary && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-emerald-50/75 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl p-2.5 text-center">
-              <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Ngày công</div>
-              <div className="text-lg font-extrabold text-[#16A34A] dark:text-emerald-300 mt-0.5 font-mono">{formatViWorkday(summary.total_work_days || 0)}</div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">/ {formatViWorkday(summary.standard_days || 26)} công</div>
-            </div>
-            <div className="bg-[#DAE2FF]/50 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl p-2.5 text-center">
-              <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Tăng ca OT</div>
-              <div className="text-lg font-extrabold text-[#0051CA] dark:text-blue-300 mt-0.5 font-mono">{formatViNumber(summary.total_ot_hours || 0)}h</div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">ngoài giờ</div>
-            </div>
-            <div className="bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/70 dark:border-rose-800/60 rounded-xl p-2.5 text-center">
-              <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Nghỉ phép</div>
-              <div className="text-lg font-extrabold text-[#E11D48] dark:text-rose-300 mt-0.5 font-mono">{formatViWorkday(summary.total_leave_days || 0)}</div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">hưởng lương</div>
-            </div>
-          </div>
-
-          <div className="sedinco-ticket-divider" />
-
-          <div className="space-y-2 text-xs">
-            {summary.effective_shift_start && summary.effective_shift_end && (
-              <div className="text-slate-700 dark:text-slate-200 font-medium">
-                Ca làm việc của bạn hôm nay:{" "}
-                <strong className="text-[#111C2D] dark:text-white">
-                  {summary.effective_shift_start} – {summary.effective_shift_end}
-                </strong>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-[#F0F3FF]/70 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 rounded-xl px-2.5 py-2">
-                <span className="text-xs text-slate-600 dark:text-slate-300 block">Đúng giờ tháng này</span>
-                <span className="text-xs font-bold text-[#16A34A] dark:text-emerald-300">
-                  {summary.on_time_count || 0} ngày
-                </span>
-              </div>
-              <div className="bg-[#F0F3FF]/70 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 rounded-xl px-2.5 py-2">
-                <span className="text-xs text-slate-600 dark:text-slate-300 block">Đi trễ tháng này</span>
-                <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
-                  {summary.late_count || 0} lần ({summary.total_late_minutes || 0} phút)
-                </span>
-              </div>
-            </div>
-
-            {typeof onOpenPayslip === "function" && (
-              <AppButton
-                data-testid="history-open-payslip-btn"
-                variant="primary"
-                fullWidth
-                icon={FileSpreadsheet}
-                onClick={() => onOpenPayslip(month, year)}
-                className="text-xs"
-              >
-                Xem Bảng lương &amp; Bảng công chi tiết T{month}/{year}
-              </AppButton>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-4">
-      {/* CALENDAR GRID HEATMAP (7 CỘT T2 -> CN) */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-xs font-black text-[#111C2D] dark:text-slate-100 flex items-center gap-1.5 uppercase">
+    <div className="space-y-4 pb-8">
+      {/* STITCH SCREEN 3 — SECTION 1: PILL MONTH NAVIGATOR & STANDARD WORKDAYS BADGE */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex items-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-full p-1 shadow-xs">
+          <button
+            type="button"
+            onClick={prevMonth}
+            aria-label="Tháng trước"
+            className="min-w-[44px] min-h-[44px] p-2 rounded-full hover:bg-[#F0F3FF] dark:hover:bg-slate-800 text-[#111C2D] dark:text-slate-200 flex items-center justify-center cursor-pointer transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="px-3 flex items-center gap-1.5">
             <Calendar className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
-            <span>Chạm vào từng ô ngày để xem &amp; bù công</span>
-          </h3>
+            <span className="text-sm font-extrabold text-[#111C2D] dark:text-white whitespace-nowrap">
+              Tháng {month} / {year}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={nextMonth}
+            aria-label="Tháng sau"
+            className="min-w-[44px] min-h-[44px] p-2 rounded-full hover:bg-[#F0F3FF] dark:hover:bg-slate-800 text-[#111C2D] dark:text-slate-200 flex items-center justify-center cursor-pointer transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span className="px-3 py-1.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 border border-rose-200/80 dark:border-rose-800/60 text-xs font-extrabold text-[#B80035] dark:text-rose-300">
+            Chuẩn: {formatViWorkday(stdDays)} công
+          </span>
           <AppButton
             variant="secondary"
             icon={RefreshCw}
             loading={loading}
             onClick={fetchHistory}
             aria-label="Làm mới lịch công"
-            className="min-w-[44px] px-3"
+            className="min-w-[44px] px-2.5 py-1.5 rounded-full"
           />
         </div>
+      </div>
 
-        {/* Chú thích màu + Ký hiệu Heatmap (hỗ trợ người lớn tuổi & mù màu) */}
-        <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>1: Đủ công</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 dark:bg-amber-400"></span>0.5/Muộn</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-500 dark:bg-purple-400"></span>P/L: Phép, Lễ</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500 dark:bg-blue-400"></span>OT: Tăng ca</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>V/KP: Vắng</span>
+      {/* STITCH SCREEN 3 — SECTION 2: 3 KPI SUMMARY CARDS IN A ROW */}
+      {summary && (
+        <div className="grid grid-cols-3 gap-2.5">
+          {/* Card 1: Tổng công */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col justify-between">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tổng công</span>
+            <div className="my-1 flex items-baseline gap-1 font-mono">
+              <span className="text-xl font-black text-[#111C2D] dark:text-white">
+                {formatViWorkday(earnedDays)}
+              </span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                / {formatViWorkday(stdDays)}
+              </span>
+            </div>
+            <div className="inline-flex items-center gap-1 text-xs font-bold text-[#16A34A] dark:text-emerald-300">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Đạt {pctEarned}%</span>
+            </div>
+          </div>
+
+          {/* Card 2: Đúng giờ */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col justify-between">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Đúng giờ</span>
+            <div className="my-1 flex items-baseline gap-1 font-mono">
+              <span className="text-xl font-black text-[#111C2D] dark:text-white">
+                {formatViNumber(summary.on_time_count || 0, 0)}
+              </span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">ngày</span>
+            </div>
+            <div className="inline-flex items-center gap-1 text-xs font-bold text-[#0051CA] dark:text-blue-300">
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              <span>OT: {formatViNumber(summary.total_ot_hours || 0)}h</span>
+            </div>
+          </div>
+
+          {/* Card 3: Đi muộn */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col justify-between">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Đi muộn</span>
+            <div className="my-1 flex items-baseline gap-1 font-mono">
+              <span className="text-xl font-black text-[#E11D48] dark:text-rose-400">
+                {formatViNumber(summary.late_count || 0, 0)}
+              </span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">lần</span>
+            </div>
+            <div className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>{formatViNumber(summary.total_late_minutes || 0, 0)} phút</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STITCH SCREEN 3 — SECTION 3: CALENDAR GRID HEATMAP (7 CỘT T2 -> CN) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#E11D48] animate-pulse shrink-0" />
+            <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white tracking-tight">
+              Bản đồ chấm công (Heatmap)
+            </h3>
+          </div>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Chạm ô ngày để bù công
+          </span>
         </div>
 
         {/* Header Thứ */}
-        <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-black text-slate-500 dark:text-slate-300">
+        <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-extrabold text-slate-500 dark:text-slate-300">
           {WEEKDAYS.map((w) => (
-            <div key={w} className="py-1">{w}</div>
+            <div
+              key={w}
+              className={`py-1 ${w === "CN" ? "text-[#E11D48] dark:text-rose-400" : ""}`}
+            >
+              {w}
+            </div>
           ))}
         </div>
 
@@ -376,17 +390,46 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
             })}
           </div>
         )}
+
+        {/* Perforated Ticket Cutout Divider */}
+        <div className="sedinco-ticket-cutout">
+          <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+        </div>
+
+        {/* 7-Symbol Legend Bar */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+          <span className="inline-flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-[#16A34A] dark:text-emerald-300 font-black">1</span>
+            <span>Đủ công</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-black">0,5</span>
+            <span>Nửa công</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-black">P/L</span>
+            <span>Phép / Lễ</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-[#0051CA] dark:text-blue-300 font-black">OT</span>
+            <span>Tăng ca</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-[#E11D48] dark:text-rose-300 font-black">V/KP</span>
+            <span>Vắng</span>
+          </span>
+        </div>
       </div>
 
-      {/* BẢNG ĐỐI CHIẾU CÔNG TỪNG NGÀY — SEDINCO PULSE TICKET CARDS */}
+      {/* STITCH SCREEN 3 — SECTION 4: DAILY ATTENDANCE TICKET CARDS */}
       {logs.length > 0 && (
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <h4 className="text-sm font-bold text-[#111C2D] dark:text-white">
-              Bảng đối chiếu công từng ngày ({logs.length} ngày)
+            <h4 className="text-sm font-extrabold text-[#111C2D] dark:text-white">
+              Chi tiết ngày công gần nhất ({logs.length} ngày)
             </h4>
-            <span className="text-xs text-[#E11D48] dark:text-rose-400 font-semibold">
-              Chạm để giải trình công
+            <span className="text-xs text-[#E11D48] dark:text-rose-400 font-bold">
+              Chạm để tạo giải trình
             </span>
           </div>
           <div className="space-y-2.5">
@@ -396,95 +439,92 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
               const statusInfo = getAttendanceStatusInfo(day.status);
               const otHours = Number(day.ot_hours) || 0;
               const lateMinutes = Number(day.late_minutes) || 0;
+              const earlyMinutes = Number(day.early_leave_minutes) || 0;
               const dayNumLabel = iso.slice(8, 10) || "--";
               const monthLabel = iso.slice(5, 7) || String(month);
+              const noteStr = day.attendance_note || "";
+              const hasIssueNote =
+                lateMinutes > 0 ||
+                earlyMinutes > 0 ||
+                noteStr.toLowerCase().includes("vào muộn") ||
+                noteStr.toLowerCase().includes("ra sớm") ||
+                noteStr.toLowerCase().includes("quên check-out") ||
+                noteStr.toLowerCase().includes("quá ngắn");
+              const displayNote =
+                noteStr ||
+                [
+                  lateMinutes > 0 ? `Vào muộn ${lateMinutes} phút` : "",
+                  earlyMinutes > 0 ? `Ra sớm ${earlyMinutes} phút` : ""
+                ]
+                  .filter(Boolean)
+                  .join(" • ");
+
               return (
                 <button
                   key={iso || idx}
                   type="button"
                   onClick={() => setSelectedDayDetail({ isoDate: iso, dayNum: iso.slice(-2), log: day, style })}
-                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] hover:border-rose-300 dark:hover:border-rose-500/40 transition cursor-pointer space-y-2.5"
+                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-xs hover:border-rose-300 dark:hover:border-rose-500/40 transition cursor-pointer space-y-2"
                 >
-                  <div className="flex items-start gap-3">
-                    {/* Left Rounded Date Badge */}
-                    <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200/80 dark:border-rose-500/30 flex flex-col items-center justify-center shrink-0">
-                      <span className="text-sm font-extrabold text-[#E11D48] dark:text-rose-300 leading-none">{dayNumLabel}</span>
-                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">T{monthLabel}</span>
-                    </div>
-
-                    {/* Center Shift Info */}
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm font-bold text-[#111C2D] dark:text-white font-mono">{iso}</span>
-                        <StatusBadge type="attendance" status={day.status} />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-[#FFE4E6] dark:bg-rose-500/15 border border-rose-200/80 dark:border-rose-500/30 flex flex-col items-center justify-center shrink-0">
+                        <span className="text-sm font-extrabold text-[#B80035] dark:text-rose-300 leading-none">{dayNumLabel}</span>
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-0.5">T{monthLabel}</span>
                       </div>
-                      <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-3">
-                        <span>
-                          Vào:{" "}
-                          <strong className="text-[#111C2D] dark:text-white font-mono">
-                            {day.check_in_time ? String(day.check_in_time).slice(0, 5) : "--:--"}
-                          </strong>
-                        </span>
-                        <span>
-                          Ra:{" "}
-                          <strong className="text-[#111C2D] dark:text-white font-mono">
-                            {day.check_out_time ? String(day.check_out_time).slice(0, 5) : "--:--"}
-                          </strong>
-                        </span>
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-sm font-extrabold text-[#111C2D] dark:text-white font-mono">{iso}</span>
+                          <StatusBadge type="attendance" status={day.status} />
+                        </div>
+                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 font-mono">
+                          Vào: <strong className="text-[#111C2D] dark:text-white">{day.check_in_time ? String(day.check_in_time).slice(0, 5) : "--:--"}</strong>
+                          {"  —  "}
+                          Ra: <strong className="text-[#111C2D] dark:text-white">{day.check_out_time ? String(day.check_out_time).slice(0, 5) : "--:--"}</strong>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="sedinco-ticket-divider !my-2" />
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                      <span className="font-semibold text-[#16A34A] dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                    <div className="text-right shrink-0 space-y-1">
+                      <span className="inline-block font-extrabold text-xs text-[#16A34A] dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 px-2.5 py-0.5 rounded-full">
                         {statusInfo.creditText}
                       </span>
                       {otHours > 0 && (
-                        <span className="font-semibold text-[#0051CA] dark:text-blue-300 bg-[#DAE2FF]/60 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 px-2.5 py-0.5 rounded-full">
-                          +{otHours}h tăng ca
+                        <span className="block font-bold text-xs text-[#0051CA] dark:text-blue-300">
+                          +{otHours}h OT
                         </span>
                       )}
-                      {(() => {
-                        const earlyMinutes = Number(day.early_leave_minutes) || 0;
-                        const noteStr = day.attendance_note || "";
-                        const hasIssueNote =
-                          lateMinutes > 0 ||
-                          earlyMinutes > 0 ||
-                          noteStr.toLowerCase().includes("vào muộn") ||
-                          noteStr.toLowerCase().includes("ra sớm") ||
-                          noteStr.toLowerCase().includes("quên check-out") ||
-                          noteStr.toLowerCase().includes("quá ngắn");
-                        if (!hasIssueNote) return null;
-                        const displayNote =
-                          noteStr ||
-                          [
-                            lateMinutes > 0 ? `Vào muộn ${lateMinutes} phút` : "",
-                            earlyMinutes > 0 ? `Ra sớm ${earlyMinutes} phút` : ""
-                          ]
-                            .filter(Boolean)
-                            .join(" • ");
-                        return (
-                          <span className="font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70 px-2.5 py-0.5 rounded-full">
-                            {displayNote}
-                          </span>
-                        );
-                      })()}
                     </div>
-                    {day.location_name && (
-                      <div className="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 min-w-0">
-                        <MapPin className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
-                        <span className="break-words">{day.location_name}</span>
-                      </div>
-                    )}
-                    {day.proxy_by && (
-                      <div className="text-xs text-[#0051CA] dark:text-blue-300 flex items-center gap-1">
-                        <UserCheck className="w-3.5 h-3.5 shrink-0" />
-                        <span>Chấm công hộ</span>
-                      </div>
-                    )}
+                  </div>
+
+                  {hasIssueNote && (
+                    <div className="px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/70 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                      {displayNote}
+                    </div>
+                  )}
+
+                  <div className="sedinco-ticket-divider !my-1.5" />
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 min-w-0">
+                      {day.location_name ? (
+                        <span className="inline-flex items-center gap-1 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
+                          <span className="truncate">{day.location_name}</span>
+                        </span>
+                      ) : (
+                        <span>Ca hành chính • 08:00 - 17:30</span>
+                      )}
+                      {day.proxy_by && (
+                        <span className="inline-flex items-center gap-1 text-[#0051CA] dark:text-blue-300 font-semibold">
+                          <UserCheck className="w-3.5 h-3.5 shrink-0" />
+                          <span>Chấm hộ</span>
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-extrabold text-[#E11D48] dark:text-rose-300 shrink-0">
+                      Tạo giải trình →
+                    </span>
                   </div>
                 </button>
               );
@@ -492,7 +532,20 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
           </div>
         </div>
       )}
-      </div>
+
+      {/* STITCH SCREEN 3 — SECTION 5: BOTTOM FULL-WIDTH CRIMSON PAYSLIP CTA */}
+      {typeof handleOpenPayslip === "function" && (
+        <AppButton
+          data-testid="history-open-payslip-btn"
+          variant="primary"
+          fullWidth
+          icon={FileSpreadsheet}
+          onClick={() => handleOpenPayslip(month, year)}
+          className="min-h-[52px] rounded-xl text-xs sm:text-sm font-extrabold shadow-[0_8px_20px_-4px_rgba(225,29,72,0.3)]"
+        >
+          Xem Bảng lương &amp; Bảng công chi tiết T{month}/{year}
+        </AppButton>
+      )}
 
       {/* MODAL CHI TIẾT 1 NGÀY + NÚT BỔ SUNG CÔNG 1 CHẠM */}
       <AppModal
@@ -601,8 +654,8 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
             correctionModalDate?.log?.check_in_time && !correctionModalDate?.log?.check_out_time
               ? "CHECK_OUT"
               : !correctionModalDate?.log?.check_in_time && correctionModalDate?.log?.check_out_time
-                ? "CHECK_IN"
-                : "BOTH"
+              ? "CHECK_IN"
+              : "BOTH"
           }
           initialCheckInTime={
             correctionModalDate?.log?.check_in_time

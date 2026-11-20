@@ -1340,8 +1340,8 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         const checkInTs = Date.now();
         await dismissToastIfVisible(session);
 
-        // Navigate to "👤 Tài khoản" and Logout cleanly -> Log back in as NV003
-        await clickInPage(session, { text: '👤 Tài khoản', inTopModal: false });
+        // Navigate to "Tài khoản" and Logout cleanly -> Log back in as NV003
+        await clickInPage(session, { text: 'Tài khoản', inTopModal: false });
         await waitForCondition(
             session,
             `(document.body.innerText || '').includes('Thống kê Công tháng')`,
@@ -1389,7 +1389,7 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         );
         await dismissToastIfVisible(session);
 
-        await clickInPage(session, { text: '👤 Tài khoản', inTopModal: false });
+        await clickInPage(session, { text: 'Tài khoản', inTopModal: false });
         await sleep(250);
         await logoutViaConfirmDialog(session, 'Đăng xuất khỏi thiết bị');
         await loginThroughAuthView(session, 'NV003', '123456');

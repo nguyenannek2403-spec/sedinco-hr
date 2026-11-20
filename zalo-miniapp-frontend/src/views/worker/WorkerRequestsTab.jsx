@@ -26,8 +26,7 @@ const REQUEST_HUB_CARDS = [
     title: "Nghỉ phép / Việc riêng",
     desc: "Phép năm, không lương, ốm",
     icon: Calendar,
-    cardClass: "bg-blue-50 hover:bg-blue-100 dark:bg-blue-600/20 dark:hover:bg-blue-600/30 border-blue-200 dark:border-blue-500/40 text-blue-900 dark:text-blue-100",
-    iconClass: "bg-blue-100 dark:bg-blue-500/30 text-blue-700 dark:text-blue-300"
+    iconClass: "bg-emerald-50 dark:bg-emerald-500/20 text-[#16A34A] dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-500/30"
   },
   {
     key: "comp",
@@ -35,8 +34,7 @@ const REQUEST_HUB_CARDS = [
     title: "Giải trình Bổ sung công",
     desc: "Quên giờ vào/ra, đổi ca",
     icon: Clock,
-    cardClass: "bg-amber-50 hover:bg-amber-100 dark:bg-amber-600/20 dark:hover:bg-amber-600/30 border-amber-200 dark:border-amber-500/40 text-amber-900 dark:text-amber-100",
-    iconClass: "bg-amber-100 dark:bg-amber-500/30 text-amber-700 dark:text-amber-300"
+    iconClass: "bg-blue-50 dark:bg-blue-500/20 text-[#0051CA] dark:text-blue-300 border border-blue-200/80 dark:border-blue-500/30"
   },
   {
     key: "ot",
@@ -44,8 +42,7 @@ const REQUEST_HUB_CARDS = [
     title: "Đăng ký Tăng ca",
     desc: "Làm thêm giờ, ngoài ca",
     icon: TrendingUp,
-    cardClass: "bg-violet-50 hover:bg-violet-100 dark:bg-violet-600/20 dark:hover:bg-violet-600/30 border-violet-200 dark:border-violet-500/40 text-violet-900 dark:text-violet-100",
-    iconClass: "bg-violet-100 dark:bg-violet-500/30 text-violet-700 dark:text-violet-300"
+    iconClass: "bg-rose-50 dark:bg-rose-500/20 text-[#E11D48] dark:text-rose-300 border border-rose-200/80 dark:border-rose-500/30"
   },
   {
     key: "advance",
@@ -53,12 +50,25 @@ const REQUEST_HUB_CARDS = [
     title: "Xin Ứng lương",
     desc: "Tạm ứng trước kỳ lương",
     icon: Wallet,
-    cardClass: "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 border-emerald-200 dark:border-emerald-500/40 text-emerald-900 dark:text-emerald-100",
-    iconClass: "bg-emerald-100 dark:bg-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+    iconClass: "bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-500/30"
   }
 ];
 
-export default function WorkerRequestsTab({ currentUser, showToast }) {
+/**
+ * WorkerRequestsTab — Google Stitch "Sedinco Pulse" Screen 4 (Đơn từ & Đề xuất)
+ * - Section Header: "CỔNG DỊCH VỤ NHÂN SỰ" + "Trung tâm Đơn từ"
+ * - White Annual Leave Quota Ticket Card with #F0F3FF progress gauge + perforated divider + 3-col breakdown
+ * - 2x2 Squircle Service Launcher Grid ("Tạo đề xuất nhanh")
+ * - Horizontal Filter Pills with counts
+ * - Perforated Request Ticket Cards with #F0F3FF 2-col metric box & "Hủy đơn" footer
+ */
+export default function WorkerRequestsTab({
+  currentUser,
+  showToast,
+  prefillFixDate = "",
+  prefillCheckInTime = "",
+  onClearPrefill = null
+}) {
   const [requests, setRequests] = useState([]);
   const [leaveBalance, setLeaveBalance] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -97,6 +107,13 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
     fetchMyRequests();
   }, [fetchMyRequests]);
 
+  useEffect(() => {
+    if (prefillFixDate) {
+      setModalInitialType("Bổ sung công / Quên chấm giờ ra");
+      setIsModalOpen(true);
+    }
+  }, [prefillFixDate]);
+
   const handleCancelRequest = (id) => {
     setConfirmCancel({ open: true, id });
   };
@@ -122,45 +139,108 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
     }
   };
 
-  const filtered = requests.filter(req => {
+  const filtered = requests.filter((req) => {
     if (filterStatus === "all") return true;
     return String(req.status).toUpperCase() === filterStatus.toUpperCase();
   });
 
-  return (
-    <div className="p-3.5 pb-8 space-y-4">
-      {/* F1: Thẻ Quỹ Phép Năm — Sedinco Pulse Membership Card Style */}
-      {leaveBalance && (
-        <div className="bg-gradient-to-br from-[#E11D48] to-[#B80035] dark:from-rose-950 dark:via-slate-900 dark:to-slate-900 border border-rose-500/30 dark:border-rose-800/50 rounded-2xl p-4 shadow-[0_8px_24px_-4px_rgba(225,29,72,0.28)] text-white flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-black/20 dark:bg-slate-800/90 border border-white/25 text-white flex items-center justify-center shrink-0">
-              <CalendarCheck className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-extrabold text-white">
-                Quỹ phép năm {leaveBalance.year}
-              </div>
-              <div className="text-xs text-rose-100 mt-0.5 leading-relaxed">
-                Đã dùng {leaveBalance.used} • Chờ duyệt {leaveBalance.pending} ngày
-              </div>
-            </div>
-          </div>
-          <div className="text-right shrink-0 bg-black/20 dark:bg-slate-800/90 border border-white/25 px-3 py-1.5 rounded-xl">
-            <div className="text-base font-extrabold text-white whitespace-nowrap font-mono">
-              Còn {leaveBalance.remaining} / {leaveBalance.quota}
-            </div>
-            <div className="text-xs text-rose-100">ngày phép</div>
-          </div>
-        </div>
-      )}
+  const quota = Number(leaveBalance?.quota || 12);
+  const used = Number(leaveBalance?.used || 0);
+  const pending = Number(leaveBalance?.pending || 0);
+  const remaining = Number(leaveBalance?.remaining ?? Math.max(0, quota - used));
+  const remainPct = quota > 0 ? Math.min(100, Math.round((remaining / quota) * 100)) : 0;
 
-      {/* Request Hub 4 Thẻ Dịch Vụ Sedinco Pulse */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] space-y-3">
+  return (
+    <div className="space-y-4 pb-8">
+      {/* STITCH SCREEN 4 — SECTION 1: HEADER & WHITE ANNUAL LEAVE QUOTA TICKET CARD */}
+      <div className="space-y-2.5">
         <div>
-          <h2 className="text-base font-extrabold leading-snug text-[#111C2D] dark:text-white">Trung tâm Đơn từ &amp; Giải trình</h2>
-          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">
-            Chọn dịch vụ nhân sự bạn muốn gửi cho quản lý xét duyệt
-          </p>
+          <span className="text-xs font-extrabold uppercase tracking-wider text-[#B80035] dark:text-rose-400">
+            CỔNG DỊCH VỤ NHÂN SỰ
+          </span>
+          <h2 className="text-lg font-extrabold text-[#111C2D] dark:text-white tracking-tight">
+            Trung tâm Đơn từ &amp; Đề xuất
+          </h2>
+        </div>
+
+        {leaveBalance && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 flex items-center justify-center shrink-0">
+                  <CalendarCheck className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white leading-snug">
+                    Quỹ phép năm {leaveBalance.year}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Nghỉ phép hưởng lương
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-xs font-bold text-[#16A34A] dark:text-emerald-300 shrink-0 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A] shrink-0" />
+                <span className="whitespace-nowrap">Khả dụng</span>
+              </span>
+            </div>
+
+            {/* Inner #F0F3FF Progress Gauge Box */}
+            <div className="bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 rounded-xl p-3 space-y-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-black text-[#16A34A] dark:text-emerald-300 font-mono">
+                    Còn {remaining} / {quota}
+                  </span>
+                  <span className="text-xs font-bold text-[#111C2D] dark:text-slate-200">
+                    ngày còn lại
+                  </span>
+                </div>
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  Đã dùng: <strong>{used} / {quota}</strong> ngày
+                </span>
+              </div>
+              <div className="w-full h-2.5 rounded-full bg-white dark:bg-slate-900 overflow-hidden border border-slate-200/80 dark:border-slate-700">
+                <div
+                  className="h-full rounded-full bg-[#16A34A] transition-all duration-300"
+                  style={{ width: `${remainPct}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Perforated Ticket Cutout Divider */}
+            <div className="sedinco-ticket-cutout">
+              <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+            </div>
+
+            {/* 3-Column Quota Breakdown */}
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div>
+                <span className="block text-slate-500 dark:text-slate-400">Tổng tiêu chuẩn</span>
+                <strong className="text-[#111C2D] dark:text-white font-mono">{quota} ngày</strong>
+              </div>
+              <div className="border-x border-slate-200 dark:border-slate-800">
+                <span className="block text-slate-500 dark:text-slate-400">Đã nghỉ</span>
+                <strong className="text-[#E11D48] dark:text-rose-400 font-mono">{used} ngày</strong>
+              </div>
+              <div>
+                <span className="block text-slate-500 dark:text-slate-400">Chờ duyệt</span>
+                <strong className="text-amber-700 dark:text-amber-300 font-mono">{pending} ngày</strong>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* STITCH SCREEN 4 — SECTION 2: 2x2 SQUIRCLE SERVICE LAUNCHER GRID */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white">
+            Tạo đề xuất nhanh
+          </h3>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Chạm để mở biểu mẫu
+          </span>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
@@ -174,14 +254,18 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                   setModalInitialType(card.mode);
                   setIsModalOpen(true);
                 }}
-                className={`min-h-[88px] p-3 rounded-2xl border text-left flex flex-col items-start gap-2 transition active:scale-[0.98] cursor-pointer shadow-xs ${card.cardClass}`}
+                className="min-h-[96px] p-3.5 rounded-2xl bg-white hover:bg-[#F0F3FF]/60 dark:bg-slate-900 dark:hover:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 text-left flex flex-col items-start justify-between gap-2 transition active:scale-[0.98] cursor-pointer shadow-xs"
               >
-                <div className={`sedinco-service-icon w-10 h-10 rounded-xl shrink-0 ${card.iconClass}`}>
-                  <CardIcon className="w-4 h-4" />
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${card.iconClass}`}>
+                  <CardIcon className="w-5 h-5" />
                 </div>
                 <div className="w-full min-w-0">
-                  <div className="text-sm font-bold leading-snug break-words">{card.title}</div>
-                  <div className="text-xs opacity-90 mt-0.5 leading-snug break-words">{card.desc}</div>
+                  <div className="text-sm font-extrabold text-[#111C2D] dark:text-white leading-snug break-words">
+                    {card.title}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug break-words">
+                    {card.desc}
+                  </div>
                 </div>
               </button>
             );
@@ -189,7 +273,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
         </div>
       </div>
 
-      {/* Sedinco Pulse Segmented Filter Tabs */}
+      {/* STITCH SCREEN 4 — SECTION 3: HORIZONTAL FILTER PILLS */}
       <div
         data-filter-group="worker-requests-filter"
         className="flex flex-wrap bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800 p-1 rounded-2xl text-xs gap-1"
@@ -202,7 +286,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
               type="button"
               data-active={active ? "true" : "false"}
               onClick={() => setFilterStatus(st)}
-              className={`flex-1 min-h-[44px] px-2.5 py-2 font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex-1 min-h-[44px] px-2.5 py-2 font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
                 active
                   ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
                   : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100"
@@ -214,7 +298,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
         })}
       </div>
 
-      {/* Requests List — ZaUI Ticket Cards */}
+      {/* STITCH SCREEN 4 — SECTION 4: PERFORATED REQUEST TICKET CARDS */}
       <div className="space-y-3">
         {loading ? (
           <SkeletonList rows={3} label="Đang tải danh sách đơn từ..." />
@@ -236,45 +320,59 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
             return (
               <div
                 key={req.id}
-                className="perf-list-item bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-2.5 transition-all"
+                className="perf-list-item bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-2.5 transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="text-sm font-bold text-slate-900 dark:text-white block leading-snug break-words">
+                    <span className="text-sm font-extrabold text-[#111C2D] dark:text-white block leading-snug break-words">
                       {getRequestTypeLabel(req.request_type)}
                     </span>
-                    {req.correction_mode && getCorrectionModeLabel(req.correction_mode) && (
-                      <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs font-semibold">
-                        {getCorrectionModeLabel(req.correction_mode)}
-                      </span>
-                    )}
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block mt-1">
-                      Ngày áp dụng:{" "}
-                      <strong className="text-slate-800 dark:text-slate-200">
-                        {String(req.request_date || req.start_date || "").slice(0, 10)}
-                      </strong>
+                    <span className="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400">
+                      Mã phiếu: #{req.id}
                     </span>
-                    {(req.check_in_time || req.check_out_time) && (
-                      <div className="text-xs text-amber-700 dark:text-amber-300 font-medium mt-1">
-                        Giờ đề xuất:{" "}
-                        {req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}
-                        {req.check_in_time && req.check_out_time ? " • " : ""}
-                        {req.check_out_time ? `Ra ${String(req.check_out_time).slice(0, 5)}` : ""}
-                      </div>
-                    )}
-                    {Number(req.advance_amount) > 0 && (
-                      <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold whitespace-nowrap">
-                        <Wallet className="w-3.5 h-3.5 shrink-0" />
-                        <span>Số tiền ứng: {formatViCurrency(req.advance_amount)}</span>
-                      </div>
-                    )}
                   </div>
-
                   <StatusBadge type="request" status={req.status} />
                 </div>
 
+                {/* Middle #F0F3FF 2-Column Metric Box */}
+                <div className="bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 rounded-xl p-3 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="block text-slate-500 dark:text-slate-400 font-semibold">
+                      Ngày áp dụng
+                    </span>
+                    <strong className="text-[#111C2D] dark:text-white font-mono">
+                      {String(req.request_date || req.start_date || "").slice(0, 10)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="block text-slate-500 dark:text-slate-400 font-semibold">
+                      {Number(req.advance_amount) > 0
+                        ? "Số tiền xin ứng"
+                        : req.check_in_time || req.check_out_time
+                        ? "Giờ đề xuất"
+                        : "Chi tiết"}
+                    </span>
+                    {Number(req.advance_amount) > 0 ? (
+                      <strong className="text-[#16A34A] dark:text-emerald-300 font-mono">
+                        {formatViCurrency(req.advance_amount)}
+                      </strong>
+                    ) : req.check_in_time || req.check_out_time ? (
+                      <strong className="text-[#111C2D] dark:text-white font-mono">
+                        {req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}
+                        {req.check_in_time && req.check_out_time ? " • " : ""}
+                        {req.check_out_time ? `Ra ${String(req.check_out_time).slice(0, 5)}` : ""}
+                      </strong>
+                    ) : (
+                      <strong className="text-[#111C2D] dark:text-white">
+                        {getCorrectionModeLabel(req.correction_mode) || "Theo quy định"}
+                      </strong>
+                    )}
+                  </div>
+                </div>
+
                 {req.reason && (
-                  <p className="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/80 leading-relaxed break-words">
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed break-words">
+                    <span className="font-bold text-slate-500 dark:text-slate-400">Lý do: </span>
                     {req.reason}
                   </p>
                 )}
@@ -289,10 +387,15 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                   </div>
                 )}
 
-                <div className="sedinco-ticket-divider !my-2" />
+                {/* Perforated Ticket Cutout Divider */}
+                <div className="sedinco-ticket-cutout">
+                  <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+                </div>
 
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span className="font-mono font-semibold">Mã phiếu: #{req.id}</span>
+                  <span className="font-semibold">
+                    {isPending ? "Đang chờ Quản lý phê duyệt" : "Đã hoàn tất xét duyệt"}
+                  </span>
                   {isPending && (
                     <AppButton
                       variant="ghost"
@@ -317,10 +420,16 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
           existingRequests={requests}
           leaveBalance={leaveBalance}
           initialMode={modalInitialType}
+          initialDate={prefillFixDate || undefined}
+          initialCheckInTime={prefillCheckInTime || undefined}
           showToast={showToast}
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => {
+            setIsModalOpen(false);
+            if (typeof onClearPrefill === "function") onClearPrefill();
+          }}
           onRequestSubmitted={() => {
             setIsModalOpen(false);
+            if (typeof onClearPrefill === "function") onClearPrefill();
             fetchMyRequests();
             if (showToast) showToast("Nộp đơn mới thành công!", "success");
           }}

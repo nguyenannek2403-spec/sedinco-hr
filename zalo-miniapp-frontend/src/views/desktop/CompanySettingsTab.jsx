@@ -417,6 +417,56 @@ export default function CompanySettingsTab({ showToast }) {
         />
       </div>
 
+      {/* STITCH ADMIN SCREEN 5 — PERFORATED PHYSICAL TICKET CARD FOR 8H STANDARD SHIFT */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#FFE4E6] dark:bg-rose-950/60 flex items-center justify-center text-[#B80035] dark:text-rose-300 shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white">Ca tiêu chuẩn 8h</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Định mức chuẩn MISA AMIS • 2 buổi Sáng/Chiều</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-bold shrink-0 whitespace-nowrap">
+            Thứ 2 - Thứ 7
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="bg-[#F0F3FF] dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200/70 dark:border-slate-700">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="w-2 h-2 rounded-full bg-[#B80035] dark:bg-rose-400 shrink-0" />
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Ca Sáng (4,0h chuẩn)</span>
+            </div>
+            <p className="text-sm font-extrabold text-[#111C2D] dark:text-white font-mono">
+              {config.work_start || "08:00"} – {config.lunch_start || "12:00"}
+            </p>
+          </div>
+          <div className="bg-[#F0F3FF] dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200/70 dark:border-slate-700">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="w-2 h-2 rounded-full bg-[#0051CA] dark:bg-blue-400 shrink-0" />
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Ca Chiều (4,0h chuẩn)</span>
+            </div>
+            <p className="text-sm font-extrabold text-[#111C2D] dark:text-white font-mono">
+              {config.lunch_end || "13:30"} – {config.work_end || "17:30"}
+            </p>
+          </div>
+        </div>
+
+        <div className="sedinco-ticket-cutout">
+          <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span className="text-slate-600 dark:text-slate-300 font-semibold">Dung sai đi muộn tối đa:</span>
+          <span className="font-extrabold text-[#111C2D] dark:text-white">
+            {config.grace_period_minutes ?? 15} phút (gắn cờ tính lỗi)
+          </span>
+        </div>
+      </div>
+
       {/* Mục 1: Giờ làm việc & Nghỉ trưa */}
       <AccordionSection
         id="schedule"
@@ -428,6 +478,28 @@ export default function CompanySettingsTab({ showToast }) {
         isOpen={openSections.schedule}
         onToggle={toggleSection}
       >
+        {/* STITCH SCREEN 13 — 3-TILE 8H SHIFT VISUAL BANNER */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:justify-center gap-2">
+            <span className="text-slate-600 dark:text-slate-300 font-bold">CA SÁNG (4H)</span>
+            <strong className="text-[#111C2D] dark:text-white font-mono whitespace-nowrap">
+              {config.work_start || "08:00"} – {config.lunch_start || "12:00"}
+            </strong>
+          </div>
+          <div className="p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/70 flex items-center justify-between sm:flex-col sm:justify-center gap-2">
+            <span className="text-amber-800 dark:text-amber-300 font-bold">NGHỈ TRƯA</span>
+            <strong className="text-amber-950 dark:text-amber-200 font-mono whitespace-nowrap">
+              {config.lunch_start || "12:00"} – {config.lunch_end || "13:30"}
+            </strong>
+          </div>
+          <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:justify-center gap-2">
+            <span className="text-slate-600 dark:text-slate-300 font-bold">CA CHIỀU (4H)</span>
+            <strong className="text-[#111C2D] dark:text-white font-mono whitespace-nowrap">
+              {config.lunch_end || "13:30"} – {config.work_end || "17:30"}
+            </strong>
+          </div>
+        </div>
+
         <div className="divide-y divide-slate-100 dark:divide-slate-700/70 border border-slate-200 dark:border-slate-700/80 rounded-2xl bg-slate-50/70 dark:bg-slate-800/70 overflow-hidden">
           <FormRow label="Giờ bắt đầu làm việc">
             <input

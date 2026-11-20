@@ -4,11 +4,12 @@ const STATE_ORDER = ["sleeping", "waving_hello", "waving_goodbye"];
 
 const STATE_META = {
   sleeping: {
-    stickerText: "",
+    stickerText: "Chào ngày mới! Chúc bạn ca làm việc hiệu quả! 👋",
     caption: "Zzz... chờ bạn vào ca",
     captionClass:
       "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200",
-    stickerClass: ""
+    stickerClass:
+      "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#111C2D] dark:text-white shadow-md"
   },
   waving_hello: {
     stickerText: "Xin chào! Chúc bạn ca làm việc vui vẻ! 👋",
@@ -16,7 +17,7 @@ const STATE_META = {
     captionClass:
       "bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-200",
     stickerClass:
-      "bg-emerald-50 dark:bg-slate-800 border-2 border-[#16A34A] dark:border-emerald-400 text-[#111C2D] dark:text-white shadow-lg"
+      "bg-white dark:bg-slate-800 border-2 border-[#16A34A] dark:border-emerald-400 text-[#111C2D] dark:text-white shadow-lg"
   },
   waving_goodbye: {
     stickerText: "Tạm biệt! Hẹn gặp lại nhé! 👋✨",
@@ -24,7 +25,7 @@ const STATE_META = {
     captionClass:
       "bg-rose-50 dark:bg-rose-950/70 border-rose-200 dark:border-rose-700 text-[#E11D48] dark:text-rose-200",
     stickerClass:
-      "bg-rose-50 dark:bg-slate-800 border-2 border-[#E11D48] dark:border-rose-400 text-[#111C2D] dark:text-white shadow-lg"
+      "bg-white dark:bg-slate-800 border-2 border-[#E11D48] dark:border-rose-400 text-[#111C2D] dark:text-white shadow-lg"
   }
 };
 
