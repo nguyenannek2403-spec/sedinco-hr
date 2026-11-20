@@ -143,7 +143,7 @@ const MODULE_CATALOG = [
         apis: ['GET /api/qa-center/overview', 'GET /api/qa-center/test-cases', 'GET /api/qa-center/bugs', 'GET /api/qa-center/history', 'POST /api/qa-center/run-safe-checks', 'GET /api/qa-center/export'],
         db_tables: ['qa_test_runs'],
         permissions: ['admin_only'],
-        fe_files: ['src/modules/qa-center/QaCenterTab.jsx', 'src/modules/index.js'],
+        fe_files: ['src/modules/index.js'],
         be_files: ['src/qa/moduleCatalog.js', 'src/qa/qaCenterService.js', 'src/qa/qaCenterController.js', 'src/qa/qaCenterRoutes.js', 'src/qa/bugRegistry.json'],
         test_suites: ['02_contracts.test.js', '09_phase9_audit.test.js', '12_v29_quality_notif_payslip_qa_center.test.js', '07_ui_a11y.test.js']
     }

@@ -700,14 +700,14 @@ export default function SmartLeaveRequestModal({
                 </div>
               )}
 
-              {/* KHỐI TỔNG KẾT TÍNH TOÁN NGÀY PHÉP */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border-2 border-slate-200 dark:border-slate-700/80 space-y-2 text-sm">
+              {/* KHỐI TỔNG KẾT TÍNH TOÁN NGÀY PHÉP — STITCH PERFORATED VOUCHER CARD */}
+              <div className="p-4 rounded-2xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 space-y-2 text-sm">
                 <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
                   <span className="font-medium">Tổng số ngày theo lịch:</span>
-                  <span className="font-bold text-slate-900 dark:text-white whitespace-nowrap">{analysis.totalCalendarDays} ngày</span>
+                  <span className="font-bold text-[#111C2D] dark:text-white whitespace-nowrap">{analysis.totalCalendarDays} ngày</span>
                 </div>
                 {analysis.holidaysEncountered.length > 0 && (
-                  <div className="flex justify-between items-center text-emerald-700 dark:text-emerald-300 font-semibold">
+                  <div className="flex justify-between items-center text-[#16A34A] dark:text-emerald-300 font-semibold">
                     <span>Ngày lễ được miễn trừ:</span>
                     <span className="font-bold whitespace-nowrap">-{analysis.holidaysEncountered.length} ngày</span>
                   </div>
@@ -718,9 +718,12 @@ export default function SmartLeaveRequestModal({
                     <span className="font-semibold whitespace-nowrap">-{analysis.weekendDaysEncountered.length} ngày</span>
                   </div>
                 )}
-                <div className="pt-2 border-t-2 border-slate-200 dark:border-slate-700 flex justify-between items-center text-base font-bold text-slate-900 dark:text-white">
+                <div className="sedinco-ticket-cutout">
+                  <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+                </div>
+                <div className="flex justify-between items-center text-base font-extrabold text-[#111C2D] dark:text-white">
                   <span>Số ngày trừ phép thực tế:</span>
-                  <span className="text-[#E11D48] dark:text-rose-400 font-bold whitespace-nowrap">
+                  <span className="text-[#E11D48] dark:text-rose-400 font-extrabold whitespace-nowrap">
                     {requestType === "P" ? analysis.actualDeductedDays : 0} ngày
                   </span>
                 </div>

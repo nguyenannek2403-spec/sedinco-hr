@@ -655,13 +655,13 @@ export default function SalarySlipModal({
               </div>
             </div>
 
-            {/* Thông tin nhân sự */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-800/70 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs">
+            {/* Thông tin nhân sự — Stitch #F0F3FF Tactical Pod */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#F0F3FF] dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs">
               <div>
                 <span className="text-slate-600 dark:text-slate-300 block text-xs uppercase font-semibold">
                   Mã Nhân Viên
                 </span>
-                <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">
+                <span className="font-mono font-bold text-[#111C2D] dark:text-white text-sm">
                   {maNv}
                 </span>
               </div>
@@ -669,7 +669,7 @@ export default function SalarySlipModal({
                 <span className="text-slate-600 dark:text-slate-300 block text-xs uppercase font-semibold">
                   Họ và Tên
                 </span>
-                <span className="font-bold text-slate-900 dark:text-white break-words block">
+                <span className="font-bold text-[#111C2D] dark:text-white break-words block">
                   {item.ho_ten}
                 </span>
               </div>
@@ -685,7 +685,7 @@ export default function SalarySlipModal({
                 <span className="text-slate-600 dark:text-slate-300 block text-xs uppercase font-semibold">
                   Ngày Công Thực Tế
                 </span>
-                <span className="font-extrabold text-emerald-700 dark:text-emerald-300 block">
+                <span className="font-extrabold text-[#16A34A] dark:text-emerald-300 block">
                   {formatViWorkday(item.totalWorkDays || 0)} / {formatViWorkday(item.standardWorkDays || item.standardDays || 26)} công
                 </span>
                 <span className="text-xs text-slate-600 dark:text-slate-300 block mt-0.5">
@@ -697,9 +697,9 @@ export default function SalarySlipModal({
             {/* PHẦN A: BẢNG CHI TIẾT THU NHẬP */}
             <div
               data-testid="payslip-part-a"
-              className="border border-slate-200 dark:border-slate-700/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900"
+              className="border border-slate-200/80 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs"
             >
-              <div className="bg-slate-100 dark:bg-slate-800 px-3.5 py-2 text-xs font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 flex justify-between">
+              <div className="bg-[#F0F3FF] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-extrabold text-[#111C2D] dark:text-slate-200 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700 flex justify-between">
                 <span>Phần A • Chi Tiết Thu Nhập</span>
                 <span>Số Tiền (VNĐ)</span>
               </div>
@@ -766,11 +766,13 @@ export default function SalarySlipModal({
               </div>
             </div>
 
-            <div className="sedinco-ticket-divider" />
+            <div className="sedinco-ticket-cutout">
+              <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+            </div>
 
             {/* Khấu trừ & Thực lĩnh */}
             <div className="border border-slate-200/80 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-              <div className="bg-slate-100 dark:bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700">
+              <div className="bg-[#F0F3FF] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-extrabold text-[#111C2D] dark:text-slate-200 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700">
                 Khấu trừ &amp; Thực lĩnh
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">

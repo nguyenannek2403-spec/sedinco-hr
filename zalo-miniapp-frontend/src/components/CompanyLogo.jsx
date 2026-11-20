@@ -44,11 +44,11 @@ export default function CompanyLogo({
       {!iconOnly && (
         <div className={isHorizontal ? "text-left" : "text-center"}>
           <h1
-            className={`font-black tracking-tight uppercase leading-tight ${
-              theme === "dark" ? "text-white" : "text-slate-900 dark:text-white"
+            className={`font-extrabold tracking-tight uppercase leading-tight ${
+              theme === "dark" ? "text-white" : "text-[#111C2D] dark:text-white"
             } ${isLarge ? "text-2xl md:text-3xl tracking-wide mt-1" : isSmall ? "text-sm" : "text-base"}`}
           >
-            SEDINCO <span className="text-red-500">HR</span>
+            SEDINCO <span className="text-[#E11D48] dark:text-rose-400">HR</span>
           </h1>
           {showSubtitle && (
             <p
@@ -56,7 +56,7 @@ export default function CompanyLogo({
                 theme === "dark" ? "text-slate-300" : "text-slate-500 dark:text-slate-300"
               } ${isLarge ? "text-xs md:text-sm mt-1" : "text-xs mt-0.5"}`}
             >
-              HỆ THỐNG QUẢN TRỊ NHÂN SỰ & CHẤM CÔNG
+              HỆ THỐNG QUẢN TRỊ NHÂN SỰ &amp; CHẤM CÔNG
             </p>
           )}
         </div>

@@ -141,28 +141,54 @@ export default function PeriodLockModal({
     >
       <div className="p-5 space-y-4">
         {errorMessage && (
-          <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200 text-xs font-bold flex items-start gap-2.5">
+          <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200 text-xs font-bold flex items-start gap-2.5">
             <AlertTriangle size={18} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
             <span>{errorMessage}</span>
           </div>
         )}
 
-        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-300 dark:border-amber-800/70 text-amber-950 dark:text-amber-200 text-sm space-y-2">
-          <div className="flex items-center gap-2 font-black text-sm text-amber-900 dark:text-amber-200">
-            <ShieldAlert size={18} className="text-amber-700 dark:text-amber-300 shrink-0" />
-            <span>Lưu ý quan trọng về tính toàn vẹn dữ liệu:</span>
+        {/* STITCH PHYSICAL TICKET VOUCHER CARD FOR PERIOD LOCK / UNLOCK */}
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase tracking-wider">
+              <ShieldAlert size={14} className="shrink-0" />
+              <span>{isLockAction ? "THAO TÁC CHỐT KỲ CÔNG" : "THẨM QUYỀN GIÁM ĐỐC"}</span>
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#F0F3FF] dark:bg-slate-900 text-[#111C2D] dark:text-slate-200 text-xs font-extrabold font-mono">
+              Kỳ T{month}/{year}
+            </span>
           </div>
-          <p className="text-xs md:text-sm leading-relaxed text-amber-900 dark:text-amber-200/90 font-semibold">
+
+          <p className="text-xs sm:text-sm leading-relaxed text-[#111C2D] dark:text-slate-200 font-semibold">
             {isLockAction ? (
               <>
-                Sau khi Kế toán xác nhận <strong>Chốt công</strong>, toàn bộ bảng chấm công của Tháng {month}/{year} sẽ bị đóng băng. Nhân sự và Nhân viên sẽ <strong>không thể sửa đổi hay bổ sung công</strong> nữa để đảm bảo số liệu tính lương chính xác tuyệt đối.
+                Sau khi xác nhận <strong>Chốt công</strong>, toàn bộ bảng chấm công của Tháng {month}/{year} sẽ được khóa sổ để đảm bảo số liệu tính lương chính xác tuyệt đối.
               </>
             ) : (
               <>
-                Việc <strong>Mở lại kỳ công đã chốt</strong> chỉ dành cho Ban Quản Trị và bắt buộc phải có lý do giải trình cụ thể để lưu lại trong Nhật ký thao tác.
+                Việc <strong>Mở lại kỳ công đã chốt</strong> chỉ dành riêng cho Quản trị viên (Admin) và bắt buộc ghi rõ lý do giải trình trong Nhật ký An ninh.
               </>
             )}
           </p>
+
+          <div className="sedinco-ticket-cutout">
+            <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+            <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700">
+              <span className="block text-slate-500 dark:text-slate-400 font-semibold">1. Bảng công 31 ngày</span>
+              <strong className="text-[#111C2D] dark:text-white">{isLockAction ? "Đóng băng sửa đổi" : "Mở quyền điều chỉnh"}</strong>
+            </div>
+            <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700">
+              <span className="block text-slate-500 dark:text-slate-400 font-semibold">2. Bảng lương MISA</span>
+              <strong className="text-[#16A34A] dark:text-emerald-300">Đồng bộ chuẩn 8h</strong>
+            </div>
+            <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700">
+              <span className="block text-slate-500 dark:text-slate-400 font-semibold">3. Chuông Zalo 🔔</span>
+              <strong className="text-[#B80035] dark:text-rose-300">{isLockAction ? "Gửi thông báo toàn bộ NV" : "Ghi vết Audit Log"}</strong>
+            </div>
+          </div>
         </div>
 
         <form id="period-lock-form" onSubmit={handleAction} className="space-y-4">

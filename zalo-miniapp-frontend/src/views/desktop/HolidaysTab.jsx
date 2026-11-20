@@ -108,15 +108,18 @@ export default function HolidaysTab({ showToast }) {
 
   return (
     <div className="space-y-4 max-w-4xl pb-28">
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-xl flex flex-wrap items-center justify-between gap-3">
+      {/* Header — Google Stitch Sedinco Pulse Holiday Multiplier Hub */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white flex items-center gap-2">
-            <Gift className="w-5 h-5 text-rose-500 dark:text-rose-400 shrink-0" />
-            Danh mục lịch nghỉ lễ quốc gia
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase tracking-wider mb-1">
+            <span>● SEDINCO HOLIDAYS &amp; OT MULTIPLIER (3,0X)</span>
+          </span>
+          <h2 className="text-lg font-extrabold leading-snug text-[#111C2D] dark:text-white flex items-center gap-2">
+            <Gift className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />
+            <span>Danh mục lịch nghỉ lễ quốc gia</span>
           </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">
-            Ngày lễ được nhân hệ số lương 3.0x khi làm thêm giờ theo quy định
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">
+            Ngày nghỉ lễ hưởng nguyên lương (1,0 công) và nhân hệ số 3,0x khi tăng ca (OT)
           </p>
         </div>
 

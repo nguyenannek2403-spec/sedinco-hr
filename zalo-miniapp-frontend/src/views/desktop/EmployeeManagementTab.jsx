@@ -1380,22 +1380,57 @@ export default function EmployeeManagementTab({
             onSubmit={handleSaveDetailModal}
             className="p-4 sm:p-5 space-y-5"
           >
-            {/* V25: Truy cập nhanh Bảng lương & Bảng công chi tiết của nhân viên này */}
-            {detailEmp.role !== "admin" && canViewPayroll && (
-              <AppButton
-                data-testid="emp-360-payslip-btn"
-                variant="success"
-                fullWidth
-                icon={FileSpreadsheet}
-                onClick={() => setPayslipEmp(detailEmp)}
-                className="text-xs sm:text-sm"
-              >
-                Xem Lương &amp; Công chi tiết
-              </AppButton>
-            )}
+            {/* STITCH 360° EXECUTIVE PROFILE VOUCHER HEADER CARD */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-2xl bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#B80035] dark:text-rose-300 font-extrabold text-base flex items-center justify-center shrink-0">
+                    {String(detailEmp.ho_ten || detailEmp.ma_nv || "N").trim().split(/\s+/).slice(-1)[0]?.[0]?.toUpperCase() || "N"}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-extrabold text-base text-[#111C2D] dark:text-white break-words">
+                        {detailEmp.ho_ten}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#E11D48] dark:text-rose-300">
+                        {detailEmp.ma_nv}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">
+                      {detailEmp.department || "Khối Công trình"} • {detailEmp.chuc_danh || "Nhân viên"}
+                    </p>
+                  </div>
+                </div>
+                <StatusBadge type="employee" status={Boolean(detailEmp.is_locked || detailEmp.status === "inactive") ? "locked" : "active"} />
+              </div>
+
+              {detailEmp.role !== "admin" && (
+                <>
+                  <div className="sedinco-ticket-cutout">
+                    <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="font-bold text-slate-700 dark:text-slate-200">
+                      📱 {detailDevSummary.primaryLabel}
+                    </span>
+                    {canViewPayroll && (
+                      <AppButton
+                        data-testid="emp-360-payslip-btn"
+                        variant="success"
+                        icon={FileSpreadsheet}
+                        onClick={() => setPayslipEmp(detailEmp)}
+                        className="text-xs px-3.5 py-2"
+                      >
+                        Xem Lương &amp; Công chi tiết
+                      </AppButton>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* KHU VỰC 1: THÔNG TIN & CHẾ ĐỘ ĐÃI NGỘ */}
-            <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
+            <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
               <h3 className="text-sm font-black text-[#E11D48] dark:text-rose-300 uppercase tracking-wide flex items-center gap-2">
                 <Users className="w-4 h-4 shrink-0" />
                 <span>1. Thông tin &amp; Chế độ đãi ngộ</span>
