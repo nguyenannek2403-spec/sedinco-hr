@@ -14,17 +14,17 @@ const STATE_META = {
     stickerText: "Xin chào! Chúc bạn ca làm việc vui vẻ! 👋",
     caption: "Đang trong ca làm việc • Chúc bạn một ngày hiệu quả!",
     captionClass:
-      "bg-blue-50 dark:bg-blue-950/70 border-blue-200 dark:border-blue-700 text-[#0068FF] dark:text-blue-200",
+      "bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-200",
     stickerClass:
-      "bg-blue-50 dark:bg-slate-800 border-2 border-[#0068FF] dark:border-blue-400 text-slate-900 dark:text-white shadow-lg"
+      "bg-emerald-50 dark:bg-slate-800 border-2 border-[#16A34A] dark:border-emerald-400 text-[#111C2D] dark:text-white shadow-lg"
   },
   waving_goodbye: {
     stickerText: "Tạm biệt! Hẹn gặp lại nhé! 👋✨",
     caption: "Tạm biệt! Chúc bạn nghỉ ngơi vui vẻ bên gia đình 🎉",
     captionClass:
-      "bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-200",
+      "bg-rose-50 dark:bg-rose-950/70 border-rose-200 dark:border-rose-700 text-[#E11D48] dark:text-rose-200",
     stickerClass:
-      "bg-emerald-50 dark:bg-slate-800 border-2 border-emerald-500 dark:border-emerald-400 text-slate-900 dark:text-white shadow-lg"
+      "bg-rose-50 dark:bg-slate-800 border-2 border-[#E11D48] dark:border-rose-400 text-[#111C2D] dark:text-white shadow-lg"
   }
 };
 
@@ -66,7 +66,7 @@ export default function SedincoMascot({
   return (
     <div
       data-mascot-state={activeState}
-      className={`w-full rounded-2xl bg-gradient-to-b from-blue-50/60 via-white to-slate-50/70 dark:from-slate-800/70 dark:via-slate-900 dark:to-slate-900 border border-slate-200/80 dark:border-slate-800 px-3 py-3.5 flex flex-col items-center justify-center text-center space-y-2.5 ${className}`}
+      className={`w-full rounded-2xl bg-gradient-to-b from-[#F0F3FF]/80 via-white to-[#FFF1F2]/40 dark:from-slate-800/70 dark:via-slate-900 dark:to-slate-900 border border-slate-200/80 dark:border-slate-800 px-3 py-3.5 flex flex-col items-center justify-center text-center space-y-2.5 shadow-sm ${className}`}
     >
       {/* Sticker Lời Nói Nổi Bật (khi Đang trong ca hoặc Tan ca) */}
       {meta.stickerText && (
@@ -78,8 +78,8 @@ export default function SedincoMascot({
             aria-hidden="true"
             className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 ${
               activeState === "waving_goodbye"
-                ? "bg-emerald-50 dark:bg-slate-800 border-r-2 border-b-2 border-emerald-500 dark:border-emerald-400"
-                : "bg-blue-50 dark:bg-slate-800 border-r-2 border-b-2 border-[#0068FF] dark:border-blue-400"
+                ? "bg-rose-50 dark:bg-slate-800 border-r-2 border-b-2 border-[#E11D48] dark:border-rose-400"
+                : "bg-emerald-50 dark:bg-slate-800 border-r-2 border-b-2 border-[#16A34A] dark:border-emerald-400"
             }`}
           />
         </div>
@@ -90,7 +90,7 @@ export default function SedincoMascot({
         type="button"
         onClick={handleCyclePreview}
         aria-label={`Nhân vật Sedinco: ${meta.caption}. Chạm để xem các trạng thái`}
-        className="relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0068FF] rounded-2xl cursor-pointer select-none bg-transparent border-0 p-0"
+        className="relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E11D48] rounded-2xl cursor-pointer select-none bg-transparent border-0 p-0"
       >
         <svg
           viewBox="0 0 220 220"
@@ -100,8 +100,8 @@ export default function SedincoMascot({
         >
           <defs>
             <radialGradient id={shadowGradId} cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#0068FF" stopOpacity="0.16" />
-              <stop offset="100%" stopColor="#0068FF" stopOpacity="0" />
+              <stop offset="0%" stopColor={activeState === "waving_hello" ? "#16A34A" : "#E11D48"} stopOpacity="0.14" />
+              <stop offset="100%" stopColor={activeState === "waving_hello" ? "#16A34A" : "#E11D48"} stopOpacity="0" />
             </radialGradient>
 
             {/* Clip Path cho thân áo Polo để 3 dải sọc chéo khớp viền áo 100% */}
@@ -120,7 +120,7 @@ export default function SedincoMascot({
               <text
                 x="148"
                 y="56"
-                fill="#0068FF"
+                fill="#E11D48"
                 fontSize="16"
                 fontWeight="900"
                 fontFamily="system-ui, sans-serif"
@@ -131,7 +131,7 @@ export default function SedincoMascot({
               <text
                 x="160"
                 y="45"
-                fill="#2563EB"
+                fill="#BE123C"
                 fontSize="21"
                 fontWeight="900"
                 fontFamily="system-ui, sans-serif"
@@ -142,7 +142,7 @@ export default function SedincoMascot({
               <text
                 x="173"
                 y="34"
-                fill="#0EA5E9"
+                fill="#FB7185"
                 fontSize="15"
                 fontWeight="900"
                 fontFamily="system-ui, sans-serif"
@@ -179,8 +179,8 @@ export default function SedincoMascot({
               {/* Giày Chibi */}
               <path d="M 81 190 Q 81 183 94 183 Q 106 183 106 194 L 82 194 Z" fill="#FFFFFF" stroke="#334155" strokeWidth="1.5" />
               <path d="M 114 194 Q 114 183 126 183 Q 139 183 139 190 L 138 194 Z" fill="#FFFFFF" stroke="#334155" strokeWidth="1.5" />
-              <rect x="81" y="193" width="26" height="5" rx="2.5" fill="#0068FF" />
-              <rect x="113" y="193" width="26" height="5" rx="2.5" fill="#0068FF" />
+              <rect x="81" y="193" width="26" height="5" rx="2.5" fill="#E11D48" />
+              <rect x="113" y="193" width="26" height="5" rx="2.5" fill="#E11D48" />
             </g>
 
             {/* Cánh tay trái (bên phải hình — vẫy nhẹ hoặc đặt gọn bên hông) */}

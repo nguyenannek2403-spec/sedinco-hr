@@ -96,13 +96,11 @@ export default function WorkerDashboard({
 
   return (
     <div
-      className="w-full h-[100dvh] bg-[#F4F6F9] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden transition-colors duration-200"
+      className="w-full h-[100dvh] bg-[#F9F9FF] dark:bg-[#090D16] text-[#111C2D] dark:text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden transition-colors duration-200"
     >
-      {/* Top ZaUI Doctor Gradient Header — Chừa vùng an toàn pr-[96px] cho cụm nút Zalo */}
+      {/* Top Sedinco Pulse Glass Header — Chừa vùng an toàn pr-[96px] cho cụm nút Zalo */}
       <header
-        className={`shrink-0 z-40 w-full bg-[#0055D4] bg-gradient-to-r from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 text-white px-3.5 pb-2.5 flex flex-col gap-1.5 transition-colors duration-200 ${
-          activeTab !== "checkin" ? "rounded-b-[24px] shadow-md" : ""
-        }`}
+        className="shrink-0 z-40 w-full sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 text-[#111C2D] dark:text-white px-3.5 pb-2.5 flex flex-col gap-2 transition-colors duration-200"
         style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
       >
         {/* Hàng 1: Định danh nhân sự / Quay lại + vùng chừa capsule Zalo */}
@@ -112,19 +110,19 @@ export default function WorkerDashboard({
               type="button"
               onClick={() => setActiveTab("checkin")}
               aria-label="Trở về"
-              className="min-w-[44px] min-h-[44px] px-2.5 py-2 rounded-full bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 text-white border border-white/25 flex items-center justify-center gap-1 text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer"
+              className="min-w-[44px] min-h-[44px] px-3 py-2 rounded-full bg-rose-50 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#B80035] dark:text-rose-300 border border-rose-200/80 dark:border-slate-700 flex items-center justify-center gap-1 text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4 shrink-0" />
               <span>Trở về</span>
             </button>
           ) : (
-            <div className="w-10 h-10 rounded-full bg-white/95 dark:bg-slate-800 border-2 border-white/50 dark:border-slate-700 flex items-center justify-center shadow-sm shrink-0 text-sm font-extrabold text-[#0068FF] dark:text-blue-300">
+            <div className="w-10 h-10 rounded-xl bg-[#E11D48] text-white border border-[#BE123C]/40 flex items-center justify-center shadow-[0_4px_12px_-2px_rgba(225,29,72,0.3)] shrink-0 text-sm font-extrabold">
               {initials}
             </div>
           )}
 
           <div className="flex-1 min-w-0 text-left">
-            <div className="text-sm font-extrabold text-white leading-tight break-words">
+            <div className="text-sm font-extrabold text-[#111C2D] dark:text-white leading-tight break-words">
               {activeTab === "checkin"
                 ? `Xin chào, ${currentUser?.ho_ten || "Nhân viên"}`
                 : activeTab === "history"
@@ -133,7 +131,7 @@ export default function WorkerDashboard({
                     ? "Đơn từ & Phép năm"
                     : "Tài khoản Cá nhân"}
             </div>
-            <div className="text-xs text-blue-100 dark:text-blue-300 font-semibold leading-snug break-words mt-0.5">
+            <div className="text-xs text-slate-600 dark:text-slate-300 font-semibold leading-snug break-words mt-0.5">
               {currentUser?.login_username || currentUser?.ma_nv || "NV"} •{" "}
               {currentUser?.role === "admin"
                 ? "Quản trị"
@@ -146,8 +144,8 @@ export default function WorkerDashboard({
 
         {/* Hàng 2: Trạng thái + Chuông thông báo + Sáng/Tối + Thoát */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-900/45 dark:bg-slate-800/90 border border-white/20 text-xs font-semibold text-white whitespace-nowrap shrink-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 text-xs font-bold text-[#16A34A] dark:text-emerald-300 whitespace-nowrap shrink-0">
+            <span className="w-2 h-2 rounded-full bg-[#16A34A] dark:bg-emerald-400 shrink-0" />
             <span>Trực tuyến</span>
           </span>
 
@@ -158,13 +156,13 @@ export default function WorkerDashboard({
               onClick={handleOpenBell}
               aria-label="Thông báo chốt công và bảng lương"
               title="Thông báo chốt kỳ công & bảng lương"
-              className="relative min-w-[44px] min-h-[44px] px-2.5 py-2 bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 dark:hover:bg-slate-700 border border-white/25 dark:border-slate-700 text-white rounded-full transition-colors flex items-center justify-center gap-1 text-xs font-bold shrink-0 cursor-pointer"
+              className="relative min-w-[44px] min-h-[44px] px-2.5 py-2 bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/90 dark:border-slate-700 text-[#111C2D] dark:text-white rounded-xl transition-colors flex items-center justify-center gap-1.5 text-xs font-bold shrink-0 cursor-pointer"
             >
-              <Bell className={`w-4 h-4 shrink-0 ${unreadCount > 0 ? "text-amber-300" : "text-white"}`} />
+              <Bell className={`w-4 h-4 shrink-0 ${unreadCount > 0 ? "text-[#E11D48] dark:text-rose-400" : "text-slate-600 dark:text-slate-300"}`} />
               {unreadCount > 0 && (
                 <span
                   data-testid="worker-bell-badge"
-                  className="px-1.5 py-0.5 text-xs leading-none rounded-full bg-rose-600 text-white font-black"
+                  className="px-1.5 py-0.5 text-xs leading-none rounded-full bg-[#E11D48] text-white font-black"
                 >
                   {unreadCount}
                 </span>
@@ -178,7 +176,7 @@ export default function WorkerDashboard({
               onClick={onLogout}
               title="Đăng xuất"
               aria-label="Đăng xuất"
-              className="min-w-[44px] min-h-[44px] px-3 py-2 bg-blue-900/45 hover:bg-rose-600/85 dark:bg-slate-800/90 dark:hover:bg-rose-600/80 border border-white/25 dark:border-slate-700 text-white rounded-full transition-colors flex items-center justify-center gap-1 text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer"
+              className="min-w-[44px] min-h-[44px] px-3 py-2 bg-[#F0F3FF] hover:bg-rose-50 hover:text-[#B80035] dark:bg-slate-800 dark:hover:bg-rose-600/20 dark:hover:text-rose-300 border border-slate-200/90 dark:border-slate-700 text-[#111C2D] dark:text-white rounded-xl transition-colors flex items-center justify-center gap-1 text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5 shrink-0" />
               <span>Thoát</span>
@@ -225,10 +223,10 @@ export default function WorkerDashboard({
         </div>
       </main>
 
-      {/* ZaUI Bottom Navigation Bar */}
+      {/* Sedinco Pulse Bottom Navigation Bar */}
       <nav
-        className="shrink-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800/90 px-1.5 pt-1.5 flex items-center justify-around gap-0.5 shadow-[0_-6px_24px_-6px_rgba(15,23,42,0.08)] dark:shadow-2xl transition-colors duration-200"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
+        className="shrink-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/90 px-1.5 pt-1.5 flex items-center justify-around gap-0.5 shadow-[0_-6px_24px_-6px_rgba(17,28,45,0.08)] dark:shadow-2xl transition-colors duration-200"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
       >
         {[
           { key: "checkin", label: "Chấm công", Icon: Clock },
@@ -244,14 +242,14 @@ export default function WorkerDashboard({
               onClick={() => setActiveTab(key)}
               className={`relative flex-1 min-w-0 flex flex-col items-center justify-center gap-1 min-h-[48px] py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
                 active
-                  ? "text-[#0068FF] dark:text-blue-400 font-bold bg-blue-50/90 dark:bg-blue-500/15"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium"
+                  ? "text-[#E11D48] dark:text-rose-400 font-bold bg-rose-50/90 dark:bg-rose-500/15"
+                  : "text-slate-600 dark:text-slate-400 hover:text-[#111C2D] dark:hover:text-slate-200 font-medium"
               }`}
             >
               {active && (
                 <span
                   aria-hidden="true"
-                  className="w-5 h-1 rounded-full bg-[#0068FF] dark:bg-blue-400 mb-0.5"
+                  className="w-6 h-1 rounded-full bg-[#E11D48] dark:bg-rose-400 mb-0.5"
                 />
               )}
               <Icon className={`w-5 h-5 ${active ? "scale-105" : ""}`} />

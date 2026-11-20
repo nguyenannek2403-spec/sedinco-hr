@@ -50,12 +50,12 @@ export function EmptyState({
       className={`py-12 px-5 rounded-2xl border text-center space-y-2.5 ${
         isDark
           ? "bg-slate-800/40 border-slate-700/60 text-slate-300"
-          : "bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800/40 dark:border-slate-700/60 dark:text-slate-300"
+          : "bg-[#F0F3FF]/80 border-slate-200/80 text-slate-600 dark:bg-slate-800/40 dark:border-slate-700/60 dark:text-slate-300"
       } ${className}`}
     >
       <div
         className={`w-12 h-12 rounded-2xl mx-auto flex items-center justify-center ${
-          isDark ? "bg-slate-800 text-slate-400" : "bg-white text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700"
+          isDark ? "bg-slate-800 text-slate-400" : "bg-white text-[#E11D48] border border-rose-100 shadow-xs dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
         }`}
       >
         <Icon className="w-6 h-6" />

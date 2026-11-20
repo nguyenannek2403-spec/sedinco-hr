@@ -433,11 +433,11 @@ export default function PayrollGridTable({
       {/* 4 Card KPI Tổng Quan Tài Chính — ZaUI Squircle KPI Tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
-        {/* KPI 1: Tổng Quỹ Lương Net */}
-        <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 text-white rounded-2xl p-4 sm:p-5 shadow-md border border-blue-500/40 relative overflow-hidden">
+        {/* KPI 1: Tổng Quỹ Lương Net (Sedinco Pulse Hero) */}
+        <div className="bg-[#E11D48] bg-gradient-to-br from-[#E11D48] via-[#D81441] to-[#B80035] dark:bg-slate-900 dark:from-[#9F1239] dark:via-rose-950 dark:to-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-md border border-rose-500/40 relative overflow-hidden">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-blue-100 font-semibold">Tổng quỹ lương (Net)</span>
-            <div className="p-2 bg-blue-900/45 dark:bg-slate-800 rounded-xl border border-white/25 shrink-0">
+            <span className="text-xs text-rose-100 font-semibold">Tổng quỹ lương (Net)</span>
+            <div className="p-2 bg-rose-950/35 dark:bg-slate-800 rounded-xl border border-white/25 shrink-0">
               <DollarSign size={20} className="text-white" />
             </div>
           </div>
@@ -445,7 +445,7 @@ export default function PayrollGridTable({
             <span className="text-xl sm:text-2xl font-extrabold text-white">
               {formatViCurrency(totalNetSalary)}
             </span>
-            <span className="text-xs text-blue-100 block mt-1 font-medium">Chi trả kỳ tháng {month}/{year}</span>
+            <span className="text-xs text-rose-100 block mt-1 font-medium">Chi trả kỳ tháng {month}/{year}</span>
           </div>
         </div>
 
@@ -453,7 +453,7 @@ export default function PayrollGridTable({
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-100/90 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Tổng số nhân sự</span>
-            <div className="p-2 bg-blue-50 dark:bg-blue-950/60 text-[#0068FF] dark:text-blue-300 rounded-xl border border-blue-200/80 dark:border-blue-800/70 shrink-0">
+            <div className="p-2 bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 rounded-xl border border-rose-200/80 dark:border-rose-800/70 shrink-0">
               <Users size={20} />
             </div>
           </div>
@@ -536,7 +536,7 @@ export default function PayrollGridTable({
             {/* Thanh chuyển đổi Bảng lương Tổng quan / Bảng lương Chi tiết */}
             <div
               data-filter-group="payroll-view-mode"
-              className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 gap-1"
+              className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex items-center p-1 rounded-xl bg-[#F0F3FF] dark:bg-slate-950 border border-slate-200 dark:border-slate-700 gap-1"
             >
               <button
                 type="button"
@@ -545,7 +545,7 @@ export default function PayrollGridTable({
                 onClick={() => setViewMode("overview")}
                 className={`min-h-[44px] px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer leading-tight text-center ${
                   viewMode === "overview"
-                    ? "bg-[#0068FF] text-white shadow-sm"
+                    ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600"
                     : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
@@ -559,7 +559,7 @@ export default function PayrollGridTable({
                 onClick={() => setViewMode("detailed")}
                 className={`min-h-[44px] px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer leading-tight text-center ${
                   viewMode === "detailed"
-                    ? "bg-[#0068FF] text-white shadow-sm"
+                    ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600"
                     : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
@@ -597,7 +597,7 @@ export default function PayrollGridTable({
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="w-full sm:w-auto max-w-full min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-emerald-600 dark:focus:border-emerald-400 shadow-sm text-slate-800 dark:text-slate-100"
+              className="w-full sm:w-auto max-w-full min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] dark:focus:border-rose-400 shadow-sm text-slate-800 dark:text-slate-100"
             >
               <option value="ALL">🏢 Tất cả bộ phận</option>
               {availableDepartments.map((dept) => (
@@ -615,7 +615,7 @@ export default function PayrollGridTable({
                 placeholder="Tìm nhân sự, chức vụ, mã NV..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-emerald-600 dark:focus:border-emerald-400 shadow-sm"
+                className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] dark:focus:border-rose-400 shadow-sm"
               />
             </div>
 
@@ -643,13 +643,13 @@ export default function PayrollGridTable({
             {/* Nút Duyệt & Phát Hành Phiếu Lương */}
             {canApprovePayroll && (
               <AppButton
-                variant="primary"
+                variant="zalo"
                 icon={CheckCircle2}
                 loading={approving}
                 disabled={isLoading}
                 loadingText="Đang lưu..."
                 onClick={handleApprovePayroll}
-                className="bg-indigo-600 hover:bg-indigo-700 border-indigo-700 text-xs sm:text-sm px-3.5 py-2"
+                className="text-xs sm:text-sm px-3.5 py-2"
               >
                 Chốt &amp; Phát hành
               </AppButton>
@@ -808,7 +808,7 @@ export default function PayrollGridTable({
                     <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                          <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-200 border border-rose-200 dark:border-rose-800">
                             {empId}
                           </span>
                           <h4 className="font-extrabold text-base text-slate-900 dark:text-white break-words">
@@ -946,7 +946,7 @@ export default function PayrollGridTable({
                         onClick={() => toggleDailyLogsRow(empId)}
                         className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 inline-flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Calendar size={14} className="text-[#0068FF] dark:text-blue-400" />
+                        <Calendar size={14} className="text-[#E11D48] dark:text-rose-400" />
                         <span>Đối chiếu nhật ký công ({formatViNumber(dailyLogs.length, 0)} ngày)</span>
                         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
@@ -1015,7 +1015,7 @@ export default function PayrollGridTable({
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
                                     <div className="text-right font-mono">
-                                      <div className="font-bold text-[#0068FF] dark:text-blue-300">
+                                      <div className="font-bold text-[#E11D48] dark:text-rose-300">
                                         {formatViWorkday(log.work_credit ?? 0)} công
                                       </div>
                                       <div className="font-semibold text-emerald-700 dark:text-emerald-300">
@@ -1067,7 +1067,7 @@ export default function PayrollGridTable({
                 >
                   <div className="flex items-start justify-between gap-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/20 border border-blue-200/80 dark:border-blue-500/40 text-[#0068FF] dark:text-blue-300 font-extrabold text-sm flex items-center justify-center shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-extrabold text-sm flex items-center justify-center shrink-0">
                         {empInitial}
                       </div>
                       <div className="min-w-0">
@@ -1105,7 +1105,7 @@ export default function PayrollGridTable({
                     </div>
                   )}
 
-                  <div className="zaui-ticket-divider !my-2" />
+                  <div className="sedinco-ticket-divider !my-2" />
 
                   <div className={`grid ${canCalculatePayroll ? "grid-cols-2" : "grid-cols-1"} gap-2`}>
                     {canCalculatePayroll && (
@@ -1137,8 +1137,8 @@ export default function PayrollGridTable({
         <div className="hidden md:block overflow-x-auto touch-scroll-x">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold border-b-2 border-slate-300 dark:border-slate-700 text-xs">
-                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 min-w-[160px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)] whitespace-nowrap">Cán bộ nhân sự</th>
+              <tr className="bg-[#F0F3FF] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold border-b-2 border-slate-300 dark:border-slate-700 text-xs">
+                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-[#F0F3FF] dark:bg-slate-800 z-10 min-w-[160px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)] whitespace-nowrap">Cán bộ nhân sự</th>
                 <th className="p-3.5 text-right whitespace-nowrap">Lương CB (HĐ)</th>
                 <th className="p-3.5 text-center whitespace-nowrap">Công TT</th>
                 <th className="p-3.5 text-right whitespace-nowrap">Lương công</th>
@@ -1192,7 +1192,7 @@ export default function PayrollGridTable({
                       >
                         <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm truncate">{item.ho_ten}</div>
                         <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-1 mt-0.5">
-                          <span className="font-mono text-blue-700 dark:text-blue-300 font-semibold">{empId}</span>
+                          <span className="font-mono text-[#E11D48] dark:text-rose-300 font-semibold">{empId}</span>
                           <span>• {item.department || "Khối Công trình"}</span>
                         </div>
                       </td>
@@ -1200,7 +1200,7 @@ export default function PayrollGridTable({
                         {formatViCurrency(item.baseSalary || 0)}
                       </td>
                       <td className="p-3.5 text-center whitespace-nowrap">
-                        <span className="inline-block px-2.5 py-1 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 font-bold text-xs border border-blue-300 dark:border-blue-800/70">
+                        <span className="inline-block px-2.5 py-1 rounded-xl bg-[#F0F3FF] dark:bg-rose-950/60 text-[#111C2D] dark:text-rose-200 font-bold text-xs border border-slate-200 dark:border-rose-800/70">
                           {formatViWorkday(item.totalWorkDays)} công
                         </span>
                       </td>
@@ -1443,7 +1443,7 @@ export default function PayrollGridTable({
                 value={adjForm.adjustment_note}
                 onChange={(e) => setAdjForm((f) => ({ ...f, adjustment_note: e.target.value }))}
                 placeholder="Ví dụ: Thưởng hoàn thành vượt tiến độ công trình..."
-                className="w-full px-3 py-2 border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-600 leading-relaxed"
+                className="w-full px-3 py-2 border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#E11D48] leading-relaxed"
               />
             </div>
           </form>

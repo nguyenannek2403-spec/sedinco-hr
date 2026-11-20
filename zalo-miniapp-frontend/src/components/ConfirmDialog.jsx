@@ -48,7 +48,7 @@ export default function ConfirmDialog({
           btnVariant: "warning",
         }
       : {
-          iconBg: "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300",
+          iconBg: "bg-rose-100 text-[#E11D48] dark:bg-rose-950/60 dark:text-rose-300",
           Icon: CheckCircle2,
           btnVariant: "primary",
         };
@@ -125,7 +125,7 @@ export default function ConfirmDialog({
                 if (validationError) setValidationError("");
               }}
               placeholder={inputPlaceholder}
-              className="w-full p-3 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-800"
+              className="w-full p-3 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#E11D48] focus:bg-white dark:focus:bg-slate-800"
             />
             {validationError && (
               <p className="text-xs font-medium text-rose-600 dark:text-rose-400">{validationError}</p>

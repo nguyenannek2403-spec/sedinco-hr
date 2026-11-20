@@ -121,9 +121,9 @@ export default function AppModal({
         } ${!isTopModal ? "pointer-events-none select-none" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ZaUI Bottom Sheet Drag Handle Pill */}
+        {/* Sedinco Pulse Bottom Sheet Drag Handle Pill */}
         <div
-          className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-2.5 mb-1 shrink-0"
+          className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-2.5 mb-1 shrink-0"
           aria-hidden="true"
         />
 
@@ -143,8 +143,8 @@ export default function AppModal({
               onClick={handleSafeClose}
               className={`min-h-[44px] px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
                 isDark
-                  ? "bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700"
-                  : "bg-blue-50/90 hover:bg-blue-100 text-[#0068FF] border border-blue-200/70 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-blue-300 dark:border-slate-700"
+                  ? "bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700"
+                  : "bg-rose-50/90 hover:bg-rose-100 text-[#B80035] border border-rose-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-rose-300 dark:border-slate-700"
               }`}
             >
               <ArrowLeft className="w-4 h-4 shrink-0" />

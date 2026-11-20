@@ -194,8 +194,8 @@ async function waitForNoBlockingLoading(session) {
     await waitForCondition(
         session,
         `(() => {
-            const text = document.body.innerText || '';
-            return !text.includes('Đang khởi tạo phiên làm việc') && !text.includes('Đang tải dữ liệu');
+            const text = (document.body.innerText || '').trim();
+            return text.length > 0 && !text.includes('Đang khởi tạo phiên làm việc') && !text.includes('Đang tải dữ liệu');
         })()`,
         8000,
         'page ready without blocking spinner'

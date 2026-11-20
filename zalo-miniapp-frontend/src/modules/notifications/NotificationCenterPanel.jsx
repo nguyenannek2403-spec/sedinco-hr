@@ -154,21 +154,27 @@ export default function NotificationCenterPanel({
         }}
       />
 
-      {/* Hộp danh sách thông báo */}
+      {/* Hộp danh sách thông báo — Bottom Sheet trên Mobile & Floating Card trên Desktop (Google Stitch Screen 14) */}
       <div
         ref={cardRef}
         data-testid="notification-popover"
         onClick={(e) => e.stopPropagation()}
-        className={`fixed left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+64px)] sm:left-auto sm:right-4 sm:w-[420px] max-h-[75vh] z-10 flex flex-col rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in ${
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        className={`fixed left-3 right-3 bottom-3 sm:bottom-auto sm:top-[calc(env(safe-area-inset-top,0px)+64px)] sm:left-auto sm:right-4 sm:w-[420px] max-h-[82vh] sm:max-h-[75vh] z-10 flex flex-col rounded-[28px] sm:rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 overflow-hidden animate-sheet-up sm:animate-fade-in ${
           !isTopModal ? "pointer-events-none select-none" : ""
         }`}
       >
+        {/* Drag Handle chuẩn Zalo Mini App trên Mobile */}
+        <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-2.5 mb-1 shrink-0 sm:hidden" aria-hidden="true" />
+
         {/* Header của hộp thông báo */}
-        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Bell className="w-4 h-4 text-[#0068FF] dark:text-blue-400 shrink-0" />
+        <div className="px-4 py-3 border-b border-slate-200/80 dark:border-slate-800 bg-[#F9F9FF] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
+              <Bell className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
+            </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
+              <h3 className="text-sm font-black text-[#111C2D] dark:text-white leading-tight truncate">
                 {title}
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug truncate">
@@ -181,7 +187,7 @@ export default function NotificationCenterPanel({
               type="button"
               onClick={handleClose}
               aria-label="Đóng"
-              className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/80 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+              className="min-w-[44px] min-h-[44px] p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/80 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white flex items-center justify-center shrink-0 cursor-pointer transition-colors"
             >
               <X size={18} />
             </button>
@@ -191,13 +197,13 @@ export default function NotificationCenterPanel({
         {/* Nội dung cuộn độc lập */}
         <div
           data-testid={isWorker ? "worker-notification-modal" : undefined}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area p-3.5 bg-white dark:bg-slate-900 space-y-3"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area p-3.5 bg-[#F9F9FF] dark:bg-slate-900 space-y-3"
         >
           {/* Thanh thao tác đầu: Bộ lọc 3 trạng thái + Nút Đánh dấu tất cả đã đọc */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div
               data-filter-group="notification-filter"
-              className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700"
+              className="inline-flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700"
             >
               {[
                 { key: "all", label: `Tất cả${totalCount > 0 ? ` (${totalCount})` : ""}` },
@@ -217,8 +223,8 @@ export default function NotificationCenterPanel({
                     }}
                     className={`min-h-[44px] px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors whitespace-nowrap ${
                       active
-                        ? "bg-[#0068FF] text-white dark:bg-blue-600 shadow-xs"
-                        : "text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+                        ? "bg-[#E11D48] text-white dark:bg-rose-600 shadow-xs"
+                        : "text-slate-700 hover:text-[#111C2D] dark:text-slate-300 dark:hover:text-white"
                     }`}
                   >
                     {tab.label}
@@ -281,12 +287,20 @@ export default function NotificationCenterPanel({
                   <div
                     key={notif.id}
                     data-notif-unread={isUnread ? "true" : "false"}
-                    className={`perf-list-item rounded-2xl border overflow-hidden transition-colors ${
+                    className={`perf-list-item relative rounded-2xl border overflow-hidden transition-colors flex ${
                       isUnread
-                        ? "bg-blue-50/70 dark:bg-blue-950/40 border-blue-300 dark:border-blue-600/60 shadow-xs"
-                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+                        ? "bg-white dark:bg-slate-800/90 border-rose-300 dark:border-rose-500/60 shadow-sm"
+                        : "bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-700"
                     }`}
                   >
+                    {/* Thanh điểm nhấn dọc bên trái kiểu Stitch */}
+                    <div
+                      aria-hidden="true"
+                      className={`w-1.5 shrink-0 ${
+                        isUnread ? "bg-[#E11D48] dark:bg-rose-500" : "bg-[#16A34A]/60 dark:bg-emerald-600/60"
+                      }`}
+                    />
+                    <div className="flex-1 min-w-0">
                     <button
                       type="button"
                       data-testid={isWorker ? `worker-notif-item-${notif.id}` : `desktop-notif-item-${notif.id}`}
@@ -301,7 +315,7 @@ export default function NotificationCenterPanel({
                           <span
                             className={`text-xs sm:text-sm leading-snug break-words ${
                               isUnread
-                                ? "font-bold text-slate-900 dark:text-white"
+                                ? "font-bold text-[#111C2D] dark:text-white"
                                 : "font-medium text-slate-700 dark:text-slate-200"
                             }`}
                           >
@@ -312,14 +326,14 @@ export default function NotificationCenterPanel({
                         <div className="flex items-center gap-1.5 shrink-0">
                           {isUnread ? (
                             <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white text-xs font-bold whitespace-nowrap"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E11D48] text-white text-xs font-bold whitespace-nowrap"
                               aria-label="Chưa đọc"
                             >
                               <span className="w-1.5 h-1.5 rounded-full bg-white" />
                               <span>Chưa đọc</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 text-xs font-semibold whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-[#16A34A] dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 text-xs font-semibold whitespace-nowrap">
                               <Check size={12} />
                               <span>Đã đọc</span>
                             </span>
@@ -336,7 +350,7 @@ export default function NotificationCenterPanel({
 
                       <div className="flex flex-wrap items-center justify-between gap-2 pl-6 pt-0.5 text-xs text-slate-600 dark:text-slate-300">
                         <span>{formatTimeVi(notif.created_at)}</span>
-                        <span className="font-bold text-[#0068FF] dark:text-blue-300">
+                        <span className="font-bold text-[#E11D48] dark:text-rose-300">
                           {meta.actionLabel} →
                         </span>
                       </div>
@@ -344,13 +358,13 @@ export default function NotificationCenterPanel({
 
                     {/* Hàng trạng thái đọc / nút phụ đánh dấu đã đọc (stopPropagation bắt buộc) */}
                     {(isUnread && typeof onMarkSingleRead === "function") || (!isUnread && notif.read_at) ? (
-                      <div className="px-3.5 py-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2 bg-white/60 dark:bg-slate-950/40">
+                      <div className="px-3.5 py-2 border-t border-dashed border-slate-200/90 dark:border-slate-800 flex items-center justify-between gap-2 bg-[#F0F3FF]/45 dark:bg-slate-950/40">
                         {!isUnread && notif.read_at ? (
                           <span className="text-xs text-slate-600 dark:text-slate-300">
                             ✓ Đã đọc lúc {formatTimeVi(notif.read_at)}
                           </span>
                         ) : (
-                          <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                          <span className="text-xs font-semibold text-[#B80035] dark:text-rose-300">
                             Thông báo mới chưa xem
                           </span>
                         )}
@@ -364,7 +378,7 @@ export default function NotificationCenterPanel({
                               e.stopPropagation();
                               onMarkSingleRead(notif);
                             }}
-                            className="min-h-[44px] px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                            className="min-h-[44px] px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#111C2D] dark:text-slate-100 border border-slate-300 dark:border-slate-600 text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
                           >
                             <Check size={13} />
                             <span>Đánh dấu đã đọc</span>
@@ -372,6 +386,7 @@ export default function NotificationCenterPanel({
                         )}
                       </div>
                     ) : null}
+                    </div>
                   </div>
                 );
               })}

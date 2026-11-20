@@ -137,11 +137,11 @@ export function FontScaleSelector({ className = "" }) {
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 text-[#0068FF] dark:text-blue-300 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-[#E11D48] dark:text-rose-300 flex items-center justify-center shrink-0">
             <Type className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
+            <h3 className="text-sm font-bold text-[#111C2D] dark:text-white leading-snug">
               Cỡ chữ hiển thị (Hỗ trợ thị lực)
             </h3>
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug">
@@ -151,7 +151,7 @@ export function FontScaleSelector({ className = "" }) {
         </div>
         <span
           data-testid="font-scale-current-label"
-          className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-700 text-[#0068FF] dark:text-blue-300 text-xs font-extrabold whitespace-nowrap shrink-0"
+          className="px-2.5 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300 text-xs font-extrabold whitespace-nowrap shrink-0"
         >
           {activeOption.label} • {activeOption.description}
         </span>
@@ -173,12 +173,12 @@ export function FontScaleSelector({ className = "" }) {
               onClick={() => setFontScale(opt.value)}
               className={`min-h-[46px] px-2 py-2 rounded-xl border text-center flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-all ${
                 active
-                  ? "bg-[#0068FF] text-white border-blue-600 dark:bg-blue-600 dark:border-blue-400 shadow-sm font-extrabold"
-                  : "bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100 dark:border-slate-700 font-semibold"
+                  ? "bg-[#E11D48] text-white border-[#BE123C] dark:bg-rose-600 dark:border-rose-400 shadow-sm font-extrabold"
+                  : "bg-[#F0F3FF]/70 hover:bg-rose-50 text-[#111C2D] border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100 dark:border-slate-700 font-semibold"
               }`}
             >
               <span className="text-xs leading-none">{opt.label}</span>
-              <span className={`text-xs leading-tight ${active ? "text-blue-100" : "text-slate-600 dark:text-slate-300"}`}>
+              <span className={`text-xs leading-tight ${active ? "text-rose-100" : "text-slate-600 dark:text-slate-300"}`}>
                 {opt.description}
               </span>
             </button>

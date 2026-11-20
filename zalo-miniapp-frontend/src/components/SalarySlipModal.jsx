@@ -488,7 +488,7 @@ export default function SalarySlipModal({
       headerExtra={
         <div className="flex items-center gap-1.5 print:hidden">
           <AppButton
-            variant="primary"
+            variant="zalo"
             icon={Share2}
             disabled={!item || loadingPeriod}
             onClick={handleShareZalo}
@@ -510,14 +510,14 @@ export default function SalarySlipModal({
       }
       subHeader={
         <div className="print:hidden flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-            <Calendar className="w-4 h-4 text-[#0068FF] dark:text-blue-400 shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs font-bold text-[#111C2D] dark:text-slate-200">
+            <Calendar className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
             <select
               data-testid="payslip-month-select"
               aria-label="Chọn tháng phiếu lương"
               value={thang}
               onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#111C2D] dark:text-white cursor-pointer"
             >
               {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                 <option key={m} value={m}>
@@ -530,7 +530,7 @@ export default function SalarySlipModal({
               aria-label="Chọn năm phiếu lương"
               value={nam}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#111C2D] dark:text-white cursor-pointer"
             >
               {yearOptions.map((y) => (
                 <option key={y} value={y}>
@@ -556,12 +556,12 @@ export default function SalarySlipModal({
                 aria-label="Nhân viên trước"
                 title="NV trước"
                 onClick={() => handleStepEmployee(-1)}
-                className="min-w-[44px] min-h-[44px] px-2 flex items-center gap-0.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-[#0068FF] dark:hover:text-blue-300 cursor-pointer"
+                className="min-w-[44px] min-h-[44px] px-2 flex items-center gap-0.5 text-xs font-bold text-[#111C2D] dark:text-slate-200 hover:text-[#E11D48] dark:hover:text-rose-300 cursor-pointer"
               >
                 <ChevronLeft size={15} />
                 <span className="hidden sm:inline">NV trước</span>
               </button>
-              <span className="text-xs font-mono font-bold px-1.5 text-slate-700 dark:text-slate-200 whitespace-nowrap">
+              <span className="text-xs font-mono font-bold px-1.5 text-[#111C2D] dark:text-slate-200 whitespace-nowrap">
                 {currentEmpIdx + 1}/{employeeList.length}
               </span>
               <button
@@ -570,7 +570,7 @@ export default function SalarySlipModal({
                 aria-label="Nhân viên tiếp theo"
                 title="NV sau"
                 onClick={() => handleStepEmployee(1)}
-                className="min-w-[44px] min-h-[44px] px-2 flex items-center gap-0.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-[#0068FF] dark:hover:text-blue-300 cursor-pointer"
+                className="min-w-[44px] min-h-[44px] px-2 flex items-center gap-0.5 text-xs font-bold text-[#111C2D] dark:text-slate-200 hover:text-[#E11D48] dark:hover:text-rose-300 cursor-pointer"
               >
                 <span className="hidden sm:inline">NV sau</span>
                 <ChevronRight size={15} />
@@ -611,37 +611,47 @@ export default function SalarySlipModal({
           </div>
         ) : item ? (
           <>
-            {/* Quốc hiệu & Tiêu đề công ty — ZaUI E-Receipt Header */}
-            <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-800 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 text-white rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 shadow-sm">
-              <div>
-                <h2 className="text-sm sm:text-base font-extrabold text-white uppercase">
-                  CÔNG TY CỔ PHẦN SEDINCO
-                </h2>
-                <p className="text-xs text-blue-100 mt-0.5">
-                  Phiếu lương &amp; Bảng công Chi tiết Điện tử
-                </p>
-              </div>
-              <div className="sm:text-right flex flex-wrap sm:flex-col items-center sm:items-end gap-1.5">
-                <span className="inline-block px-3 py-1 bg-blue-900/45 dark:bg-slate-800 border border-white/25 text-white rounded-full text-xs font-extrabold uppercase">
-                  Kỳ Lương: Tháng {thang}/{nam}
-                </span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {periodLockBadge && (
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs font-bold ${periodLockBadge.cls}`}>
-                      <Lock size={12} /> {periodLockBadge.label}
-                    </span>
-                  )}
-                  {confirmStatus === "CONFIRMED" && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-800/80 border border-emerald-300/40 text-white text-xs font-bold">
-                      ✓ Đã xác nhận đúng lương
-                    </span>
-                  )}
-                  {confirmStatus === "DISPUTED" && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-800/85 border border-rose-300/40 text-white text-xs font-bold">
-                      <AlertTriangle size={12} /> Đang khiếu nại sai lương
-                    </span>
-                  )}
+            {/* Quốc hiệu & Thực lĩnh Hero — Sedinco Pulse Physical Voucher Header */}
+            <div className="bg-gradient-to-br from-[#E11D48] to-[#B80035] dark:from-rose-950 dark:via-slate-900 dark:to-slate-900 border border-rose-500/30 dark:border-rose-800/50 text-white rounded-2xl p-4 space-y-2.5 shadow-[0_8px_24px_-4px_rgba(225,29,72,0.28)]">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                  <h2 className="text-sm sm:text-base font-extrabold text-white uppercase">
+                    CÔNG TY CỔ PHẦN SEDINCO
+                  </h2>
+                  <p className="text-xs text-rose-100 mt-0.5">
+                    Phiếu lương &amp; Bảng công Chi tiết Điện tử
+                  </p>
                 </div>
+                <div className="sm:text-right flex flex-wrap sm:flex-col items-center sm:items-end gap-1.5">
+                  <span className="inline-block px-3 py-1 bg-black/25 dark:bg-slate-800 border border-white/25 text-white rounded-full text-xs font-extrabold uppercase">
+                    Kỳ Lương: Tháng {thang}/{nam}
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {periodLockBadge && (
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs font-bold ${periodLockBadge.cls}`}>
+                        <Lock size={12} /> {periodLockBadge.label}
+                      </span>
+                    )}
+                    {confirmStatus === "CONFIRMED" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-800/80 border border-emerald-300/40 text-white text-xs font-bold">
+                        ✓ Đã xác nhận đúng lương
+                      </span>
+                    )}
+                    {confirmStatus === "DISPUTED" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-950/85 border border-rose-300/40 text-white text-xs font-bold">
+                        <AlertTriangle size={12} /> Đang khiếu nại sai lương
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-white/20 flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-100">
+                  Lương thực nhận (NET)
+                </span>
+                <span className="text-2xl font-extrabold font-mono text-white tracking-tight">
+                  {formatCurrency(item.netSalary)}
+                </span>
               </div>
             </div>
 
@@ -756,7 +766,7 @@ export default function SalarySlipModal({
               </div>
             </div>
 
-            <div className="zaui-ticket-divider" />
+            <div className="sedinco-ticket-divider" />
 
             {/* Khấu trừ & Thực lĩnh */}
             <div className="border border-slate-200/80 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
@@ -834,7 +844,7 @@ export default function SalarySlipModal({
             >
               <div className="bg-slate-100 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5">
-                  <Clock size={14} className="text-[#0068FF] dark:text-blue-400 shrink-0" />
+                  <Clock size={14} className="text-[#E11D48] dark:text-rose-400 shrink-0" />
                   <span>Phần B • Bảng công chi tiết Tháng {thang}/{nam}</span>
                 </span>
                 <div className="print:hidden flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -844,7 +854,7 @@ export default function SalarySlipModal({
                     onClick={() => setAttendanceViewMode("recorded")}
                     className={`min-h-[44px] px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition ${
                       attendanceViewMode === "recorded"
-                        ? "bg-[#0068FF] text-white"
+                        ? "bg-[#E11D48] text-white dark:bg-rose-600"
                         : "text-slate-600 dark:text-slate-300"
                     }`}
                   >
@@ -856,7 +866,7 @@ export default function SalarySlipModal({
                     onClick={() => setAttendanceViewMode("full_month")}
                     className={`min-h-[44px] px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition ${
                       attendanceViewMode === "full_month"
-                        ? "bg-[#0068FF] text-white"
+                        ? "bg-[#E11D48] text-white dark:bg-rose-600"
                         : "text-slate-600 dark:text-slate-300"
                     }`}
                   >

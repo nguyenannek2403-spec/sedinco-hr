@@ -149,9 +149,9 @@ export default function AccountantPermissionView({ showToast }) {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-28">
       {/* Header card */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 rounded-2xl p-5 sm:p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-[#111C2D] via-[#2A1120] to-[#B80035] dark:from-slate-900 dark:via-[#23101B] dark:to-rose-950 rounded-2xl p-5 sm:p-6 text-white shadow-xl border border-rose-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-300 text-xs font-semibold rounded-full border border-blue-400/30 mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-rose-500/20 text-rose-200 text-xs font-semibold rounded-full border border-rose-400/35 mb-2">
             <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
             <span>Quản trị viên — Cấu hình phân quyền 1:1 ({ACCOUNTANT_ENFORCED_PERMISSION_KEYS.length} quyền thực thi)</span>
           </div>
@@ -226,7 +226,7 @@ export default function AccountantPermissionView({ showToast }) {
                     <div className="min-w-0">
                       <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base leading-snug break-words">{group.label}</h3>
                       <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5 leading-snug break-words">
-                        Đang bật: <span className="font-semibold text-blue-600 dark:text-blue-400">{enabledCount}</span> / {group.items.length} quyền • {group.description}
+                        Đang bật: <span className="font-semibold text-[#E11D48] dark:text-rose-400">{enabledCount}</span> / {group.items.length} quyền • {group.description}
                       </p>
                     </div>
                   </div>
@@ -266,11 +266,11 @@ export default function AccountantPermissionView({ showToast }) {
                           aria-checked={Boolean(isChecked)}
                           aria-label={item.name}
                           onClick={() => handleToggle(item.key)}
-                          className="shrink-0 min-w-[44px] min-h-[44px] inline-flex items-center justify-end rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
+                          className="shrink-0 min-w-[44px] min-h-[44px] inline-flex items-center justify-end rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E11D48] cursor-pointer"
                         >
                           <div
                             className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out ${
-                              isChecked ? "bg-blue-600" : "bg-slate-300 dark:bg-slate-700"
+                              isChecked ? "bg-[#E11D48] dark:bg-rose-600" : "bg-slate-300 dark:bg-slate-700"
                             }`}
                           >
                             <div
@@ -311,7 +311,7 @@ export default function AccountantPermissionView({ showToast }) {
           {auditLogs && auditLogs.length > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-6 shadow-sm">
               <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm mb-3 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <ShieldCheck className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
                 <span>Lịch sử thay đổi quyền gần đây</span>
               </h3>
               <div className="space-y-2">
@@ -323,7 +323,7 @@ export default function AccountantPermissionView({ showToast }) {
                     <div className="min-w-0 break-words leading-relaxed">
                       <span className="font-semibold text-slate-800 dark:text-slate-100">{log.actor_id}</span>{" "}
                       <span className="text-slate-500 dark:text-slate-400">({getRoleLabel(log.actor_role)})</span> —{" "}
-                      <span className="font-semibold text-blue-700 dark:text-blue-300">{getAuditActionLabel(log.action)}</span>
+                      <span className="font-semibold text-[#E11D48] dark:text-rose-300">{getAuditActionLabel(log.action)}</span>
                       <span className="text-slate-600 dark:text-slate-300 block mt-0.5">
                         {(() => {
                           if (!log.details) return "Đã cập nhật thay đổi";

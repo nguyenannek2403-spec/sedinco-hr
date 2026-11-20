@@ -39,9 +39,9 @@ class ErrorBoundary extends React.Component {
             alignItems: "center",
             justifyContent: "center",
             padding: "24px",
-            fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
-            backgroundColor: "#f8fafc",
-            color: "#1e293b",
+            fontFamily: "'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif",
+            backgroundColor: "#f9f9ff",
+            color: "#111c2d",
             textAlign: "center",
           }}
         >
@@ -82,9 +82,9 @@ class ErrorBoundary extends React.Component {
                 onClick={() => window.location.reload()}
                 style={{
                   padding: "12px 24px",
-                  backgroundColor: "#2563eb",
+                  backgroundColor: "#e11d48",
                   color: "#ffffff",
-                  border: "2px solid #1d4ed8",
+                  border: "2px solid #be123c",
                   borderRadius: "12px",
                   fontWeight: "800",
                   fontSize: "15px",

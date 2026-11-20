@@ -167,7 +167,7 @@ export default function HolidaysTab({ showToast }) {
         ) : (
           <div className="overflow-x-auto touch-scroll-x">
             <table className="w-full min-w-[680px] text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
+              <thead className="bg-[#F0F3FF] dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
                 <tr>
                   <th className="p-3.5 pl-5 min-w-[200px] whitespace-nowrap">Tên dịp lễ</th>
                   <th className="p-3.5 whitespace-nowrap">Từ ngày</th>
@@ -189,7 +189,7 @@ export default function HolidaysTab({ showToast }) {
                     <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.start_date}</td>
                     <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.end_date}</td>
                     <td className="p-3.5 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/40 text-indigo-700 dark:text-indigo-300 font-bold text-xs">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-bold text-xs">
                         {daysCount} ngày
                       </span>
                     </td>

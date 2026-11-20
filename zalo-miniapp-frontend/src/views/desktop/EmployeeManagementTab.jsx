@@ -587,7 +587,7 @@ export default function EmployeeManagementTab({
               <button
                 type="button"
                 onClick={() => onOpenLiveBoard(todayFilter === "all" ? "present" : todayFilter)}
-                className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-50/90 hover:bg-blue-100 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 border border-blue-200 dark:border-blue-500/40 text-[#0068FF] dark:text-blue-200 text-xs font-bold cursor-pointer transition"
+                className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-rose-500/20 dark:hover:bg-rose-500/30 border border-slate-200 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-200 text-xs font-bold cursor-pointer transition"
               >
                 <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                 <span>Xem bảng live chi tiết</span>
@@ -605,7 +605,7 @@ export default function EmployeeManagementTab({
               onClick={() => setTodayFilter("all")}
               className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border shrink-0 whitespace-nowrap cursor-pointer transition ${
                 todayFilter === "all"
-                  ? "bg-[#0068FF] text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 shadow-md"
+                  ? "bg-[#E11D48] text-white border-[#BE123C] dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-md"
                   : "bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
               }`}
             >
@@ -688,7 +688,7 @@ export default function EmployeeManagementTab({
           onClick={() => setQuickFilter("all")}
           className={`min-h-[64px] p-3.5 rounded-2xl border text-left transition cursor-pointer shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)] ${
             quickFilter === "all"
-              ? "bg-[#0068FF] text-white border-blue-500 dark:bg-blue-600 dark:text-white dark:border-blue-400 shadow-md"
+              ? "bg-[#E11D48] text-white border-[#BE123C] dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-md"
               : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
@@ -746,7 +746,7 @@ export default function EmployeeManagementTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+              <Users className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />
               <span>Trung tâm Nhân sự &amp; Thiết bị 360°</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
@@ -773,7 +773,7 @@ export default function EmployeeManagementTab({
                   setFormError("");
                   setIsAddModalOpen(true);
                 }}
-                className="text-xs px-3.5 py-2 shadow-lg shadow-blue-600/25"
+                className="text-xs px-3.5 py-2 shadow-lg shadow-rose-600/25"
               >
                 Thêm nhân viên
               </AppButton>
@@ -797,7 +797,7 @@ export default function EmployeeManagementTab({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm SĐT, tài khoản, tên, mã NV, bộ phận, tên máy..."
-              className="w-full min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
             />
           </div>
 
@@ -805,7 +805,7 @@ export default function EmployeeManagementTab({
             aria-label="Lọc theo bộ phận"
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
           >
             <option value="ALL">🏢 Tất cả bộ phận</option>
             {availableDepartments.map((dept) => (
@@ -856,7 +856,7 @@ export default function EmployeeManagementTab({
                 {/* Header Card — ZaUI Doctor Profile Row */}
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className="w-11 h-11 rounded-full bg-blue-50 dark:bg-blue-500/20 border border-blue-200/80 dark:border-blue-500/40 text-[#0068FF] dark:text-blue-300 font-extrabold text-sm flex items-center justify-center shrink-0">
+                    <div className="w-11 h-11 rounded-full bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-extrabold text-sm flex items-center justify-center shrink-0">
                       {empInitial}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -864,7 +864,7 @@ export default function EmployeeManagementTab({
                         <span className="font-bold text-base text-slate-900 dark:text-white break-words leading-snug">
                           {emp.ho_ten}
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#0068FF] dark:text-blue-300">
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#E11D48] dark:text-rose-300">
                           {emp.ma_nv}
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/35 text-indigo-700 dark:text-indigo-200 text-xs font-semibold">
@@ -949,7 +949,7 @@ export default function EmployeeManagementTab({
                   </div>
                 )}
 
-                <div className="zaui-ticket-divider !my-2" />
+                <div className="sedinco-ticket-divider !my-2" />
 
                 {/* Thanh Hành Động Nhanh trên Thẻ */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1062,7 +1062,7 @@ export default function EmployeeManagementTab({
         disableClose={isSubmitting}
         maxWidthClass="max-w-md"
         title="Thêm nhân viên mới"
-        icon={<Plus className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />}
+        icon={<Plus className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />}
         footer={
           <div className="flex gap-2.5">
             <AppButton
@@ -1079,7 +1079,7 @@ export default function EmployeeManagementTab({
               variant="primary"
               loading={isSubmitting}
               loadingText="Đang lưu..."
-              className="flex-1 shadow-lg shadow-blue-600/30"
+              className="flex-1 shadow-lg shadow-rose-600/30"
             >
               Lưu nhân viên
             </AppButton>
@@ -1093,8 +1093,8 @@ export default function EmployeeManagementTab({
             </div>
           )}
 
-          <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-3">
-            <div className="text-xs font-black uppercase tracking-wide text-blue-700 dark:text-blue-300">
+          <div className="p-3 rounded-2xl bg-[#F0F3FF] dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 space-y-3">
+            <div className="text-xs font-black uppercase tracking-wide text-[#E11D48] dark:text-rose-300">
               Tài khoản đăng nhập mặc định (Số điện thoại)
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1114,7 +1114,7 @@ export default function EmployeeManagementTab({
                     }));
                   }}
                   placeholder="VD: 0905123456"
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
                 />
               </div>
               <div>
@@ -1126,7 +1126,7 @@ export default function EmployeeManagementTab({
                   value={form.login_username}
                   onChange={(e) => setForm({ ...form, login_username: e.target.value })}
                   placeholder={form.phone ? form.phone : "Mặc định lấy SĐT hoặc Mã NV"}
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
                 />
               </div>
             </div>
@@ -1139,7 +1139,7 @@ export default function EmployeeManagementTab({
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 placeholder="123456 (bỏ trống để tự sinh ngẫu nhiên)"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               />
             </div>
           </div>
@@ -1152,7 +1152,7 @@ export default function EmployeeManagementTab({
                 value={form.ma_nv}
                 onChange={(e) => setForm({ ...form, ma_nv: e.target.value.toUpperCase() })}
                 placeholder="VD: NV025"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 uppercase focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               />
             </div>
             <div>
@@ -1163,7 +1163,7 @@ export default function EmployeeManagementTab({
                 value={form.ho_ten}
                 onChange={(e) => setForm({ ...form, ho_ten: e.target.value })}
                 placeholder="Nguyễn Văn A"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               />
             </div>
           </div>
@@ -1177,7 +1177,7 @@ export default function EmployeeManagementTab({
                 value={form.chuc_danh}
                 onChange={(e) => setForm({ ...form, chuc_danh: e.target.value })}
                 placeholder="Kỹ thuật / Nhân viên kho"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               />
             </div>
             <div>
@@ -1185,7 +1185,7 @@ export default function EmployeeManagementTab({
               <select
                 value={form.department || "Khối Công trình"}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               >
                 {DEPARTMENT_OPTIONS.map((dept) => (
                   <option key={dept} value={dept}>
@@ -1209,7 +1209,7 @@ export default function EmployeeManagementTab({
                     ...(r === "admin" ? { luong_cb: 0, has_insurance: false } : {})
                   });
                 }}
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               >
                 <option value="worker">Nhân viên</option>
                 <option value="accountant">Kế toán</option>
@@ -1225,7 +1225,7 @@ export default function EmployeeManagementTab({
                   required
                   value={formatViNumber(form.luong_cb || 0, 0)}
                   onChange={(e) => setForm({ ...form, luong_cb: Math.max(0, Math.round(parseViNumberInput(e.target.value))) })}
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
                 />
               </div>
             )}
@@ -1237,7 +1237,7 @@ export default function EmployeeManagementTab({
               <select
                 value={form.shift_type || "FULL_DAY"}
                 onChange={(e) => setForm({ ...form, shift_type: e.target.value })}
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               >
                 {SHIFT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -1264,7 +1264,7 @@ export default function EmployeeManagementTab({
         maxHeightClass="max-h-[92vh]"
         title="Hồ Sơ Kiểm Soát Nhân Sự 360°"
         subtitle={detailEmp ? `${detailEmp.ho_ten} (${detailEmp.ma_nv})` : ""}
-        icon={<ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />}
+        icon={<ShieldCheck className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />}
         footer={
           <div className="flex gap-2.5">
             <AppButton
@@ -1285,7 +1285,7 @@ export default function EmployeeManagementTab({
                 variant="primary"
                 loading={savingDetail}
                 loadingText="Đang lưu..."
-                className="flex-1 shadow-lg shadow-blue-600/30"
+                className="flex-1 shadow-lg shadow-rose-600/30"
               >
                 Lưu hồ sơ 360°
               </AppButton>
@@ -1315,7 +1315,7 @@ export default function EmployeeManagementTab({
 
             {/* KHU VỰC 1: THÔNG TIN & CHẾ ĐỘ ĐÃI NGỘ */}
             <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
-              <h3 className="text-sm font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide flex items-center gap-2">
+              <h3 className="text-sm font-black text-[#E11D48] dark:text-rose-300 uppercase tracking-wide flex items-center gap-2">
                 <Users className="w-4 h-4 shrink-0" />
                 <span>1. Thông tin &amp; Chế độ đãi ngộ</span>
               </h3>
@@ -1475,7 +1475,7 @@ export default function EmployeeManagementTab({
                       disabled={!canEditEmployees}
                       checked={Boolean(detailForm.has_insurance)}
                       onChange={(e) => setDetailForm((p) => ({ ...p, has_insurance: e.target.checked }))}
-                      className="w-5 h-5 rounded text-blue-600"
+                      className="w-5 h-5 rounded accent-[#E11D48] text-[#E11D48]"
                     />
                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                       Có tham gia đóng Bảo hiểm xã hội bắt buộc
@@ -1712,7 +1712,7 @@ export default function EmployeeManagementTab({
                     type="checkbox"
                     checked={Boolean(detailForm.keep_logs)}
                     onChange={(e) => setDetailForm((p) => ({ ...p, keep_logs: e.target.checked }))}
-                    className="w-5 h-5 rounded text-blue-600"
+                    className="w-5 h-5 rounded accent-[#E11D48] text-[#E11D48]"
                   />
                   <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     Lưu giữ toàn bộ nhật ký hoạt động của nhân viên này (không tự động dọn dẹp)

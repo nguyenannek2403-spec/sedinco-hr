@@ -188,7 +188,7 @@ export default function DesktopDashboard({
   const mgmtInitialFilter = focusTarget?.category === "device" ? "alerts" : "all";
 
   return (
-    <div className="flex h-[100dvh] bg-[#F4F6F9] dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden font-sans relative transition-colors duration-200">
+    <div className="flex h-[100dvh] bg-[#F9F9FF] dark:bg-[#090D16] text-[#111C2D] dark:text-slate-100 overflow-hidden font-sans relative transition-colors duration-200">
       {/* Sidebar Trái (Tự động chuyển thành Drawer Portal + Bottom Nav khi mở trên điện thoại < 1024px) */}
       <DesktopSidebar
         currentTab={effectiveTab}
@@ -238,13 +238,13 @@ export default function DesktopDashboard({
         {/* Tab Content with Suspense Loading */}
         <main
           data-scroll-container="desktop"
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:p-6 pb-8 bg-[#F4F6F9] dark:bg-slate-900/60 transition-colors duration-200"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:p-6 pb-8 bg-[#F9F9FF] dark:bg-slate-900/60 transition-colors duration-200"
         >
           <div key={effectiveTab} className="animate-tab-enter">
           <Suspense
             fallback={
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 py-12">
-                <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 gap-3 py-12">
+                <RefreshCw className="w-8 h-8 animate-spin text-[#E11D48]" />
                 <span className="text-xs font-semibold">Đang tải phân hệ quản trị...</span>
               </div>
             }
@@ -318,7 +318,7 @@ export default function DesktopDashboard({
               <div className="space-y-4">
                 <div
                   data-filter-group="settings-subtabs"
-                  className="bg-white border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)]"
+                  className="bg-white border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)]"
                 >
                   <button
                     type="button"
@@ -327,8 +327,8 @@ export default function DesktopDashboard({
                     onClick={() => setSettingsSubTab("company")}
                     className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       settingsSubTab === "company"
-                        ? "bg-[#0068FF] text-white shadow-sm dark:bg-blue-600 dark:text-white"
-                        : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
+                        ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                        : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-[#F0F3FF] dark:hover:bg-slate-800/70"
                     }`}
                   >
                     <Building2 size={16} className="shrink-0" />
@@ -341,8 +341,8 @@ export default function DesktopDashboard({
                     onClick={() => setSettingsSubTab("permissions")}
                     className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       settingsSubTab === "permissions"
-                        ? "bg-[#0068FF] text-white shadow-sm dark:bg-blue-600 dark:text-white"
-                        : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
+                        ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                        : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-[#F0F3FF] dark:hover:bg-slate-800/70"
                     }`}
                   >
                     <ShieldCheck size={16} className="shrink-0" />
@@ -355,8 +355,8 @@ export default function DesktopDashboard({
                     onClick={() => setSettingsSubTab("holidays")}
                     className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       settingsSubTab === "holidays"
-                        ? "bg-[#0068FF] text-white shadow-sm dark:bg-blue-600 dark:text-white"
-                        : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
+                        ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                        : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-[#F0F3FF] dark:hover:bg-slate-800/70"
                     }`}
                   >
                     <Gift size={16} className="shrink-0" />
@@ -369,8 +369,8 @@ export default function DesktopDashboard({
                     onClick={() => setSettingsSubTab("audit_logs")}
                     className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                       settingsSubTab === "audit_logs"
-                        ? "bg-[#0068FF] text-white shadow-sm dark:bg-blue-600 dark:text-white"
-                        : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
+                        ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                        : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-[#F0F3FF] dark:hover:bg-slate-800/70"
                     }`}
                   >
                     <ShieldAlert size={16} className="shrink-0" />

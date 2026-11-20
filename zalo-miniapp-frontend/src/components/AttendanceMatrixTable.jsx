@@ -316,7 +316,7 @@ export default function AttendanceMatrixTable({
       <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-50/60 dark:bg-slate-900/90">
         <div>
           <div className="flex items-center gap-2">
-            <Calendar className="text-[#0068FF] dark:text-blue-400 shrink-0" size={22} />
+            <Calendar className="text-[#E11D48] dark:text-rose-400 shrink-0" size={22} />
             <h3 className="font-extrabold text-lg leading-snug text-slate-900 dark:text-white">
               Bảng chấm công ma trận
             </h3>
@@ -357,7 +357,7 @@ export default function AttendanceMatrixTable({
           <select
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:focus:border-blue-400 shadow-sm text-slate-800 dark:text-slate-100"
+            className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] dark:focus:border-rose-400 shadow-sm text-slate-800 dark:text-slate-100"
           >
             <option value="ALL">🏢 Tất cả bộ phận</option>
             {availableDepartments.map((dept) => (
@@ -375,7 +375,7 @@ export default function AttendanceMatrixTable({
               placeholder="Tìm theo tên hoặc mã NV..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-blue-600 dark:focus:border-blue-400 shadow-sm"
+              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] dark:focus:border-rose-400 shadow-sm"
             />
           </div>
 
@@ -466,7 +466,7 @@ export default function AttendanceMatrixTable({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div
             data-filter-group="matrix-view-mode"
-            className="inline-flex p-1 bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-xl gap-1"
+            className="inline-flex p-1 bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-xl gap-1"
           >
             <button
               type="button"
@@ -474,7 +474,7 @@ export default function AttendanceMatrixTable({
               onClick={() => setViewMode("cards")}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
                 viewMode === "cards"
-                  ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                  ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white ring-1 ring-rose-500/50"
                   : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
               }`}
             >
@@ -487,7 +487,7 @@ export default function AttendanceMatrixTable({
               onClick={() => setViewMode("matrix")}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
                 viewMode === "matrix"
-                  ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                  ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white ring-1 ring-rose-500/50"
                   : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
               }`}
             >
@@ -496,7 +496,7 @@ export default function AttendanceMatrixTable({
             </button>
           </div>
           {canEdit && (
-            <span className="text-xs text-blue-700 dark:text-blue-300 font-extrabold">
+            <span className="text-xs text-[#E11D48] dark:text-rose-300 font-extrabold">
               {viewMode === "cards"
                 ? "💡 Chạm vào nhân viên để xem & sửa lịch 31 ngày"
                 : "💡 Chạm trực tiếp vào ô ngày để sửa công"}
@@ -551,29 +551,29 @@ export default function AttendanceMatrixTable({
                   key={emp.ma_nv || empIdx}
                   type="button"
                   onClick={() => setDetailEmpCode(emp.ma_nv)}
-                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-100/90 dark:border-slate-800 p-3.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] hover:border-blue-400 dark:hover:border-blue-500 active:scale-[0.99] transition flex flex-col gap-2.5"
+                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-100/90 dark:border-slate-800 p-3.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] hover:border-rose-400 dark:hover:border-rose-500 active:scale-[0.99] transition flex flex-col gap-2.5"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#0068FF] dark:text-blue-300 font-black flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-800/70">
+                      <div className="w-10 h-10 rounded-full bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 font-black flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800/70">
                         {(emp.ho_ten || "N").charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <div className="font-extrabold text-slate-900 dark:text-white text-sm truncate">
                           {emp.ho_ten}
                         </div>
-                        <div className="text-xs text-[#0068FF] dark:text-blue-300 font-bold">
+                        <div className="text-xs text-[#E11D48] dark:text-rose-300 font-bold">
                           Mã NV: {emp.ma_nv} {(emp.department || emp.bo_phan) ? `• ${emp.department || emp.bo_phan}` : ""}
                         </div>
                       </div>
                     </div>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50/90 dark:bg-blue-500/15 text-xs font-bold text-[#0068FF] dark:text-blue-300 shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-rose-500/15 text-xs font-bold text-[#E11D48] dark:text-rose-300 shrink-0">
                       {daysInMonth} ngày
                       <ChevronRight size={14} />
                     </span>
                   </div>
 
-                  <div className="zaui-ticket-divider !my-0" />
+                  <div className="sedinco-ticket-divider !my-0" />
 
                   <div className="grid grid-cols-4 gap-2">
                     <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 px-2 py-1.5 text-center">
@@ -605,8 +605,8 @@ export default function AttendanceMatrixTable({
       <div className="overflow-x-auto touch-scroll-x">
         <table className="w-full border-collapse text-xs text-left">
           <thead>
-            <tr className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-b-2 border-slate-300 dark:border-slate-700 uppercase font-black sticky top-0 z-10">
-              <th className="p-2.5 sm:p-3.5 pl-3 sm:pl-4 sticky left-0 bg-slate-100 dark:bg-slate-800 z-20 min-w-[140px] sm:min-w-[190px] max-w-[155px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">
+            <tr className="bg-[#F0F3FF] dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-b-2 border-slate-300 dark:border-slate-700 uppercase font-black sticky top-0 z-10">
+              <th className="p-2.5 sm:p-3.5 pl-3 sm:pl-4 sticky left-0 bg-[#F0F3FF] dark:bg-slate-800 z-20 min-w-[140px] sm:min-w-[190px] max-w-[155px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">
                 Nhân Sự
               </th>
               {dayNumbers.map(d => {
@@ -660,7 +660,7 @@ export default function AttendanceMatrixTable({
                     {/* Cột cố định: Tên & Mã NV (Đặc 100% chống nhìn xuyên) */}
                     <td className="p-2.5 sm:p-3 pl-3 sm:pl-4 sticky left-0 bg-white group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 z-10 min-w-[140px] sm:min-w-[190px] max-w-[165px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">
                       <div className="font-black text-slate-900 dark:text-white text-xs sm:text-sm leading-tight break-words">{emp.ho_ten}</div>
-                      <div className="text-xs text-blue-700 dark:text-blue-300 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
+                      <div className="text-xs text-[#E11D48] dark:text-rose-300 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
                     </td>
 
                     {/* 31 Cột ngày */}
@@ -768,7 +768,7 @@ export default function AttendanceMatrixTable({
                       className={`relative min-h-[58px] rounded-xl border p-1.5 flex flex-col items-center justify-between transition active:scale-95 ${
                         isSunday
                           ? "bg-rose-50/70 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/70"
-                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-400"
+                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-rose-400"
                       }`}
                     >
                       {hasLateEarly && (
@@ -895,7 +895,7 @@ export default function AttendanceMatrixTable({
                     step="0.5"
                     value={otHours}
                     onChange={(e) => setOtHours(Number(e.target.value))}
-                    className="w-24 px-3 py-2 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg outline-none font-black text-indigo-800 dark:text-indigo-300 text-center focus:border-indigo-600"
+                    className="w-24 px-3 py-2 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg outline-none font-black text-[#E11D48] dark:text-rose-300 text-center focus:border-[#E11D48]"
                   />
                 </FormRow>
               </div>

@@ -411,7 +411,7 @@ const formatDetails = (rawDetails, action = "") => {
         {/* Bộ lọc nhanh Nhóm hành vi (Segmented Pill Track) */}
         <div
           data-filter-group="audit-category-filter"
-          className="flex flex-wrap items-center gap-1 bg-slate-100 border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-xl text-xs"
+          className="flex flex-wrap items-center gap-1 bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-xl text-xs"
         >
           {[
             { id: "", label: "Tất cả nhóm" },
@@ -430,7 +430,7 @@ const formatDetails = (rawDetails, action = "") => {
                 onClick={() => setCategory(grp.id)}
                 className={`min-h-[44px] px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   active
-                    ? "bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                    ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white ring-1 ring-rose-500/50"
                     : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                 }`}
               >
@@ -524,12 +524,12 @@ const formatDetails = (rawDetails, action = "") => {
         </div>
 
         {selectedEmpObj && (
-          <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-500/40 flex flex-wrap items-center justify-between gap-2">
+          <div className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-rose-950/50 border border-rose-200 dark:border-rose-500/40 flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs">
               <span className="font-black text-slate-900 dark:text-white">
                 Nhân sự đang chọn: {selectedEmpObj.ho_ten} ({selectedEmpObj.ma_nv})
               </span>
-              <span className="block text-xs text-indigo-700 dark:text-indigo-200 mt-0.5">
+              <span className="block text-xs text-[#BE123C] dark:text-rose-200 mt-0.5">
                 Khi bật giữ lịch sử, toàn bộ hoạt động của nhân viên này sẽ được miễn trừ khỏi tiến trình tự động xóa định kỳ.
               </span>
             </div>
@@ -572,7 +572,7 @@ const formatDetails = (rawDetails, action = "") => {
           <>
           <div className="overflow-x-auto touch-scroll-x">
             <table className="w-full min-w-[860px] text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 uppercase tracking-wider font-bold">
+              <thead className="bg-[#F0F3FF] dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="p-3.5 pl-4">Thời Gian</th>
                   <th className="p-3.5">Nhân Viên</th>
@@ -609,13 +609,13 @@ const formatDetails = (rawDetails, action = "") => {
 
                       <td className="p-3.5 min-w-[150px]">
                         <div className="font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <UserCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                          <UserCheck className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
                           <span>{log.ho_ten || log.actor_id || "Hệ thống"}</span>
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
                           <span>Mã: {log.actor_id || "HT"}</span>
                           {isKeepEmp && (
-                            <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 rounded font-sans font-bold">
+                            <span className="px-1.5 py-0.5 bg-rose-100 dark:bg-rose-500/20 text-[#BE123C] dark:text-rose-300 rounded font-sans font-bold">
                               🔒 Giữ LS
                             </span>
                           )}
@@ -626,10 +626,10 @@ const formatDetails = (rawDetails, action = "") => {
                         <span
                           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-black text-xs border whitespace-nowrap ${
                             isFraud
-                              ? "bg-rose-600 text-white border-rose-400 shadow-sm"
+                              ? "bg-[#E11D48] text-white border-rose-400 shadow-sm"
                               : log.action?.includes("DISPUTED")
                               ? "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/40"
-                              : "bg-blue-50 dark:bg-blue-500/15 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-300"
+                              : "bg-[#F0F3FF] dark:bg-rose-500/15 border-slate-200 dark:border-rose-500/30 text-[#111C2D] dark:text-rose-200"
                           }`}
                         >
                           {isFraud && <ShieldAlert className="w-3.5 h-3.5 shrink-0" />}
@@ -665,7 +665,7 @@ const formatDetails = (rawDetails, action = "") => {
                               onClick={() => handleToggleKeepEmployeeLogs(log.actor_id, isKeepEmp)}
                               className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition cursor-pointer ${
                                 isKeepEmp
-                                  ? "bg-indigo-600 text-white border-indigo-400"
+                                  ? "bg-[#E11D48] text-white border-rose-400 dark:bg-rose-600"
                                   : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700"
                               }`}
                               title="🔒 Giữ toàn bộ lịch sử của nhân viên này"

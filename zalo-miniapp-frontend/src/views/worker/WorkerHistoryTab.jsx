@@ -206,73 +206,77 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
   }, [logs, month, year]);
 
   return (
-    <div className="pb-28 space-y-4">
-      {/* ZaUI Month Navigator Hero */}
-      <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 text-white rounded-b-[28px] px-4 pt-2 pb-10 flex items-center justify-between shadow-md">
+    <div className="p-3.5 pb-28 space-y-4">
+      {/* Sedinco Pulse Month Navigator Card */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 flex items-center justify-between shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)]">
         <button
           type="button"
           onClick={prevMonth}
           aria-label="Tháng trước"
-          className="min-w-[44px] min-h-[44px] p-2 bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 dark:hover:bg-slate-700 border border-white/25 text-white rounded-full flex items-center justify-center cursor-pointer transition-colors"
+          className="min-w-[44px] min-h-[44px] p-2 bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[#111C2D] hover:text-[#E11D48] dark:text-slate-100 rounded-xl flex items-center justify-center cursor-pointer transition-colors"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
 
         <div className="text-center">
-          <div className="text-xs font-semibold text-blue-100">Lịch công Heatmap</div>
-          <div className="text-base sm:text-lg font-extrabold text-white">Tháng {month} / {year}</div>
+          <div className="text-xs font-bold uppercase tracking-wider text-[#E11D48] dark:text-rose-400">
+            Lịch công Heatmap
+          </div>
+          <div className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white">
+            Tháng {month} / {year}
+          </div>
         </div>
 
         <button
           type="button"
           onClick={nextMonth}
           aria-label="Tháng sau"
-          className="min-w-[44px] min-h-[44px] p-2 bg-blue-900/45 hover:bg-blue-900/65 dark:bg-slate-800/90 dark:hover:bg-slate-700 border border-white/25 text-white rounded-full flex items-center justify-center cursor-pointer transition-colors"
+          className="min-w-[44px] min-h-[44px] p-2 bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[#111C2D] hover:text-[#E11D48] dark:text-slate-100 rounded-xl flex items-center justify-center cursor-pointer transition-colors"
         >
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Floating KPI Summary Card */}
+      {/* KPI Summary Ticket Card */}
       {summary && (
-        <div className="zaui-floating-card mx-3.5 bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-3.5 space-y-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] space-y-3">
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-emerald-50/75 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/60 rounded-xl p-2.5 text-center">
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Ngày công</div>
-              <div className="text-lg font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5">{formatViWorkday(summary.total_work_days || 0)}</div>
+              <div className="text-lg font-extrabold text-[#16A34A] dark:text-emerald-300 mt-0.5 font-mono">{formatViWorkday(summary.total_work_days || 0)}</div>
               <div className="text-xs text-slate-600 dark:text-slate-300">/ {formatViWorkday(summary.standard_days || 26)} công</div>
             </div>
-            <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl p-2.5 text-center">
+            <div className="bg-[#DAE2FF]/50 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl p-2.5 text-center">
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Tăng ca OT</div>
-              <div className="text-lg font-extrabold text-[#0068FF] dark:text-blue-300 mt-0.5">{formatViNumber(summary.total_ot_hours || 0)}h</div>
+              <div className="text-lg font-extrabold text-[#0051CA] dark:text-blue-300 mt-0.5 font-mono">{formatViNumber(summary.total_ot_hours || 0)}h</div>
               <div className="text-xs text-slate-600 dark:text-slate-300">ngoài giờ</div>
             </div>
-            <div className="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 rounded-xl p-2.5 text-center">
+            <div className="bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/70 dark:border-rose-800/60 rounded-xl p-2.5 text-center">
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Nghỉ phép</div>
-              <div className="text-lg font-extrabold text-indigo-700 dark:text-indigo-300 mt-0.5">{formatViWorkday(summary.total_leave_days || 0)}</div>
+              <div className="text-lg font-extrabold text-[#E11D48] dark:text-rose-300 mt-0.5 font-mono">{formatViWorkday(summary.total_leave_days || 0)}</div>
               <div className="text-xs text-slate-600 dark:text-slate-300">hưởng lương</div>
             </div>
           </div>
 
-          <div className="zaui-ticket-divider" />
+          <div className="sedinco-ticket-divider" />
 
           <div className="space-y-2 text-xs">
             {summary.effective_shift_start && summary.effective_shift_end && (
               <div className="text-slate-700 dark:text-slate-200 font-medium">
                 Ca làm việc của bạn hôm nay:{" "}
-                <strong className="text-slate-900 dark:text-white">
+                <strong className="text-[#111C2D] dark:text-white">
                   {summary.effective_shift_start} – {summary.effective_shift_end}
                 </strong>
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">
-              <div className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 rounded-xl px-2.5 py-2">
+              <div className="bg-[#F0F3FF]/70 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 rounded-xl px-2.5 py-2">
                 <span className="text-xs text-slate-600 dark:text-slate-300 block">Đúng giờ tháng này</span>
-                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                <span className="text-xs font-bold text-[#16A34A] dark:text-emerald-300">
                   {summary.on_time_count || 0} ngày
                 </span>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 rounded-xl px-2.5 py-2">
+              <div className="bg-[#F0F3FF]/70 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 rounded-xl px-2.5 py-2">
                 <span className="text-xs text-slate-600 dark:text-slate-300 block">Đi trễ tháng này</span>
                 <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
                   {summary.late_count || 0} lần ({summary.total_late_minutes || 0} phút)
@@ -296,12 +300,12 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
         </div>
       )}
 
-      <div className="px-3.5 space-y-4">
+      <div className="space-y-4">
       {/* CALENDAR GRID HEATMAP (7 CỘT T2 -> CN) */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase">
-            <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+          <h3 className="text-xs font-black text-[#111C2D] dark:text-slate-100 flex items-center gap-1.5 uppercase">
+            <Calendar className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
             <span>Chạm vào từng ô ngày để xem &amp; bù công</span>
           </h3>
           <AppButton
@@ -361,7 +365,7 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
                   aria-label={`Ngày ${cell.dayNum} tháng ${month}: ${cell.style.badgeText}`}
                   className={`min-h-[48px] py-1 px-0.5 rounded-xl border flex flex-col items-center justify-center relative transition active:scale-95 cursor-pointer ${
                     cell.style.cellClass
-                  } ${cell.isToday ? "ring-2 ring-blue-400" : ""}`}
+                  } ${cell.isToday ? "ring-2 ring-[#E11D48] dark:ring-rose-400" : ""}`}
                 >
                   <span className="text-xs font-black leading-none">{cell.dayNum}</span>
                   <span className="text-xs font-extrabold leading-tight mt-0.5">
@@ -374,14 +378,14 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
         )}
       </div>
 
-      {/* BẢNG ĐỐI CHIẾU CÔNG TỪNG NGÀY — ZAUI APPOINTMENT CARDS */}
+      {/* BẢNG ĐỐI CHIẾU CÔNG TỪNG NGÀY — SEDINCO PULSE TICKET CARDS */}
       {logs.length > 0 && (
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+            <h4 className="text-sm font-bold text-[#111C2D] dark:text-white">
               Bảng đối chiếu công từng ngày ({logs.length} ngày)
             </h4>
-            <span className="text-xs text-[#0068FF] dark:text-blue-400 font-semibold">
+            <span className="text-xs text-[#E11D48] dark:text-rose-400 font-semibold">
               Chạm để giải trình công
             </span>
           </div>
@@ -399,31 +403,31 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
                   key={iso || idx}
                   type="button"
                   onClick={() => setSelectedDayDetail({ isoDate: iso, dayNum: iso.slice(-2), log: day, style })}
-                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-3.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] hover:border-blue-300 dark:hover:border-blue-500/40 transition cursor-pointer space-y-2.5"
+                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] hover:border-rose-300 dark:hover:border-rose-500/40 transition cursor-pointer space-y-2.5"
                 >
                   <div className="flex items-start gap-3">
                     {/* Left Rounded Date Badge */}
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/15 border border-blue-200/80 dark:border-blue-500/30 flex flex-col items-center justify-center shrink-0">
-                      <span className="text-sm font-extrabold text-[#0068FF] dark:text-blue-300 leading-none">{dayNumLabel}</span>
+                    <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200/80 dark:border-rose-500/30 flex flex-col items-center justify-center shrink-0">
+                      <span className="text-sm font-extrabold text-[#E11D48] dark:text-rose-300 leading-none">{dayNumLabel}</span>
                       <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">T{monthLabel}</span>
                     </div>
 
                     {/* Center Shift Info */}
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">{iso}</span>
+                        <span className="text-sm font-bold text-[#111C2D] dark:text-white font-mono">{iso}</span>
                         <StatusBadge type="attendance" status={day.status} />
                       </div>
                       <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-3">
                         <span>
                           Vào:{" "}
-                          <strong className="text-slate-900 dark:text-white font-mono">
+                          <strong className="text-[#111C2D] dark:text-white font-mono">
                             {day.check_in_time ? String(day.check_in_time).slice(0, 5) : "--:--"}
                           </strong>
                         </span>
                         <span>
                           Ra:{" "}
-                          <strong className="text-slate-900 dark:text-white font-mono">
+                          <strong className="text-[#111C2D] dark:text-white font-mono">
                             {day.check_out_time ? String(day.check_out_time).slice(0, 5) : "--:--"}
                           </strong>
                         </span>
@@ -431,15 +435,15 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
                     </div>
                   </div>
 
-                  <div className="zaui-ticket-divider !my-2" />
+                  <div className="sedinco-ticket-divider !my-2" />
 
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                      <span className="font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                      <span className="font-semibold text-[#16A34A] dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 px-2.5 py-0.5 rounded-full">
                         {statusInfo.creditText}
                       </span>
                       {otHours > 0 && (
-                        <span className="font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-2.5 py-0.5 rounded-full">
+                        <span className="font-semibold text-[#0051CA] dark:text-blue-300 bg-[#DAE2FF]/60 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 px-2.5 py-0.5 rounded-full">
                           +{otHours}h tăng ca
                         </span>
                       )}
@@ -470,13 +474,13 @@ export default function WorkerHistoryTab({ currentUser, showToast, onOpenPayslip
                       })()}
                     </div>
                     {day.location_name && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 min-w-0">
-                        <MapPin className="w-3.5 h-3.5 text-[#0068FF] dark:text-blue-400 shrink-0" />
+                      <div className="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1 min-w-0">
+                        <MapPin className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
                         <span className="break-words">{day.location_name}</span>
                       </div>
                     )}
                     {day.proxy_by && (
-                      <div className="text-xs text-[#0068FF] dark:text-blue-300 flex items-center gap-1">
+                      <div className="text-xs text-[#0051CA] dark:text-blue-300 flex items-center gap-1">
                         <UserCheck className="w-3.5 h-3.5 shrink-0" />
                         <span>Chấm công hộ</span>
                       </div>

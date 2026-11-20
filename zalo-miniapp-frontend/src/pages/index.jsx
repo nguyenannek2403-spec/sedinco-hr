@@ -85,7 +85,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-600 selection:text-white transition-colors duration-200">
+    <div className="min-h-screen bg-[#F9F9FF] dark:bg-[#090D16] text-[#111C2D] dark:text-slate-100 font-sans selection:bg-[#E11D48] selection:text-white transition-colors duration-200">
       {/* 1. Màn hình Chưa Đăng Nhập */}
       {!currentUser ? (
         <AuthView

@@ -434,7 +434,7 @@ export default function SmartLeaveRequestModal({
                         onClick={() => setAdvanceAmount(String(amt))}
                         className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer whitespace-nowrap ${
                           active
-                            ? "bg-blue-600 text-white border-blue-500 shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                            ? "bg-[#E11D48] text-white border-[#BE123C] shadow-sm dark:bg-rose-600 dark:text-white ring-1 ring-rose-500/50"
                             : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
                         }`}
                       >
@@ -496,7 +496,7 @@ export default function SmartLeaveRequestModal({
                       onClick={() => setOtHours(String(h))}
                       className={`min-h-[44px] px-2 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                         active
-                          ? "bg-blue-600 text-white border-blue-500 shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                          ? "bg-[#E11D48] text-white border-[#BE123C] shadow-sm dark:bg-rose-600 dark:text-white ring-1 ring-rose-500/50"
                           : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
                       }`}
                     >
@@ -546,12 +546,12 @@ export default function SmartLeaveRequestModal({
                         }}
                         className={`min-h-[60px] p-2.5 rounded-xl border-2 text-left transition active:scale-[0.98] cursor-pointer ${
                           active
-                            ? "bg-blue-600 text-white border-blue-500 shadow-sm dark:bg-blue-600 dark:text-white ring-1 ring-blue-500/50"
+                            ? "bg-[#E11D48] text-white border-[#BE123C] shadow-sm dark:bg-rose-600 dark:text-white ring-1 ring-rose-500/50"
                             : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                         }`}
                       >
                         <div className="text-xs font-bold leading-snug">{m.label}</div>
-                        <div className={`text-xs mt-0.5 leading-snug ${active ? "text-blue-100" : "text-slate-500 dark:text-slate-400"}`}>{m.desc}</div>
+                        <div className={`text-xs mt-0.5 leading-snug ${active ? "text-rose-100" : "text-slate-500 dark:text-slate-400"}`}>{m.desc}</div>
                       </button>
                     );
                   })}
@@ -651,7 +651,7 @@ export default function SmartLeaveRequestModal({
                       setStartDate(nextStart);
                       if (endDate < nextStart) setEndDate(nextStart);
                     }}
-                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-[#E11D48] dark:focus:border-rose-400"
                     required
                   />
                 </FormRow>
@@ -661,7 +661,7 @@ export default function SmartLeaveRequestModal({
                     value={endDate}
                     min={startDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                    className="w-36 min-h-[44px] px-2.5 py-1.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-semibold focus:outline-none focus:border-[#E11D48] dark:focus:border-rose-400"
                     required
                   />
                 </FormRow>
@@ -720,7 +720,7 @@ export default function SmartLeaveRequestModal({
                 )}
                 <div className="pt-2 border-t-2 border-slate-200 dark:border-slate-700 flex justify-between items-center text-base font-bold text-slate-900 dark:text-white">
                   <span>Số ngày trừ phép thực tế:</span>
-                  <span className="text-blue-700 dark:text-blue-300 font-bold whitespace-nowrap">
+                  <span className="text-[#E11D48] dark:text-rose-400 font-bold whitespace-nowrap">
                     {requestType === "P" ? analysis.actualDeductedDays : 0} ngày
                   </span>
                 </div>
@@ -765,7 +765,7 @@ export default function SmartLeaveRequestModal({
                   ? "Ghi rõ lý do cần tạm ứng lương..."
                   : "Ghi rõ lý do xin nghỉ hoặc công việc tăng ca để quản lý xét duyệt..."
               }
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-blue-600 dark:focus:border-blue-400 leading-relaxed"
+              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#E11D48] dark:focus:border-rose-400 leading-relaxed"
             />
           </div>
         </form>

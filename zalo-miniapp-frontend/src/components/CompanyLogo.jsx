@@ -28,10 +28,10 @@ export default function CompanyLogo({
       <div
         className={`relative shrink-0 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center overflow-hidden transition-all duration-300 shadow-xl border border-slate-200/80 dark:border-slate-700 ${
           isLarge
-            ? "w-24 h-24 md:w-28 md:h-28 rounded-3xl p-2.5 shadow-2xl shadow-blue-500/25 ring-4 ring-white/10 dark:ring-slate-700/40"
+            ? "w-24 h-24 md:w-28 md:h-28 rounded-3xl p-2.5 shadow-2xl shadow-rose-500/20 ring-4 ring-rose-100/70 dark:ring-slate-700/40"
             : isSmall
             ? "w-10 h-10 rounded-xl p-1 shadow-md"
-            : "w-16 h-16 rounded-2xl p-1.5 shadow-lg"
+            : "w-16 h-16 rounded-2xl p-1.5 shadow-lg shadow-rose-500/15"
         }`}
       >
         <img

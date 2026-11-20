@@ -144,8 +144,8 @@ export function DesktopMobileBottomNav({
             onClick={() => handleSelect(item.id)}
             className={`flex flex-col items-center justify-center gap-1 min-h-[48px] min-w-[60px] py-1 px-2.5 rounded-2xl transition-all cursor-pointer ${
               isActive
-                ? "bg-[#0068FF] text-white dark:bg-blue-600 dark:text-white font-bold shadow-sm"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/80 font-medium"
+                ? "bg-[#E11D48] text-white dark:bg-rose-600 dark:text-white font-bold shadow-sm"
+                : "text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-[#F0F3FF] dark:hover:bg-slate-800/80 font-medium"
             }`}
           >
             <Icon className="w-5 h-5" />
@@ -250,8 +250,8 @@ export default function DesktopSidebar({
               onClick={() => handleSelect(item.id)}
               className={`w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer border ${
                 isActive
-                  ? "bg-[#0068FF] bg-gradient-to-r from-[#0068FF] to-[#0091FF] text-white border-blue-500 dark:from-blue-600 dark:to-sky-600 dark:text-white dark:border-blue-400 shadow-[0_6px_16px_-3px_rgba(0,104,255,0.3)]"
-                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/80"
+                  ? "bg-[#E11D48] text-white border-[#BE123C] dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-[0_6px_16px_-3px_rgba(225,29,72,0.3)]"
+                  : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 border-slate-200/70 dark:border-slate-800 hover:border-rose-200 dark:hover:border-slate-600 hover:bg-[#F0F3FF]/70 dark:hover:bg-slate-800/80"
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -286,20 +286,32 @@ export default function DesktopSidebar({
           title="Mở Hồ sơ cá nhân & Cỡ chữ"
           className={`w-full min-h-[56px] p-3 rounded-2xl border shadow-sm flex items-center gap-3 text-left cursor-pointer transition-all ${
             currentTab === "profile"
-              ? "bg-blue-50 dark:bg-blue-950/60 border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/20"
-              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-600"
+              ? "bg-rose-50 dark:bg-rose-950/60 border-[#E11D48] dark:border-rose-400 ring-2 ring-rose-500/20"
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-rose-300 dark:hover:border-slate-600"
           }`}
         >
-          <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-2xl border-2 border-slate-300 dark:border-slate-600 shadow-sm overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-800">
-            <img
-              src={currentUser?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
-              alt="Avatar"
-              className="w-full h-full object-cover"
-            />
+          <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-2xl border-2 border-rose-200 dark:border-slate-600 shadow-sm overflow-hidden shrink-0 bg-[#E11D48] flex items-center justify-center text-white font-extrabold text-sm">
+            {currentUser?.avatar_url ? (
+              <img
+                src={currentUser.avatar_url}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span>
+                {String(currentUser?.ho_ten || "AD")
+                  .trim()
+                  .split(/\s+/)
+                  .slice(-2)
+                  .map((p) => p[0] || "")
+                  .join("")
+                  .toUpperCase() || "AD"}
+              </span>
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-black text-sm text-slate-900 dark:text-white break-words leading-snug">{currentUser?.ho_ten}</h4>
-            <p className="text-xs text-blue-600 dark:text-blue-300 font-semibold leading-snug break-words">{currentUser?.chuc_danh || "Ban Quản Trị"}</p>
+            <h4 className="font-black text-sm text-[#111C2D] dark:text-white break-words leading-snug">{currentUser?.ho_ten}</h4>
+            <p className="text-xs text-[#E11D48] dark:text-rose-300 font-semibold leading-snug break-words">{currentUser?.chuc_danh || "Ban Quản Trị"}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-xs text-emerald-700 dark:text-emerald-400 font-mono font-bold">
                 TK: {currentUser?.login_username || currentUser?.ma_nv}

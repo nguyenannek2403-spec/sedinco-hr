@@ -31,8 +31,8 @@ const AccordionSection = ({
   title,
   subtitle,
   icon: Icon,
-  iconColor = "text-blue-600 dark:text-blue-300",
-  iconBg = "bg-blue-50 dark:bg-blue-950/60",
+  iconColor = "text-[#E11D48] dark:text-rose-300",
+  iconBg = "bg-[#FFE4E6] dark:bg-rose-950/60",
   isOpen,
   onToggle,
   children,
@@ -41,7 +41,7 @@ const AccordionSection = ({
     <button
       type="button"
       onClick={() => onToggle(id)}
-      className="w-full flex items-center justify-between gap-[10px] p-[14px] sm:p-4 text-left hover:bg-slate-50/70 dark:hover:bg-slate-800/60 active:bg-slate-100/70 dark:active:bg-slate-800 transition-colors min-h-[64px]"
+      className="w-full flex items-center justify-between gap-[10px] p-[14px] sm:p-4 text-left hover:bg-[#F0F3FF]/70 dark:hover:bg-slate-800/60 active:bg-slate-100/70 dark:active:bg-slate-800 transition-colors min-h-[64px]"
     >
       <div className="flex items-center gap-[10px] min-w-0 flex-1">
         <div
@@ -358,14 +358,14 @@ export default function CompanySettingsTab({ showToast }) {
 
   return (
     <div className="max-w-3xl mx-auto pb-28 space-y-4">
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 text-white shadow-sm">
+      <div className="bg-gradient-to-r from-[#E11D48] via-[#D81441] to-[#B80035] dark:from-[#9F1239] dark:via-[#881337] dark:to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
             <Building2 className="w-6 h-6 text-white" />
           </div>
           <div className="min-w-0">
             <h2 className="text-base font-bold leading-snug">Cài đặt Công ty & Chấm công</h2>
-            <p className="text-xs text-blue-100 mt-0.5">
+            <p className="text-xs text-rose-100 mt-0.5">
               Chọn từng mục bên dưới để điều chỉnh giờ làm, địa điểm và quy tắc tính lương.
             </p>
           </div>
@@ -423,8 +423,8 @@ export default function CompanySettingsTab({ showToast }) {
         title="1. Giờ làm việc & Nghỉ trưa"
         subtitle={`${config.work_start || "08:00"} – ${config.work_end || "17:30"} • Nghỉ trưa ${config.lunch_start || "12:00"} – ${config.lunch_end || "13:30"}`}
         icon={Clock}
-        iconColor="text-blue-600 dark:text-blue-300"
-        iconBg="bg-blue-50 dark:bg-blue-950/60"
+        iconColor="text-[#E11D48] dark:text-rose-300"
+        iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
         isOpen={openSections.schedule}
         onToggle={toggleSection}
       >
@@ -434,7 +434,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.work_start || "08:00"}
               onChange={(e) => updateField("work_start", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </FormRow>
           <FormRow label="Giờ tan ca">
@@ -442,7 +442,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.work_end || "17:30"}
               onChange={(e) => updateField("work_end", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </FormRow>
           <FormRow label="Bắt đầu nghỉ trưa">
@@ -450,7 +450,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.lunch_start || "12:00"}
               onChange={(e) => updateField("lunch_start", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </FormRow>
           <FormRow label="Kết thúc nghỉ trưa">
@@ -458,7 +458,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="time"
               value={config.lunch_end || "13:30"}
               onChange={(e) => updateField("lunch_end", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-blue-500 focus:outline-none"
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </FormRow>
         </div>
@@ -472,7 +472,7 @@ export default function CompanySettingsTab({ showToast }) {
             min="0"
             value={config.grace_period_minutes ?? 15}
             onChange={(e) => updateField("grace_period_minutes", e.target.value)}
-            className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+            className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
           />
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Ví dụ: nhập 15 nghĩa là nhân viên vào trễ trong vòng 15 phút đầu vẫn được tính đúng giờ.
@@ -488,7 +488,7 @@ export default function CompanySettingsTab({ showToast }) {
               type="text"
               value={config.company_name || ""}
               onChange={(e) => updateField("company_name", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -501,7 +501,7 @@ export default function CompanySettingsTab({ showToast }) {
                 value={config.phone || ""}
                 onChange={(e) => updateField("phone", e.target.value)}
                 placeholder="Ví dụ: 0236 3888 999"
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
               />
             </div>
             <div>
@@ -513,7 +513,7 @@ export default function CompanySettingsTab({ showToast }) {
                 value={config.address || ""}
                 onChange={(e) => updateField("address", e.target.value)}
                 placeholder="Nhập địa chỉ công ty"
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
               />
             </div>
           </div>
@@ -572,7 +572,7 @@ export default function CompanySettingsTab({ showToast }) {
                   type="text"
                   value={loc.name || ""}
                   onChange={(e) => handleLocationChange(idx, "name", e.target.value)}
-                  className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+                  className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
                 />
               </div>
 
@@ -586,7 +586,7 @@ export default function CompanySettingsTab({ showToast }) {
                     step="any"
                     value={loc.lat ?? ""}
                     onChange={(e) => handleLocationChange(idx, "lat", e.target.value)}
-                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -598,7 +598,7 @@ export default function CompanySettingsTab({ showToast }) {
                     step="any"
                     value={loc.lng ?? ""}
                     onChange={(e) => handleLocationChange(idx, "lng", e.target.value)}
-                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -610,7 +610,7 @@ export default function CompanySettingsTab({ showToast }) {
                     min="20"
                     value={loc.radius ?? 300}
                     onChange={(e) => handleLocationChange(idx, "radius", e.target.value)}
-                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
                   />
                 </div>
               </div>
@@ -628,9 +628,9 @@ export default function CompanySettingsTab({ showToast }) {
           </AppButton>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/70 space-y-2.5">
+        <div className="p-3.5 rounded-xl bg-[#F0F3FF] dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/70 space-y-2.5">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 font-bold text-xs">
+            <div className="flex items-center gap-2 text-[#0068FF] dark:text-blue-300 font-bold text-xs">
               <Wifi className="w-4 h-4" />
               <span>Chấm công nhanh bằng Wi-Fi công ty</span>
             </div>
@@ -657,7 +657,7 @@ export default function CompanySettingsTab({ showToast }) {
               value={config.office_ip_whitelist || ""}
               onChange={(e) => updateField("office_ip_whitelist", e.target.value)}
               placeholder="Bấm nút Lưu Wi-Fi đang kết nối để tự điền"
-              className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+              className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </div>
         </div>
@@ -669,8 +669,8 @@ export default function CompanySettingsTab({ showToast }) {
         title="3. Quy tắc tính công, Tăng ca & Bảo hiểm"
         subtitle={`Công chuẩn ${config.standard_work_days || 26} ngày • Bảo hiểm ${config.insurance_rate ?? 10.5}%`}
         icon={Calculator}
-        iconColor="text-violet-600 dark:text-violet-300"
-        iconBg="bg-violet-50 dark:bg-violet-950/60"
+        iconColor="text-[#E11D48] dark:text-rose-300"
+        iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
         isOpen={openSections.payroll}
         onToggle={toggleSection}
       >
@@ -685,7 +685,7 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.5"
               value={config.standard_work_days ?? 26}
               onChange={(e) => updateField("standard_work_days", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </div>
           <div>
@@ -698,7 +698,7 @@ export default function CompanySettingsTab({ showToast }) {
               max="100"
               value={config.probation_salary_percent ?? 85}
               onChange={(e) => updateField("probation_salary_percent", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </div>
           <div>
@@ -711,7 +711,7 @@ export default function CompanySettingsTab({ showToast }) {
               step="0.1"
               value={config.insurance_rate ?? 10.5}
               onChange={(e) => updateField("insurance_rate", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </div>
           <div>
@@ -723,7 +723,7 @@ export default function CompanySettingsTab({ showToast }) {
               inputMode="numeric"
               value={formatViNumber(config.custom_ot_hourly_rate ?? 0, 0)}
               onChange={(e) => updateField("custom_ot_hourly_rate", Math.max(0, Math.round(parseViNumberInput(e.target.value))))}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Nhập 0 nếu tính theo hệ số bên dưới.
@@ -846,7 +846,7 @@ export default function CompanySettingsTab({ showToast }) {
               <select
                 value={config.late_policy_type || "PER_MINUTE"}
                 onChange={(e) => updateField("late_policy_type", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 focus:border-blue-500 focus:outline-none"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
               >
                 <option value="NONE">Không trừ phạt (Chỉ ghi nhận)</option>
                 <option value="PER_MINUTE">Phạt tiền theo số phút đi trễ</option>

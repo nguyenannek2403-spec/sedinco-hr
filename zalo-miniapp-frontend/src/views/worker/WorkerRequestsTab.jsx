@@ -129,35 +129,35 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
 
   return (
     <div className="p-3.5 pb-8 space-y-4">
-      {/* F1: Thẻ Quỹ Phép Năm — ZaUI Membership Card Style */}
+      {/* F1: Thẻ Quỹ Phép Năm — Sedinco Pulse Membership Card Style */}
       {leaveBalance && (
-        <div className="bg-[#0055D4] bg-gradient-to-br from-[#0055D4] via-[#0068FF] to-[#0284C7] dark:bg-slate-900 dark:from-blue-950 dark:via-slate-900 dark:to-teal-950 border border-blue-500/30 dark:border-slate-700 rounded-2xl p-4 shadow-md text-white flex items-center justify-between gap-3">
+        <div className="bg-gradient-to-br from-[#E11D48] to-[#B80035] dark:from-rose-950 dark:via-slate-900 dark:to-slate-900 border border-rose-500/30 dark:border-rose-800/50 rounded-2xl p-4 shadow-[0_8px_24px_-4px_rgba(225,29,72,0.28)] text-white flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-blue-900/45 dark:bg-slate-800/90 border border-white/25 text-white flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-black/20 dark:bg-slate-800/90 border border-white/25 text-white flex items-center justify-center shrink-0">
               <CalendarCheck className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <div className="text-sm font-extrabold text-white">
                 Quỹ phép năm {leaveBalance.year}
               </div>
-              <div className="text-xs text-blue-100 mt-0.5 leading-relaxed">
+              <div className="text-xs text-rose-100 mt-0.5 leading-relaxed">
                 Đã dùng {leaveBalance.used} • Chờ duyệt {leaveBalance.pending} ngày
               </div>
             </div>
           </div>
-          <div className="text-right shrink-0 bg-blue-900/45 dark:bg-slate-800/90 border border-white/25 px-3 py-1.5 rounded-xl">
-            <div className="text-base font-extrabold text-white whitespace-nowrap">
+          <div className="text-right shrink-0 bg-black/20 dark:bg-slate-800/90 border border-white/25 px-3 py-1.5 rounded-xl">
+            <div className="text-base font-extrabold text-white whitespace-nowrap font-mono">
               Còn {leaveBalance.remaining} / {leaveBalance.quota}
             </div>
-            <div className="text-xs text-blue-100">ngày phép</div>
+            <div className="text-xs text-rose-100">ngày phép</div>
           </div>
         </div>
       )}
 
-      {/* Request Hub 4 Thẻ Dịch Vụ ZaUI */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-100/90 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] space-y-3">
+      {/* Request Hub 4 Thẻ Dịch Vụ Sedinco Pulse */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] space-y-3">
         <div>
-          <h2 className="text-base font-extrabold leading-snug text-slate-900 dark:text-white">Trung tâm Đơn từ &amp; Giải trình</h2>
+          <h2 className="text-base font-extrabold leading-snug text-[#111C2D] dark:text-white">Trung tâm Đơn từ &amp; Giải trình</h2>
           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">
             Chọn dịch vụ nhân sự bạn muốn gửi cho quản lý xét duyệt
           </p>
@@ -176,7 +176,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                 }}
                 className={`min-h-[88px] p-3 rounded-2xl border text-left flex flex-col items-start gap-2 transition active:scale-[0.98] cursor-pointer shadow-xs ${card.cardClass}`}
               >
-                <div className={`zaui-service-icon w-10 h-10 rounded-xl shrink-0 ${card.iconClass}`}>
+                <div className={`sedinco-service-icon w-10 h-10 rounded-xl shrink-0 ${card.iconClass}`}>
                   <CardIcon className="w-4 h-4" />
                 </div>
                 <div className="w-full min-w-0">
@@ -189,10 +189,10 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
         </div>
       </div>
 
-      {/* ZaUI Segmented Filter Tabs */}
+      {/* Sedinco Pulse Segmented Filter Tabs */}
       <div
         data-filter-group="worker-requests-filter"
-        className="flex flex-wrap bg-slate-100 border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800 p-1 rounded-2xl text-xs gap-1"
+        className="flex flex-wrap bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800 p-1 rounded-2xl text-xs gap-1"
       >
         {["all", "PENDING", "APPROVED", "REJECTED"].map((st) => {
           const active = filterStatus === st;
@@ -204,8 +204,8 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
               onClick={() => setFilterStatus(st)}
               className={`flex-1 min-h-[44px] px-2.5 py-2 font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
                 active
-                  ? "bg-[#0068FF] text-white shadow-sm dark:bg-blue-600 dark:text-white"
-                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                  ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                  : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100"
               }`}
             >
               {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
@@ -289,7 +289,7 @@ export default function WorkerRequestsTab({ currentUser, showToast }) {
                   </div>
                 )}
 
-                <div className="zaui-ticket-divider !my-2" />
+                <div className="sedinco-ticket-divider !my-2" />
 
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-mono font-semibold">Mã phiếu: #{req.id}</span>

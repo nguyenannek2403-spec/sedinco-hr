@@ -568,23 +568,23 @@ export default function OneTouchCheckIn({
 
   return (
     <div className="w-full px-3.5 pt-3.5 flex flex-col space-y-3.5">
-      {/* KHU VỰC 1: ĐẦU TRANG — TIÊU ĐỀ HỆ THỐNG, ĐỒNG HỒ SỐ THỰC TẾ & MẶT TRỜI / MẶT TRĂNG */}
-      <div className="flex items-start justify-between gap-3 px-0.5">
+      {/* KHU VỰC 1: ĐẦU TRANG — ĐỒNG HỒ SỐ THỰC TẾ & MẶT TRỜI / MẶT TRĂNG (SEDINCO PULSE) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <div className="text-xs font-extrabold uppercase tracking-wider text-[#E11D48] dark:text-rose-400">
             HỆ THỐNG CHẤM CÔNG NỘI BỘ
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#111C2D] dark:text-white tracking-tight leading-tight">
             CÔNG TY SEDINCO
           </h1>
           <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
             {weekdayDateLabel}
           </div>
-          <div className="pt-1 flex items-baseline gap-1">
-            <span className="text-4xl sm:text-5xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight leading-none">
+          <div className="pt-1.5 flex items-baseline gap-1 font-mono">
+            <span className="text-4xl sm:text-5xl font-black text-[#111C2D] dark:text-white tabular-nums tracking-tight leading-none">
               {clockHHMM}
             </span>
-            <span className="text-xl sm:text-2xl font-bold text-slate-500 dark:text-slate-400 tabular-nums leading-none">
+            <span className="text-xl sm:text-2xl font-bold text-[#E11D48] dark:text-rose-400 tabular-nums leading-none">
               {clockSS}
             </span>
           </div>
@@ -594,9 +594,9 @@ export default function OneTouchCheckIn({
         <div className="shrink-0 pt-1" aria-hidden="true">
           {isDark ? (
             <svg viewBox="0 0 88 88" className="w-16 h-16 sm:w-20 sm:h-20 animate-sun-pulse">
-              <circle cx="44" cy="44" r="40" fill="#38BDF8" fillOpacity="0.14" />
-              <circle cx="44" cy="44" r="30" fill="#60A5FA" fillOpacity="0.24" />
-              <circle cx="44" cy="44" r="21" fill="#0EA5E9" fillOpacity="0.38" />
+              <circle cx="44" cy="44" r="40" fill="#FB7185" fillOpacity="0.14" />
+              <circle cx="44" cy="44" r="30" fill="#60A5FA" fillOpacity="0.22" />
+              <circle cx="44" cy="44" r="21" fill="#0EA5E9" fillOpacity="0.34" />
               <path
                 d="M 50 30 A 15 15 0 1 0 58 51 A 12 12 0 1 1 50 30 Z"
                 fill="#E0F2FE"
@@ -618,27 +618,28 @@ export default function OneTouchCheckIn({
       {/* KHU VỰC 2: SÂN KHẤU TRUNG TÂM — NHÂN VẬT HOẠT HÌNH ĐỒNG PHỤC SEDINCO */}
       <SedincoMascot state={mascotState} interactivePreview={true} />
 
-      {/* KHU VỰC 3: KHUNG THÔNG BÁO XÁC NHẬN TRẠNG THÁI CHẤM CÔNG */}
+      {/* KHU VỰC 3: THẺ VÉ XÁC NHẬN TRẠNG THÁI CHẤM CÔNG */}
       {(hasCheckedIn || stage === STAGES.SUCCESS) && (
-        <div className="w-full rounded-2xl border-2 border-emerald-500 bg-emerald-50/75 dark:bg-slate-900 p-3.5 shadow-sm space-y-1.5">
-          <div className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 leading-snug">
+        <div className="w-full rounded-2xl border-2 border-[#16A34A] bg-emerald-50/80 dark:bg-slate-900 p-3.5 shadow-sm space-y-2">
+          <div className="text-sm font-extrabold text-[#16A34A] dark:text-emerald-300 flex items-center gap-1.5 leading-snug">
             <CheckCircle2 size={18} className="shrink-0" />
             <span>
               ✓ {hasCheckedOut || lastCheckAction === "out" ? "TAN CA THÀNH CÔNG" : "VÀO CA THÀNH CÔNG"}
               {confirmTimeStr ? ` ${confirmTimeStr}` : ""}
             </span>
           </div>
-          <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed break-words">
+          <div className="sedinco-ticket-divider !my-1.5" />
+          <p className="text-xs sm:text-sm font-medium text-[#111C2D] dark:text-slate-200 leading-relaxed break-words">
             <strong>{currentUser?.ho_ten || "Nhân viên"}</strong> đã ghi nhận chấm công tại{" "}
             {effectiveToday?.matched_location_name || effectiveToday?.location_name || "Văn phòng SEDINCO"}!
           </p>
           {todaySessionSummary && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/90 dark:bg-slate-800 border border-emerald-300 dark:border-emerald-600/50 text-emerald-800 dark:text-emerald-200 text-xs font-bold">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/95 dark:bg-slate-800 border border-emerald-300 dark:border-emerald-600/50 text-emerald-800 dark:text-emerald-200 text-xs font-bold">
               <span>Công thực tế hôm nay: {todaySessionSummary}</span>
             </div>
           )}
           {effectiveToday?.proxy_by && (
-            <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-200 text-xs font-semibold">
+            <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#DAE2FF]/70 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-[#0051CA] dark:text-blue-200 text-xs font-semibold">
               Quản lý chấm hộ{effectiveToday.proxy_note ? `: ${effectiveToday.proxy_note}` : ""}
             </span>
           )}
@@ -658,7 +659,7 @@ export default function OneTouchCheckIn({
             !hasCheckedIn && !isLockedPeriod
               ? isFieldWorkMode
                 ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40 cursor-pointer active:scale-[0.98]"
-                : "bg-[#0068FF] bg-gradient-to-r from-[#0068FF] to-[#2563EB] text-white border border-blue-500 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/40 cursor-pointer active:scale-[0.98]"
+                : "bg-[#16A34A] hover:bg-[#15803D] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-700/80 shadow-[0_8px_20px_-4px_rgba(22,163,74,0.3)] cursor-pointer active:scale-[0.98]"
               : "bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none"
           }`}
         >
@@ -677,7 +678,7 @@ export default function OneTouchCheckIn({
               <div
                 className={`text-xs font-semibold mt-0.5 leading-snug ${
                   !hasCheckedIn && !isLockedPeriod
-                    ? "text-blue-100"
+                    ? "text-emerald-50"
                     : "text-slate-600 dark:text-slate-300"
                 }`}
               >
@@ -703,7 +704,7 @@ export default function OneTouchCheckIn({
             hasCheckedIn && !hasCheckedOut && !isLockedPeriod
               ? isFieldWorkMode
                 ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40 cursor-pointer active:scale-[0.98]"
-                : "bg-indigo-600 bg-gradient-to-r from-indigo-600 to-[#0068FF] text-white border border-indigo-500 shadow-lg shadow-indigo-500/25 ring-2 ring-indigo-400/40 cursor-pointer active:scale-[0.98]"
+                : "bg-[#E11D48] hover:bg-[#BE123C] dark:bg-rose-600 dark:hover:bg-rose-500 text-white border border-[#BE123C]/80 shadow-[0_8px_20px_-4px_rgba(225,29,72,0.35)] cursor-pointer active:scale-[0.98]"
               : "bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none"
           }`}
         >
@@ -720,7 +721,7 @@ export default function OneTouchCheckIn({
               <div
                 className={`text-xs font-semibold mt-0.5 leading-snug ${
                   hasCheckedIn && !hasCheckedOut && !isLockedPeriod
-                    ? "text-indigo-100"
+                    ? "text-rose-100"
                     : "text-slate-600 dark:text-slate-300"
                 }`}
               >
@@ -736,14 +737,14 @@ export default function OneTouchCheckIn({
         </button>
       </div>
 
-      {/* KHU VỰC 6: CHÚ THÍCH VỊ TRÍ, ĐI CÔNG TRÌNH, SELFIE & THÔNG BÁO */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-sm space-y-2.5">
+      {/* KHU VỰC 6: CHÚ THÍCH VỊ TRÍ, ĐI CÔNG TRÌNH & THÔNG BÁO */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-[0_4px_16px_-2px_rgba(17,28,45,0.06)] space-y-2.5">
         <p className="text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
           📍 Yêu cầu đứng trong bán kính cho phép tại Văn phòng / Kho SEDINCO hoặc kết nối Wi-Fi công ty.
         </p>
 
         <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 text-[#0068FF] dark:text-blue-300">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#DAE2FF]/60 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 text-[#0051CA] dark:text-blue-300">
             {locationFriendlyBadge.mode === "wifi_office" ? (
               <Wifi className="w-3.5 h-3.5 shrink-0" />
             ) : (
@@ -754,8 +755,8 @@ export default function OneTouchCheckIn({
           <span
             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border ${
               !networkBadge.online || networkBadge.networkType === "none"
-                ? "bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-700 text-rose-700 dark:text-rose-200"
-                : "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300"
+                ? "bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-200"
+                : "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300"
             }`}
           >
             {!networkBadge.online || networkBadge.networkType === "none"
@@ -835,7 +836,7 @@ export default function OneTouchCheckIn({
               <AlertCircle size={16} className="text-rose-700 dark:text-rose-300 shrink-0" />
             )}
             {stage !== STAGES.SUCCESS && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
-              <span className="w-2 h-2 rounded-full bg-[#0068FF] dark:bg-blue-400 shrink-0 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-[#E11D48] dark:bg-rose-400 shrink-0 animate-pulse" />
             )}
             <span>{statusMessage}</span>
           </div>
@@ -963,7 +964,7 @@ export default function OneTouchCheckIn({
         }
       >
         <div className="p-6 text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-500/15 text-[#0068FF] dark:text-blue-400 flex items-center justify-center mx-auto shadow-sm border border-blue-100 dark:border-blue-500/30">
+          <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-500/15 text-[#E11D48] dark:text-rose-400 flex items-center justify-center mx-auto shadow-sm border border-rose-100 dark:border-rose-500/30">
             <MapPin size={32} />
           </div>
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">

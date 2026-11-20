@@ -185,8 +185,8 @@ export default function ForcePasswordChangeModal({
                     <div
                         className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
                             canClose
-                                ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300'
-                                : 'bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300'
+                                ? 'bg-rose-50 dark:bg-rose-500/15 text-[#E11D48] dark:text-rose-300'
+                                : 'bg-rose-50 dark:bg-rose-500/15 text-[#E11D48] dark:text-rose-300'
                         }`}
                     >
                         {canClose ? <KeyRound size={28} /> : <ShieldAlert size={30} />}
@@ -222,7 +222,7 @@ export default function ForcePasswordChangeModal({
                                     value={loginUsername}
                                     onChange={(e) => setLoginUsername(e.target.value)}
                                     placeholder="SĐT hoặc tên tài khoản"
-                                    className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400"
+                                    className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-[#E11D48] dark:focus:border-rose-400"
                                 />
                             </div>
                             <div>
@@ -234,7 +234,7 @@ export default function ForcePasswordChangeModal({
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
                                     placeholder="VD: 0905123456"
-                                    className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400"
+                                    className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-[#E11D48] dark:focus:border-rose-400"
                                 />
                             </div>
                         </div>
@@ -249,7 +249,7 @@ export default function ForcePasswordChangeModal({
                             value={oldPassword}
                             onChange={(e) => setOldPassword(e.target.value)}
                             placeholder="Nhập mật khẩu hiện tại để xác nhận"
-                            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-blue-600 dark:focus:border-blue-400"
+                            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-[#E11D48] dark:focus:border-rose-400"
                         />
                     </div>
                     <div>
@@ -261,7 +261,7 @@ export default function ForcePasswordChangeModal({
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             placeholder={canClose ? 'Nhập nếu muốn đổi mật khẩu mới' : 'Thiết lập mật khẩu mới an toàn'}
-                            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-blue-600 dark:focus:border-blue-400"
+                            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-[#E11D48] dark:focus:border-rose-400"
                         />
                     </div>
                     <div>
@@ -273,7 +273,7 @@ export default function ForcePasswordChangeModal({
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             placeholder="Nhập lại mật khẩu mới"
-                            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-blue-600 dark:focus:border-blue-400"
+                            className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:border-[#E11D48] dark:focus:border-rose-400"
                         />
                     </div>
                     <button
