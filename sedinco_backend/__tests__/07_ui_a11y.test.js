@@ -929,16 +929,16 @@ async function dismissToastIfVisible(session) {
 async function loginThroughAuthView(session, maNv, password) {
     await waitForCondition(
         session,
-        `Boolean(document.querySelector('input[placeholder*="NV001"]'))`,
+        `Boolean(document.querySelector('input[name="username"]'))`,
         8000,
         `AuthView login form visible for ${maNv}`
     );
-    await setReactInputValue(session, { selector: 'input[placeholder*="NV001"]', value: maNv, inTopModal: false });
-    await setReactInputValue(session, { selector: 'input[type="password"], input[placeholder*="mật khẩu"]', value: password, inTopModal: false });
+    await setReactInputValue(session, { selector: 'input[name="username"]', value: maNv, inTopModal: false });
+    await setReactInputValue(session, { selector: 'input[name="password"]', value: password, inTopModal: false });
     await clickInPage(session, { selector: 'button[type="submit"]', inTopModal: false });
     await waitForCondition(
         session,
-        `!document.querySelector('input[placeholder*="NV001"]')`,
+        `!document.querySelector('input[name="username"]')`,
         10000,
         `Dashboard loaded after login for ${maNv}`
     );
@@ -959,7 +959,7 @@ async function logoutViaConfirmDialog(session, buttonText = 'Đăng xuất') {
     await clickInPage(session, { text: 'Đăng xuất', inTopModal: true });
     await waitForCondition(
         session,
-        `Boolean(document.querySelector('input[placeholder*="NV001"]'))`,
+        `Boolean(document.querySelector('input[name="username"]'))`,
         8000,
         'Returned to AuthView after logout confirm'
     );
@@ -1126,8 +1126,46 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         await waitForNoBlockingLoading(session);
 
         // -----------------------------------------------------------------
-        // STEP 0: AUTH VIEW + 200% FONT SCALE + NEGATIVE PASSWORD ERROR
+        // STEP 0: AUTH VIEW V31 (ULTRA-CLEAN, ZERO PLACEHOLDER, ZERO HINTS) + 200% + DARK + RESPONSIVE 320..1440 + WRONG PASSWORD
         // -----------------------------------------------------------------
+        const authV31Audit = await session.evaluate(`(() => {
+            const u = document.querySelector('input[name="username"]');
+            const p = document.querySelector('input[name="password"]');
+            const bodyText = document.body.innerText || '';
+            return {
+                hasUser: Boolean(u),
+                hasPass: Boolean(p),
+                userPlaceholder: u ? u.getAttribute('placeholder') : null,
+                passPlaceholder: p ? p.getAttribute('placeholder') : null,
+                userAutoComplete: u ? u.getAttribute('autocomplete') : null,
+                passAutoComplete: p ? p.getAttribute('autocomplete') : null,
+                hasCompanyName: bodyText.includes('CÔNG TY SEDINCO'),
+                hasAppName: bodyText.includes('Sedinco HR'),
+                hasNeutralLabels: bodyText.includes('Tài khoản') && bodyText.includes('Mật khẩu'),
+                leaksHint:
+                    bodyText.includes('VD: 0905') ||
+                    bodyText.includes('NV001') ||
+                    bodyText.includes('Bảo mật tài khoản Sedinco') ||
+                    bodyText.includes('lần đầu để tự động liên kết') ||
+                    bodyText.includes('Số Điện Thoại')
+            };
+        })()`);
+        assert.equal(authV31Audit.hasUser && authV31Audit.hasPass, true, 'V31 AuthView must render username and password inputs');
+        assert.equal(authV31Audit.userPlaceholder, '', 'V31 Security: Username input placeholder must be strictly empty ""');
+        assert.equal(authV31Audit.passPlaceholder, '', 'V31 Security: Password input placeholder must be strictly empty ""');
+        assert.equal(authV31Audit.userAutoComplete, 'off', 'V31 Security: Username input must set autocomplete="off"');
+        assert.equal(authV31Audit.passAutoComplete, 'off', 'V31 Security: Password input must set autocomplete="off"');
+        assert.ok(authV31Audit.hasCompanyName && authV31Audit.hasAppName && authV31Audit.hasNeutralLabels, 'V31 AuthView must display core company/app branding and neutral labels');
+        assert.equal(authV31Audit.leaksHint, false, 'V31 AuthView must NOT leak format hints, employee IDs, or extra footer notes');
+
+        for (const [vpW, vpH] of [[320, 640], [768, 1024], [1440, 900]]) {
+            await setViewportAndScale(session, vpW, vpH, 100);
+            await sleep(100);
+            const ov = await session.evaluate(`document.documentElement.scrollWidth - window.innerWidth`);
+            assert.ok(ov <= 1, `V31 AuthView horizontal overflow at ${vpW}x${vpH}: ${ov}px`);
+        }
+        await setViewportAndScale(session, 360, 780, 100);
+
         await inspectPhysicsAndGeometry(session, 'AuthView @ 360x780 (100%)', { expectModal: false, testScrollBleed: false });
 
         // Test 200% Elderly font scaling on AuthView
@@ -1146,8 +1184,8 @@ test('UI-03: V15 Real-DB 3-Role Full Click-Every-Button & 5-Check Scroll Physics
         // Eye toggle & negative wrong-password feedback
         await clickInPage(session, { selector: 'button[aria-label*="mật khẩu"]', inTopModal: false });
         allowExpected4xx = true;
-        await setReactInputValue(session, { selector: 'input[placeholder*="NV001"]', value: 'NV003', inTopModal: false });
-        await setReactInputValue(session, { selector: 'input[placeholder*="mật khẩu"]', value: 'WrongPass999!', inTopModal: false });
+        await setReactInputValue(session, { selector: 'input[name="username"]', value: 'NV003', inTopModal: false });
+        await setReactInputValue(session, { selector: 'input[name="password"]', value: 'WrongPass999!', inTopModal: false });
         await clickInPage(session, { selector: 'button[type="submit"]', inTopModal: false });
         await sleep(500);
         await inspectPhysicsAndGeometry(session, 'AuthView Wrong Password Error', { expectModal: false, testScrollBleed: false });

@@ -9,7 +9,8 @@ export default function CompanyLogo({
   size = "large",
   theme = "dark",
   layout = "vertical",
-  showSubtitle = true
+  showSubtitle = true,
+  iconOnly = false
 }) {
   const isLarge = size === "large";
   const isSmall = size === "small";
@@ -40,25 +41,26 @@ export default function CompanyLogo({
         />
       </div>
 
-      {/* Tên thương hiệu SEDINCO HR */}
-      <div className={isHorizontal ? "text-left" : "text-center"}>
-        <h1
-          className={`font-black tracking-tight uppercase leading-tight ${
-            theme === "dark" ? "text-white" : "text-slate-900 dark:text-white"
-          } ${isLarge ? "text-2xl md:text-3xl tracking-wide mt-1" : isSmall ? "text-sm" : "text-base"}`}
-        >
-          SEDINCO <span className="text-red-500">HR</span>
-        </h1>
-        {showSubtitle && (
-          <p
-            className={`font-semibold tracking-wide ${
-              theme === "dark" ? "text-slate-300" : "text-slate-500 dark:text-slate-300"
-            } ${isLarge ? "text-xs md:text-sm mt-1" : "text-xs mt-0.5"}`}
+      {!iconOnly && (
+        <div className={isHorizontal ? "text-left" : "text-center"}>
+          <h1
+            className={`font-black tracking-tight uppercase leading-tight ${
+              theme === "dark" ? "text-white" : "text-slate-900 dark:text-white"
+            } ${isLarge ? "text-2xl md:text-3xl tracking-wide mt-1" : isSmall ? "text-sm" : "text-base"}`}
           >
-            HỆ THỐNG QUẢN TRỊ NHÂN SỰ & CHẤM CÔNG
-          </p>
-        )}
-      </div>
+            SEDINCO <span className="text-red-500">HR</span>
+          </h1>
+          {showSubtitle && (
+            <p
+              className={`font-semibold tracking-wide ${
+                theme === "dark" ? "text-slate-300" : "text-slate-500 dark:text-slate-300"
+              } ${isLarge ? "text-xs md:text-sm mt-1" : "text-xs mt-0.5"}`}
+            >
+              HỆ THỐNG QUẢN TRỊ NHÂN SỰ & CHẤM CÔNG
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
