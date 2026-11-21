@@ -1,6 +1,4 @@
-import React, { useEffect, useId, useState } from "react";
-
-const STATE_ORDER = ["sleeping", "waving_hello", "waving_goodbye"];
+import React, { useId } from "react";
 
 const STATE_META = {
   sleeping: {
@@ -31,43 +29,25 @@ const STATE_META = {
 
 /**
  * Nhân vật Chibi SEDINCO mặc áo đồng phục Polo trắng chuẩn công ty:
- * - Cổ bẻ trắng lót đỏ, viền sọc Đỏ & Xám than, trụ 3 nút đỏ
- * - Tay ngắn bo sọc Đỏ & Xám than
- * - 3 dải sọc chéo hông phải xuống vạt áo (Đỏ tươi, Xám bạc, Xám than đậm)
- * - Logo ngực trái SEDINCO (khối S đỏ + lá xanh + đế gạch xám)
- * - Hỗ trợ 3 trạng thái: 'sleeping' | 'waving_hello' | 'waving_goodbye'
+ * - Khóa trạng thái thuần hiển thị theo DB chấm công ('sleeping' | 'waving_hello' | 'waving_goodbye')
+ * - Không cho phép nhấn/chạm trực tiếp làm đổi trạng thái giả lập
  */
 export default function SedincoMascot({
   state = "sleeping",
-  interactivePreview = true,
   className = ""
 }) {
   const uid = useId().replace(/:/g, "");
-  const [previewOverride, setPreviewOverride] = useState(null);
-
-  // Khi trạng thái chấm công thật thay đổi, ưu tiên hiển thị trạng thái thực tế
-  useEffect(() => {
-    setPreviewOverride(null);
-  }, [state]);
-
-  const activeState = STATE_META[previewOverride || state] ? previewOverride || state : "sleeping";
+  const activeState = STATE_META[state] ? state : "sleeping";
   const meta = STATE_META[activeState];
   const isSleeping = activeState === "sleeping";
   const isWaving = activeState === "waving_hello" || activeState === "waving_goodbye";
   const clipId = `sedinco-polo-body-${uid}`;
   const shadowGradId = `sedinco-stage-glow-${uid}`;
 
-  const handleCyclePreview = () => {
-    if (!interactivePreview) return;
-    const idx = STATE_ORDER.indexOf(activeState);
-    const next = STATE_ORDER[(idx + 1) % STATE_ORDER.length];
-    setPreviewOverride(next === state ? null : next);
-  };
-
   return (
     <div
       data-mascot-state={activeState}
-      className={`w-full rounded-2xl bg-gradient-to-b from-[#F0F3FF]/80 via-white to-[#FFF1F2]/40 dark:from-slate-800/70 dark:via-slate-900 dark:to-slate-900 border border-slate-200/80 dark:border-slate-800 px-3 py-3.5 flex flex-col items-center justify-center text-center space-y-2.5 shadow-sm ${className}`}
+      className={`w-full rounded-2xl bg-gradient-to-b from-[#F0F3FF]/80 via-white to-[#FFF1F2]/40 dark:from-slate-800/70 dark:via-slate-900 dark:to-slate-900 border border-slate-200/80 dark:border-slate-800 px-3 py-3.5 flex flex-col items-center justify-center text-center space-y-2.5 shadow-sm pointer-events-none select-none ${className}`}
     >
       {/* Sticker Lời Nói Nổi Bật (khi Đang trong ca hoặc Tan ca) */}
       {meta.stickerText && (
@@ -86,12 +66,10 @@ export default function SedincoMascot({
         </div>
       )}
 
-      {/* Sân Khấu SVG Nhân Vật Đồng Phục SEDINCO 60fps */}
-      <button
-        type="button"
-        onClick={handleCyclePreview}
-        aria-label={`Nhân vật Sedinco: ${meta.caption}. Chạm để xem các trạng thái`}
-        className="relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E11D48] rounded-2xl cursor-pointer select-none bg-transparent border-0 p-0"
+      {/* Sân Khấu SVG Nhân Vật Đồng Phục SEDINCO (chỉ đọc từ trạng thái chấm công) */}
+      <div
+        aria-hidden="true"
+        className="relative select-none pointer-events-none rounded-2xl p-0"
       >
         <svg
           viewBox="0 0 220 220"
@@ -376,7 +354,7 @@ export default function SedincoMascot({
             </g>
           </g>
         </svg>
-      </button>
+      </div>
 
       {/* Dòng trạng thái trực quan bên dưới nhân vật */}
       <div

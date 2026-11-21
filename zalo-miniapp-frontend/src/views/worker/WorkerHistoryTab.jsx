@@ -7,7 +7,6 @@ import {
   RefreshCw,
   FilePlus2,
   MapPin,
-  UserCheck,
   FileSpreadsheet,
   CheckCircle2,
   Clock,
@@ -15,7 +14,6 @@ import {
 } from "lucide-react";
 import { safeGet } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
-import { getAttendanceStatusInfo } from "../../utils/viLabels";
 import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
 import { AppButton, AppModal, StatusBadge, SkeletonList } from "../../components/ui";
 
@@ -326,7 +324,7 @@ export default function WorkerHistoryTab({
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#E11D48] animate-pulse shrink-0" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#E11D48] shrink-0" />
             <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white tracking-tight">
               Bản đồ chấm công (Heatmap)
             </h3>
@@ -420,118 +418,6 @@ export default function WorkerHistoryTab({
           </span>
         </div>
       </div>
-
-      {/* STITCH SCREEN 3 — SECTION 4: DAILY ATTENDANCE TICKET CARDS */}
-      {logs.length > 0 && (
-        <div className="space-y-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <h4 className="text-sm font-extrabold text-[#111C2D] dark:text-white">
-              Chi tiết ngày công gần nhất ({logs.length} ngày)
-            </h4>
-            <span className="text-xs text-[#E11D48] dark:text-rose-400 font-bold">
-              Chạm để tạo giải trình
-            </span>
-          </div>
-          <div className="space-y-2.5">
-            {logs.map((day, idx) => {
-              const iso = String(day.record_date || "").slice(0, 10);
-              const style = getHeatmapCellStyle(day, idx, false);
-              const statusInfo = getAttendanceStatusInfo(day.status);
-              const otHours = Number(day.ot_hours) || 0;
-              const lateMinutes = Number(day.late_minutes) || 0;
-              const earlyMinutes = Number(day.early_leave_minutes) || 0;
-              const dayNumLabel = iso.slice(8, 10) || "--";
-              const monthLabel = iso.slice(5, 7) || String(month);
-              const noteStr = day.attendance_note || "";
-              const hasIssueNote =
-                lateMinutes > 0 ||
-                earlyMinutes > 0 ||
-                noteStr.toLowerCase().includes("vào muộn") ||
-                noteStr.toLowerCase().includes("ra sớm") ||
-                noteStr.toLowerCase().includes("quên check-out") ||
-                noteStr.toLowerCase().includes("quá ngắn");
-              const displayNote =
-                noteStr ||
-                [
-                  lateMinutes > 0 ? `Vào muộn ${lateMinutes} phút` : "",
-                  earlyMinutes > 0 ? `Ra sớm ${earlyMinutes} phút` : ""
-                ]
-                  .filter(Boolean)
-                  .join(" • ");
-
-              return (
-                <button
-                  key={iso || idx}
-                  type="button"
-                  onClick={() => setSelectedDayDetail({ isoDate: iso, dayNum: iso.slice(-2), log: day, style })}
-                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-xs hover:border-rose-300 dark:hover:border-rose-500/40 transition cursor-pointer space-y-2"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-xl bg-[#FFE4E6] dark:bg-rose-500/15 border border-rose-200/80 dark:border-rose-500/30 flex flex-col items-center justify-center shrink-0">
-                        <span className="text-sm font-extrabold text-[#B80035] dark:text-rose-300 leading-none">{dayNumLabel}</span>
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-0.5">T{monthLabel}</span>
-                      </div>
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-sm font-extrabold text-[#111C2D] dark:text-white font-mono">{iso}</span>
-                          <StatusBadge type="attendance" status={day.status} />
-                        </div>
-                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 font-mono">
-                          Vào: <strong className="text-[#111C2D] dark:text-white">{day.check_in_time ? String(day.check_in_time).slice(0, 5) : "--:--"}</strong>
-                          {"  —  "}
-                          Ra: <strong className="text-[#111C2D] dark:text-white">{day.check_out_time ? String(day.check_out_time).slice(0, 5) : "--:--"}</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0 space-y-1">
-                      <span className="inline-block font-extrabold text-xs text-[#16A34A] dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 px-2.5 py-0.5 rounded-full">
-                        {statusInfo.creditText}
-                      </span>
-                      {otHours > 0 && (
-                        <span className="block font-bold text-xs text-[#0051CA] dark:text-blue-300">
-                          +{otHours}h OT
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {hasIssueNote && (
-                    <div className="px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/70 text-xs font-semibold text-amber-800 dark:text-amber-300">
-                      {displayNote}
-                    </div>
-                  )}
-
-                  <div className="sedinco-ticket-divider !my-1.5" />
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 min-w-0">
-                      {day.location_name ? (
-                        <span className="inline-flex items-center gap-1 truncate">
-                          <MapPin className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
-                          <span className="truncate">{day.location_name}</span>
-                        </span>
-                      ) : (
-                        <span>Ca hành chính • 08:00 - 17:30</span>
-                      )}
-                      {day.proxy_by && (
-                        <span className="inline-flex items-center gap-1 text-[#0051CA] dark:text-blue-300 font-semibold">
-                          <UserCheck className="w-3.5 h-3.5 shrink-0" />
-                          <span>Chấm hộ</span>
-                        </span>
-                      )}
-                    </div>
-                    <span className="font-extrabold text-[#E11D48] dark:text-rose-300 shrink-0">
-                      Tạo giải trình →
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* STITCH SCREEN 3 — SECTION 5: BOTTOM FULL-WIDTH CRIMSON PAYSLIP CTA */}
       {typeof handleOpenPayslip === "function" && (

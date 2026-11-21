@@ -3,12 +3,10 @@ import {
   Clock,
   MapPin,
   CheckCircle2,
-  AlertCircle,
   AlertTriangle,
   RotateCcw,
   ShieldAlert,
-  HardHat,
-  Wifi
+  HardHat
 } from "lucide-react";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
@@ -70,7 +68,7 @@ export default function OneTouchCheckIn({
     endCheckInTap
   } = useSpamClickGuard(2500);
   const [stage, setStage] = useState(STAGES.IDLE);
-  const [statusMessage, setStatusMessage] = useState("Chạm nút tròn lớn bên dưới để Chấm Công 1 Chạm (Vào ca / Ra ca)");
+  const [statusMessage, setStatusMessage] = useState("");
   const [serverTimeResult, setServerTimeResult] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [errorDetails, setErrorDetails] = useState("");
@@ -613,7 +611,7 @@ export default function OneTouchCheckIn({
       </div>
 
       {/* STITCH SCREEN 2 — SECTION 2: CENTER MASCOT STAGE */}
-      <SedincoMascot state={mascotState} interactivePreview={true} />
+      <SedincoMascot state={mascotState} />
 
       {/* STITCH SCREEN 2 — SECTION 3: PERFORATED REAL-TIME VERIFICATION TICKET CARD */}
       <div className="w-full rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-[0_6px_20px_-4px_rgba(17,28,45,0.06)] overflow-hidden">
@@ -805,92 +803,45 @@ export default function OneTouchCheckIn({
         </button>
       </div>
 
-      {/* STITCH SCREEN 2 — SECTION 5: GPS & WI-FI COMPLIANCE CARD + FIELD-WORK TRIGGER */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-sm space-y-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-[#F0F3FF] dark:bg-slate-800 text-[#0051CA] dark:text-blue-300 flex items-center justify-center shrink-0">
-              {locationFriendlyBadge.mode === "wifi_office" ? (
-                <Wifi className="w-4 h-4" />
-              ) : (
-                <MapPin className="w-4 h-4" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-extrabold text-[#111C2D] dark:text-white leading-tight">
-                Vị trí GPS &amp; Wi-Fi hợp lệ
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 break-words">
-                Bán kính cho phép tại Văn phòng / Kho SEDINCO
-              </div>
-            </div>
-          </div>
-          <span
-            className={`px-2 py-0.5 rounded-md text-xs font-bold shrink-0 whitespace-nowrap border ${
-              !networkBadge.online || networkBadge.networkType === "none"
-                ? "bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-200"
-                : "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300"
-            }`}
-          >
-            {!networkBadge.online || networkBadge.networkType === "none"
-              ? "Mất mạng"
-              : "Khớp 100%"}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#16A34A] shrink-0" />
-            <span>{locationFriendlyBadge.text}</span>
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 pt-0.5">
-          <AppButton
-            variant={isFieldWorkMode ? "warning" : "secondary"}
-            fullWidth
-            icon={HardHat}
-            onClick={() => {
-              if (isFieldWorkMode) {
-                setIsFieldWorkMode(false);
-              } else {
-                setShowFieldWorkModal(true);
-              }
-            }}
-            className={`text-xs font-bold ${
-              isFieldWorkMode
-                ? "border-amber-400 shadow-lg shadow-amber-500/20"
-                : "!bg-amber-50 hover:!bg-amber-100 dark:!bg-slate-800 dark:hover:!bg-slate-700 !text-amber-800 dark:!text-amber-300 !border-amber-300 dark:!border-amber-500/40"
-            }`}
-          >
-            {isFieldWorkMode
-              ? "Đang bật: Chấm công Đi Công Trình GPS (Bấm để tắt)"
-              : "🚧 Chấm công Đi Công Trình / Thị Trường (GPS)"}
-          </AppButton>
-
+      {/* Cảnh báo & Thông báo trạng thái xử lý (chỉ hiện khi đang xử lý hoặc có cảnh báo/lỗi) */}
+      {(isFieldWorkMode ||
+        Boolean(spamWarning) ||
+        stage === STAGES.LOCATING ||
+        stage === STAGES.SUBMITTING ||
+        stage === STAGES.ERROR ||
+        stage === STAGES.SECURITY_FRAUD ||
+        (errorMessage && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD)) && (
+        <div className="space-y-2 text-center">
           {isFieldWorkMode && (
-            <div className="bg-amber-50 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-500/40 rounded-2xl p-3 space-y-2 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-amber-800 dark:text-amber-200 uppercase">
-                  Đang bật chế độ Đi Công Trình (GPS)
+            <div className="bg-amber-50 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-500/40 rounded-2xl p-3 space-y-2 text-xs text-left">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-200">
+                  <HardHat className="w-4 h-4 shrink-0" />
+                  <span>Đang bật chế độ Đi Công Trình (GPS)</span>
                 </span>
-                <AppButton
-                  variant="secondary"
-                  onClick={() => setShowFieldWorkModal(true)}
-                  className="text-xs px-3 py-1.5"
-                >
-                  Sửa ghi chú
-                </AppButton>
+                <div className="flex items-center gap-1.5">
+                  <AppButton
+                    variant="secondary"
+                    onClick={() => setShowFieldWorkModal(true)}
+                    className="text-xs px-2.5 py-1 min-h-[34px]"
+                  >
+                    Sửa ghi chú
+                  </AppButton>
+                  <AppButton
+                    variant="ghost"
+                    onClick={() => setIsFieldWorkMode(false)}
+                    className="text-xs px-2.5 py-1 min-h-[34px] text-amber-800 dark:text-amber-200"
+                  >
+                    Tắt
+                  </AppButton>
+                </div>
               </div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-white break-words bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
+              <p className="text-xs font-semibold text-slate-900 dark:text-white break-words bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5">
                 {fieldNote.trim() || "Đi công trình / Thị trường (Xác thực tọa độ GPS)"}
               </p>
             </div>
           )}
-        </div>
 
-        {/* Cảnh báo & Thông báo trạng thái xử lý */}
-        <div className="space-y-2 text-center">
           {spamWarning && (
             <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-left flex items-start gap-2.5">
               <AlertTriangle size={18} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
@@ -898,24 +849,12 @@ export default function OneTouchCheckIn({
             </div>
           )}
 
-          <div
-            className={`w-full py-2.5 px-3.5 rounded-2xl text-xs font-semibold inline-flex items-center justify-center gap-2 border ${
-              stage === STAGES.SUCCESS
-                ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700"
-                : stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD
-                ? "bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-700"
-                : "bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
-            }`}
-          >
-            {stage === STAGES.SUCCESS && <CheckCircle2 size={16} className="text-emerald-700 dark:text-emerald-300 shrink-0" />}
-            {(stage === STAGES.ERROR || stage === STAGES.SECURITY_FRAUD) && (
-              <AlertCircle size={16} className="text-rose-700 dark:text-rose-300 shrink-0" />
-            )}
-            {stage !== STAGES.SUCCESS && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
-              <span className="w-2 h-2 rounded-full bg-[#E11D48] dark:bg-rose-400 shrink-0 animate-pulse" />
-            )}
-            <span>{statusMessage}</span>
-          </div>
+          {(stage === STAGES.LOCATING || stage === STAGES.SUBMITTING) && statusMessage && (
+            <div className="w-full py-2.5 px-3.5 rounded-2xl text-xs font-semibold inline-flex items-center justify-center gap-2 border bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700">
+              <span className="w-2 h-2 rounded-full bg-[#E11D48] dark:bg-rose-400 shrink-0" />
+              <span>{statusMessage}</span>
+            </div>
+          )}
 
           {errorMessage && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
             <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 text-left flex items-start gap-2.5">
@@ -933,28 +872,41 @@ export default function OneTouchCheckIn({
                   {errorDetails && <p className="text-xs text-rose-800 dark:text-rose-200 mt-1">{errorDetails}</p>}
                 </div>
               </div>
-              <AppButton
-                type="button"
-                variant="danger"
-                fullWidth
-                onClick={() => handleStartCheckIn(true)}
-                icon={RotateCcw}
-              >
-                BẤM VÀO ĐÂY ĐỂ THỬ LẠI
-              </AppButton>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <AppButton
+                  type="button"
+                  variant="danger"
+                  fullWidth
+                  onClick={() => handleStartCheckIn(true)}
+                  icon={RotateCcw}
+                >
+                  Thử lại
+                </AppButton>
+                {!isFieldWorkMode && (
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    fullWidth
+                    icon={HardHat}
+                    onClick={() => setShowFieldWorkModal(true)}
+                  >
+                    Đi công trình (GPS)
+                  </AppButton>
+                )}
+              </div>
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* NHẮC QUÊN GIỜ RA + THÔNG BÁO + DỊCH VỤ NHÂN SỰ NHANH */}
+      {/* NHẮC QUÊN GIỜ RA + THÔNG BÁO */}
       {forgottenCheckout && (
         <button
           type="button"
           onClick={() => onOpenFixCheckoutRequest && onOpenFixCheckoutRequest(forgottenCheckout)}
-          className="w-full p-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 border border-amber-300 dark:border-amber-500/50 text-left flex items-start gap-2.5 shadow-sm transition cursor-pointer"
+          className="w-full p-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 border border-amber-300 dark:border-amber-500/50 text-left flex items-start gap-2.5 transition cursor-pointer"
         >
-          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0 text-xs leading-relaxed">
             <p className="font-bold text-amber-900 dark:text-amber-200">
               ⚠️ Phát hiện ngày {forgottenCheckout.short_date} bạn có chấm công Vào ({String(forgottenCheckout.check_in_time).slice(0, 5)}) nhưng quên bấm Giờ Ra!

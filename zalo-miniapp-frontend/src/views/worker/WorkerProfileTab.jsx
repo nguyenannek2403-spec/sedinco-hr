@@ -1,33 +1,43 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   DollarSign,
   Smartphone,
   Lock,
   LogOut,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Phone,
   Mail,
   Clock,
   Building2,
   Calendar,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle
 } from "lucide-react";
-import { safePost, safeGet } from "../../utils/api";
+import { safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import { getShiftLabel } from "../../utils/viLabels";
 import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
-import { getDeviceIdentity, getDeviceIdentitySync, formatEmployeeDeviceLabel } from "../../utils/deviceIdentity";
-import { AppButton, AppModal } from "../../components/ui";
+import {
+  getDeviceIdentitySync,
+  parseKnownDevices,
+  sanitizeSingleDeviceModelName
+} from "../../utils/deviceIdentity";
+import { AppButton } from "../../components/ui";
 import { FontScaleSelector } from "../../context/FontScaleContext";
 
-/**
- * WorkerProfileTab — Google Stitch "Sedinco Pulse" Screen 5 (Tài khoản & Phiếu lương Nhân viên)
- * - Header Row: "Tài khoản nhân sự" + "● Đang hoạt động" green badge
- * - Employee Profile Ticket Card with perforated divider & 2 #F0F3FF tactical boxes (CA LÀM VIỆC CHUẨN & THIẾT BỊ ĐIỂM DANH CỐ ĐỊNH)
- * - Monthly Payslip Hero Card with full-width Crimson CTA ("Xem phiếu lương tháng M/YYYY")
- * - 3-Tile Monthly Attendance Stats Row ("Thống kê Công tháng M")
- * - Preferences & Operational Settings Card ("CÀI ĐẶT & TRỢ NĂNG XƯỞNG") with 6-step Font Scale (100%–200%), Device Change, Password & Logout
- */
+function formatDeviceSeenShort(isoStr) {
+  if (!isoStr) return "";
+  const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm} ${hh}:${mi}`;
+}
+
 export default function WorkerProfileTab({
   currentUser,
   onLogout,
@@ -38,6 +48,7 @@ export default function WorkerProfileTab({
 }) {
   const handleOpenPayslipProp = onOpenPayslip || onOpenPeriodPayslip;
   const [fallbackSlipOpen, setFallbackSlipOpen] = useState(false);
+  const [showDeviceHistory, setShowDeviceHistory] = useState(false);
   const [attendanceSummary, setAttendanceSummary] = useState({
     total_work_days: 0,
     on_time_count: 0,
@@ -47,14 +58,6 @@ export default function WorkerProfileTab({
     effective_shift_start: "",
     effective_shift_end: ""
   });
-
-  // Yêu cầu đổi thiết bị
-  const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
-  const [deviceReason, setDeviceReason] = useState("");
-  const [deviceSubmitting, setDeviceSubmitting] = useState(false);
-  const [deviceError, setDeviceError] = useState("");
-
-  const deviceSubmittingRef = useRef(false);
 
   useEffect(() => {
     if (currentUser?.role === "admin") return undefined;
@@ -94,48 +97,36 @@ export default function WorkerProfileTab({
     }
   };
 
-  const handleRequestDeviceChange = async (e) => {
-    e.preventDefault();
-    if (deviceSubmittingRef.current) return;
-    if (!deviceReason.trim()) {
-      setDeviceError("Vui lòng nhập lý do đổi thiết bị.");
-      return;
-    }
-
-    deviceSubmittingRef.current = true;
-    setDeviceSubmitting(true);
-    setDeviceError("");
-    try {
-      const identity = await getDeviceIdentity();
-      const res = await safePost("/employees/request-device-change", {
-        reason: deviceReason.trim(),
-        new_device_id: identity.device_id,
-        device_name: identity.device_model_name
-      });
-      if (res?.success) {
-        if (showToast) showToast("Đã gửi yêu cầu đổi thiết bị đến Quản trị viên!", "success");
-        setIsDeviceModalOpen(false);
-        setDeviceReason("");
-      } else {
-        const msg = res?.message || "Không thể gửi yêu cầu đổi thiết bị.";
-        setDeviceError(msg);
-        if (showToast) showToast(msg, "error");
-      }
-    } catch (err) {
-      const msg = err.message || "Lỗi gửi yêu cầu đổi thiết bị.";
-      setDeviceError(msg);
-      if (showToast) showToast(msg, "error");
-    } finally {
-      deviceSubmittingRef.current = false;
-      setDeviceSubmitting(false);
-    }
-  };
-
   const activeShiftLabel = getShiftLabel(currentUser?.shift_type);
   const effStart = attendanceSummary?.effective_shift_start || currentUser?.custom_start_time || "08:00";
   const effEnd = attendanceSummary?.effective_shift_end || currentUser?.custom_end_time || "17:30";
   const currentMonthNum = new Date().getMonth() + 1;
   const currentYearNum = new Date().getFullYear();
+
+  const knownDevicesRaw = parseKnownDevices(currentUser?.known_devices_json);
+  const sortedDeviceHistory = [...knownDevicesRaw]
+    .sort((a, b) => {
+      const ta = new Date(a?.last_seen || a?.first_seen || 0).getTime() || 0;
+      const tb = new Date(b?.last_seen || b?.first_seen || 0).getTime() || 0;
+      return tb - ta;
+    })
+    .map((item) => ({
+      ...item,
+      cleanModel: sanitizeSingleDeviceModelName(
+        item?.device_name || item?.model || currentUser?.bound_device_name || ""
+      ),
+      seenLabel: formatDeviceSeenShort(item?.last_seen || item?.first_seen)
+    }));
+
+  const fallbackModel = sanitizeSingleDeviceModelName(
+    currentUser?.bound_device_name || getDeviceIdentitySync().device_model_name
+  );
+  const latestDeviceModel = sortedDeviceHistory[0]?.cleanModel || fallbackModel;
+  const secondDeviceModel = sortedDeviceHistory[1]?.cleanModel || "";
+  const hasMultiDeviceAlert =
+    Boolean(currentUser?.multi_device_alert) ||
+    new Set(sortedDeviceHistory.map((d) => d.device_id || d.cleanModel).filter(Boolean)).size >= 2;
+  const hasLongDeviceHistory = sortedDeviceHistory.length > 2;
 
   const initials = String(currentUser?.ho_ten || "NV")
     .trim()
@@ -146,11 +137,11 @@ export default function WorkerProfileTab({
     .toUpperCase() || "NV";
 
   return (
-    <div className="space-y-4 pb-8">
-      {/* STITCH SCREEN 5 — SECTION 1: TOP TITLE & ACTIVE STATUS PILL */}
+    <div className="space-y-3.5 pb-8">
+      {/* Header gọn */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-extrabold text-[#111C2D] dark:text-white tracking-tight">
-          Tài khoản nhân sự
+          Tài khoản
         </h2>
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-xs font-extrabold text-[#16A34A] dark:text-emerald-300 shrink-0 whitespace-nowrap">
           <span className="w-2 h-2 rounded-full bg-[#16A34A] shrink-0" />
@@ -158,11 +149,11 @@ export default function WorkerProfileTab({
         </span>
       </div>
 
-      {/* STITCH SCREEN 5 — SECTION 2: PERFORATED EMPLOYEE PROFILE TICKET CARD */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+      {/* Thông tin nhân sự */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3">
         <div className="flex items-start gap-3.5">
           <div className="relative shrink-0">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#B80035] to-[#E11D48] p-0.5 shadow-md">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#B80035] to-[#E11D48] p-0.5">
               {currentUser?.avatar_url ? (
                 <img
                   src={currentUser.avatar_url}
@@ -170,7 +161,7 @@ export default function WorkerProfileTab({
                   className="w-full h-full object-cover rounded-[14px]"
                 />
               ) : (
-                <div className="w-full h-full rounded-[14px] bg-[#F0F3FF] dark:bg-slate-800 flex items-center justify-center text-lg font-extrabold text-[#E11D48] dark:text-rose-300">
+                <div className="w-full h-full rounded-[14px] bg-[#F0F3FF] dark:bg-slate-800 flex items-center justify-center text-base font-extrabold text-[#E11D48] dark:text-rose-300">
                   {initials}
                 </div>
               )}
@@ -188,7 +179,7 @@ export default function WorkerProfileTab({
               <h3 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white leading-snug break-words">
                 {currentUser?.ho_ten || "Cán bộ công nhân viên"}
               </h3>
-              <span className="px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-xs font-mono font-extrabold text-[#B80035] dark:text-rose-300">
+              <span className="px-2 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-xs font-mono font-extrabold text-[#B80035] dark:text-rose-300">
                 {currentUser?.ma_nv}
               </span>
             </div>
@@ -214,70 +205,91 @@ export default function WorkerProfileTab({
           </div>
         </div>
 
-        {/* Perforated Ticket Cutout Divider */}
-        <div className="sedinco-ticket-cutout">
-          <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
-        </div>
-
-        {/* 2 Tactical Info Boxes (#F0F3FF) */}
-        <div className="space-y-2 text-xs">
-          <div className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 text-[#E11D48] dark:text-rose-400 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
-                  CA LÀM VIỆC CHUẨN
-                </span>
-                <strong className="text-[#111C2D] dark:text-white break-words">
-                  {effStart} – {effEnd} ({activeShiftLabel})
-                </strong>
-              </div>
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+          <div className="px-3 py-2 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Clock className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
+              <span className="text-slate-600 dark:text-slate-300 font-semibold">Ca làm việc:</span>
+              <strong className="text-[#111C2D] dark:text-white truncate">
+                {effStart} – {effEnd} ({activeShiftLabel})
+              </strong>
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 text-[#16A34A] dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <Smartphone className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
-                  THIẾT BỊ ĐIỂM DANH CỐ ĐỊNH
+          {/* 1 dòng thông báo / cảnh báo thiết bị đăng nhập gọn nhẹ */}
+          <div
+            data-testid="device-login-alert"
+            className={`px-3 py-2 rounded-xl border space-y-2 ${
+              hasMultiDeviceAlert
+                ? "bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/70 text-amber-900 dark:text-amber-200"
+                : "bg-[#F0F3FF] dark:bg-slate-800/80 border-slate-200/70 dark:border-slate-700 text-[#111C2D] dark:text-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {hasMultiDeviceAlert ? (
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                ) : (
+                  <Smartphone className="w-4 h-4 text-[#16A34A] dark:text-emerald-400 shrink-0" />
+                )}
+                <span className="truncate">
+                  Thiết bị:{" "}
+                  <strong className="font-bold">
+                    {latestDeviceModel}
+                    {sortedDeviceHistory.length === 2 && secondDeviceModel && secondDeviceModel !== latestDeviceModel
+                      ? ` • ${secondDeviceModel}`
+                      : ""}
+                  </strong>
                 </span>
-                <strong className="text-[#111C2D] dark:text-white break-words">
-                  {formatEmployeeDeviceLabel(
-                    currentUser?.ho_ten,
-                    currentUser?.bound_device_name || getDeviceIdentitySync().device_model_name
-                  )}
-                </strong>
               </div>
+
+              {hasLongDeviceHistory && (
+                <button
+                  type="button"
+                  data-testid="device-history-toggle-btn"
+                  onClick={() => setShowDeviceHistory((prev) => !prev)}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-[#0051CA] dark:text-blue-300 hover:bg-white/70 dark:hover:bg-slate-700/60 shrink-0 cursor-pointer"
+                >
+                  <span>{showDeviceHistory ? "Thu gọn" : "Xem chi tiết"}</span>
+                  {showDeviceHistory ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              )}
             </div>
-            <CheckCircle2 className="w-4 h-4 text-[#16A34A] dark:text-emerald-400 shrink-0" />
+
+            {hasLongDeviceHistory && showDeviceHistory && (
+              <div className="pt-2 border-t border-amber-200/70 dark:border-slate-700 space-y-1">
+                {sortedDeviceHistory.map((item, idx) => (
+                  <div
+                    key={`${item.device_id || item.cleanModel}-${idx}`}
+                    className="flex items-center justify-between gap-2 text-xs"
+                  >
+                    <span className="font-semibold truncate">{item.cleanModel}</span>
+                    {item.seenLabel && (
+                      <span className="font-mono text-slate-500 dark:text-slate-400 shrink-0">
+                        {item.seenLabel}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* STITCH SCREEN 5 — SECTION 3: MONTHLY PAYSLIP HERO CARD */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-[#E11D48] dark:text-rose-400 flex items-center justify-center shrink-0">
-              <DollarSign className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <span className="block text-xs font-extrabold uppercase tracking-wider text-[#B80035] dark:text-rose-400">
-                PHIẾU LƯƠNG &amp; BẢNG CÔNG
-              </span>
-              <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white">
-                Kỳ lương Tháng {currentMonthNum}/{currentYearNum}
-              </h3>
-            </div>
+      {/* Phiếu lương tháng */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-[#E11D48] dark:text-rose-400 flex items-center justify-center shrink-0">
+            <DollarSign className="w-4 h-4" />
           </div>
-          <span className="px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-[#111C2D] dark:text-slate-200 shrink-0 whitespace-nowrap">
-            Chuẩn 8h
-          </span>
+          <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white">
+            Phiếu lương Tháng {currentMonthNum}/{currentYearNum}
+          </h3>
         </div>
 
         <AppButton
@@ -285,14 +297,14 @@ export default function WorkerProfileTab({
           fullWidth
           icon={DollarSign}
           onClick={handleOpenSalarySlip}
-          className="min-h-[48px] rounded-xl font-extrabold shadow-[0_6px_18px_-3px_rgba(225,29,72,0.3)]"
+          className="min-h-[46px] rounded-xl font-extrabold"
         >
           Xem phiếu lương tháng {currentMonthNum}/{currentYearNum}
         </AppButton>
       </div>
 
-      {/* STITCH SCREEN 5 — SECTION 4: 3-TILE MONTHLY ATTENDANCE STATS ROW */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+      {/* Thống kê công tháng */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
           <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white">
@@ -322,45 +334,23 @@ export default function WorkerProfileTab({
         </div>
       </div>
 
-      {/* STITCH SCREEN 5 — SECTION 5: ACCESSIBILITY FONT SCALE & ACCOUNT SECURITY */}
+      {/* Cỡ chữ (Option dropdown gọn) */}
       <FontScaleSelector />
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
-        {/* Yêu Cầu Đổi Thiết Bị */}
-        <button
-          type="button"
-          onClick={() => {
-            setDeviceError("");
-            setIsDeviceModalOpen(true);
-          }}
-          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-[#F0F3FF]/60 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
-              <Smartphone className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-[#111C2D] dark:text-white">Yêu cầu đổi thiết bị</div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">Đăng ký đổi điện thoại chấm công mới</div>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors shrink-0" />
-        </button>
-
-        {/* Tài Khoản & Mật Khẩu */}
+      {/* Tài khoản & Mật khẩu */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-1.5">
         <button
           type="button"
           onClick={onChangePasswordRequest}
-          className="perf-list-item w-full p-3.5 flex items-center justify-between text-left hover:bg-[#F0F3FF]/60 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
+          className="perf-list-item w-full p-3 flex items-center justify-between text-left hover:bg-[#F0F3FF]/60 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
-              <Lock className="w-5 h-5" />
+              <Lock className="w-4 h-4" />
             </div>
-            <div>
-              <div className="text-sm font-bold text-[#111C2D] dark:text-white">Tài khoản &amp; Mật khẩu</div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">Đổi tên đăng nhập, SĐT hoặc mật khẩu bảo mật</div>
-            </div>
+            <span className="text-sm font-bold text-[#111C2D] dark:text-white">
+              Tài khoản &amp; Mật khẩu
+            </span>
           </div>
           <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors shrink-0" />
         </button>
@@ -374,7 +364,7 @@ export default function WorkerProfileTab({
         onClick={onLogout}
         className="rounded-2xl"
       >
-        Đăng xuất khỏi thiết bị
+        Đăng xuất
       </AppButton>
 
       {/* Fallback SalarySlipModal nếu component được dùng độc lập */}
@@ -387,58 +377,6 @@ export default function WorkerProfileTab({
           onClose={() => setFallbackSlipOpen(false)}
         />
       )}
-
-      {/* Modal Yêu Cầu Đổi Thiết Bị */}
-      <AppModal
-        open={isDeviceModalOpen}
-        onClose={() => !deviceSubmitting && setIsDeviceModalOpen(false)}
-        disableClose={deviceSubmitting}
-        title="Đổi thiết bị chấm công"
-        subtitle="Gửi yêu cầu mở khóa sang điện thoại mới"
-        icon={<Smartphone className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />}
-        maxWidthClass="max-w-sm"
-        footer={
-          <div className="flex gap-2.5">
-            <AppButton
-              variant="secondary"
-              disabled={deviceSubmitting}
-              onClick={() => setIsDeviceModalOpen(false)}
-              className="flex-1"
-            >
-              Đóng / Quay lại
-            </AppButton>
-            <AppButton
-              type="submit"
-              form="device-change-form"
-              variant="primary"
-              loading={deviceSubmitting}
-              loadingText="Đang gửi..."
-              className="flex-1"
-            >
-              Gửi yêu cầu
-            </AppButton>
-          </div>
-        }
-      >
-        <form id="device-change-form" onSubmit={handleRequestDeviceChange} className="p-5 space-y-3">
-          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-            Vui lòng nhập lý do thay đổi điện thoại (ví dụ: mất máy, hỏng máy, đổi điện thoại mới) để Quản trị viên duyệt mở khóa:
-          </p>
-          {deviceError && (
-            <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs">
-              {deviceError}
-            </div>
-          )}
-          <textarea
-            value={deviceReason}
-            onChange={(e) => setDeviceReason(e.target.value)}
-            placeholder="Nhập lý do cụ thể..."
-            required
-            rows={3}
-            className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-2xl p-3 text-slate-900 dark:text-white text-sm placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
-          />
-        </form>
-      </AppModal>
     </div>
   );
 }

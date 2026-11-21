@@ -128,63 +128,34 @@ export function useFontScale() {
 
 export function FontScaleSelector({ className = "" }) {
   const { fontScale, setFontScale } = useFontScale();
-  const activeOption = FONT_SCALE_OPTIONS.find((o) => o.value === fontScale) || FONT_SCALE_OPTIONS[0];
 
   return (
     <div
       data-testid="font-scale-selector"
-      className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 shadow-sm space-y-3 ${className}`}
+      className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-3 ${className}`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-[#E11D48] dark:text-rose-300 flex items-center justify-center shrink-0">
-            <Type className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-sm font-bold text-[#111C2D] dark:text-white leading-snug">
-              Cỡ chữ hiển thị (Hỗ trợ thị lực)
-            </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug">
-              Phóng to toàn bộ chữ, bảng &amp; nút bấm — tự lưu theo tài khoản
-            </p>
-          </div>
-        </div>
-        <span
-          data-testid="font-scale-current-label"
-          className="px-2.5 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300 text-xs font-extrabold whitespace-nowrap shrink-0"
-        >
-          {activeOption.label} • {activeOption.description}
-        </span>
-      </div>
-
-      <div
-        role="group"
-        aria-label="Chọn cỡ chữ hiển thị"
-        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5"
+      <label
+        htmlFor="sedinco-font-scale-select"
+        className="inline-flex items-center gap-2 text-sm font-bold text-[#111C2D] dark:text-white shrink-0"
       >
-        {FONT_SCALE_OPTIONS.map((opt) => {
-          const active = fontScale === opt.value;
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              data-testid={`font-scale-btn-${opt.value}`}
-              aria-pressed={active}
-              onClick={() => setFontScale(opt.value)}
-              className={`min-h-[46px] px-2 py-2 rounded-xl border text-center flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-all ${
-                active
-                  ? "bg-[#E11D48] text-white border-[#BE123C] dark:bg-rose-600 dark:border-rose-400 shadow-sm font-extrabold"
-                  : "bg-[#F0F3FF]/70 hover:bg-rose-50 text-[#111C2D] border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100 dark:border-slate-700 font-semibold"
-              }`}
-            >
-              <span className="text-xs leading-none">{opt.label}</span>
-              <span className={`text-xs leading-tight ${active ? "text-rose-100" : "text-slate-600 dark:text-slate-300"}`}>
-                {opt.description}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+        <Type className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
+        <span>Cỡ chữ</span>
+      </label>
+
+      <select
+        id="sedinco-font-scale-select"
+        data-testid="font-scale-select"
+        aria-label="Cỡ chữ"
+        value={String(fontScale)}
+        onChange={(e) => setFontScale(Number(e.target.value))}
+        className="min-h-[40px] max-w-[200px] px-3 py-1.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-[#111C2D] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48] cursor-pointer"
+      >
+        {FONT_SCALE_OPTIONS.map((opt) => (
+          <option key={opt.value} value={String(opt.value)}>
+            {opt.label} ({opt.description})
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
