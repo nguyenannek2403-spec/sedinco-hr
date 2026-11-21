@@ -458,22 +458,7 @@ async function initDatabase() {
 
         await query("ALTER TABLE employees ADD COLUMN font_scale INT NOT NULL DEFAULT 100").catch(() => {});
         await query("ALTER TABLE admins ADD COLUMN font_scale INT NOT NULL DEFAULT 100").catch(() => {});
-
-        await query(`CREATE TABLE IF NOT EXISTS qa_test_runs (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            version VARCHAR(32) NOT NULL,
-            run_type VARCHAR(40) NOT NULL,
-            environment VARCHAR(32) NOT NULL,
-            total_cases INT NOT NULL DEFAULT 0,
-            passed INT NOT NULL DEFAULT 0,
-            failed INT NOT NULL DEFAULT 0,
-            blocked INT NOT NULL DEFAULT 0,
-            not_tested INT NOT NULL DEFAULT 0,
-            duration_ms INT NOT NULL DEFAULT 0,
-            triggered_by VARCHAR(64) NULL,
-            summary_json LONGTEXT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+        await query('DROP TABLE IF EXISTS qa_test_runs').catch(() => {});
 
         // V18: Account Phone/Custom Username & Persistent Theme Preference + Cleanup Legacy Multi-Model Device Names
         await query("ALTER TABLE employees ADD COLUMN phone VARCHAR(30) NULL").catch(() => {});

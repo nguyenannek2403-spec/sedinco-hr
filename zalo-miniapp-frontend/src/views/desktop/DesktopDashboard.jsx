@@ -5,16 +5,14 @@ import RequestsManagementTab from "./RequestsManagementTab";
 import EmployeeManagementTab from "./EmployeeManagementTab";
 import CompanySettingsTab from "./CompanySettingsTab";
 import HolidaysTab from "./HolidaysTab";
-import AuditLogsTab from "./AuditLogsTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
 import LiveAttendanceBoardModal from "../../components/LiveAttendanceBoardModal";
 import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from "../../constants/roles";
 import { safeGet, safePut } from "../../utils/api";
 import { AppButton } from "../../components/ui";
-import { FontScaleSelector } from "../../modules/accessibility/FontScaleContext";
+import { FontScaleSelector } from "../../context/FontScaleContext";
 import {
   RefreshCw,
-  ShieldAlert,
   Building2,
   ShieldCheck,
   Gift,
@@ -130,17 +128,11 @@ export default function DesktopDashboard({
     if (nextTab === "management") {
       if (nextSubTab === "payroll") {
         nextTab = "payroll";
-      } else if (nextSubTab === "audit_logs" && resolvedRole === ROLES.ADMIN) {
-        nextTab = "settings";
-        nextSubTab = "audit_logs";
       } else {
         nextTab = "employees";
       }
-    } else if (nextTab === "devices") {
+    } else if (nextTab === "devices" || nextTab === "audit_logs") {
       nextTab = "employees";
-    } else if (nextTab === "audit_logs" && resolvedRole === ROLES.ADMIN) {
-      nextTab = "settings";
-      nextSubTab = "audit_logs";
     } else if (
       (nextTab === "company" || nextTab === "permissions" || nextTab === "holidays") &&
       resolvedRole === ROLES.ADMIN
@@ -382,25 +374,6 @@ export default function DesktopDashboard({
                       <Gift size={16} className="shrink-0" />
                       <span>Lịch nghỉ lễ (x3)</span>
                     </button>
-                    <button
-                      type="button"
-                      data-subtab="audit_logs"
-                      data-active={settingsSubTab === "audit_logs" ? "true" : "false"}
-                      onClick={() => setSettingsSubTab("audit_logs")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        settingsSubTab === "audit_logs"
-                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
-                      }`}
-                    >
-                      <ShieldAlert size={16} className="shrink-0" />
-                      <span>Nhật ký &amp; An ninh</span>
-                      {Number(alertsSummary?.fraud_count) > 0 && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-rose-600 text-white font-black">
-                          {alertsSummary.fraud_count}
-                        </span>
-                      )}
-                    </button>
                   </div>
                 </div>
 
@@ -420,15 +393,6 @@ export default function DesktopDashboard({
                   <HolidaysTab
                     currentUser={currentUser}
                     showToast={showToast}
-                  />
-                )}
-                {settingsSubTab === "audit_logs" && (
-                  <AuditLogsTab
-                    key={`settings-audit-${refreshTick}`}
-                    currentUser={currentUser}
-                    showToast={showToast}
-                    focusTarget={focusTarget}
-                    onRefreshAlerts={fetchAlertsSummary}
                   />
                 )}
               </div>

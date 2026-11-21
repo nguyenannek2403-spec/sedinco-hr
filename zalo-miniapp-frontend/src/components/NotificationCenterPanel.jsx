@@ -13,8 +13,8 @@ import {
   AlertTriangle,
   X
 } from "lucide-react";
-import { useModalStack } from "../../hooks/useLockBodyScroll";
-import { useTheme } from "../../context/ThemeContext";
+import { useModalStack } from "../hooks/useLockBodyScroll";
+import { useTheme } from "../context/ThemeContext";
 
 const CATEGORY_META = {
   fraud: { Icon: ShieldAlert, iconColor: "text-rose-600 dark:text-rose-400", actionLabel: "Xem & Khóa" },
@@ -39,19 +39,12 @@ function formatTimeVi(val) {
   }
 }
 
-/**
- * Trung tâm Thông báo dùng chung cho Worker, Accountant và Admin:
- * - Render qua ReactDOM.createPortal(..., document.body) với z-[125], tách hoàn toàn khỏi header/backdrop-blur
- * - Khóa cuộn nền chuẩn qua useModalStack & Escape + trả focus về nút chuông
- * - Tab lọc: Tất cả / Chưa đọc (N) / Đã đọc
- * - Tách bạch sự kiện click: nút "Đánh dấu đã đọc" dùng stopPropagation(), chỉ giảm badge đỏ tại chỗ
- */
 export default function NotificationCenterPanel({
   open = true,
   onClose = null,
   title = "Trung tâm Thông báo",
   subtitle = "",
-  mode = "desktop", // 'worker' | 'desktop'
+  mode = "desktop",
   notifications = [],
   unreadCount = 0,
   readCount = 0,
@@ -139,7 +132,6 @@ export default function NotificationCenterPanel({
         e.stopPropagation();
       }}
     >
-      {/* Backdrop mờ tách biệt ngoài document.body */}
       <div
         className="fixed inset-0 bg-slate-950/45 dark:bg-slate-950/65 transition-opacity"
         aria-hidden="true"
@@ -154,7 +146,6 @@ export default function NotificationCenterPanel({
         }}
       />
 
-      {/* Hộp danh sách thông báo — Bottom Sheet trên Mobile & Floating Card trên Desktop (Google Stitch Screen 14) */}
       <div
         ref={cardRef}
         data-testid="notification-popover"
@@ -164,10 +155,8 @@ export default function NotificationCenterPanel({
           !isTopModal ? "pointer-events-none select-none" : ""
         }`}
       >
-        {/* Drag Handle chuẩn Zalo Mini App trên Mobile */}
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-2.5 mb-1 shrink-0 sm:hidden" aria-hidden="true" />
 
-        {/* Header của hộp thông báo */}
         <div className="px-4 py-3 border-b border-slate-200/80 dark:border-slate-800 bg-[#F9F9FF] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
@@ -194,12 +183,10 @@ export default function NotificationCenterPanel({
           )}
         </div>
 
-        {/* Nội dung cuộn độc lập */}
         <div
           data-testid={isWorker ? "worker-notification-modal" : undefined}
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area p-3.5 bg-[#F9F9FF] dark:bg-slate-900 space-y-3"
         >
-          {/* Thanh thao tác đầu: Bộ lọc 3 trạng thái + Nút Đánh dấu tất cả đã đọc */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div
               data-filter-group="notification-filter"
@@ -250,7 +237,6 @@ export default function NotificationCenterPanel({
             )}
           </div>
 
-          {/* Danh sách thông báo */}
           {loading && notifications.length === 0 ? (
             <div className="py-8 text-center text-xs font-medium text-slate-600 dark:text-slate-300">
               Đang tải thông báo...
@@ -268,7 +254,7 @@ export default function NotificationCenterPanel({
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                 {isWorker
                   ? "Khi Quản trị viên chốt kỳ công hoặc có phiếu lương mới, thông báo sẽ hiển thị đầy đủ tại đây."
-                  : "Cảnh báo an ninh, thiết bị, khiếu nại lương, đơn từ và xác nhận chốt kỳ công sẽ lưu lại tại đây."}
+                  : "Cảnh báo thiết bị, khiếu nại lương, đơn từ và xác nhận chốt kỳ công sẽ lưu lại tại đây."}
               </p>
             </div>
           ) : (
@@ -293,7 +279,6 @@ export default function NotificationCenterPanel({
                         : "bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-700"
                     }`}
                   >
-                    {/* Thanh điểm nhấn dọc bên trái kiểu Stitch */}
                     <div
                       aria-hidden="true"
                       className={`w-1.5 shrink-0 ${
@@ -356,7 +341,6 @@ export default function NotificationCenterPanel({
                       </div>
                     </button>
 
-                    {/* Hàng trạng thái đọc / nút phụ đánh dấu đã đọc (stopPropagation bắt buộc) */}
                     {(isUnread && typeof onMarkSingleRead === "function") || (!isUnread && notif.read_at) ? (
                       <div className="px-3.5 py-2 border-t border-dashed border-slate-200/90 dark:border-slate-800 flex items-center justify-between gap-2 bg-[#F0F3FF]/45 dark:bg-slate-950/40">
                         {!isUnread && notif.read_at ? (
@@ -409,7 +393,6 @@ export default function NotificationCenterPanel({
           )}
         </div>
 
-        {/* Footer đóng rõ ràng */}
         {typeof onClose === "function" && (
           <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 shrink-0">
             <button

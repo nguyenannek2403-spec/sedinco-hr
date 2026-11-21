@@ -12,7 +12,6 @@ const settingsRoutes = require('./settingsRoutes');
 const diagnosticsRoutes = require('./diagnosticsRoutes');
 const clientErrorRoutes = require('./clientErrorRoutes');
 const notificationRoutes = require('./notificationRoutes');
-const qaCenterRoutes = require('../qa/qaCenterRoutes');
 const permissionController = require('../controllers/permissionController');
 const { authenticateToken, requireRole } = require('../middlewares/authMiddleware');
 
@@ -29,7 +28,6 @@ router.use('/permissions', settingsRoutes); // /api/permissions (alias cho audit
 router.use('/diagnostics', diagnosticsRoutes); // /api/diagnostics (Staging Only)
 router.use('/client-errors', clientErrorRoutes); // /api/client-errors (Staging Only)
 router.use('/notifications', notificationRoutes); // /api/notifications/my, /:id/read, /read-all
-router.use('/qa-center', qaCenterRoutes); // /api/qa-center/* (Admin Only)
 
 // V5 Direct shortcuts cho Audit Logs & Red Alert Notifications Summary
 router.get('/audit-logs', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.getAuditLogs(req, res, next));

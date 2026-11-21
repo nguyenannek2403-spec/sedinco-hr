@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../context/ThemeContext";
-import { useFontScale } from "../modules/accessibility/FontScaleContext";
+import { useFontScale } from "../context/FontScaleContext";
 import ConfirmDialog from "../components/ConfirmDialog";
 import AuthView from "../views/AuthView";
 import WorkerDashboard from "../views/worker/WorkerDashboard";

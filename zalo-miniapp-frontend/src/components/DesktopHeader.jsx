@@ -3,8 +3,8 @@ import { LogOut, Bell, Menu, RefreshCw, KeyRound } from "lucide-react";
 import { ROLE_LABELS, ROLES } from "../constants/roles";
 import CompanyLogo from "./CompanyLogo";
 import { ThemeToggleButton, useTheme } from "../context/ThemeContext";
-import { useNotifications } from "../modules/notifications/useNotifications";
-import NotificationCenterPanel from "../modules/notifications/NotificationCenterPanel";
+import { useNotifications } from "../hooks/useNotifications";
+import NotificationCenterPanel from "./NotificationCenterPanel";
 
 /**
  * DesktopHeader — Google Stitch "Sedinco Pulse" Single-Row Executive TopAppBar (Screens 6–14)

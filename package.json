@@ -2,7 +2,7 @@
   "name": "sedinco-hr",
   "version": "1.0.0",
   "private": true,
-  "description": "Sedinco HR - Monorepo Orchestrator",
+  "description": "Sedinco HR - Lean Core Monorepo",
   "scripts": {
     "start": "npm --prefix sedinco_backend start",
     "dev": "npm --prefix sedinco_backend run dev",
@@ -12,16 +12,6 @@
     "miniapp:deploy": "npm --prefix zalo-miniapp-frontend run deploy",
     "deploy": "npm --prefix zalo-miniapp-frontend run deploy",
     "login": "npm --prefix zalo-miniapp-frontend run login",
-    "build": "cd zalo-miniapp-frontend && npm install && npx vite build && mkdir -p ../dist && cp -r www/* ../dist/ && rm -f ../dist/_redirects",
-    "test": "npm --prefix sedinco_backend test",
-    "test:ast": "NODE_ENV=test node --test --test-reporter=spec sedinco_backend/__tests__/01_ast.test.js",
-    "test:contracts": "NODE_ENV=test DB_HOST=127.0.0.1 DB_NAME=sedinco_hr_test DB_SSL=false node --test --test-reporter=spec sedinco_backend/__tests__/02_contracts.test.js",
-    "test:auth-rbac": "NODE_ENV=test DB_HOST=127.0.0.1 DB_NAME=sedinco_hr_test DB_SSL=false node --test --test-reporter=spec sedinco_backend/__tests__/03_auth_rbac.test.js",
-    "test:attendance": "NODE_ENV=test DB_HOST=127.0.0.1 DB_NAME=sedinco_hr_test DB_SSL=false node --test --test-reporter=spec sedinco_backend/__tests__/04_attendance.test.js",
-    "test:requests": "NODE_ENV=test DB_HOST=127.0.0.1 DB_NAME=sedinco_hr_test DB_SSL=false node --test --test-reporter=spec sedinco_backend/__tests__/05_requests.test.js",
-    "test:payroll": "NODE_ENV=test DB_HOST=127.0.0.1 DB_NAME=sedinco_hr_test DB_SSL=false node --test --test-reporter=spec sedinco_backend/__tests__/06_payroll.test.js",
-    "test:ui-a11y": "NODE_ENV=test node --test --test-reporter=spec sedinco_backend/__tests__/07_ui_a11y.test.js",
-    "test:qa-v3": "NODE_ENV=test DB_HOST=127.0.0.1 DB_NAME=sedinco_hr_test DB_SSL=false node --test --test-reporter=spec sedinco_backend/__tests__/08_qa_v3_matrix.test.js",
-    "test:e2e-full": "NODE_ENV=development node scripts/qa/run_e2e_cloud.js"
+    "build": "cd zalo-miniapp-frontend && npm install && npx vite build && mkdir -p ../dist && cp -r www/* ../dist/ && rm -f ../dist/_redirects"
   }
 }

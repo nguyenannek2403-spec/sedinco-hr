@@ -8,8 +8,8 @@ import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import CompanyLogo from "../../components/CompanyLogo";
 import { ThemeToggleButton, useTheme } from "../../context/ThemeContext";
-import { useNotifications } from "../../modules/notifications/useNotifications";
-import NotificationCenterPanel from "../../modules/notifications/NotificationCenterPanel";
+import { useNotifications } from "../../hooks/useNotifications";
+import NotificationCenterPanel from "../../components/NotificationCenterPanel";
 
 const TAB_TITLES = {
   checkin: "Chấm Công",

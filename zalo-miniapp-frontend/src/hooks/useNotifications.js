@@ -1,14 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { safeGet, safePut } from "../../utils/api";
+import { safeGet, safePut } from "../utils/api";
 
-/**
- * Hook quản lý tập trung Vòng đời Thông báo (Worker, Accountant, Admin):
- * - Đồng bộ danh sách & đếm số chưa đọc thật từ /api/notifications/my
- * - Hỗ trợ 3 bộ lọc: 'all' | 'unread' | 'read' và phân trang Xem thêm
- * - Optimistic UI khi bấm đọc 1 dòng hoặc Đánh dấu tất cả đã đọc
- */
 export function useNotifications({ limit = 20, autoFetch = true, onError = null } = {}) {
-  const [filter, setFilter] = useState("all"); // 'all' | 'unread' | 'read'
+  const [filter, setFilter] = useState("all");
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [readCount, setReadCount] = useState(0);

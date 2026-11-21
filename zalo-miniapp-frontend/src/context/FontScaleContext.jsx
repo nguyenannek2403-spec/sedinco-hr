@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Type } from "lucide-react";
-import { safePut, getAuthToken } from "../../utils/api";
-import { zmpAdapter } from "../../adapters/zmp/sdkAdapter";
+import { safePut, getAuthToken } from "../utils/api";
+import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 
 export const FONT_SCALE_STORAGE_KEY = "sedinco_font_scale";
 

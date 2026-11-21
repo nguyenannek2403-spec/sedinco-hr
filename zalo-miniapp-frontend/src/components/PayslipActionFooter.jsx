@@ -6,16 +6,8 @@ import {
   AlertTriangle,
   Clock
 } from "lucide-react";
-import { AppButton } from "../../components/ui";
+import { AppButton } from "./ui";
 
-/**
- * Thanh Thao Tác Đáy Cố Định (Sticky Bottom Action Bar) của Phiếu lương V30:
- * - Gọn 1–2 hàng, cân đối đều trên màn hình 320px–1440px, nút >= 44px
- * - Admin / Kế toán: [Đóng], [✏️ Điều chỉnh] (khi kỳ chưa khóa), [📄 Xuất phiếu]
- * - Worker: Kỳ đã chốt -> [✓ Xác nhận đúng lương], [⚠️ Báo sai sót], [Đóng];
- *           Đã xác nhận -> Huy hiệu xanh + [Đóng];
- *           Bản nháp -> Chú thích tạm tính + [Đóng].
- */
 export default function PayslipActionFooter({
   isAdminOrAccountant = false,
   item = null,

@@ -18,7 +18,7 @@ import { getShiftLabel } from "../../utils/viLabels";
 import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
 import { getDeviceIdentity, getDeviceIdentitySync, formatEmployeeDeviceLabel } from "../../utils/deviceIdentity";
 import { AppButton, AppModal } from "../../components/ui";
-import { FontScaleSelector } from "../../modules/accessibility/FontScaleContext";
+import { FontScaleSelector } from "../../context/FontScaleContext";
 
 /**
  * WorkerProfileTab — Google Stitch "Sedinco Pulse" Screen 5 (Tài khoản & Phiếu lương Nhân viên)

@@ -20,14 +20,14 @@ import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { formatViCurrency, formatViWorkday, formatViNumber } from "../utils/viNumberFormat";
 import { AppButton, AppModal, StatusBadge, SkeletonList } from "./ui";
-import PayslipActionFooter from "../modules/payroll/PayslipActionFooter";
+import PayslipActionFooter from "./PayslipActionFooter";
 import {
   formatDayWithWeekday,
   getPositiveAllowances,
   resolveLogNote,
   getNoteBadgeClass,
   buildSingleSlipCsv
-} from "../modules/payroll/payslipHelpers";
+} from "../utils/payslipHelpers";
 
 /**
  * SalarySlipModal V29
