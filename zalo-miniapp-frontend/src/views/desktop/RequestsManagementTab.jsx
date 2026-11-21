@@ -18,8 +18,8 @@ import { formatViCurrency } from "../../utils/viNumberFormat";
 import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "../../components/ui";
 
 function formatTimestampVi(isoOrRaw, preformattedVn = null) {
-  if (preformattedVn && /^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2}$/.test(String(preformattedVn).trim())) {
-    return String(preformattedVn).trim();
+  if (preformattedVn && /^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/.test(String(preformattedVn).trim())) {
+    return String(preformattedVn).trim().slice(0, 16);
   }
   if (!isoOrRaw) return null;
   const d = new Date(isoOrRaw);
@@ -31,13 +31,12 @@ function formatTimestampVi(isoOrRaw, preformattedVn = null) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
     hourCycle: "h23"
   }).formatToParts(d);
   const map = {};
   for (const p of parts) map[p.type] = p.value;
   const hh = map.hour === "24" ? "00" : map.hour;
-  return `${map.day}/${map.month}/${map.year} ${hh}:${map.minute}:${map.second}`;
+  return `${map.day}/${map.month}/${map.year} ${hh}:${map.minute}`;
 }
 
 function getRequestStatusLabel(status) {
@@ -234,7 +233,7 @@ export default function RequestsManagementTab({
           </AppButton>
         </div>
 
-        {/* Tìm kiếm theo Mã NV / Họ tên + Tabs lọc gọn */}
+        {/* Tìm kiếm theo Họ tên hoặc Bộ phận + Tabs lọc gọn */}
         <div className="flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -243,7 +242,7 @@ export default function RequestsManagementTab({
               data-testid="requests-search-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm nhân viên theo Mã NV hoặc Họ tên..."
+              placeholder="Tìm nhân viên theo họ tên hoặc bộ phận..."
               className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl bg-[#F4F6F9] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-medium text-[#111C2D] dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#E11D48]"
             />
           </div>
@@ -310,14 +309,18 @@ export default function RequestsManagementTab({
         <div className="space-y-2.5">
           {filteredEmployees.map((emp) => {
             const latest = emp.latest_request;
-            const latestPending =
-              latest && String(latest.status || "").toLowerCase() === "pending";
+            const latestSt = latest ? String(latest.status || "pending").toLowerCase() : "pending";
+            const latestPending = Boolean(latest && latestSt === "pending");
             const isSelf = myMaNv && myMaNv === emp.ma_nv;
             const canQuickAct = managerCanAct && latestPending && !isSelf;
 
             const latestCreatedLabel = latest
               ? formatTimestampVi(latest.created_at, latest.created_at_vn)
               : null;
+            const latestProcessedLabel = latest
+              ? formatTimestampVi(latest.processed_at, latest.processed_at_vn)
+              : null;
+            const deptLabel = emp.department || "Khối Công trình";
 
             return (
               <div
@@ -325,26 +328,26 @@ export default function RequestsManagementTab({
                 data-testid={`req-emp-card-${emp.ma_nv}`}
                 className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
               >
-                {/* Trái: Avatar + Tên + Mã NV + Tóm tắt 1 dòng đơn mới nhất */}
+                {/* Trái: Avatar + Họ tên + Khối nghề + Tóm tắt đơn mới nhất (Thuần Tiếng Việt, ẩn Mã NV) */}
                 <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                   <UserAvatar
-                    name={emp.ho_ten || emp.ma_nv}
+                    name={emp.ho_ten || "Nhân viên"}
                     avatarUrl={emp.avatar_url}
                     size="md"
                   />
 
-                  <div className="min-w-0 flex-1 space-y-1">
+                  <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-extrabold text-[#111C2D] dark:text-white truncate">
-                        {emp.ho_ten || emp.ma_nv}
+                        {emp.ho_ten || "Nhân viên"}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] font-bold">
-                        {emp.ma_nv}
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold">
+                        {deptLabel}
                       </span>
                       {emp.pending_count > 0 && (
                         <span
                           data-testid={`req-emp-pending-badge-${emp.ma_nv}`}
-                          className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/70 text-[11px] font-extrabold"
+                          className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/70 text-xs font-extrabold"
                         >
                           {emp.pending_count} chờ duyệt
                         </span>
@@ -352,25 +355,43 @@ export default function RequestsManagementTab({
                     </div>
 
                     {latest ? (
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
-                        <span className="font-bold text-[#111C2D] dark:text-slate-100">
-                          {getRequestTypeLabel(latest.request_type || latest.type)}
-                        </span>
-                        <span aria-hidden="true">•</span>
-                        <span>Ngày {latest.date}</span>
-                        <span aria-hidden="true">•</span>
-                        <StatusBadge
-                          status={String(latest.status || "pending").toUpperCase()}
-                          label={getRequestStatusLabel(latest.status)}
-                        />
-                        {latestCreatedLabel && (
-                          <>
-                            <span aria-hidden="true">•</span>
-                            <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                              Gửi {latestCreatedLabel}
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-700 dark:text-slate-200">
+                          <span className="font-bold text-[#111C2D] dark:text-slate-100">
+                            {getRequestTypeLabel(latest.request_type || latest.type)}
+                          </span>
+                          <span aria-hidden="true">•</span>
+                          <span>Ngày nghỉ/áp dụng: {latest.date}</span>
+                          <StatusBadge
+                            type="request"
+                            status={latestSt}
+                            labelOverride={getRequestStatusLabel(latestSt)}
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+                          {latestCreatedLabel && (
+                            <span>
+                              <span className="font-semibold text-slate-500 dark:text-slate-400">Ngày làm đơn: </span>
+                              <span className="font-mono font-bold text-[#111C2D] dark:text-slate-100">{latestCreatedLabel}</span>
                             </span>
-                          </>
-                        )}
+                          )}
+                          <span>
+                            <span className="font-semibold text-slate-500 dark:text-slate-400">
+                              {latestSt === "rejected"
+                                ? "Ngày từ chối: "
+                                : latestSt === "approved"
+                                ? "Ngày duyệt đơn: "
+                                : latestSt === "cancelled"
+                                ? "Ngày hủy đơn: "
+                                : ""}
+                            </span>
+                            <span className="font-mono font-bold text-[#111C2D] dark:text-slate-100">
+                              {latestPending
+                                ? "Đang chờ duyệt"
+                                : latestProcessedLabel || getRequestStatusLabel(latestSt)}
+                            </span>
+                          </span>
+                        </div>
                       </div>
                     ) : (
                       <div className="text-xs text-slate-500 dark:text-slate-400 italic">
@@ -436,16 +457,16 @@ export default function RequestsManagementTab({
         icon={
           selectedEmployee ? (
             <UserAvatar
-              name={selectedEmployee.ho_ten || selectedEmployee.ma_nv}
+              name={selectedEmployee.ho_ten || "Nhân viên"}
               avatarUrl={selectedEmployee.avatar_url}
               size="sm"
             />
           ) : null
         }
-        title={selectedEmployee ? `Lịch sử đơn từ — ${selectedEmployee.ho_ten}` : "Chi tiết đơn từ"}
+        title={selectedEmployee ? selectedEmployee.ho_ten : "Chi tiết đơn từ"}
         subtitle={
           selectedEmployee
-            ? `${selectedEmployee.ma_nv} • ${selectedEmployee.department} • Quỹ phép tháng này: ${selectedEmployee.current_month_paid_leave_used || 0}/${selectedEmployee.monthly_paid_leave_limit || 1} lượt`
+            ? `${selectedEmployee.department || "Khối Công trình"} • Phép có lương tháng này: ${selectedEmployee.current_month_paid_leave_used || 0}/${selectedEmployee.monthly_paid_leave_limit || 1} lượt`
             : ""
         }
         footer={
@@ -462,7 +483,7 @@ export default function RequestsManagementTab({
               <EmptyState
                 icon={FileText}
                 title="Chưa phát sinh đơn từ"
-                description={`Nhân viên ${selectedEmployee.ho_ten} (${selectedEmployee.ma_nv}) chưa gửi đơn nghỉ phép, tạm ứng hay giải trình chấm công nào.`}
+                description={`Nhân viên ${selectedEmployee.ho_ten} chưa gửi đơn nghỉ phép, tạm ứng hay giải trình chấm công nào.`}
               />
             ) : (
               selectedEmployee.requests.map((req) => {
@@ -482,20 +503,21 @@ export default function RequestsManagementTab({
                     className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/75 p-4 space-y-2.5 shadow-xs"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="space-y-0.5 min-w-0">
+                      <div className="space-y-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-sm font-extrabold text-[#111C2D] dark:text-white">
                             {getRequestTypeLabel(req.request_type || req.type)}
                           </span>
                           <StatusBadge
-                            status={st.toUpperCase()}
-                            label={getRequestStatusLabel(st)}
+                            type="request"
+                            status={st}
+                            labelOverride={getRequestStatusLabel(st)}
                           />
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-semibold">
                           <Calendar className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
                           <span>Ngày áp dụng: {req.date}</span>
-                          {req.correction_mode && (
+                          {req.correction_mode && getCorrectionModeLabel(req.correction_mode) && (
                             <span>• {getCorrectionModeLabel(req.correction_mode)}</span>
                           )}
                         </div>
@@ -519,13 +541,13 @@ export default function RequestsManagementTab({
                       <span>{req.reason || "Không có ghi chú"}</span>
                     </div>
 
-                    {/* Khối hiển thị ĐẦY ĐỦ ngày giờ làm đơn & ngày giờ duyệt/từ chối (GMT+7) */}
+                    {/* Thời gian làm đơn & thời gian duyệt/từ chối chuẩn GMT+7 (DD/MM/YYYY HH:mm) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div className="px-3 py-2 rounded-xl bg-[#F4F6F9] dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/70 flex items-center gap-2">
                         <Clock className="w-3.5 h-3.5 text-[#0051CA] dark:text-blue-400 shrink-0" />
                         <div className="min-w-0">
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
-                            Thời gian làm đơn
+                          <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                            Ngày làm đơn:
                           </div>
                           <div
                             data-testid={`req-created-at-${req.id}`}
@@ -539,12 +561,14 @@ export default function RequestsManagementTab({
                       <div className="px-3 py-2 rounded-xl bg-[#F4F6F9] dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/70 flex items-center gap-2">
                         <UserCheck className="w-3.5 h-3.5 text-[#16A34A] dark:text-emerald-400 shrink-0" />
                         <div className="min-w-0">
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                          <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
                             {st === "rejected"
-                              ? "Thời gian từ chối"
+                              ? "Ngày từ chối:"
                               : st === "approved"
-                              ? "Thời gian phê duyệt"
-                              : "Trạng thái duyệt"}
+                              ? "Ngày duyệt đơn:"
+                              : st === "cancelled"
+                              ? "Ngày hủy đơn:"
+                              : "Trạng thái duyệt:"}
                           </div>
                           <div
                             data-testid={`req-processed-at-${req.id}`}
@@ -552,9 +576,7 @@ export default function RequestsManagementTab({
                           >
                             {isPending
                               ? "Đang chờ duyệt"
-                              : processedLabel
-                              ? `${processedLabel}${req.processed_by ? ` (${req.processed_by})` : ""}`
-                              : getRequestStatusLabel(st)}
+                              : processedLabel || getRequestStatusLabel(st)}
                           </div>
                         </div>
                       </div>

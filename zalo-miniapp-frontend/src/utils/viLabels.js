@@ -53,6 +53,8 @@ export function getRequestTypeLabel(type) {
   }
   if (
     upper === 'ATTENDANCE_COMPENSATION' ||
+    upper === 'ATTENDANCE_SUPPLEMENT' ||
+    upper === 'COMPENSATION' ||
     upper === 'CT' ||
     upper === 'FORGOT_CHECKIN' ||
     upper === 'LATE_EARLY' ||
@@ -66,7 +68,7 @@ export function getRequestTypeLabel(type) {
   if (upper === 'OT' || upper === 'OVERTIME' || lower.includes('tăng ca') || lower.includes('làm thêm')) {
     return 'Đăng ký Tăng ca';
   }
-  if (upper === 'KP' || upper === 'UNPAID' || lower.includes('không lương')) {
+  if (upper === 'KP' || upper === 'UNPAID' || upper === 'UNPAID_LEAVE' || lower.includes('không lương')) {
     return 'Nghỉ không lương';
   }
   if (upper === '0.5' || lower.includes('nửa ngày') || lower.includes('buổi')) {
@@ -242,8 +244,8 @@ export const ACCOUNTANT_PERMISSION_GROUPS = [
       },
       {
         key: 'attendance_edit',
-        name: 'Điều chỉnh ngày công & Chấm công hộ',
-        desc: 'Chỉnh sửa ngày công trực tiếp trên ma trận và thực hiện chấm công hộ nhân viên',
+        name: 'Điều chỉnh ngày công',
+        desc: 'Chỉnh sửa ngày công trực tiếp trên ma trận chấm công',
         defaultEnabled: false
       },
       {
@@ -332,30 +334,30 @@ export const ACCOUNTANT_PERMISSION_GROUPS = [
       },
       {
         key: 'payroll_approve',
-        name: 'Phê duyệt chốt bảng lương & Xử lý khiếu nại lương',
-        desc: 'Chốt phát hành phiếu lương, trả lại chỉnh sửa hoặc giải quyết khiếu nại sai lương của nhân viên',
+        name: 'Xử lý khiếu nại lương',
+        desc: 'Kiểm tra và giải quyết các phản ánh sai lệch lương/công của nhân viên',
         defaultEnabled: false,
         sodWarning: 'Không được tự xử lý khiếu nại của chính mình'
       },
       {
         key: 'payroll_payment_status_manage',
-        name: 'Cập nhật trạng thái chi trả lương',
-        desc: 'Xác nhận đã chi trả tiền lương cho kỳ lương đã được phê duyệt',
+        name: 'Cập nhật trạng thái chuyển khoản lương',
+        desc: 'Xác nhận đã chuyển khoản lương từng nhân sự',
         defaultEnabled: false,
-        sodWarning: 'Tách quyền giữa người duyệt và người chi trả'
+        sodWarning: 'Tách quyền giữa người kiểm tra và người chi trả'
       }
     ]
   },
   {
     id: 'config_reports',
     label: 'Nhóm 4: Cấu hình, Ngày lễ & Xuất báo cáo',
-    description: 'Xuất file bảng lương, sao lưu kỳ lương và minh bạch các quyền độc quyền Giám đốc',
+    description: 'Xuất file Excel phiếu lương và minh bạch các quyền độc quyền Giám đốc',
     color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 dark:text-indigo-300',
     items: [
       {
         key: 'payroll_export',
-        name: 'Xuất báo cáo lương Excel/CSV & Sao lưu dữ liệu tháng',
-        desc: 'Tải file Excel/CSV bảng lương và xuất gói sao lưu dữ liệu kỳ lương 1 chạm',
+        name: 'Xuất báo cáo lương Excel (.xlsx)',
+        desc: 'Tải file Excel phiếu lương và báo cáo xác nhận lương',
         defaultEnabled: true
       }
     ]
@@ -393,7 +395,6 @@ export function getAuditActionLabel(action) {
     UPDATE_EMPLOYEE_SHIFT: 'Cập nhật ca làm & định mức phép',
     DELETE_EMPLOYEE: 'Xóa nhân viên',
     CHECK_IN: 'Chấm công hàng ngày',
-    PROXY_CHECK_IN: 'Chấm công hộ nhân viên',
     UPDATE_ATTENDANCE: 'Chỉnh sửa ngày công',
     LOCK_ATTENDANCE_PERIOD: 'Chốt sổ kỳ công tháng',
     UNLOCK_ATTENDANCE_PERIOD: 'Mở lại kỳ công tháng',
@@ -405,10 +406,6 @@ export function getAuditActionLabel(action) {
     UPDATE_COMPANY_SETTINGS: 'Cập nhật cấu hình công ty',
     UPDATE_PERMISSION: 'Thay đổi quyền Kế toán',
     UPDATE_ACCOUNTANT_PERMISSIONS: 'Cập nhật phân quyền Kế toán',
-    APPROVE_PAYROLL: 'Phê duyệt & Chốt bảng lương',
-    REJECT_PAYROLL: 'Trả lại bảng lương chỉnh sửa',
-    UPDATE_PAYMENT_STATUS: 'Xác nhận chi trả lương',
-    EXPORT_MONTHLY_BACKUP_SNAPSHOT: 'Sao lưu dữ liệu kỳ lương tháng',
     CLEANUP_AUDIT_LOGS: 'Dọn dẹp nhật ký định kỳ',
     TOGGLE_EMPLOYEE_KEEP_LOGS: 'Bật/tắt giữ lịch sử nhân sự',
     APPROVE_DEVICE: 'Duyệt đổi thiết bị mới',

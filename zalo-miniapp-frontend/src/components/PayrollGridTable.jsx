@@ -1,35 +1,33 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Search,
-  Download,
   FileText,
   Users,
   X,
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   AlertTriangle,
   Calculator,
   CheckCircle2,
   SlidersHorizontal,
-  Undo2,
-  Wallet,
   LayoutGrid,
   List,
   ChevronDown,
   ChevronUp,
   Calendar,
   Send,
-  Clock
+  Clock,
+  Lock,
+  Unlock
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
 import BankTransferModal from "./BankTransferModal";
 import SalaryReportModal from "./SalaryReportModal";
+import PeriodLockModal from "./PeriodLockModal";
 import ConfirmDialog from "./ConfirmDialog";
-import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "./ui";
-import { safeGet, safePost, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
-import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
+import { AppButton, AppModal, FormRow, MonthYearPicker, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "./ui";
+import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
+import { ROLES, hasPermission } from "../constants/roles";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
 import {
   formatViNumber,
@@ -57,27 +55,23 @@ export default function PayrollGridTable({
   const isAccountant = effectiveRole === "accountant";
   const isAdmin = effectiveRole === "admin";
   const canCalculatePayroll = isAccountant && dynamicPerms?.payroll_calculate !== false;
-  const canExportPayroll = isAdmin || dynamicPerms?.payroll_export !== false;
   const canApprovePayroll = isAdmin || dynamicPerms?.payroll_approve === true;
   const canManagePayment = isAdmin || dynamicPerms?.payroll_payment_status_manage === true;
+  const canLockPeriod =
+    hasPermission(effectiveRole, "canLockPeriod") &&
+    (effectiveRole !== ROLES.ACCOUNTANT || dynamicPerms?.attendance_lock === true);
+  const canUnlockPeriod = hasPermission(effectiveRole, "canUnlockPeriod");
   const notify = showToast || onShowToast;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("ALL");
   const [selectedSlipItem, setSelectedSlipItem] = useState(null);
   const [slipRefreshTick, setSlipRefreshTick] = useState(0);
   const [internalPayroll, setInternalPayroll] = useState([]);
-  const [periodStatus, setPeriodStatus] = useState(null);
+  const [isPeriodLocked, setIsPeriodLocked] = useState(false);
+  const [showLockModal, setShowLockModal] = useState(false);
   const [loadingPayroll, setLoadingPayroll] = useState(false);
   const [calculating, setCalculating] = useState(false);
-  const [approving, setApproving] = useState(false);
-  const [paying, setPaying] = useState(false);
-  const [backingUp, setBackingUp] = useState(false);
-  const [rejectModalOpen, setRejectModalOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [rejectError, setRejectError] = useState("");
-  const [rejecting, setRejecting] = useState(false);
   const adjInFlightRef = useRef(false);
-  const rejectInFlightRef = useRef(false);
   const lastFocusTsRef = useRef(0);
 
   // Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2)
@@ -343,20 +337,18 @@ export default function PayrollGridTable({
     setTransferItem(row);
   };
 
-  const fetchPeriodStatus = useCallback(async () => {
+  const fetchPeriodLockStatus = useCallback(async () => {
+    setIsPeriodLocked(false);
     try {
-      const stRes = await safeGet("/payroll/status-list", { month, year }, { cancelPrevious: false }).catch(() => null);
-      if (stRes?.success && Array.isArray(stRes.data)) {
-        const matched = stRes.data.find((r) => Number(r.month) === Number(month) && Number(r.year) === Number(year));
-        setPeriodStatus(matched || { month, year, status: "DRAFT", payment_status: "UNPAID" });
-      }
+      const stRes = await safeGet("/attendance/period-status", { month, year }, { cancelPrevious: false }).catch(() => null);
+      setIsPeriodLocked(Boolean(stRes?.data?.is_locked));
     } catch {
-      // Bỏ qua nếu role không được phép đọc status-list
+      setIsPeriodLocked(false);
     }
   }, [month, year]);
 
   const fetchPayrollFromApi = useCallback(async () => {
-    fetchPeriodStatus();
+    fetchPeriodLockStatus();
     if (Array.isArray(payrollData)) return payrollData;
     setLoadingPayroll(true);
     setPayrollError("");
@@ -383,7 +375,7 @@ export default function PayrollGridTable({
     } finally {
       setLoadingPayroll(false);
     }
-  }, [payrollData, month, year, fetchPeriodStatus]);
+  }, [payrollData, month, year, fetchPeriodLockStatus]);
 
   useEffect(() => {
     fetchPayrollFromApi();
@@ -405,76 +397,6 @@ export default function PayrollGridTable({
       if (notify) notify(err.message || "Lỗi tính toán bảng lương.", "error");
     } finally {
       setCalculating(false);
-    }
-  };
-
-  const handleApprovePayroll = async () => {
-    setApproving(true);
-    try {
-      const res = await safePost("/payroll/approve", { month, year }, {
-        idempotencyKey: generateIdempotencyKey("pay_approve")
-      });
-      if (res?.success) {
-        if (res.data) setPeriodStatus(res.data);
-        if (notify) notify(`Đã duyệt và phát hành Phiếu Lương tháng ${month}/${year} cho toàn bộ nhân viên!`, "success");
-        await fetchPayrollFromApi();
-      }
-    } catch (err) {
-      if (notify) notify(err.message || "Không thể duyệt bảng lương.", "error");
-    } finally {
-      setApproving(false);
-    }
-  };
-
-  const handleSubmitRejectPayroll = async (e) => {
-    e.preventDefault();
-    if (rejectInFlightRef.current) return;
-    const cleanReason = String(rejectReason || "").trim();
-    if (!cleanReason) {
-      setRejectError("Vui lòng nhập lý do cần Kế toán chỉnh sửa lại.");
-      return;
-    }
-    rejectInFlightRef.current = true;
-    setRejecting(true);
-    setRejectError("");
-    try {
-      const res = await safePost("/payroll/reject", { month, year, reason: cleanReason }, {
-        idempotencyKey: generateIdempotencyKey("pay_reject")
-      });
-      if (res?.success) {
-        if (res.data) setPeriodStatus(res.data);
-        setRejectModalOpen(false);
-        setRejectReason("");
-        if (notify) notify(res.message || `Đã trả lại bảng lương tháng ${month}/${year} cho Kế toán!`, "warning");
-        await fetchPayrollFromApi();
-      } else {
-        setRejectError(res?.message || "Không thể trả lại bảng lương.");
-      }
-    } catch (err) {
-      setRejectError(err.message || "Lỗi kết nối máy chủ.");
-    } finally {
-      rejectInFlightRef.current = false;
-      setRejecting(false);
-    }
-  };
-
-  const handleConfirmPaid = async () => {
-    setPaying(true);
-    try {
-      const res = await safePost("/payroll/payment-status", { month, year, status: "PAID" }, {
-        idempotencyKey: generateIdempotencyKey("pay_paid")
-      });
-      if (res?.success) {
-        if (res.data) setPeriodStatus(res.data);
-        if (notify) notify(res.message || `Đã xác nhận chi trả lương tháng ${month}/${year}!`, "success");
-        await fetchPayrollFromApi();
-      } else {
-        if (notify) notify(res?.message || "Không thể cập nhật trạng thái chi trả.", "error");
-      }
-    } catch (err) {
-      if (notify) notify(err.message || "Không thể xác nhận chi trả lương.", "error");
-    } finally {
-      setPaying(false);
     }
   };
 
@@ -607,93 +529,6 @@ export default function PayrollGridTable({
   const totalNetSalary = filteredList.reduce((acc, cur) => acc + (Number(cur.netSalary) || 0), 0);
   const totalWorkDays = filteredList.reduce((acc, cur) => acc + (Number(cur.totalWorkDays) || 0), 0);
 
-  // Xuất file CSV UTF-8 BOM chuẩn tiếng Việt
-  const handleExportCSV = async () => {
-    const headers = [
-      "Mã NV",
-      "Họ và Tên",
-      "Chức Danh",
-      "Lương Cơ Bản",
-      "Ngày Công",
-      "Lương Theo Công",
-      "Phụ Cấp Ăn Trưa",
-      "Phụ Cấp Xăng Xe",
-      "Phụ Cấp Nhà Ở",
-      "Thưởng HTCV",
-      "Phụ Cấp Trách Nhiệm",
-      "Tổng Phụ Cấp",
-      "Tiền Tăng Ca (OT)",
-      "Thưởng Thêm",
-      "Phạt / Khấu Trừ",
-      "Tạm Ứng Đã Trừ",
-      "Ghi Chú Điều Chỉnh",
-      "Khấu Trừ BHXH (10.5%)",
-      "Thực Lĩnh (Net)"
-    ];
-
-    const rows = filteredList.map(item => {
-      const b = item.allowances_breakdown || {};
-      const totalAllowance = Number(item.totalAllowance) || 0;
-      const anTrua = Number(b.an_trua) || 0;
-      const xangXe = Number(b.xang_xe) || 0;
-      const nhaO = Number(b.nha_o) || 0;
-      const thuong = Number(b.thuong_htcv) || 0;
-      const trachNhiem = Number(b.trach_nhiem) || (totalAllowance > (anTrua + xangXe + nhaO + thuong) ? totalAllowance - (anTrua + xangXe + nhaO + thuong) : 0);
-
-      return [
-        formatCsvCellRFC4180(item.ma_nv || item.id_nhan_vien || ""),
-        formatCsvCellRFC4180(item.ho_ten || ""),
-        formatCsvCellRFC4180(item.chuc_danh || "Nhân viên"),
-        Number(item.baseSalary) || 0,
-        Number(item.totalWorkDays) || 0,
-        Number(item.salaryByWork) || 0,
-        anTrua,
-        xangXe,
-        nhaO,
-        thuong,
-        trachNhiem,
-        totalAllowance,
-        Number(item.otAmount) || 0,
-        Number(item.bonusAmount) || 0,
-        Number(item.penaltyAmount) || 0,
-        Number(item.advanceDeduction) || 0,
-        formatCsvCellRFC4180(item.adjustment_note || item.adjustmentNote || ""),
-        Number(item.insuranceDeduction || item.totalInsurance) || 0,
-        Number(item.netSalary) || 0
-      ];
-    });
-
-    const csvContent = "\uFEFF" + [headers.map(formatCsvCellRFC4180).join(","), ...rows.map(r => r.join(","))].join("\n");
-    try {
-      await zmpAdapter.saveFile({
-        filename: `Bang_Luong_Sedinco_Thang_${month}_${year}.csv`,
-        content: csvContent,
-        mimeType: "text/csv;charset=utf-8;"
-      });
-      if (notify) notify(`Đã tải xuống bảng lương Tháng ${month}/${year}!`, "success");
-    } catch (err) {
-      if (notify) notify(err?.message || "Không thể tải xuống tệp bảng lương!", "error");
-    }
-  };
-
-  const handleDownloadBackupSnapshot = async () => {
-    setBackingUp(true);
-    try {
-      const res = await safeGet("/payroll/backup-snapshot", { month, year }, { cancelPrevious: false });
-      const snapshot = res?.data || res;
-      await zmpAdapter.saveFile({
-        filename: `Sedinco_Backup_Thang_${month}_${year}.json`,
-        content: JSON.stringify(snapshot, null, 2),
-        mimeType: "application/json;charset=utf-8;"
-      });
-      if (notify) notify(`Đã sao lưu dữ liệu Tháng ${month}/${year} thành công!`, "success");
-    } catch (err) {
-      if (notify) notify(err?.message || "Không thể sao lưu dữ liệu tháng lúc này!", "error");
-    } finally {
-      setBackingUp(false);
-    }
-  };
-
   return (
     <div className="space-y-4 pb-28">
       {/* Thanh Công Cụ Tinh Gọn: Đếm Nhân Sự & Tìm Kiếm Nhanh */}
@@ -747,13 +582,6 @@ export default function PayrollGridTable({
       <div className="md:bg-white md:dark:bg-slate-900 md:rounded-2xl md:border md:border-slate-100/90 md:dark:border-slate-800 md:shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
         {/* Header Tác Vụ Tinh Gọn */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-none mb-3 md:mb-0 p-3.5 sm:p-4 border border-slate-100/90 dark:border-slate-800 md:border-0 md:border-b space-y-2.5">
-          {periodStatus?.status === "REJECTED" && periodStatus?.rejected_reason && (
-            <div className="inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70 text-rose-800 dark:text-rose-200 text-xs font-semibold">
-              <AlertTriangle size={14} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-300" />
-              <span>Lý do trả lại chỉnh sửa: {periodStatus.rejected_reason}</span>
-            </div>
-          )}
-
           <div className="w-full min-w-0 flex flex-wrap items-center gap-2">
             {/* Thanh chuyển đổi Tổng quan / Chi tiết */}
             <div
@@ -790,45 +618,20 @@ export default function PayrollGridTable({
               </button>
             </div>
 
-            {periodStatus && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <StatusBadge type="payroll_period" status={periodStatus.status || "DRAFT"} />
-                {(periodStatus.status === "APPROVED" || periodStatus.payment_status === "PAID") && (
-                  <StatusBadge type="payment" status={periodStatus.payment_status || "UNPAID"} />
-                )}
-              </div>
-            )}
-
-            {/* Bộ chọn tháng/năm */}
-            <div className="flex items-center bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-1.5 py-0.5 shadow-sm">
-              <button
-                type="button"
-                onClick={() => onMonthChange(month > 1 ? month - 1 : 12, month > 1 ? year : year - 1)}
-                className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer flex items-center justify-center"
-                title="Tháng trước"
-                aria-label="Tháng trước"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <span className="font-bold text-sm px-2.5 text-slate-900 dark:text-white whitespace-nowrap">
-                Tháng {month}/{year}
-              </span>
-              <button
-                type="button"
-                onClick={() => onMonthChange(month < 12 ? month + 1 : 1, month < 12 ? year : year + 1)}
-                className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer flex items-center justify-center"
-                title="Tháng sau"
-                aria-label="Tháng sau"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
+            {/* Bộ chọn kỳ lương Tháng/Năm hiện đại */}
+            <MonthYearPicker
+              month={month}
+              year={year}
+              onChange={onMonthChange}
+              testIdPrefix="payroll-month-picker"
+            />
 
             {/* Lọc theo bộ phận */}
             <select
               value={selectedDepartment}
+              data-testid="payroll-department-filter"
               onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="w-full sm:w-auto max-w-full min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] dark:focus:border-rose-400 shadow-sm text-slate-800 dark:text-slate-100"
+              className="w-full sm:w-auto max-w-full min-h-[44px] px-3 py-2 text-xs sm:text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] dark:focus:border-rose-400 shadow-sm text-slate-800 dark:text-slate-100"
             >
               <option value="ALL">🏢 Tất cả bộ phận</option>
               {availableDepartments.map((dept) => (
@@ -838,18 +641,60 @@ export default function PayrollGridTable({
               ))}
             </select>
 
-            {/* Nút Tính Lương Tự Động (Nghiệp vụ riêng của Kế toán) */}
-            {canCalculatePayroll && (
+            {/* Nút Chốt kỳ công theo kỳ (month, year) — Chuyển từ Bảng công sang Bảng lương (V48) */}
+            {!isPeriodLocked && canLockPeriod && (
+              <AppButton
+                variant="danger"
+                icon={Lock}
+                disabled={isLoading}
+                data-testid="payroll-period-lock-btn"
+                data-period-locked="false"
+                onClick={() => setShowLockModal(true)}
+                className="text-xs sm:text-sm px-3.5 py-2"
+              >
+                🔒 Chốt kỳ công
+              </AppButton>
+            )}
+
+            {isPeriodLocked && canUnlockPeriod && (
+              <AppButton
+                variant="warning"
+                icon={Unlock}
+                disabled={isLoading}
+                data-testid="payroll-period-lock-btn"
+                data-period-locked="true"
+                onClick={() => setShowLockModal(true)}
+                className="text-xs sm:text-sm px-3.5 py-2"
+                title={`Kỳ công Tháng ${month}/${year} đã chốt sổ. Nhấn nếu cần mở khóa khẩn cấp.`}
+              >
+                🔓 Đã chốt công T{month}/{year}
+              </AppButton>
+            )}
+
+            {isPeriodLocked && !canUnlockPeriod && (
+              <span
+                data-testid="payroll-period-lock-btn"
+                data-period-locked="true"
+                className="min-h-[44px] inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 text-xs font-bold px-3.5 py-2 rounded-xl border border-amber-300 dark:border-amber-700 whitespace-nowrap"
+              >
+                <Lock size={14} className="shrink-0" />
+                <span>🔒 Đã chốt công T{month}/{year}</span>
+              </span>
+            )}
+
+            {/* Nút Tính Lương Tự Động */}
+            {(isAdmin || canCalculatePayroll) && (
               <AppButton
                 variant="primary"
                 icon={Calculator}
                 loading={calculating}
                 disabled={isLoading}
                 loadingText="Đang tính..."
+                data-testid="payroll-calculate-btn"
                 onClick={handleCalculatePayroll}
                 className="text-xs sm:text-sm px-3.5 py-2"
               >
-                Tính lương
+                🧮 Tính lương
               </AppButton>
             )}
 
@@ -866,76 +711,6 @@ export default function PayrollGridTable({
               >
                 📨 Gửi báo cáo tất cả
               </AppButton>
-            )}
-
-            {/* Nút Duyệt & Phát Hành Phiếu Lương */}
-            {canApprovePayroll && (
-              <AppButton
-                variant="zalo"
-                icon={CheckCircle2}
-                loading={approving}
-                disabled={isLoading}
-                loadingText="Đang lưu..."
-                onClick={handleApprovePayroll}
-                className="text-xs sm:text-sm px-3.5 py-2"
-              >
-                Chốt &amp; Phát hành
-              </AppButton>
-            )}
-
-            {/* Nút Trả lại Kế toán (kèm lý do) dành cho Admin / người có quyền duyệt */}
-            {(isAdmin || canApprovePayroll) && periodStatus?.payment_status !== "PAID" && (
-              <AppButton
-                variant="danger"
-                icon={Undo2}
-                disabled={isLoading}
-                onClick={() => {
-                  setRejectError("");
-                  setRejectModalOpen(true);
-                }}
-                className="text-xs sm:text-sm px-3.5 py-2"
-              >
-                Trả lại Kế toán
-              </AppButton>
-            )}
-
-            {/* Nút Xác nhận Đã Chi Trả Lương */}
-            {canManagePayment && periodStatus?.status === "APPROVED" && periodStatus?.payment_status !== "PAID" && (
-              <AppButton
-                variant="success"
-                icon={Wallet}
-                loading={paying}
-                disabled={isLoading}
-                loadingText="Đang xác nhận..."
-                onClick={handleConfirmPaid}
-                className="text-xs sm:text-sm px-3.5 py-2"
-              >
-                Xác nhận Đã Chi Trả Lương
-              </AppButton>
-            )}
-
-            {/* Nút Xuất CSV & Sao lưu dữ liệu tháng */}
-            {canExportPayroll && (
-              <>
-                <AppButton
-                  variant="success"
-                  icon={Download}
-                  onClick={handleExportCSV}
-                  className="text-xs sm:text-sm px-3.5 py-2"
-                >
-                  Xuất CSV
-                </AppButton>
-                <AppButton
-                  variant="secondary"
-                  icon={Download}
-                  loading={backingUp}
-                  loadingText="Đang sao lưu..."
-                  onClick={handleDownloadBackupSnapshot}
-                  className="text-xs sm:text-sm px-3.5 py-2"
-                >
-                  Sao lưu dữ liệu tháng
-                </AppButton>
-              </>
             )}
 
             {/* Nút Làm Mới */}
@@ -1918,59 +1693,29 @@ export default function PayrollGridTable({
         )}
       </AppModal>
 
-      {/* Modal Trả lại bảng lương cho Kế toán kèm lý do */}
-      <AppModal
-        open={rejectModalOpen}
-        onClose={() => !rejecting && setRejectModalOpen(false)}
-        disableClose={rejecting}
-        title="Trả lại bảng lương cho Kế toán"
-        subtitle={`Kỳ lương Tháng ${month}/${year}`}
-        maxWidthClass="max-w-md"
-        footer={
-          <div className="flex gap-2.5">
-            <AppButton
-              variant="secondary"
-              disabled={rejecting}
-              onClick={() => setRejectModalOpen(false)}
-              className="flex-1"
-            >
-              Đóng / Quay lại
-            </AppButton>
-            <AppButton
-              type="submit"
-              form="payroll-reject-form"
-              variant="danger"
-              icon={Undo2}
-              loading={rejecting}
-              loadingText="Đang trả lại..."
-              className="flex-1"
-            >
-              Xác nhận trả lại
-            </AppButton>
-          </div>
-        }
-      >
-        <form id="payroll-reject-form" onSubmit={handleSubmitRejectPayroll} className="p-4 space-y-3">
-          {rejectError && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 text-xs font-semibold">
-              {rejectError}
-            </div>
-          )}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
-              Lý do cần Kế toán rà soát, chỉnh sửa lại <span className="text-rose-600 dark:text-rose-400">*</span>
-            </label>
-            <textarea
-              rows={3}
-              required
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Ví dụ: Kiểm tra lại số giờ tăng ca công trình A của NV003..."
-              className="w-full px-3 py-2.5 border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-rose-500 leading-relaxed"
-            />
-          </div>
-        </form>
-      </AppModal>
+      {/* Modal Chốt / Mở Lại Kỳ Công (từ Bảng Lương - V48) */}
+      {showLockModal && (
+        <PeriodLockModal
+          month={month}
+          year={year}
+          isCurrentlyLocked={isPeriodLocked}
+          userRole={effectiveRole}
+          onClose={() => setShowLockModal(false)}
+          onStatusChanged={(newLocked) => {
+            setIsPeriodLocked(Boolean(newLocked));
+            if (notify) {
+              notify(
+                newLocked
+                  ? `Đã chốt sổ kỳ công Tháng ${month}/${year} thành công!`
+                  : `Đã mở khóa kỳ công Tháng ${month}/${year}!`,
+                "success"
+              );
+            }
+            fetchPayrollFromApi();
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
 
       {/* Modal Tiện Ích Chia Sẻ Báo Cáo Lương Qua Zalo & Xuất Excel (.xlsx) */}
       <SalaryReportModal

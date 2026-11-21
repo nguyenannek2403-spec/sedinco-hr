@@ -34,9 +34,6 @@ router.post('/unlock-period', authenticateToken, requireRole(['admin']), (req, r
 router.post('/update', authenticateToken, requireAuth, validateAttendanceMiddleware, (req, res, next) => attendanceController.updateAttendance(req, res, next));
 router.post('/', authenticateToken, requireAuth, validateAttendanceMiddleware, (req, res, next) => attendanceController.updateAttendance(req, res, next));
 
-// 6b. Quản lý / Kế toán chấm công hộ (Điểm danh nhanh cho nhân viên quên điện thoại / ngoài công trình)
-router.post('/proxy-check-in', authenticateToken, requireRole(['admin', 'accountant']), idempotencyMiddleware(), (req, res, next) => attendanceController.proxyCheckIn(req, res, next));
-
 // 7. Ngừng hỗ trợ Kiosk QR từ V6 (410 Gone cho client cũ)
 const legacyQrGone = (_req, res) => res.status(410).json({
     success: false,

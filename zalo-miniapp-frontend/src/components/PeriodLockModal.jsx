@@ -177,7 +177,7 @@ export default function PeriodLockModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700">
-              <span className="block text-slate-500 dark:text-slate-400 font-semibold">1. Bảng công 31 ngày</span>
+              <span className="block text-slate-500 dark:text-slate-400 font-semibold">1. Bảng chấm công</span>
               <strong className="text-[#111C2D] dark:text-white">{isLockAction ? "Đóng băng sửa đổi" : "Mở quyền điều chỉnh"}</strong>
             </div>
             <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700">

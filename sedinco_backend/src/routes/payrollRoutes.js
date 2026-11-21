@@ -24,27 +24,13 @@ router.post('/calculate', authenticateToken, requirePermission('payroll_calculat
 router.get('/calculate', authenticateToken, requirePermission('payroll_calculate'), (req, res, next) => payrollController.calculatePayroll(req, res, next));
 router.post('/adjustments', authenticateToken, requirePermission('payroll_calculate'), idempotencyMiddleware(), (req, res, next) => payrollController.adjustSalary(req, res, next));
 
-// 4. Phê duyệt / Trả lại bảng lương chính thức (Yêu cầu permission: payroll_approve)
-router.post('/approve', authenticateToken, requirePermission('payroll_approve'), (req, res, next) => payrollController.approvePayroll(req, res, next));
-router.post('/save', authenticateToken, requirePermission('payroll_approve'), (req, res, next) => payrollController.approvePayroll(req, res, next));
-router.post('/reject', authenticateToken, requirePermission('payroll_approve'), (req, res, next) => payrollController.rejectPayroll(req, res, next));
-
-// 5. Xuất bảng lương CSV & Sao lưu dữ liệu tháng JSON (Yêu cầu permission: payroll_export)
-router.get('/export', authenticateToken, requirePermission('payroll_export'), (req, res, next) => payrollController.exportPayroll(req, res, next));
-router.get('/backup-snapshot', authenticateToken, requirePermission('payroll_export'), (req, res, next) => payrollController.getBackupSnapshot(req, res, next));
-
-// 6. Gửi báo cáo xác nhận lương & Chốt chuyển khoản (Chỉ Admin - V45)
+// 4. Gửi báo cáo xác nhận lương & Chốt chuyển khoản (Chỉ Admin - V45)
 router.post('/send-report', authenticateToken, requireRole(['admin']), (req, res, next) => payrollController.sendSalaryReport(req, res, next));
 router.post('/mark-paid', authenticateToken, requireRole(['admin']), idempotencyMiddleware(), (req, res, next) => payrollController.markPaid(req, res, next));
 
-// 7. Cập nhật trạng thái chi trả lương (Yêu cầu permission: payroll_payment_status_manage)
-router.put('/payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), (req, res, next) => payrollController.updatePaymentStatus(req, res, next));
-router.post('/payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), (req, res, next) => payrollController.updatePaymentStatus(req, res, next));
+// 5. Cập nhật trạng thái chuyển khoản từng nhân viên (Yêu cầu permission: payroll_payment_status_manage)
 router.post('/employee-payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), idempotencyMiddleware(), (req, res, next) => payrollController.updateEmployeePaymentStatus(req, res, next));
 router.put('/employee-payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), idempotencyMiddleware(), (req, res, next) => payrollController.updateEmployeePaymentStatus(req, res, next));
 router.post('/employee-paid', authenticateToken, requirePermission('payroll_payment_status_manage'), idempotencyMiddleware(), (req, res, next) => payrollController.updateEmployeePaymentStatus(req, res, next));
-
-// 8. Danh sách trạng thái kỳ lương & chi trả (Yêu cầu permission: payroll_view_all)
-router.get('/status-list', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => payrollController.getPayrollStatusList(req, res, next));
 
 module.exports = router;

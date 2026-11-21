@@ -1,28 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Calendar,
   Search,
-  Download,
   CheckCircle2,
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
   Lock,
-  Unlock,
-  AlertTriangle,
-  LayoutGrid,
-  List,
-  UserCheck
+  AlertTriangle
 } from "lucide-react";
-import { safeGet, safePost, sanitizeFormula, generateIdempotencyKey } from "../utils/api";
-import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
+import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { useDebouncedValue } from "../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
-import { formatViWorkday } from "../utils/viNumberFormat";
-import { getMonthlyStandardWorkdays, getVietnamTodayIso, isSundayDay } from "../utils/workdayUtils";
-import PeriodLockModal from "./PeriodLockModal";
-import { ROLES, hasPermission } from "../constants/roles";
-import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "./ui";
+import { getMonthlyStandardWorkdays, isSundayDay } from "../utils/workdayUtils";
+import { ROLES } from "../constants/roles";
+import { AppButton, AppModal, FormRow, MonthYearPicker, UserAvatar } from "./ui";
 
 const getBadgeStyle = (status) => {
   if (status === "1") return "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-300 border-2 border-emerald-500 dark:border-emerald-500/70 font-black";
@@ -35,7 +24,6 @@ const getBadgeStyle = (status) => {
 };
 
 export default function AttendanceMatrixTable({
-  currentUser,
   attendanceData,
   month = new Date().getMonth() + 1,
   year = new Date().getFullYear(),
@@ -54,47 +42,26 @@ export default function AttendanceMatrixTable({
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [selectedDepartment, setSelectedDepartment] = useState("ALL");
-  const [viewMode, setViewMode] = useState(() =>
-    typeof window !== "undefined" && window.innerWidth < 768 ? "cards" : "matrix"
-  );
-  const [detailEmpCode, setDetailEmpCode] = useState(null);
-  const [editingCell, setEditingCell] = useState(null); // { emp, dayIndex, currentStatus }
+  const [editingCell, setEditingCell] = useState(null); // { emp, dayNum, currentStatus }
   const [selectedStatus, setSelectedStatus] = useState("1");
   const [otHours, setOtHours] = useState(2);
   const [editError, setEditError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showLockModal, setShowLockModal] = useState(false);
-  const [showProxyModal, setShowProxyModal] = useState(false);
-  const [proxyForm, setProxyForm] = useState({
-    ma_nv: "",
-    record_date: getVietnamTodayIso(),
-    check_in_time: "08:00",
-    check_out_time: "17:30",
-    work_location_type: "OFFICE",
-    note: "Quản lý chấm công hộ do quên điện thoại"
-  });
-  const [proxySaving, setProxySaving] = useState(false);
   const savingCellRef = useRef(false);
-  const proxyInFlightRef = useRef(false);
   const [internalData, setInternalData] = useState([]);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
   const [matrixError, setMatrixError] = useState("");
-
-  const [internalLocked, setInternalLocked] = useState(() => {
-    try {
-      const saved = localStorage.getItem(`sedinco_locked_period_${year}_${month}`);
-      return saved ? JSON.parse(saved).locked : false;
-    } catch (e) {
-      return false;
-    }
-  });
+  const [internalLocked, setInternalLocked] = useState(false);
 
   const fetchMatrixFromApi = useCallback(async () => {
     if (Array.isArray(attendanceData)) return;
     setLoadingMatrix(true);
     setMatrixError("");
     try {
-      const res = await safeGet("/attendance", { month, year }, { cancelPrevious: true });
+      const [res, lockRes] = await Promise.all([
+        safeGet("/attendance", { month, year }, { cancelPrevious: true }),
+        safeGet("/attendance/period-status", { month, year }, { cancelPrevious: false }).catch(() => null)
+      ]);
       if (Array.isArray(res?.data)) {
         setInternalData(res.data);
       } else if (Array.isArray(res)) {
@@ -102,8 +69,12 @@ export default function AttendanceMatrixTable({
       } else {
         setInternalData([]);
       }
-      if (res?.isLocked !== undefined) {
+      if (lockRes?.data && lockRes.data.is_locked !== undefined) {
+        setInternalLocked(Boolean(lockRes.data.is_locked));
+      } else if (res?.isLocked !== undefined) {
         setInternalLocked(Boolean(res.isLocked));
+      } else {
+        setInternalLocked(false);
       }
     } catch (e) {
       console.warn("Lỗi tải bảng công ma trận:", e);
@@ -124,10 +95,6 @@ export default function AttendanceMatrixTable({
     !isLocked &&
     (effectiveRole === ROLES.ADMIN ||
       (effectiveRole === ROLES.ACCOUNTANT && dynamicPerms?.attendance_edit === true));
-  const canLockPeriod =
-    hasPermission(effectiveRole, "canLockPeriod") &&
-    (effectiveRole !== ROLES.ACCOUNTANT || dynamicPerms?.attendance_lock === true);
-  const canUnlockPeriod = hasPermission(effectiveRole, "canUnlockPeriod");
 
   // Số ngày trong tháng & Số ngày công chuẩn tự động (trừ Chủ nhật)
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -155,61 +122,6 @@ export default function AttendanceMatrixTable({
     const matchDept = selectedDepartment === "ALL" || empDept === selectedDepartment;
     return matchText && matchDept;
   });
-
-  const handleOpenProxyModal = () => {
-    const firstValid = (sourceList || []).find((e) => e.ma_nv !== currentUser?.ma_nv) || sourceList[0];
-    setProxyForm({
-      ma_nv: firstValid?.ma_nv || "",
-      record_date: getVietnamTodayIso(),
-      check_in_time: "08:00",
-      check_out_time: "17:30",
-      work_location_type: "OFFICE",
-      note: "Quản lý chấm công hộ do quên điện thoại"
-    });
-    setShowProxyModal(true);
-  };
-
-  const handleSubmitProxyCheckIn = async (e) => {
-    e.preventDefault();
-    if (proxyInFlightRef.current) return;
-    if (!proxyForm.ma_nv) {
-      if (notify) notify("Vui lòng chọn nhân viên cần chấm công hộ!", "error");
-      return;
-    }
-    if (!proxyForm.record_date) {
-      if (notify) notify("Vui lòng chọn ngày chấm công!", "error");
-      return;
-    }
-    proxyInFlightRef.current = true;
-    setProxySaving(true);
-    try {
-      const res = await safePost(
-        "/attendance/proxy-check-in",
-        {
-          ma_nv: proxyForm.ma_nv,
-          record_date: proxyForm.record_date,
-          check_in_time: proxyForm.check_in_time || null,
-          check_out_time: proxyForm.check_out_time || null,
-          work_location_type: proxyForm.work_location_type,
-          note: proxyForm.note
-        },
-        { idempotencyKey: generateIdempotencyKey("proxy_checkin") }
-      );
-      if (res?.success) {
-        if (notify) notify(res.message || "Đã chấm công hộ nhân viên thành công!", "success");
-        setShowProxyModal(false);
-        fetchMatrixFromApi();
-        if (onRefresh) onRefresh();
-      } else {
-        if (notify) notify(res?.message || "Không thể chấm công hộ.", "error");
-      }
-    } catch (err) {
-      if (notify) notify(err.message || "Lỗi khi gửi yêu cầu chấm công hộ.", "error");
-    } finally {
-      proxyInFlightRef.current = false;
-      setProxySaving(false);
-    }
-  };
 
   const handleCellClick = (emp, dayIndex) => {
     if (isLocked) {
@@ -323,202 +235,80 @@ export default function AttendanceMatrixTable({
     }
   };
 
-  // Xuất bảng chấm công sang CSV UTF-8
-  const handleExportCSV = async () => {
-    const headers = ["Mã NV", "Họ và Tên", ...dayNumbers.map(d => `Ngày ${d}`), "Đủ công (1)", "Nửa công (0.5)", "Phép (P)", "Tăng ca (OT)"];
-    const rows = filteredData.map(item => {
-      const days = item.days || [];
-      const count1 = days.filter(d => d === "1" || d === "1/OT").length;
-      const countHalf = days.filter(d => d === "0.5").length;
-      const countP = days.filter(d => d === "P").length;
-      const countOT = days.filter(d => String(d).includes("OT")).length;
-      return [
-        `"${sanitizeFormula(item.ma_nv)}"`,
-        `"${sanitizeFormula(item.ho_ten)}"`,
-        ...dayNumbers.map(d => `"${sanitizeFormula(days[d - 1] || "")}"`),
-        count1,
-        countHalf,
-        countP,
-        countOT
-      ];
-    });
-
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    try {
-      await zmpAdapter.saveFile({
-        filename: `Bang_Cham_Cong_Ma_Tran_Thang_${month}_${year}.csv`,
-        content: csvContent,
-        mimeType: "text/csv;charset=utf-8;"
-      });
-      if (showToast) showToast(`Đã tải xuống bảng chấm công Tháng ${month}/${year}!`, "success");
-    } catch (err) {
-      if (showToast) showToast(err?.message || "Không thể xuất bảng chấm công!", "error");
-    }
-  };
-
   return (
     <div className="space-y-4 mb-24">
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
-      {/* Header Điều Khiển & Tìm Kiếm Tinh Gọn */}
-      <div className="p-3.5 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/60 dark:bg-slate-900/90">
-        {/* Thanh chuyển chế độ xem Thẻ / Bảng 31 ngày */}
-        <div
-          data-filter-group="matrix-view-mode"
-          className="inline-flex p-1 bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-xl gap-1"
-        >
-          <button
-            type="button"
-            data-active={viewMode === "cards" ? "true" : "false"}
-            onClick={() => setViewMode("cards")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
-              viewMode === "cards"
-                ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-            }`}
-          >
-            <List size={15} />
-            <span>Thẻ</span>
-          </button>
-          <button
-            type="button"
-            data-active={viewMode === "matrix" ? "true" : "false"}
-            onClick={() => setViewMode("matrix")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
-              viewMode === "matrix"
-                ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-            }`}
-          >
-            <LayoutGrid size={15} />
-            <span>Bảng 31 ngày</span>
-          </button>
-        </div>
+      {/* Header Điều Khiển Tinh Gọn (1 dòng chọn kỳ + lọc bộ phận + tìm kiếm) */}
+      <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/90 space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <MonthYearPicker
+              month={month}
+              year={year}
+              onChange={onMonthChange}
+              testIdPrefix="matrix-month-picker"
+            />
 
-        {/* Thanh tác vụ: Tháng/Năm, Tìm kiếm & Nút hành động */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Bộ chọn tháng/năm */}
-          <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-1.5 py-0.5 shadow-sm">
-            <button
-              type="button"
-              onClick={() => onMonthChange(month > 1 ? month - 1 : 12, month > 1 ? year : year - 1)}
-              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer flex items-center justify-center"
-              title="Tháng trước"
-              aria-label="Tháng trước"
+            <select
+              value={selectedDepartment}
+              data-testid="matrix-department-filter"
+              aria-label="Lọc theo bộ phận"
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="h-[44px] max-w-[210px] px-3 py-1.5 text-xs sm:text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] shadow-sm text-slate-800 dark:text-slate-100"
             >
-              <ChevronLeft size={20} />
-            </button>
-            <span className="font-black text-sm px-2.5 text-slate-900 dark:text-white">
-              Tháng {month}/{year}
+              <option value="ALL">🏢 Tất cả bộ phận</option>
+              {availableDepartments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
+
+            <span
+              data-testid="matrix-standard-workdays-badge"
+              className="min-h-[40px] inline-flex items-center px-3 py-1.5 rounded-xl bg-[#FFE4E6] dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70 text-xs font-extrabold text-[#B80035] dark:text-rose-200 whitespace-nowrap"
+            >
+              Công chuẩn: {stdWorkdays} ngày
             </span>
-            <button
-              type="button"
-              onClick={() => onMonthChange(month < 12 ? month + 1 : 1, month < 12 ? year : year + 1)}
-              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer flex items-center justify-center"
-              title="Tháng sau"
-              aria-label="Tháng sau"
-            >
-              <ChevronRight size={20} />
-            </button>
+
+            {isLocked && (
+              <span
+                data-testid="matrix-locked-indicator"
+                className="min-h-[40px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-xs font-bold text-amber-800 dark:text-amber-200 whitespace-nowrap"
+                title="Kỳ công này đã được chốt tại mục Bảng lương"
+              >
+                <Lock size={13} className="shrink-0" />
+                <span>Đã chốt kỳ tại Bảng lương</span>
+              </span>
+            )}
           </div>
 
-          <span
-            data-testid="matrix-standard-workdays-badge"
-            className="min-h-[40px] inline-flex items-center px-3 py-1.5 rounded-xl bg-[#FFE4E6] dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70 text-xs font-extrabold text-[#B80035] dark:text-rose-200 whitespace-nowrap"
-          >
-            Công chuẩn tháng {month}/{year}: {stdWorkdays} ngày
-          </span>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-52">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                data-testid="matrix-search-input"
+                placeholder="Tìm tên nhân viên..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full h-[44px] pl-9 pr-3 py-1.5 text-xs sm:text-sm font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 border border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] shadow-sm"
+              />
+            </div>
 
-          {/* Lọc bộ phận */}
-          <select
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] shadow-sm text-slate-800 dark:text-slate-100"
-          >
-            <option value="ALL">🏢 Tất cả bộ phận</option>
-            {availableDepartments.map((dept) => (
-              <option key={dept} value={dept}>
-                {dept}
-              </option>
-            ))}
-          </select>
-
-          {/* Ô tìm kiếm */}
-          <div className="relative min-w-[180px]">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm tên, mã NV..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 border border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] shadow-sm"
+            <AppButton
+              variant="secondary"
+              icon={RefreshCw}
+              loading={loadingMatrix}
+              onClick={() => {
+                fetchMatrixFromApi();
+                if (onRefresh) onRefresh();
+              }}
+              aria-label="Làm mới dữ liệu"
+              title="Làm mới dữ liệu"
+              className="min-w-[44px] h-[44px] px-3"
             />
           </div>
-
-          {/* Nút Chấm công hộ */}
-          {canEdit && (
-            <AppButton
-              variant="primary"
-              icon={UserCheck}
-              onClick={handleOpenProxyModal}
-              className="text-xs sm:text-sm px-3.5 py-2"
-            >
-              Chấm công hộ
-            </AppButton>
-          )}
-
-          {/* Nút Xuất CSV */}
-          <AppButton
-            variant="success"
-            icon={Download}
-            onClick={handleExportCSV}
-            className="text-xs sm:text-sm px-3.5 py-2"
-          >
-            Xuất CSV
-          </AppButton>
-
-          {/* Nút Làm Mới */}
-          <AppButton
-            variant="secondary"
-            icon={RefreshCw}
-            loading={loadingMatrix}
-            onClick={() => {
-              fetchMatrixFromApi();
-              if (onRefresh) onRefresh();
-            }}
-            aria-label="Làm mới dữ liệu"
-            title="Làm mới dữ liệu"
-            className="min-w-[44px] px-3 py-2"
-          />
-
-          {/* Nút Chốt kỳ công */}
-          {canLockPeriod && !isLocked && (
-            <AppButton
-              variant="danger"
-              icon={Lock}
-              onClick={() => setShowLockModal(true)}
-              className="text-xs sm:text-sm px-3.5 py-2"
-            >
-              Chốt kỳ công
-            </AppButton>
-          )}
-
-          {canUnlockPeriod && isLocked && (
-            <AppButton
-              variant="warning"
-              icon={Unlock}
-              onClick={() => setShowLockModal(true)}
-              className="text-xs sm:text-sm px-3.5 py-2"
-            >
-              Mở lại kỳ đã chốt
-            </AppButton>
-          )}
-
-          {isLocked && !canUnlockPeriod && (
-            <div className="min-h-[44px] flex items-center gap-1.5 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-400 dark:border-slate-600 whitespace-nowrap">
-              <Lock size={14} className="shrink-0" />
-              <span>Đã khóa sổ</span>
-            </div>
-          )}
         </div>
       </div>
 
@@ -535,107 +325,7 @@ export default function AttendanceMatrixTable({
         </div>
       )}
 
-      {/* CHẾ ĐỘ 1: DẠNG THẺ MOBILE-FIRST */}
-      {viewMode === "cards" && (
-        <div className="p-3 sm:p-4 space-y-2.5 bg-slate-50/70 dark:bg-slate-950/40">
-          {loadingMatrix ? (
-            <SkeletonList rows={3} label="Đang tải dữ liệu bảng chấm công..." />
-          ) : filteredData.length === 0 ? (
-            <EmptyState icon={Calendar} title="Không tìm thấy nhân viên nào khớp từ khóa." />
-          ) : (
-            filteredData.map((emp, empIdx) => {
-              const days = emp.days || [];
-              const count1 = days.filter((d) => d === "1" || d === "1/OT").length;
-              const countHalf = days.filter((d) => d === "0.5").length;
-              const totalWorkDays = count1 + countHalf * 0.5;
-              const countP = days.filter((d) => d === "P").length;
-              const countOT = days.filter((d) => String(d).includes("OT")).length;
-              const countKP = days.filter((d) => d === "KP" || d === "KL").length;
-              const recent7Days = dayNumbers.slice(0, 7).map((dNum) => {
-                const rawVal = days[dNum - 1] || "";
-                const displayVal = rawVal || (isSundayDay(dNum, month, year) ? "CN" : "·");
-                return {
-                  dayNum: dNum,
-                  val: displayVal,
-                  isSunday: isSundayDay(dNum, month, year)
-                };
-              });
-
-              return (
-                <button
-                  key={emp.ma_nv || empIdx}
-                  type="button"
-                  onClick={() => setDetailEmpCode(emp.ma_nv)}
-                  className="perf-list-item w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3.5 shadow-sm hover:border-rose-400 dark:hover:border-rose-500 active:scale-[0.99] transition flex flex-col gap-2.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <UserAvatar
-                        name={emp.ho_ten || emp.ma_nv}
-                        avatarUrl={emp.avatar_url}
-                        size="sm"
-                      />
-                      <div className="min-w-0">
-                        <div className="font-extrabold text-slate-900 dark:text-white text-sm truncate">
-                          {emp.ho_ten}
-                        </div>
-                        <div className="text-xs text-[#E11D48] dark:text-rose-300 font-bold">
-                          Mã NV: {emp.ma_nv} {(emp.department || emp.bo_phan) ? `• ${emp.department || emp.bo_phan}` : ""}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-rose-500/15 text-xs font-extrabold text-[#E11D48] dark:text-rose-300 shrink-0 font-mono">
-                      {formatViWorkday(totalWorkDays)} / {stdWorkdays}
-                      <ChevronRight size={14} />
-                    </span>
-                  </div>
-
-                  {/* STITCH SCREEN 6 & 10 — 7-DAY RECENT ATTENDANCE STRIP */}
-                  <div className="grid grid-cols-7 gap-1 bg-[#F0F3FF] dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700 text-center">
-                    {recent7Days.map((cell) => (
-                      <div key={cell.dayNum} className="rounded-lg bg-white dark:bg-slate-900 py-1 px-0.5 border border-slate-200/60 dark:border-slate-700">
-                        <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 leading-none">
-                          N{cell.dayNum}
-                        </span>
-                        <span className="block text-xs font-black text-[#111C2D] dark:text-white mt-0.5 leading-none">
-                          {cell.val}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Perforated Ticket Cutout Divider */}
-                  <div className="sedinco-ticket-cutout">
-                    <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-2">
-                    <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 px-2 py-1.5 text-center">
-                      <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300">Tổng công</div>
-                      <div className="text-sm font-black text-emerald-900 dark:text-emerald-200">{formatViWorkday(totalWorkDays)}</div>
-                    </div>
-                    <div className="rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/70 px-2 py-1.5 text-center">
-                      <div className="text-xs font-bold text-amber-700 dark:text-amber-300">Nghỉ phép</div>
-                      <div className="text-sm font-black text-amber-900 dark:text-amber-200">{countP}</div>
-                    </div>
-                    <div className="rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/70 px-2 py-1.5 text-center">
-                      <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300">Tăng ca</div>
-                      <div className="text-sm font-black text-indigo-900 dark:text-indigo-200">{countOT}</div>
-                    </div>
-                    <div className="rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
-                      <div className="text-xs font-bold text-slate-600 dark:text-slate-300">Không phép</div>
-                      <div className="text-sm font-black text-slate-800 dark:text-slate-100">{countKP}</div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      {/* CHẾ ĐỘ 2: BẢNG MA TRẬN 31 NGÀY (Horizontal scroll mượt trên Mobile & Sticky cột Nhân Sự) */}
-      {viewMode === "matrix" && (
+      {/* Bảng Lịch Chấm Công 1 Chạm Duy Nhất */}
       <div className="overflow-x-auto touch-scroll-x">
         <table className="w-full border-collapse text-xs text-left">
           <thead>
@@ -675,7 +365,14 @@ export default function AttendanceMatrixTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-            {filteredData.length === 0 ? (
+            {loadingMatrix && filteredData.length === 0 ? (
+              <tr>
+                <td colSpan={daysInMonth + 5} className="py-12 text-center text-slate-500 dark:text-slate-300 text-sm font-bold">
+                  <RefreshCw size={22} className="mx-auto mb-2 animate-spin text-[#E11D48]" />
+                  <span>Đang tải dữ liệu bảng chấm công...</span>
+                </td>
+              </tr>
+            ) : filteredData.length === 0 ? (
               <tr>
                 <td colSpan={daysInMonth + 5} className="py-12 text-center text-slate-500 dark:text-slate-300 text-sm font-bold">
                   Không tìm thấy dữ liệu điểm danh phù hợp.
@@ -769,78 +466,6 @@ export default function AttendanceMatrixTable({
           </tbody>
         </table>
       </div>
-      )}
-
-      {/* Modal Lịch Chi Tiết 31 Ngày Của Nhân Viên (Khi mở từ Dạng Thẻ) */}
-      {(() => {
-        if (!detailEmpCode) return null;
-        const emp =
-          filteredData.find((e) => e.ma_nv === detailEmpCode) ||
-          (sourceList || []).find((e) => e.ma_nv === detailEmpCode);
-        if (!emp) return null;
-        const days = emp.days || [];
-        return (
-          <AppModal
-            isOpen={true}
-            onClose={() => setDetailEmpCode(null)}
-            icon={<UserAvatar name={emp.ho_ten || emp.ma_nv} avatarUrl={emp.avatar_url} size="sm" />}
-            title={emp.ho_ten}
-            subtitle={`${emp.ma_nv} • Tháng ${month}/${year}`}
-            maxWidthClass="max-w-lg"
-          >
-            <div className="p-4 space-y-3 bg-slate-50 dark:bg-slate-900">
-              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium text-center">
-                {canEdit
-                  ? "Chạm vào bất kỳ ngày nào bên dưới để chỉnh sửa công"
-                  : "Chế độ chỉ xem chi tiết công theo ngày"}
-              </p>
-              <div className="grid grid-cols-7 gap-2">
-                {dayNumbers.map((d, dIdx) => {
-                  const val = days[dIdx] || "";
-                  const detail = emp.dayDetails?.[dIdx];
-                  const hasLateEarly = Boolean(
-                    detail &&
-                      ((Number(detail.late_minutes) || 0) > 0 ||
-                        (Number(detail.early_leave_minutes) || 0) > 0 ||
-                        /vào muộn|ra sớm|quên check-out|quá ngắn/i.test(detail.attendance_note || ""))
-                  );
-                  const badgeClass = getBadgeStyle(val);
-                  const dayOfWeek = new Date(year, month - 1, d).getDay();
-                  const isSunday = dayOfWeek === 0;
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => handleCellClick(emp, dIdx)}
-                      title={detail?.attendance_note || undefined}
-                      className={`relative min-h-[58px] rounded-xl border p-1.5 flex flex-col items-center justify-between transition active:scale-95 ${
-                        isSunday
-                          ? "bg-rose-50/70 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/70"
-                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-rose-400"
-                      }`}
-                    >
-                      {hasLateEarly && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500"
-                        />
-                      )}
-                      <div className="text-xs font-bold text-slate-500 dark:text-slate-300">
-                        {d} ({isSunday ? "CN" : `T${dayOfWeek + 1}`})
-                      </div>
-                      <div
-                        className={`w-full py-1 rounded-lg text-xs font-black text-center ${badgeClass}`}
-                      >
-                        {val || "·"}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </AppModal>
-        );
-      })()}
 
       {/* Modal Chỉnh Sửa Công Ô Trực Tiếp */}
       {editingCell && (
@@ -958,163 +583,6 @@ export default function AttendanceMatrixTable({
           </div>
         </AppModal>
       )}
-
-      {/* Modal Chấm Công Hộ / Điểm Danh Nhanh (Dành cho Quản lý / Kế toán) */}
-      {showProxyModal && (
-        <AppModal
-          isOpen={true}
-          onClose={() => !proxySaving && setShowProxyModal(false)}
-          title="Chấm công hộ nhân viên"
-          maxWidthClass="max-w-md"
-          zIndexClass="z-[70]"
-          disableClose={proxySaving}
-          closeOnBackdrop={!proxySaving}
-          footer={
-            <div className="flex gap-2.5">
-              <AppButton
-                variant="secondary"
-                fullWidth
-                disabled={proxySaving}
-                onClick={() => setShowProxyModal(false)}
-              >
-                Đóng / Quay lại
-              </AppButton>
-              <AppButton
-                type="submit"
-                form="proxy-checkin-form"
-                variant="primary"
-                fullWidth
-                loading={proxySaving}
-                disabled={proxySaving || !proxyForm.ma_nv}
-              >
-                {proxySaving ? "Đang lưu..." : "Xác nhận chấm hộ"}
-              </AppButton>
-            </div>
-          }
-        >
-          <form
-            id="proxy-checkin-form"
-            onSubmit={handleSubmitProxyCheckIn}
-            className="p-5 space-y-3.5 text-slate-800 dark:text-slate-100"
-          >
-            <div>
-              <label className="block text-sm font-bold text-slate-800 dark:text-slate-100 mb-1.5">Chọn nhân viên</label>
-              <select
-                required
-                value={proxyForm.ma_nv}
-                onChange={(e) => setProxyForm((p) => ({ ...p, ma_nv: e.target.value }))}
-                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base font-semibold text-slate-900 dark:text-slate-100"
-              >
-                <option value="">-- Chọn nhân viên --</option>
-                {(sourceList || [])
-                  .filter((emp) => emp.ma_nv !== currentUser?.ma_nv)
-                  .map((emp) => (
-                    <option key={emp.ma_nv} value={emp.ma_nv}>
-                      {emp.ho_ten} ({emp.ma_nv})
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div className="divide-y divide-slate-200 dark:divide-slate-700 border-2 border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
-              <FormRow label="Ngày chấm công">
-                <input
-                  type="date"
-                  required
-                  value={proxyForm.record_date}
-                  onChange={(e) => setProxyForm((p) => ({ ...p, record_date: e.target.value }))}
-                  className="w-36 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-bold text-slate-900 dark:text-slate-100 text-center"
-                />
-              </FormRow>
-              <FormRow label="Giờ vào ca">
-                <input
-                  type="time"
-                  value={proxyForm.check_in_time}
-                  onChange={(e) => setProxyForm((p) => ({ ...p, check_in_time: e.target.value }))}
-                  className="w-32 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-bold text-slate-900 dark:text-slate-100 text-center"
-                />
-              </FormRow>
-              <FormRow label="Giờ tan ca (nếu có)">
-                <input
-                  type="time"
-                  value={proxyForm.check_out_time}
-                  onChange={(e) => setProxyForm((p) => ({ ...p, check_out_time: e.target.value }))}
-                  className="w-32 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-bold text-slate-900 dark:text-slate-100 text-center"
-                />
-              </FormRow>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-800 dark:text-slate-100 mb-1.5">Địa điểm làm việc</label>
-              <select
-                value={proxyForm.work_location_type}
-                onChange={(e) => setProxyForm((p) => ({ ...p, work_location_type: e.target.value }))}
-                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base font-semibold text-slate-900 dark:text-slate-100"
-              >
-                <option value="OFFICE">Tại Văn phòng / Kho xưởng</option>
-                <option value="FIELD_WORK">Ngoài công trình / Dự án</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-800 dark:text-slate-100 mb-1.5">Ghi chú điểm danh hộ</label>
-              <textarea
-                rows={2}
-                value={proxyForm.note}
-                onChange={(e) => setProxyForm((p) => ({ ...p, note: e.target.value }))}
-                placeholder="Ví dụ: Quản lý chấm công hộ do nhân viên quên điện thoại"
-                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-slate-100"
-              />
-            </div>
-          </form>
-        </AppModal>
-      )}
-
-      {/* STITCH ADMIN SCREEN 2 — HISTORICAL LOCK TIMELINE FOOTER CARD */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-2 text-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-[#16A34A] dark:text-emerald-400 shrink-0">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wider block">
-              NHẬT KÝ CHỐT CÔNG HỆ THỐNG
-            </span>
-            <span className="text-slate-600 dark:text-slate-300">
-              Kỳ Tháng {month}/{year}: {isLocked ? "Đã khóa sổ & gửi thông báo Zalo Mini App" : "Đang mở rà soát công ca thực tế"}
-            </span>
-          </div>
-        </div>
-        <span className="px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-slate-800 text-[#111C2D] dark:text-slate-200 font-mono font-bold">
-          Knox Audit 1:1
-        </span>
-      </div>
-
-      {/* Modal Chốt / Mở Lại Kỳ Công */}
-      {showLockModal && (
-        <PeriodLockModal
-          month={month}
-          year={year}
-          isCurrentlyLocked={isLocked}
-          userRole={effectiveRole}
-          onClose={() => setShowLockModal(false)}
-          onStatusChanged={(newLocked, lockReason) => {
-            setInternalLocked(newLocked);
-            if (onRecordAuditLog) {
-              onRecordAuditLog(
-                newLocked ? "Chốt kỳ công" : "Mở lại kỳ công",
-                `${newLocked ? "Chốt sổ" : "Mở khóa"} kỳ chấm công tháng ${month}/${year}`,
-                lockReason || (newLocked ? "Kế toán chốt số liệu công tính lương" : "Quản trị viên mở khóa kỳ công")
-              );
-            }
-            if (notify) {
-              notify(newLocked ? `Đã chốt sổ kỳ công tháng ${month}/${year} thành công!` : `Đã mở khóa kỳ công tháng ${month}/${year}!`, "success");
-            }
-            if (onRefresh) onRefresh();
-          }}
-        />
-      )}
-
     </div>
     </div>
   );
