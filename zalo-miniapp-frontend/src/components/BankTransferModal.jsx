@@ -7,7 +7,7 @@ import {
   Save,
   QrCode
 } from "lucide-react";
-import { AppButton, AppModal } from "./ui";
+import { AppButton, AppModal, UserAvatar } from "./ui";
 import { safePost, safePut, generateIdempotencyKey } from "../utils/api";
 import { formatViCurrency } from "../utils/viNumberFormat";
 import BankPickerDropdown, { BankBrandLogo } from "./BankPickerDropdown";
@@ -232,6 +232,13 @@ export default function BankTransferModal({
       disableClose={confirming || quickSaving}
       zIndexClass="z-[115]"
       maxWidthClass="sm:max-w-lg"
+      icon={
+        <UserAvatar
+          name={item.ho_ten || maNv}
+          avatarUrl={item.avatar_url}
+          size="sm"
+        />
+      }
       title={`Chuyển khoản lương T${thang}/${nam}`}
       subtitle={`${item.ho_ten} • ${maNv}`}
       footer={

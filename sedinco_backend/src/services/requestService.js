@@ -283,7 +283,7 @@ class RequestService {
         const offset = (page - 1) * limit;
 
         const sql = `
-            SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, r.request_type,
+            SELECT r.id, r.employee_id as ma_nv, e.ho_ten, e.avatar_url, r.request_type as type, r.request_type,
                    COALESCE(r.advance_amount, 0) as advance_amount,
                    r.correction_mode, r.check_in_time, r.check_out_time, r.evidence_image,
                    DATE_FORMAT(r.request_date, '%d/%m/%Y') as date,
@@ -422,7 +422,7 @@ class RequestService {
         const offset = (page - 1) * limit;
 
         const sql = `
-            SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, r.request_type,
+            SELECT r.id, r.employee_id as ma_nv, e.ho_ten, e.avatar_url, r.request_type as type, r.request_type,
                    COALESCE(r.advance_amount, 0) as advance_amount,
                    r.correction_mode, r.check_in_time, r.check_out_time, r.evidence_image,
                    DATE_FORMAT(r.request_date, '%d/%m/%Y') as date, r.reason, r.status, r.created_at,

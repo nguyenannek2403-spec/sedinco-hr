@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { query } = require('../config/db');
 const { SAFE_EMPLOYEE_FIELDS, resolveUserRole, logAuditEvent, invalidateUserCache } = require('../middlewares/authMiddleware');
 const { sanitizeBankCardInput } = require('../utils/bankValidator');
+const { sanitizeAvatarInput } = require('../utils/avatarValidator');
 const { verifyZaloUserToken } = require('../utils/zaloAdapter');
 const { hashPassword, validatePasswordPolicy } = require('../utils/passwordHelper');
 const {
@@ -211,6 +212,7 @@ const sanitizeEmployeeRecord = (emp, monthlyQuota = 1, paidUsageMap = null) => {
         ...emp,
         phone: emp.phone || emp.dien_thoai || null,
         login_username: emp.login_username || emp.phone || emp.ma_nv,
+        avatar_url: emp.avatar_url || null,
         theme_preference: emp.theme_preference === 'dark' ? 'dark' : 'light',
         bank_code: emp.bank_code || null,
         bank_name: emp.bank_name || null,
@@ -452,7 +454,8 @@ class EmployeeService {
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, custom_allowances, has_insurance,
             status, is_locked, shift_type, annual_leave_quota, keep_logs, new_password,
             custom_start_time, custom_end_time,
-            bank_code, bank_name, bank_account_number, bank_account_name
+            bank_code, bank_name, bank_account_number, bank_account_name,
+            avatar_url
         } = data || {};
 
         const cleanPhone = phone !== undefined
@@ -548,6 +551,7 @@ class EmployeeService {
         }
         if (custom_start_time !== undefined) addField('custom_start_time', normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng'));
         if (custom_end_time !== undefined) addField('custom_end_time', normalizeOptionalTime(custom_end_time, 'Giờ tan ca riêng'));
+        if (avatar_url !== undefined) addField('avatar_url', sanitizeAvatarInput(avatar_url));
 
         if (
             bank_code !== undefined ||

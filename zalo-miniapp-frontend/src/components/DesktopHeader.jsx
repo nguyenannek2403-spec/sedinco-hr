@@ -5,6 +5,7 @@ import CompanyLogo from "./CompanyLogo";
 import { ThemeToggleButton, useTheme } from "../context/ThemeContext";
 import { useNotifications } from "../hooks/useNotifications";
 import NotificationCenterPanel from "./NotificationCenterPanel";
+import { UserAvatar } from "./ui";
 
 /**
  * DesktopHeader — Google Stitch "Sedinco Pulse" Single-Row Executive TopAppBar (Screens 6–14)
@@ -114,12 +115,6 @@ export default function DesktopHeader({
         return "Sedinco HR";
     }
   };
-
-  const userInitial = String(currentUser?.ho_ten || currentUser?.ma_nv || "A")
-    .trim()
-    .split(/\s+/)
-    .slice(-1)[0]?.[0]
-    ?.toUpperCase() || "A";
 
   return (
     <>
@@ -242,9 +237,11 @@ export default function DesktopHeader({
                     : "bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-200"
                 }`}
               >
-                <span className="w-7 h-7 rounded-full bg-[#E11D48] text-white text-xs font-extrabold flex items-center justify-center">
-                  {userInitial}
-                </span>
+                <UserAvatar
+                  name={currentUser?.ho_ten || currentUser?.username || currentUser?.ma_nv || "Admin"}
+                  avatarUrl={currentUser?.avatar_url}
+                  size="xs"
+                />
               </button>
             )}
 

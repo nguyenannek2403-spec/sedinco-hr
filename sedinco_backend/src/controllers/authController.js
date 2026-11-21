@@ -208,14 +208,32 @@ class AuthController {
         }
     }
 
+    async updateSelfAvatar(req, res, next) {
+        try {
+            const { avatar_url } = req.body || {};
+            const result = await authService.updateSelfAvatar(req.user, avatar_url);
+            return res.json({
+                success: true,
+                message: result.message,
+                data: result.data
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async updateAvatar(req, res, next) {
         try {
-            const { ma_nv, avatar_url } = req.body;
+            const { ma_nv, avatar_url } = req.body || {};
+            if (!ma_nv) {
+                const result = await authService.updateSelfAvatar(req.user, avatar_url);
+                return res.json({ success: true, message: result.message, data: result.data });
+            }
             const result = await authService.updateAvatar(ma_nv, avatar_url, req.user);
             if (!result.success) {
                 return res.status(403).json({ success: false, message: result.message });
             }
-            return res.json({ success: true });
+            return res.json({ success: true, data: result.data });
         } catch (err) {
             next(err);
         }

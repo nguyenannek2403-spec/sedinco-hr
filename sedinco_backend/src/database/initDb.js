@@ -14,7 +14,7 @@ async function initDatabase() {
             ngay_bat_dau_lam DATE,
             ngay_chinh_thuc DATE,
             password VARCHAR(255) NULL,
-            avatar_url LONGTEXT,
+            avatar_url TEXT NULL,
             luong_cb DECIMAL(15,2) DEFAULT 0,
             phu_cap_an_trua DECIMAL(15,2) DEFAULT 0,
             phu_cap_xang_xe DECIMAL(15,2) DEFAULT 0,
@@ -27,7 +27,7 @@ async function initDatabase() {
             is_locked BOOLEAN DEFAULT FALSE,
             role VARCHAR(20) DEFAULT 'worker'
         )`);
-        await query("ALTER TABLE employees MODIFY COLUMN avatar_url LONGTEXT").catch(() => {});
+        await query("ALTER TABLE employees MODIFY COLUMN avatar_url TEXT NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN status VARCHAR(20) DEFAULT 'active'").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN is_locked BOOLEAN DEFAULT FALSE").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN role VARCHAR(20) DEFAULT 'worker'").catch(() => {});
@@ -202,6 +202,7 @@ async function initDatabase() {
         await query("ALTER TABLE admins MODIFY COLUMN password VARCHAR(255) NOT NULL").catch(() => {});
         await query("ALTER TABLE admins ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE").catch(() => {});
         await query("ALTER TABLE admins ADD COLUMN token_version INT NOT NULL DEFAULT 1").catch(() => {});
+        await query("ALTER TABLE admins ADD COLUMN avatar_url TEXT NULL").catch(() => {});
         if (process.env.NODE_ENV === 'test') {
             const adminCount = await query('SELECT COUNT(*) as cnt FROM admins');
             if (adminCount && adminCount[0].cnt === 0) {

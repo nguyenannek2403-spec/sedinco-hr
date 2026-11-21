@@ -21,7 +21,7 @@ import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
 import { formatViWorkday } from "../utils/viNumberFormat";
 import PeriodLockModal from "./PeriodLockModal";
 import { ROLES, hasPermission } from "../constants/roles";
-import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "./ui";
+import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "./ui";
 
 const getBadgeStyle = (status) => {
   if (status === "1") return "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-300 border-2 border-emerald-500 dark:border-emerald-500/70 font-black";
@@ -511,9 +511,11 @@ export default function AttendanceMatrixTable({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-2xl bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 font-black flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800/70">
-                        {(emp.ho_ten || "N").charAt(0).toUpperCase()}
-                      </div>
+                      <UserAvatar
+                        name={emp.ho_ten || emp.ma_nv}
+                        avatarUrl={emp.avatar_url}
+                        size="sm"
+                      />
                       <div className="min-w-0">
                         <div className="font-extrabold text-slate-900 dark:text-white text-sm truncate">
                           {emp.ho_ten}
@@ -632,8 +634,17 @@ export default function AttendanceMatrixTable({
                   <tr key={emp.ma_nv || empIdx} className="group bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     {/* Cột cố định: Tên & Mã NV (Đặc 100% chống nhìn xuyên) */}
                     <td className="p-2.5 sm:p-3 pl-3 sm:pl-4 sticky left-0 bg-white group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 z-10 min-w-[140px] sm:min-w-[190px] max-w-[165px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">
-                      <div className="font-black text-slate-900 dark:text-white text-xs sm:text-sm leading-tight break-words">{emp.ho_ten}</div>
-                      <div className="text-xs text-[#E11D48] dark:text-rose-300 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <UserAvatar
+                          name={emp.ho_ten || emp.ma_nv}
+                          avatarUrl={emp.avatar_url}
+                          size="xs"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-black text-slate-900 dark:text-white text-xs sm:text-sm leading-tight break-words">{emp.ho_ten}</div>
+                          <div className="text-xs text-[#E11D48] dark:text-rose-300 font-mono font-bold mt-0.5">{emp.ma_nv}</div>
+                        </div>
+                      </div>
                     </td>
 
                     {/* 31 Cột ngày */}
@@ -709,6 +720,7 @@ export default function AttendanceMatrixTable({
           <AppModal
             isOpen={true}
             onClose={() => setDetailEmpCode(null)}
+            icon={<UserAvatar name={emp.ho_ten || emp.ma_nv} avatarUrl={emp.avatar_url} size="sm" />}
             title={emp.ho_ten}
             subtitle={`${emp.ma_nv} • Tháng ${month}/${year}`}
             maxWidthClass="max-w-lg"

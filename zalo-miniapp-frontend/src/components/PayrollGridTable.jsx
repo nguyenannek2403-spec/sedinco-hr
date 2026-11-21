@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
 import BankTransferModal from "./BankTransferModal";
-import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "./ui";
+import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "./ui";
 import { safeGet, safePost, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { useDebouncedValue } from "../hooks/useDebounce";
@@ -775,22 +775,29 @@ export default function PayrollGridTable({
                   >
                     {/* Header Nhân viên + Thực lĩnh NET */}
                     <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-200 border border-rose-200 dark:border-rose-800">
-                            {empId}
-                          </span>
-                          <h4 className="font-extrabold text-base text-slate-900 dark:text-white break-words">
-                            {item.ho_ten}
-                          </h4>
-                          {Number(item.probationPercent || 100) < 100 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
-                              Thử việc {item.probationPercent}%
+                      <div className="flex items-start gap-3 min-w-0">
+                        <UserAvatar
+                          name={item.ho_ten || empId}
+                          avatarUrl={item.avatar_url}
+                          size="md"
+                        />
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-200 border border-rose-200 dark:border-rose-800">
+                              {empId}
                             </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-slate-600 dark:text-slate-300">
-                          {item.chuc_danh || "Nhân viên"} • {item.department || "Khối Công trình"}
+                            <h4 className="font-extrabold text-base text-slate-900 dark:text-white break-words">
+                              {item.ho_ten}
+                            </h4>
+                            {Number(item.probationPercent || 100) < 100 && (
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
+                                Thử việc {item.probationPercent}%
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-600 dark:text-slate-300">
+                            {item.chuc_danh || "Nhân viên"} • {item.department || "Khối Công trình"}
+                          </div>
                         </div>
                       </div>
 
@@ -1038,7 +1045,6 @@ export default function PayrollGridTable({
               const bonusAmt = Number(item.bonusAmount) || 0;
               const penaltyAmt = Number(item.penaltyAmount) || 0;
               const advAmt = Number(item.advanceDeduction) || 0;
-              const empInitial = (item.ho_ten || "N").charAt(0).toUpperCase();
               return (
                 <div
                   key={empId || idx}
@@ -1050,9 +1056,11 @@ export default function PayrollGridTable({
                 >
                   <div className="flex items-start justify-between gap-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-extrabold text-sm flex items-center justify-center shrink-0">
-                        {empInitial}
-                      </div>
+                      <UserAvatar
+                        name={item.ho_ten || empId}
+                        avatarUrl={item.avatar_url}
+                        size="sm"
+                      />
                       <div className="min-w-0">
                         <div className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.ho_ten}</div>
                         <div className="text-xs text-slate-500 dark:text-slate-300 font-mono">
@@ -1203,10 +1211,19 @@ export default function PayrollGridTable({
                             : "bg-white group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800"
                         }`}
                       >
-                        <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm truncate">{item.ho_ten}</div>
-                        <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-1 mt-0.5">
-                          <span className="font-mono text-[#E11D48] dark:text-rose-300 font-semibold">{empId}</span>
-                          <span>• {item.department || "Khối Công trình"}</span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <UserAvatar
+                            name={item.ho_ten || empId}
+                            avatarUrl={item.avatar_url}
+                            size="sm"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm truncate">{item.ho_ten}</div>
+                            <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-1 mt-0.5">
+                              <span className="font-mono text-[#E11D48] dark:text-rose-300 font-semibold">{empId}</span>
+                              <span>• {item.department || "Khối Công trình"}</span>
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import DesktopSidebar, { DesktopMobileBottomNav } from "../../components/DesktopSidebar";
 import DesktopHeader from "../../components/DesktopHeader";
 import RequestsManagementTab from "./RequestsManagementTab";
@@ -8,7 +8,8 @@ import HolidaysTab from "./HolidaysTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
 import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from "../../constants/roles";
 import { safeGet, safePut } from "../../utils/api";
-import { AppButton } from "../../components/ui";
+import { compressAvatarImage } from "../../utils/imageCompressor";
+import { AppButton, UserAvatar } from "../../components/ui";
 import { FontScaleSelector } from "../../context/FontScaleContext";
 import {
   RefreshCw,
@@ -16,7 +17,10 @@ import {
   ShieldCheck,
   Gift,
   Key,
-  LogOut
+  LogOut,
+  Camera,
+  Trash2,
+  Loader2
 } from "lucide-react";
 
 // Lazy-load các phân hệ quản trị
@@ -45,6 +49,8 @@ export default function DesktopDashboard({
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  const adminAvatarInputRef = useRef(null);
+  const [adminAvatarSaving, setAdminAvatarSaving] = useState(false);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsSummary, setAlertsSummary] = useState({
     fraud_count: 0,
@@ -382,9 +388,81 @@ export default function DesktopDashboard({
               resolvedRole === ROLES.ADMIN ? (
                 <div className="max-w-lg mx-auto space-y-4">
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-500/20 border-2 border-amber-300 dark:border-amber-400/60 flex items-center justify-center shrink-0">
-                        <ShieldCheck className="w-8 h-8 text-amber-600 dark:text-amber-300" />
+                    <div className="flex items-start gap-4">
+                      <div className="relative shrink-0 flex flex-col items-center gap-1.5">
+                        <div className="relative">
+                          <UserAvatar
+                            name={currentUser?.ho_ten || "Ban Giám Đốc"}
+                            avatarUrl={currentUser?.avatar_url}
+                            size="xl"
+                          />
+                          <input
+                            ref={adminAvatarInputRef}
+                            type="file"
+                            accept="image/*"
+                            data-testid="admin-avatar-input"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setAdminAvatarSaving(true);
+                              try {
+                                const compressed = await compressAvatarImage(file);
+                                const res = await safePut("/account/avatar", { avatar_url: compressed.dataUrl });
+                                if (res?.success) {
+                                  const finalUrl = res?.data?.avatar_url ?? compressed.dataUrl;
+                                  onUserUpdated?.({ avatar_url: finalUrl });
+                                  showToast?.(res.message || "Đã cập nhật ảnh đại diện!", "success");
+                                }
+                              } catch (err) {
+                                showToast?.(err?.message || "Không thể cập nhật ảnh đại diện.", "error");
+                              } finally {
+                                setAdminAvatarSaving(false);
+                                try { e.target.value = ""; } catch {}
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={adminAvatarSaving}
+                            data-testid="admin-avatar-upload-btn"
+                            onClick={() => adminAvatarInputRef.current?.click()}
+                            aria-label="Đổi ảnh đại diện quản trị"
+                            title="Đổi ảnh đại diện"
+                            className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#E11D48] hover:bg-[#BE123C] text-white border-2 border-white dark:border-slate-900 shadow-sm flex items-center justify-center cursor-pointer disabled:opacity-60"
+                          >
+                            {adminAvatarSaving ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Camera className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                        {currentUser?.avatar_url && (
+                          <button
+                            type="button"
+                            disabled={adminAvatarSaving}
+                            data-testid="admin-avatar-delete-btn"
+                            onClick={async () => {
+                              setAdminAvatarSaving(true);
+                              try {
+                                const res = await safePut("/account/avatar", { avatar_url: null });
+                                if (res?.success) {
+                                  onUserUpdated?.({ avatar_url: null });
+                                  showToast?.(res.message || "Đã xóa ảnh đại diện!", "success");
+                                }
+                              } catch (err) {
+                                showToast?.(err?.message || "Không thể xóa ảnh đại diện.", "error");
+                              } finally {
+                                setAdminAvatarSaving(false);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/60 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-600 hover:text-rose-700 dark:text-slate-300 dark:hover:text-rose-300 cursor-pointer disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Xóa ảnh</span>
+                          </button>
+                        )}
                       </div>
                       <div className="min-w-0 flex-1 space-y-1">
                         <h3 className="text-lg font-black text-slate-900 dark:text-white break-words leading-snug">

@@ -15,7 +15,7 @@ import { safeGet, safePut, generateIdempotencyKey } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import { getRequestTypeLabel, getCorrectionModeLabel } from "../../utils/viLabels";
 import { formatViCurrency } from "../../utils/viNumberFormat";
-import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState } from "../../components/ui";
+import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "../../components/ui";
 
 function formatTimestampVi(isoOrRaw, preformattedVn = null) {
   if (preformattedVn && /^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2}$/.test(String(preformattedVn).trim())) {
@@ -315,15 +315,6 @@ export default function RequestsManagementTab({
             const isSelf = myMaNv && myMaNv === emp.ma_nv;
             const canQuickAct = managerCanAct && latestPending && !isSelf;
 
-            const avatarText = String(emp.ho_ten || emp.ma_nv || "NV")
-              .trim()
-              .split(/\s+/)
-              .slice(-2)
-              .map((w) => w[0] || "")
-              .join("")
-              .toUpperCase()
-              .slice(0, 2);
-
             const latestCreatedLabel = latest
               ? formatTimestampVi(latest.created_at, latest.created_at_vn)
               : null;
@@ -336,9 +327,11 @@ export default function RequestsManagementTab({
               >
                 {/* Trái: Avatar + Tên + Mã NV + Tóm tắt 1 dòng đơn mới nhất */}
                 <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-2xl bg-[#F4F6F9] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#E11D48] dark:text-rose-300 font-black text-sm flex items-center justify-center shrink-0">
-                    {avatarText || "NV"}
-                  </div>
+                  <UserAvatar
+                    name={emp.ho_ten || emp.ma_nv}
+                    avatarUrl={emp.avatar_url}
+                    size="md"
+                  />
 
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -440,6 +433,15 @@ export default function RequestsManagementTab({
         open={Boolean(selectedEmployee)}
         onClose={() => setSelectedEmpMaNv(null)}
         maxWidthClass="sm:max-w-2xl"
+        icon={
+          selectedEmployee ? (
+            <UserAvatar
+              name={selectedEmployee.ho_ten || selectedEmployee.ma_nv}
+              avatarUrl={selectedEmployee.avatar_url}
+              size="sm"
+            />
+          ) : null
+        }
         title={selectedEmployee ? `Lịch sử đơn từ — ${selectedEmployee.ho_ten}` : "Chi tiết đơn từ"}
         subtitle={
           selectedEmployee

@@ -19,9 +19,13 @@ import {
   FileSpreadsheet,
   X,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Camera,
+  Trash2,
+  Loader2
 } from "lucide-react";
 import { safeGet, safePost, safePut } from "../../utils/api";
+import { compressAvatarImage } from "../../utils/imageCompressor";
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS, getShiftLabel } from "../../utils/viLabels";
 import { formatViCurrency, formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
@@ -40,7 +44,8 @@ import {
   AppModal,
   FormRow,
   SkeletonList,
-  EmptyState
+  EmptyState,
+  UserAvatar
 } from "../../components/ui";
 
 const SHIFT_OPTIONS = [
@@ -214,6 +219,8 @@ export default function EmployeeManagementTab({
 
   // Modal Chi tiết Nhân viên (mở khi bấm icon Con Mắt 👁️)
   const [detailEmp, setDetailEmp] = useState(null);
+  const detailAvatarInputRef = useRef(null);
+  const [compressingDetailAvatar, setCompressingDetailAvatar] = useState(false);
   const [detailForm, setDetailForm] = useState(null);
   const [savingDetail, setSavingDetail] = useState(false);
   const [resolvingDevice, setResolvingDevice] = useState(false);
@@ -305,6 +312,7 @@ export default function EmployeeManagementTab({
     setNewAllowanceAmount(500000);
     setDetailForm({
       ho_ten: emp.ho_ten || "",
+      avatar_url: emp.avatar_url || null,
       chuc_danh: emp.chuc_danh || "",
       department: emp.department || "Khối Công trình",
       phone: emp.phone || emp.dien_thoai || "",
@@ -546,6 +554,7 @@ export default function EmployeeManagementTab({
 
       const payload = {
         ho_ten: String(detailForm.ho_ten || "").trim(),
+        avatar_url: detailForm.avatar_url ?? null,
         chuc_danh: detailForm.chuc_danh,
         department: detailForm.department,
         phone: cleanDetailPhone,
@@ -748,24 +757,19 @@ export default function EmployeeManagementTab({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filtered.map((emp) => {
-            const empInitial =
-              String(emp.ho_ten || emp.ma_nv || "N")
-                .trim()
-                .split(/\s+/)
-                .slice(-1)[0]?.[0]
-                ?.toUpperCase() || "N";
-
             return (
               <div
                 key={emp.ma_nv}
                 data-testid={`employee-row-${emp.ma_nv}`}
                 className="perf-list-item bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-500/40 rounded-2xl px-4 py-3 shadow-sm transition flex items-center justify-between gap-3"
               >
-                {/* Bên trái: Avatar tròn + Họ và tên in đậm + Mã NV nhỏ gọn */}
+                {/* Bên trái: Avatar thật + Họ và tên in đậm + Mã NV nhỏ gọn */}
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-full bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-extrabold text-sm flex items-center justify-center shrink-0">
-                    {empInitial}
-                  </div>
+                  <UserAvatar
+                    name={emp.ho_ten || emp.ma_nv}
+                    avatarUrl={emp.avatar_url}
+                    size="md"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="font-extrabold text-base text-[#111C2D] dark:text-white truncate leading-snug">
                       {emp.ho_ten}
@@ -1099,6 +1103,80 @@ export default function EmployeeManagementTab({
               onSubmit={handleSaveDetailModal}
               className="p-4 sm:p-5 space-y-4"
             >
+              {/* Ảnh đại diện nhân viên (Admin có thể upload / xóa trực tiếp cùng hồ sơ) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800/75 border border-slate-200/80 dark:border-slate-700 rounded-2xl p-3.5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative shrink-0">
+                    <UserAvatar
+                      name={detailForm.ho_ten || detailEmp.ma_nv}
+                      avatarUrl={detailForm.avatar_url}
+                      size="lg"
+                    />
+                    {canEditEmployees && (
+                      <>
+                        <input
+                          ref={detailAvatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          data-testid="detail-emp-avatar-input"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setCompressingDetailAvatar(true);
+                            try {
+                              const compressed = await compressAvatarImage(file);
+                              setDetailForm((p) => ({ ...p, avatar_url: compressed.dataUrl }));
+                            } catch (err) {
+                              if (showToast) showToast(err?.message || "Không thể nén ảnh đại diện.", "error");
+                            } finally {
+                              setCompressingDetailAvatar(false);
+                              try { e.target.value = ""; } catch {}
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={compressingDetailAvatar || savingDetail}
+                          data-testid="detail-emp-avatar-upload-btn"
+                          onClick={() => detailAvatarInputRef.current?.click()}
+                          aria-label="Đổi ảnh đại diện nhân viên"
+                          className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#E11D48] hover:bg-[#BE123C] text-white border-2 border-white dark:border-slate-900 flex items-center justify-center cursor-pointer disabled:opacity-60"
+                        >
+                          {compressingDetailAvatar ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Camera className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-extrabold text-[#111C2D] dark:text-white truncate">
+                      {detailForm.ho_ten || detailEmp.ho_ten}
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {canEditEmployees
+                        ? "Bấm biểu tượng máy ảnh để đổi ảnh đại diện (tự nén WebP), nhấn Lưu thay đổi để áp dụng."
+                        : "Ảnh đại diện nhân viên"}
+                    </div>
+                  </div>
+                </div>
+                {canEditEmployees && detailForm.avatar_url && (
+                  <button
+                    type="button"
+                    disabled={compressingDetailAvatar || savingDetail}
+                    data-testid="detail-emp-avatar-delete-btn"
+                    onClick={() => setDetailForm((p) => ({ ...p, avatar_url: null }))}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/60 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 hover:text-rose-700 dark:text-slate-300 dark:hover:text-rose-300 cursor-pointer shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Xóa ảnh</span>
+                  </button>
+                )}
+              </div>
+
               {/* NHÓM 1 — CÔNG VIỆC & CA LÀM */}
               <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">

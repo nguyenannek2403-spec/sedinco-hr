@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { sanitizeBankCardInput } = require('../utils/bankValidator');
+const { sanitizeAvatarInput } = require('../utils/avatarValidator');
 const { 
     sanitizeUserResponse, 
     resolveUserRole, 
@@ -693,6 +694,7 @@ class AuthService {
         safeAdmin.role = 'admin';
         safeAdmin.login_username = admin.login_username || admin.username;
         safeAdmin.phone = admin.phone || null;
+        safeAdmin.avatar_url = admin.avatar_url || null;
         safeAdmin.theme_preference = admin.theme_preference === 'dark' ? 'dark' : 'light';
         safeAdmin.font_scale = normalizeFontScale(admin.font_scale);
 
@@ -1145,7 +1147,7 @@ class AuthService {
         const admKey = current_user.username || current_user.ma_nv;
         if (admKey) {
             const admRows = await query(
-                'SELECT id, username, ho_ten, phone, login_username, theme_preference, COALESCE(font_scale, 100) as font_scale, must_change_password FROM admins WHERE username = ? LIMIT 1',
+                'SELECT id, username, ho_ten, avatar_url, phone, login_username, theme_preference, COALESCE(font_scale, 100) as font_scale, must_change_password FROM admins WHERE username = ? LIMIT 1',
                 [admKey]
             );
             if (admRows && admRows.length > 0) {
@@ -1153,6 +1155,7 @@ class AuthService {
                 const safeAdm = sanitizeUserResponse(adm);
                 safeAdm.role = 'admin';
                 safeAdm.phone = adm.phone || null;
+                safeAdm.avatar_url = adm.avatar_url || null;
                 safeAdm.login_username = adm.login_username || adm.username;
                 safeAdm.theme_preference = adm.theme_preference === 'dark' ? 'dark' : 'light';
                 safeAdm.font_scale = normalizeFontScale(adm.font_scale);
@@ -1218,19 +1221,66 @@ class AuthService {
         return employeeService.bindZalo(ma_nv, zalo_token, current_user);
     }
 
+    async updateSelfAvatar(current_user, rawAvatarUrl) {
+        if (!current_user) {
+            const err = new Error('Chưa đăng nhập!');
+            err.statusCode = 401;
+            throw err;
+        }
+        const cleanAvatar = sanitizeAvatarInput(rawAvatarUrl);
+
+        if (current_user.ma_nv) {
+            const updRes = await query('UPDATE employees SET avatar_url = ? WHERE ma_nv = ?', [cleanAvatar, current_user.ma_nv]);
+            if (!updRes || updRes.affectedRows === 0) {
+                const err = new Error('Không tìm thấy tài khoản nhân viên!');
+                err.statusCode = 404;
+                throw err;
+            }
+            invalidateUserCache(current_user.ma_nv);
+        } else if (current_user.username) {
+            const updRes = await query('UPDATE admins SET avatar_url = ? WHERE username = ?', [cleanAvatar, current_user.username]);
+            if (!updRes || updRes.affectedRows === 0) {
+                const err = new Error('Không tìm thấy tài khoản quản trị!');
+                err.statusCode = 404;
+                throw err;
+            }
+            invalidateUserCache(current_user.username);
+        } else {
+            const err = new Error('Không xác định được tài khoản!');
+            err.statusCode = 400;
+            throw err;
+        }
+
+        await logAuditEvent({
+            actor_id: current_user.ma_nv || current_user.username,
+            actor_role: current_user.role || 'worker',
+            action: cleanAvatar ? 'UPDATE_AVATAR' : 'DELETE_AVATAR',
+            resource: current_user.ma_nv ? 'employees' : 'admins',
+            details: { has_avatar: Boolean(cleanAvatar), length: cleanAvatar ? cleanAvatar.length : 0 }
+        });
+
+        return {
+            success: true,
+            message: cleanAvatar ? 'Đã cập nhật ảnh đại diện!' : 'Đã xóa ảnh đại diện!',
+            data: { avatar_url: cleanAvatar }
+        };
+    }
+
     async updateAvatar(ma_nv, avatar_url, current_user = null) {
         if (current_user && current_user.role !== 'admin' && current_user.ma_nv !== ma_nv) {
             return { success: false, message: 'Bạn không có quyền cập nhật ảnh đại diện của người khác!' };
         }
-        await query('UPDATE employees SET avatar_url = ? WHERE ma_nv = ?', [avatar_url, ma_nv]);
+        const cleanAvatar = sanitizeAvatarInput(avatar_url);
+        await query('UPDATE employees SET avatar_url = ? WHERE ma_nv = ?', [cleanAvatar, ma_nv]);
+        invalidateUserCache(ma_nv);
         await logAuditEvent({
             actor_id: current_user ? (current_user.ma_nv || current_user.username) : ma_nv,
             actor_role: current_user ? current_user.role : 'worker',
-            action: 'UPDATE_AVATAR',
+            action: cleanAvatar ? 'UPDATE_AVATAR' : 'DELETE_AVATAR',
             resource: 'employees',
-            details: { target_ma_nv: ma_nv }
+            details: { target_ma_nv: ma_nv, has_avatar: Boolean(cleanAvatar) }
         });
-        return { success: true };
+        return { success: true, data: { avatar_url: cleanAvatar } };
     }
 
     validatePasswordPolicy(new_password, ma_nv) {

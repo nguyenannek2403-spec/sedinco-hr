@@ -5,4 +5,5 @@ export { default as StatusBadge } from "./StatusBadge";
 export { default as ConfirmDialog } from "../ConfirmDialog";
 export { SkeletonList, EmptyState } from "./DataState";
 export { default as SedincoMascot } from "./SedincoMascot";
+export { default as UserAvatar } from "./UserAvatar";
 

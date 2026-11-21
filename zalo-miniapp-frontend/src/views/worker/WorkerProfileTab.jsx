@@ -15,9 +15,13 @@ import {
   CheckCircle2,
   AlertTriangle,
   CreditCard,
-  Edit3
+  Edit3,
+  Camera,
+  Trash2,
+  Loader2
 } from "lucide-react";
-import { safeGet } from "../../utils/api";
+import { safeGet, safePut } from "../../utils/api";
+import { compressAvatarImage } from "../../utils/imageCompressor";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import BankCardModal from "../../components/BankCardModal";
 import { BankBrandLogo } from "../../components/BankPickerDropdown";
@@ -28,7 +32,7 @@ import {
   parseKnownDevices,
   sanitizeSingleDeviceModelName
 } from "../../utils/deviceIdentity";
-import { AppButton } from "../../components/ui";
+import { AppButton, UserAvatar } from "../../components/ui";
 import { FontScaleSelector } from "../../context/FontScaleContext";
 
 function formatDeviceSeenShort(isoStr) {
@@ -52,8 +56,10 @@ export default function WorkerProfileTab({
   onOpenPeriodPayslip = null
 }) {
   const handleOpenPayslipProp = onOpenPayslip || onOpenPeriodPayslip;
+  const avatarFileRef = React.useRef(null);
   const [fallbackSlipOpen, setFallbackSlipOpen] = useState(false);
   const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [avatarSaving, setAvatarSaving] = useState(false);
   const [showDeviceHistory, setShowDeviceHistory] = useState(false);
   const [syncedUser, setSyncedUser] = useState(null);
   const [attendanceSummary, setAttendanceSummary] = useState({
@@ -98,6 +104,50 @@ export default function WorkerProfileTab({
   }, [currentUser?.ma_nv, currentUser?.role]);
 
   const profileUser = syncedUser ? { ...currentUser, ...syncedUser } : currentUser;
+
+  const handleUploadAvatarFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarSaving(true);
+    try {
+      const compressed = await compressAvatarImage(file);
+      const res = await safePut("/account/avatar", { avatar_url: compressed.dataUrl });
+      if (res?.success) {
+        const finalUrl = res?.data?.avatar_url ?? compressed.dataUrl;
+        setSyncedUser((prev) => ({ ...(prev || currentUser || {}), avatar_url: finalUrl }));
+        if (typeof onUserUpdated === "function") onUserUpdated({ avatar_url: finalUrl });
+        if (typeof showToast === "function") showToast(res.message || "Đã cập nhật ảnh đại diện!", "success");
+      } else if (typeof showToast === "function") {
+        showToast(res?.message || "Không thể cập nhật ảnh đại diện.", "error");
+      }
+    } catch (err) {
+      if (typeof showToast === "function") showToast(err?.message || "Không thể nén hoặc tải lên ảnh đại diện.", "error");
+    } finally {
+      setAvatarSaving(false);
+      try {
+        e.target.value = "";
+      } catch {}
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    if (avatarSaving) return;
+    setAvatarSaving(true);
+    try {
+      const res = await safePut("/account/avatar", { avatar_url: null });
+      if (res?.success) {
+        setSyncedUser((prev) => ({ ...(prev || currentUser || {}), avatar_url: null }));
+        if (typeof onUserUpdated === "function") onUserUpdated({ avatar_url: null });
+        if (typeof showToast === "function") showToast(res.message || "Đã xóa ảnh đại diện!", "success");
+      } else if (typeof showToast === "function") {
+        showToast(res?.message || "Không thể xóa ảnh đại diện.", "error");
+      }
+    } catch (err) {
+      if (typeof showToast === "function") showToast(err?.message || "Lỗi kết nối máy chủ.", "error");
+    } finally {
+      setAvatarSaving(false);
+    }
+  };
 
   const handleOpenSalarySlip = () => {
     const now = new Date();
@@ -146,14 +196,6 @@ export default function WorkerProfileTab({
       new Set(sortedDeviceHistory.map((d) => d.device_id || d.cleanModel).filter(Boolean)).size >= 2);
   const hasLongDeviceHistory = hasDeviceData && sortedDeviceHistory.length > 2;
 
-  const initials = String(currentUser?.ho_ten || "NV")
-    .trim()
-    .split(/\s+/)
-    .slice(-2)
-    .map((p) => p[0] || "")
-    .join("")
-    .toUpperCase() || "NV";
-
   return (
     <div className="space-y-3.5 pb-8">
       {/* Header gọn */}
@@ -170,26 +212,49 @@ export default function WorkerProfileTab({
       {/* Thông tin nhân sự */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3">
         <div className="flex items-start gap-3.5">
-          <div className="relative shrink-0">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#B80035] to-[#E11D48] p-0.5">
-              {currentUser?.avatar_url ? (
-                <img
-                  src={currentUser.avatar_url}
-                  alt="Avatar"
-                  className="w-full h-full object-cover rounded-[14px]"
-                />
-              ) : (
-                <div className="w-full h-full rounded-[14px] bg-[#F0F3FF] dark:bg-slate-800 flex items-center justify-center text-base font-extrabold text-[#E11D48] dark:text-rose-300">
-                  {initials}
-                </div>
-              )}
+          <div className="relative shrink-0 flex flex-col items-center gap-1.5">
+            <div className="relative">
+              <UserAvatar
+                name={profileUser?.ho_ten || profileUser?.ma_nv}
+                avatarUrl={profileUser?.avatar_url}
+                size="xl"
+              />
+              <input
+                ref={avatarFileRef}
+                type="file"
+                accept="image/*"
+                data-testid="profile-avatar-input"
+                onChange={handleUploadAvatarFile}
+                className="hidden"
+              />
+              <button
+                type="button"
+                disabled={avatarSaving}
+                data-testid="profile-avatar-upload-btn"
+                onClick={() => avatarFileRef.current?.click()}
+                aria-label="Đổi ảnh đại diện"
+                title="Đổi ảnh đại diện"
+                className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#E11D48] hover:bg-[#BE123C] text-white border-2 border-white dark:border-slate-900 shadow-sm flex items-center justify-center cursor-pointer disabled:opacity-60"
+              >
+                {avatarSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+              </button>
             </div>
-            <span
-              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#16A34A] text-white flex items-center justify-center ring-2 ring-white dark:ring-slate-900"
-              aria-hidden="true"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-            </span>
+            {profileUser?.avatar_url && (
+              <button
+                type="button"
+                disabled={avatarSaving}
+                data-testid="profile-avatar-delete-btn"
+                onClick={handleDeleteAvatar}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/60 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-600 hover:text-rose-700 dark:text-slate-300 dark:hover:text-rose-300 cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Xóa ảnh</span>
+              </button>
+            )}
           </div>
 
           <div className="min-w-0 flex-1 space-y-1">

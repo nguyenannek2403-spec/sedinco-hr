@@ -10,6 +10,7 @@ import CompanyLogo from "../../components/CompanyLogo";
 import { ThemeToggleButton, useTheme } from "../../context/ThemeContext";
 import { useNotifications } from "../../hooks/useNotifications";
 import NotificationCenterPanel from "../../components/NotificationCenterPanel";
+import { UserAvatar } from "../../components/ui";
 
 const TAB_TITLES = {
   checkin: "Chấm Công",
@@ -111,12 +112,6 @@ export default function WorkerDashboard({
     { id: "profile", label: "Tài khoản", icon: User }
   ];
 
-  const userInitial = String(currentUser?.ho_ten || currentUser?.ma_nv || "N")
-    .trim()
-    .split(/\s+/)
-    .slice(-1)[0]?.[0]
-    ?.toUpperCase() || "N";
-
   return (
     <div className="w-full h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] text-[#111C2D] dark:text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden transition-colors duration-200">
       {/* STITCH SINGLE-ROW TOP GLASS HEADER (Screens 2–5) — Reserves 104px top-right Zalo Mini App capsule safe zone */}
@@ -132,7 +127,7 @@ export default function WorkerDashboard({
             </h2>
           </div>
 
-          {/* Right: Theme Toggle + Notification Bell (Clean Stitch 2-Icon Header) */}
+          {/* Right: Theme Toggle + Notification Bell + Profile Avatar (Reserves 104px Zalo safe zone) */}
           <div className="flex items-center gap-1.5 shrink-0">
             <ThemeToggleButton compact />
 
@@ -154,6 +149,20 @@ export default function WorkerDashboard({
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("profile")}
+              aria-label="Hồ sơ tài khoản cá nhân"
+              title={currentUser?.ho_ten || "Tài khoản"}
+              className="min-w-[40px] min-h-[40px] p-1 rounded-full border border-slate-200/80 dark:border-slate-700 bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 inline-flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <UserAvatar
+                name={currentUser?.ho_ten || currentUser?.ma_nv}
+                avatarUrl={currentUser?.avatar_url}
+                size="xs"
+              />
             </button>
           </div>
         </div>

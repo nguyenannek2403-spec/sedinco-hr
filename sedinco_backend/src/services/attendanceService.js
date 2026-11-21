@@ -68,7 +68,7 @@ class AttendanceService {
         const offset = (page - 1) * limit;
 
         const emps = await query(
-            "SELECT ma_nv, ho_ten, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department FROM employees WHERE (role IS NULL OR role != 'admin') ORDER BY ma_nv ASC LIMIT ? OFFSET ?",
+            "SELECT ma_nv, ho_ten, avatar_url, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department FROM employees WHERE (role IS NULL OR role != 'admin') ORDER BY ma_nv ASC LIMIT ? OFFSET ?",
             [limit, offset]
         );
         if (!emps || emps.length === 0) return [];
@@ -110,6 +110,7 @@ class AttendanceService {
             return {
                 ma_nv: emp.ma_nv,
                 ho_ten: emp.ho_ten,
+                avatar_url: emp.avatar_url || null,
                 department: emp.department || 'Khối Công trình',
                 days: days,
                 dayDetails

@@ -19,7 +19,7 @@ import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { formatViCurrency, formatViWorkday, formatViNumber } from "../utils/viNumberFormat";
-import { AppButton, AppModal, StatusBadge, SkeletonList } from "./ui";
+import { AppButton, AppModal, StatusBadge, SkeletonList, UserAvatar } from "./ui";
 import PayslipActionFooter from "./PayslipActionFooter";
 import {
   formatDayWithWeekday,
@@ -543,6 +543,15 @@ export default function SalarySlipModal({
       maxWidthClass="sm:max-w-2xl"
       maxHeightClass="max-h-[92vh]"
       title={`Lương & Công T${thang}/${nam} — ${maNv}`}
+      icon={
+        item ? (
+          <UserAvatar
+            name={item.ho_ten || maNv}
+            avatarUrl={item.avatar_url}
+            size="sm"
+          />
+        ) : null
+      }
       headerExtra={
         <div className="flex items-center gap-1.5 print:hidden">
           <AppButton

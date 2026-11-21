@@ -511,6 +511,7 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
           login_username: fresh.login_username || fresh.phone || fresh.ma_nv || fresh.username || currentUser.login_username,
           theme_preference: fresh.theme_preference === "dark" ? "dark" : "light",
           font_scale: Number(fresh.font_scale) || 100,
+          avatar_url: fresh.avatar_url || null,
           bank_code: freshIsAdmin ? null : (fresh.bank_code || null),
           bank_name: freshIsAdmin ? null : (fresh.bank_name || null),
           bank_account_number: freshIsAdmin ? null : (fresh.bank_account_number || null),
