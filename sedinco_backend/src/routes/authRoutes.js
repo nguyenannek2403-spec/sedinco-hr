@@ -12,6 +12,7 @@ router.post('/admin/register', authenticateToken, requireAuth, requireRole('admi
 
 // Protected endpoints
 router.get('/me', authenticateToken, requireAuth, (req, res, next) => authController.getProfile(req, res, next));
+router.get('/auth/me', authenticateToken, requireAuth, (req, res, next) => authController.getProfile(req, res, next));
 router.get('/profile', authenticateToken, requireAuth, (req, res, next) => authController.getProfile(req, res, next));
 router.post('/change-password', authenticateToken, requireAuth, (req, res, next) => authController.changePassword(req, res, next));
 router.put('/account/credentials', authenticateToken, requireAuth, (req, res, next) => authController.updateAccountCredentials(req, res, next));

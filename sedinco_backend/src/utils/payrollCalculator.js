@@ -47,6 +47,10 @@ function calculateEmployeeSalary({
         ? Number(companySettings.insurance_rate)
         : 10.5;
     const insuranceRatio = insuranceRatePercent / 100;
+    const rawMonthlyLeaveLimit = companySettings.monthly_paid_leave_limit;
+    const monthlyPaidLeaveLimit = (rawMonthlyLeaveLimit !== undefined && rawMonthlyLeaveLimit !== null && rawMonthlyLeaveLimit !== '')
+        ? Math.max(0, Math.min(1, Number(rawMonthlyLeaveLimit) || 0))
+        : 1;
     const luong1Gio = customOtHourly > 0 ? customOtHourly : ((luongCb / congChuan) / 8);
 
     let warning = null;
@@ -156,6 +160,9 @@ function calculateEmployeeSalary({
         let appliedDayCredit = 0;
         let appliedOtHours = 0;
 
+        let effectiveStatus = log.status;
+        let customAttendanceNote = null;
+
         if (log.status === '0' || log.duration_status === 'INVALID_SHORT_DURATION') {
             appliedDayCredit = 0;
         } else if (log.status === '1') {
@@ -168,11 +175,23 @@ function calculateEmployeeSalary({
             appliedDayCredit = credit;
             workedDays += credit;
             if (isProbation) congThuViec += credit; else congChinhThuc += credit;
-        } else if (log.status === 'P' || log.status === 'L') {
-            // Nghỉ phép năm có hưởng lương (P) & Nghỉ lễ/Tết hưởng nguyên lương (L) tính 1.0 công
+        } else if (log.status === 'P') {
+            // V39: Tối đa 1 công nghỉ phép có lương/tháng; phát sinh vượt hạn mức tính là nghỉ không lương (KL)
+            if (paidLeaveDays < monthlyPaidLeaveLimit) {
+                const remainCap = Number((monthlyPaidLeaveLimit - paidLeaveDays).toFixed(2));
+                const credit = Math.min(1, remainCap);
+                appliedDayCredit = credit;
+                paidLeaveDays += credit;
+                if (isProbation) congThuViec += credit; else congChinhThuc += credit;
+            } else {
+                effectiveStatus = 'KL';
+                appliedDayCredit = 0;
+                customAttendanceNote = 'Nghỉ không lương (vượt định mức phép tháng)';
+            }
+        } else if (log.status === 'L') {
+            // Nghỉ lễ/Tết hưởng nguyên lương (L) tính 1.0 công
             appliedDayCredit = 1;
-            if (log.status === 'P') paidLeaveDays += 1;
-            else holidayDays += 1;
+            holidayDays += 1;
             if (isProbation) congThuViec += 1; else congChinhThuc += 1;
         } else if (log.status === 'OT' || log.status === '1/OT') {
             if (log.status === '1/OT') {
@@ -224,9 +243,10 @@ function calculateEmployeeSalary({
         );
         daily_breakdown.push({
             ...log,
+            status: effectiveStatus,
             record_date_iso: recordDateIso,
             date_label: formatViDateWithWeekday(recordDateIso),
-            attendance_note: buildDailyAttendanceNote(log, companySettings),
+            attendance_note: customAttendanceNote || buildDailyAttendanceNote({ ...log, status: effectiveStatus }, companySettings),
             work_credit: appliedDayCredit,
             ot_hours_applied: appliedOtHours,
             is_probation_day: Boolean(isProbation),

@@ -26,6 +26,7 @@ const DEFAULT_COMPANY_SETTINGS = {
     free_late_exempts_halfday: 0,
     negative_salary_policy: 'CLAMP_ZERO',
     insurance_rate: 10.5,
+    monthly_paid_leave_limit: 1,
     log_retention_days: 30,
     office_ip_whitelist: '',
     announcement_text: ''
@@ -169,6 +170,7 @@ class CompanyService {
             free_late_exempts_halfday: Number(row.free_late_exempts_halfday) ? 1 : 0,
             negative_salary_policy: normalizedNegPolicy,
             insurance_rate: row.insurance_rate !== undefined && row.insurance_rate !== null ? Number(row.insurance_rate) : DEFAULT_COMPANY_SETTINGS.insurance_rate,
+            monthly_paid_leave_limit: row.monthly_paid_leave_limit !== undefined && row.monthly_paid_leave_limit !== null ? Math.max(0, Number(row.monthly_paid_leave_limit)) : DEFAULT_COMPANY_SETTINGS.monthly_paid_leave_limit,
             log_retention_days: Number(row.log_retention_days) || DEFAULT_COMPANY_SETTINGS.log_retention_days,
             allowed_locations,
             office_ip_whitelist,
@@ -256,6 +258,7 @@ class CompanyService {
             : String(current.negative_salary_policy || 'CLAMP_ZERO').toUpperCase();
         const negative_salary_policy = validNegPolicies.includes(rawNegPolicyInput) ? rawNegPolicyInput : 'CLAMP_ZERO';
         const insurance_rate = Math.max(0, toFiniteNumber(payload.insurance_rate, toFiniteNumber(current.insurance_rate, 10.5)));
+        const monthly_paid_leave_limit = Math.max(0, Math.min(31, toFiniteNumber(payload.monthly_paid_leave_limit, toFiniteNumber(current.monthly_paid_leave_limit, 1))));
         const log_retention_days = Math.max(1, Math.round(toFiniteNumber(payload.log_retention_days, toFiniteNumber(current.log_retention_days, 30))));
 
         const latitude = toFiniteNumber(payload.latitude, primaryLoc.lat);
@@ -276,7 +279,7 @@ class CompanyService {
             standard_work_days, probation_salary_percent, probation_allowance_full,
             ot_rate_weekday, ot_rate_weekend, ot_rate_holiday, custom_ot_hourly_rate,
             ot_calculation_mode, free_late_exempts_halfday, negative_salary_policy,
-            insurance_rate, log_retention_days,
+            insurance_rate, monthly_paid_leave_limit, log_retention_days,
             latitude, longitude, radius_meters,
             allowedLocationsJson, office_ip_whitelist
         ];
@@ -292,7 +295,7 @@ class CompanyService {
                     standard_work_days=?, probation_salary_percent=?, probation_allowance_full=?,
                     ot_rate_weekday=?, ot_rate_weekend=?, ot_rate_holiday=?, custom_ot_hourly_rate=?,
                     ot_calculation_mode=?, free_late_exempts_halfday=?, negative_salary_policy=?,
-                    insurance_rate=?, log_retention_days=?,
+                    insurance_rate=?, monthly_paid_leave_limit=?, log_retention_days=?,
                     latitude=?, longitude=?, radius_meters=?,
                     allowed_locations=?, office_ip_whitelist=?
                 WHERE id=?`,
@@ -308,10 +311,10 @@ class CompanyService {
                     standard_work_days, probation_salary_percent, probation_allowance_full,
                     ot_rate_weekday, ot_rate_weekend, ot_rate_holiday, custom_ot_hourly_rate,
                     ot_calculation_mode, free_late_exempts_halfday, negative_salary_policy,
-                    insurance_rate, log_retention_days,
+                    insurance_rate, monthly_paid_leave_limit, log_retention_days,
                     latitude, longitude, radius_meters,
                     allowed_locations, office_ip_whitelist
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 params
             );
         }
@@ -328,6 +331,7 @@ class CompanyService {
                     lunch_end,
                     work_end,
                     standard_work_days,
+                    monthly_paid_leave_limit,
                     locations_count: locationsList.length,
                     office_ip_whitelist
                 }
@@ -404,6 +408,7 @@ class CompanyService {
             free_late_exempts_halfday: conf.free_late_exempts_halfday !== undefined ? Number(conf.free_late_exempts_halfday) : 0,
             negative_salary_policy: conf.negative_salary_policy || 'CLAMP_ZERO',
             insurance_rate: conf.insurance_rate !== undefined ? Number(conf.insurance_rate) : 10.5,
+            monthly_paid_leave_limit: conf.monthly_paid_leave_limit !== undefined ? Number(conf.monthly_paid_leave_limit) : 1,
             log_retention_days: conf.log_retention_days || 30
         };
     }

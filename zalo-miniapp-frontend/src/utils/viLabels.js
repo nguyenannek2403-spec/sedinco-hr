@@ -72,8 +72,8 @@ export function getRequestTypeLabel(type) {
   if (upper === '0.5' || lower.includes('nửa ngày') || lower.includes('buổi')) {
     return 'Nghỉ phép nửa ngày';
   }
-  if (upper === 'P' || upper === 'LEAVE' || upper === 'LEAVE_ANNUAL' || lower.includes('nghỉ phép') || lower.includes('phép năm')) {
-    return 'Nghỉ phép năm (hưởng lương)';
+  if (upper === 'P' || upper === 'PAID_LEAVE' || upper === 'NGHI_PHEP' || upper === 'LEAVE' || upper === 'LEAVE_ANNUAL' || lower.includes('nghỉ phép') || lower.includes('phép năm') || lower.includes('có lương')) {
+    return 'Nghỉ phép có lương';
   }
   if (lower.includes('công tác')) {
     return 'Đi công tác / Ngoài công trình';
@@ -307,7 +307,7 @@ export const ACCOUNTANT_PERMISSION_GROUPS = [
       {
         key: 'shift_manage',
         name: 'Phân ca & Giờ làm việc',
-        desc: 'Thiết lập loại ca làm việc, giờ vào/ra riêng và phép năm định mức cho từng nhân viên',
+        desc: 'Thiết lập loại ca làm việc, giờ vào/ra riêng cho từng nhân viên',
         defaultEnabled: false
       }
     ]
@@ -390,7 +390,7 @@ export function getAuditActionLabel(action) {
     UPDATE_EMPLOYEE: 'Cập nhật hồ sơ nhân viên',
     UPDATE_EMPLOYEE_STATUS: 'Đổi trạng thái tài khoản',
     UPDATE_EMPLOYEE_ROLE: 'Thay đổi vai trò nhân viên',
-    UPDATE_EMPLOYEE_SHIFT: 'Cập nhật ca làm & phép năm',
+    UPDATE_EMPLOYEE_SHIFT: 'Cập nhật ca làm & định mức phép',
     DELETE_EMPLOYEE: 'Xóa nhân viên',
     CHECK_IN: 'Chấm công hàng ngày',
     PROXY_CHECK_IN: 'Chấm công hộ nhân viên',

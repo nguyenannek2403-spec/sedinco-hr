@@ -64,7 +64,7 @@ export default function SalarySlipModal({
   const [loadedItem, setLoadedItem] = useState(initialItem);
   const [loadingPeriod, setLoadingPeriod] = useState(!initialItem);
   const [loadError, setLoadError] = useState("");
-  const [attendanceViewMode, setAttendanceViewMode] = useState("recorded"); // 'recorded' | 'full_month'
+  const [selectedHeatmapIso, setSelectedHeatmapIso] = useState(null);
 
   const [confirmStatus, setConfirmStatus] = useState(initialItem?.salary_confirm_status || "PENDING");
   const [showDisputeForm, setShowDisputeForm] = useState(false);
@@ -141,6 +141,10 @@ export default function SalarySlipModal({
   }, [selectedMonth, selectedYear, activeMaNv, propMaNv, initialItem, initialMonth, initialYear, fetchPeriodSlip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    setSelectedHeatmapIso(null);
+  }, [selectedMonth, selectedYear, activeMaNv]);
+
+  useEffect(() => {
     if (refreshKey > 0) {
       fetchPeriodSlip(selectedMonth, selectedYear, activeMaNv);
     }
@@ -185,61 +189,113 @@ export default function SalarySlipModal({
     return Array.from(base).sort((a, b) => a - b);
   }, [initialYear]);
 
+  const leadingEmptyCells = useMemo(() => {
+    const firstWeekday = new Date(Date.UTC(nam, thang - 1, 1)).getUTCDay();
+    return (firstWeekday + 6) % 7;
+  }, [nam, thang]);
+
   const displayedDailyRows = useMemo(() => {
     const rawLogs = Array.isArray(item?.daily_logs) ? item.daily_logs : [];
-    if (attendanceViewMode === "recorded") {
-      return rawLogs.map((log, idx) => {
-        const iso = log.record_date_iso || String(log.record_date || "").slice(0, 10);
-        return {
-          key: `${iso || idx}-${idx}`,
-          iso,
-          dateLabel: formatDayWithWeekday(iso, log.date_label),
-          log,
-          note: resolveLogNote(log),
-          credit: log.work_credit ?? (log.status === "1" || log.status === "1/OT" || log.status === "P" || log.status === "L" ? 1 : log.status === "0.5" ? 0.5 : 0),
-          otHours: Number(log.ot_hours_applied ?? log.ot_hours) || 0,
-          status: log.status || "0"
-        };
-      });
-    }
-
     const byDate = {};
     rawLogs.forEach((log) => {
       const iso = log.record_date_iso || String(log.record_date || "").slice(0, 10);
       if (iso) byDate[iso] = log;
     });
+
+    const todayNow = new Date();
+    const todayIso = `${todayNow.getFullYear()}-${String(todayNow.getMonth() + 1).padStart(2, "0")}-${String(todayNow.getDate()).padStart(2, "0")}`;
     const daysInMonth = new Date(nam, thang, 0).getDate();
     const rows = [];
+
     for (let d = 1; d <= daysInMonth; d++) {
       const iso = `${nam}-${String(thang).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const log = byDate[iso] || null;
       const isSunday = new Date(Date.UTC(nam, thang - 1, d)).getUTCDay() === 0;
+      const isFuture = iso > todayIso;
+      const rawSt = String(log?.status || "").trim().toUpperCase();
+      const note = log
+        ? resolveLogNote(log)
+        : isSunday
+        ? "Nghỉ cuối tuần (CN)"
+        : isFuture
+        ? "Chưa tới ngày"
+        : "Không có dữ liệu chấm công";
+      const credit = log
+        ? log.work_credit ?? (rawSt === "1" || rawSt === "1/OT" || rawSt === "P" || rawSt === "L" ? 1 : rawSt === "0.5" ? 0.5 : 0)
+        : 0;
+      const otHours = Number(log?.ot_hours_applied ?? log?.ot_hours) || 0;
+      const hasLateOrEarly = Boolean(
+        log &&
+          ((Number(log.late_minutes) || 0) > 0 ||
+            (Number(log.early_leave_minutes) || 0) > 0 ||
+            /vào muộn|ra sớm/i.test(note))
+      );
+
+      let shortCode = "V";
+      let cellClass =
+        "bg-slate-100/80 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400";
+
       if (log) {
-        rows.push({
-          key: iso,
-          iso,
-          dateLabel: formatDayWithWeekday(iso, log.date_label),
-          log,
-          note: resolveLogNote(log),
-          credit: log.work_credit ?? (log.status === "1" || log.status === "1/OT" || log.status === "P" || log.status === "L" ? 1 : log.status === "0.5" ? 0.5 : 0),
-          otHours: Number(log.ot_hours_applied ?? log.ot_hours) || 0,
-          status: log.status || "0"
-        });
-      } else {
-        rows.push({
-          key: iso,
-          iso,
-          dateLabel: formatDayWithWeekday(iso),
-          log: null,
-          note: isSunday ? "Nghỉ cuối tuần (CN)" : "Không có dữ liệu chấm công",
-          credit: 0,
-          otHours: 0,
-          status: isSunday ? "CN" : "V"
-        });
+        if (rawSt === "1/OT" || rawSt === "OT") {
+          shortCode = "OT";
+          cellClass =
+            "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200";
+        } else if (rawSt === "L") {
+          shortCode = "L";
+          cellClass =
+            "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200";
+        } else if (rawSt === "1") {
+          shortCode = "1";
+          cellClass =
+            "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200";
+        } else if (rawSt === "0.5") {
+          shortCode = "0,5";
+          cellClass =
+            "bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-700 text-sky-800 dark:text-sky-200";
+        } else if (rawSt === "P") {
+          shortCode = "P";
+          cellClass =
+            "bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-700 text-sky-800 dark:text-sky-200";
+        } else if (rawSt === "KP" || rawSt === "KL" || rawSt === "0") {
+          shortCode = "KP";
+          cellClass =
+            "bg-rose-50 dark:bg-rose-950/55 border-rose-200 dark:border-rose-700 text-rose-700 dark:text-rose-200";
+        } else if (rawSt === "V") {
+          shortCode = "V";
+        } else {
+          shortCode = rawSt || "V";
+        }
+      } else if (isFuture) {
+        shortCode = "";
+        cellClass =
+          "bg-slate-50/70 dark:bg-slate-900/50 border-slate-200/70 dark:border-slate-800 text-slate-400 dark:text-slate-500";
+      } else if (!isSunday) {
+        shortCode = "V";
       }
+
+      rows.push({
+        key: iso,
+        iso,
+        day: d,
+        shortDate: `${String(d).padStart(2, "0")}/${String(thang).padStart(2, "0")}`,
+        dateLabel: formatDayWithWeekday(iso, log?.date_label),
+        log,
+        note,
+        credit,
+        otHours,
+        status: log ? (log.status || "0") : isSunday ? "V" : "V",
+        shortCode,
+        cellClass,
+        hasLateOrEarly
+      });
     }
     return rows;
-  }, [item, attendanceViewMode, thang, nam]);
+  }, [item, thang, nam]);
+
+  const selectedHeatmapDay = useMemo(() => {
+    if (!selectedHeatmapIso) return null;
+    return displayedDailyRows.find((r) => r.iso === selectedHeatmapIso) || null;
+  }, [displayedDailyRows, selectedHeatmapIso]);
 
   const handleSelectEvidenceFile = async (e) => {
     const file = e.target.files?.[0];
@@ -839,94 +895,139 @@ export default function SalarySlipModal({
               </div>
             </div>
 
-            {/* PHẦN B: BẢNG CÔNG CHI TIẾT TỪNG NGÀY TRONG THÁNG */}
+            {/* PHẦN B: LƯỚI LỊCH HEATMAP BẢNG CÔNG TRỰC QUAN 7 CỘT (T2 -> CN) */}
             <div
               data-testid="payslip-daily-attendance-section"
-              className="border border-slate-200 dark:border-slate-700/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900"
+              className="border border-slate-200 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900"
             >
-              <div className="bg-slate-100 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+              <div className="bg-[#F0F3FF] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-[#111C2D] dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5">
                   <Clock size={14} className="text-[#E11D48] dark:text-rose-400 shrink-0" />
-                  <span>Phần B • Bảng công chi tiết Tháng {thang}/{nam}</span>
+                  <span>Phần B • Lịch công Tháng {thang}/{nam}</span>
                 </span>
-                <div className="print:hidden flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <button
-                    type="button"
-                    data-testid="attendance-mode-recorded"
-                    onClick={() => setAttendanceViewMode("recorded")}
-                    className={`min-h-[44px] px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition ${
-                      attendanceViewMode === "recorded"
-                        ? "bg-[#E11D48] text-white dark:bg-rose-600"
-                        : "text-slate-600 dark:text-slate-300"
-                    }`}
-                  >
-                    Ngày đã chấm ({(item.daily_logs || []).length})
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="attendance-mode-full"
-                    onClick={() => setAttendanceViewMode("full_month")}
-                    className={`min-h-[44px] px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition ${
-                      attendanceViewMode === "full_month"
-                        ? "bg-[#E11D48] text-white dark:bg-rose-600"
-                        : "text-slate-600 dark:text-slate-300"
-                    }`}
-                  >
-                    Đủ cả tháng
-                  </button>
-                </div>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 print:hidden">
+                  Chạm ô ngày để xem chi tiết
+                </span>
               </div>
 
-              {displayedDailyRows.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-600 dark:text-slate-300">
-                  Chưa có bản ghi chấm công nào trong Tháng {thang}/{nam}. Bạn có thể bấm &quot;Đủ cả tháng&quot; để xem toàn bộ lịch tháng.
+              <div className="p-3 sm:p-4 space-y-3">
+                {/* Tiêu đề thứ T2 -> CN */}
+                <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-extrabold text-slate-500 dark:text-slate-300">
+                  {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((w) => (
+                    <div key={w} className={w === "CN" ? "text-[#E11D48] dark:text-rose-400 py-0.5" : "py-0.5"}>
+                      {w}
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                  {displayedDailyRows.map((row) => {
-                    const log = row.log;
-                    const noteClass = getNoteBadgeClass(row.note);
-                    return (
-                      <div key={row.key} className="perf-list-item px-3.5 py-2.5 space-y-1.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-2 min-w-0">
-                            <span className="font-mono font-bold text-slate-900 dark:text-white">
-                              {row.dateLabel}
-                            </span>
-                            <span className="font-mono text-slate-600 dark:text-slate-300">
-                              {log?.check_in_time ? String(log.check_in_time).slice(0, 5) : "--:--"}
-                              {" – "}
-                              {log?.check_out_time ? String(log.check_out_time).slice(0, 5) : "--:--"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-mono font-bold border border-slate-200 dark:border-slate-700">
-                              {formatViWorkday(row.credit)} công
-                            </span>
-                            {row.otHours > 0 && (
-                              <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200 dark:border-indigo-700">
-                                +{formatViNumber(row.otHours)}h OT
-                              </span>
-                            )}
-                            {log && <StatusBadge type="attendance" status={log.status} />}
-                          </div>
-                        </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg border text-xs font-semibold ${noteClass}`}>
-                            {row.note}
+                {/* Lưới ô ngày bo tròn 7 cột */}
+                <div data-testid="payslip-heatmap-grid" className="grid grid-cols-7 gap-1.5">
+                  {Array.from({ length: leadingEmptyCells }).map((_, idx) => (
+                    <div key={`empty-${idx}`} aria-hidden="true" className="min-h-[46px]" />
+                  ))}
+                  {displayedDailyRows.map((cell) => {
+                    const isSelected = selectedHeatmapIso === cell.iso;
+                    return (
+                      <button
+                        key={cell.iso}
+                        type="button"
+                        data-testid={`payslip-day-cell-${cell.iso}`}
+                        onClick={() => setSelectedHeatmapIso((prev) => (prev === cell.iso ? null : cell.iso))}
+                        className={`relative min-h-[46px] p-1 rounded-xl border flex flex-col items-center justify-center transition cursor-pointer ${cell.cellClass} ${
+                          isSelected ? "ring-2 ring-[#E11D48] dark:ring-rose-400 shadow-sm" : "hover:opacity-90"
+                        }`}
+                      >
+                        {cell.hasLateOrEarly && (
+                          <span
+                            aria-label="Có ghi chú vào muộn hoặc ra sớm"
+                            className="absolute top-1 right-1 w-2 h-2 rounded-full bg-orange-500"
+                          />
+                        )}
+                        <span className="text-xs font-extrabold leading-none">{cell.day}</span>
+                        {cell.shortCode && (
+                          <span className="text-[11px] font-bold leading-tight mt-0.5 font-mono">
+                            {cell.shortCode}
                           </span>
-                          {log?.location_name && (
-                            <span className="text-xs text-slate-600 dark:text-slate-300 break-words">
-                              {log.location_name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                        )}
+                      </button>
                     );
                   })}
                 </div>
-              )}
+
+                {/* Chú thích màu 1 dòng siêu gọn */}
+                <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                    <span>Đủ công / Lễ / OT</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0" />
+                    <span>0,5 / Phép (P)</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0" />
+                    <span>Vào muộn / Ra sớm</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                    <span>KP / Nghỉ (V)</span>
+                  </span>
+                </div>
+
+                {/* Thẻ tóm tắt chi tiết khi chạm vào ô ngày trên Heatmap */}
+                {selectedHeatmapDay && (
+                  <div
+                    data-testid="payslip-heatmap-day-detail"
+                    className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2 min-w-0">
+                        <span className="font-extrabold text-[#111C2D] dark:text-white">
+                          Ngày {selectedHeatmapDay.shortDate}
+                        </span>
+                        <span className="text-slate-500 dark:text-slate-400">•</span>
+                        <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
+                          {selectedHeatmapDay.log?.check_in_time
+                            ? String(selectedHeatmapDay.log.check_in_time).slice(0, 5)
+                            : "--:--"}
+                          {" – "}
+                          {selectedHeatmapDay.log?.check_out_time
+                            ? String(selectedHeatmapDay.log.check_out_time).slice(0, 5)
+                            : "--:--"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono font-bold text-[#111C2D] dark:text-white">
+                          {formatViWorkday(selectedHeatmapDay.credit)} công
+                        </span>
+                        {selectedHeatmapDay.otHours > 0 && (
+                          <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-700 font-semibold text-indigo-700 dark:text-indigo-300">
+                            +{formatViNumber(selectedHeatmapDay.otHours)}h OT
+                          </span>
+                        )}
+                        {selectedHeatmapDay.log && (
+                          <StatusBadge type="attendance" status={selectedHeatmapDay.log.status} />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-lg border text-xs font-semibold ${getNoteBadgeClass(
+                          selectedHeatmapDay.note
+                        )}`}
+                      >
+                        {selectedHeatmapDay.note}
+                      </span>
+                      {selectedHeatmapDay.log?.location_name && (
+                        <span className="text-xs text-slate-600 dark:text-slate-300 break-words">
+                          {selectedHeatmapDay.log.location_name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Form gửi khiếu nại cho Nhân viên khi bấm nút [⚠️ Báo sai sót] ở Thanh đáy */}

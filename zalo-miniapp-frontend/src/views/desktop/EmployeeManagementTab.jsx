@@ -313,7 +313,7 @@ export default function EmployeeManagementTab({
       email: emp.email || "",
       role: emp.role || "worker",
       shift_type: emp.shift_type || "FULL_DAY",
-      annual_leave_quota: Number(emp.annual_leave_quota ?? 12),
+      annual_leave_quota: Number(emp.annual_leave_quota ?? 1),
       luong_cb: Number(emp.luong_cb) || 0,
       custom_allowances: extractInitialAllowances(emp),
       has_insurance: Boolean(emp.has_insurance),
@@ -553,7 +553,7 @@ export default function EmployeeManagementTab({
         login_username: cleanDetailUser || cleanDetailPhone || detailEmp.ma_nv,
         email: detailForm.email,
         shift_type: detailForm.shift_type,
-        annual_leave_quota: Number(detailForm.annual_leave_quota) || 12,
+        annual_leave_quota: Number(detailForm.annual_leave_quota) || 1,
         luong_cb: Math.max(0, Math.round(parseViNumberInput(detailForm.luong_cb))),
         custom_allowances: cleanAllowances,
         phu_cap_an_trua: 0,
@@ -1449,7 +1449,7 @@ export default function EmployeeManagementTab({
 
                 {detailEmp.role === "admin" ? (
                   <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-500/40 text-xs sm:text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
-                    Tài khoản Quản trị viên chỉ dùng để điều hành hệ thống; không áp dụng bảng lương, phụ cấp hay quỹ phép năm.
+                    Tài khoản Quản trị viên chỉ dùng để điều hành hệ thống; không áp dụng bảng lương, phụ cấp hay quỹ phép tháng.
                   </div>
                 ) : (
                   <>
@@ -1466,16 +1466,24 @@ export default function EmployeeManagementTab({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Quỹ phép năm (ngày)</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={60}
-                          disabled={!canEditEmployees}
-                          value={detailForm.annual_leave_quota}
-                          onChange={(e) => setDetailForm((p) => ({ ...p, annual_leave_quota: Number(e.target.value) || 0 }))}
-                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
-                        />
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                          Phép có lương tháng hiện tại
+                        </label>
+                        <div
+                          data-testid="employee-detail-monthly-leave"
+                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm font-bold text-[#111C2D] dark:text-white flex items-center justify-between gap-2"
+                        >
+                          <span>
+                            Đã dùng{" "}
+                            <span className="font-mono text-[#E11D48] dark:text-rose-300">
+                              {detailEmp.current_month_paid_leave_used ?? 0}/{detailEmp.monthly_paid_leave_limit ?? 1}
+                            </span>{" "}
+                            lượt
+                          </span>
+                          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            Tháng {new Date().getMonth() + 1}
+                          </span>
+                        </div>
                       </div>
                     </div>
 

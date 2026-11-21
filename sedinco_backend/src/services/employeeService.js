@@ -204,7 +204,7 @@ async function mergeAllowancePresetsIntoCompanySettings(customAllowances = []) {
     } catch {}
 }
 
-const sanitizeEmployeeRecord = (emp) => {
+const sanitizeEmployeeRecord = (emp, monthlyQuota = 1, paidUsageMap = null) => {
     if (!emp) return emp;
     const base = {
         ...emp,
@@ -219,19 +219,79 @@ const sanitizeEmployeeRecord = (emp) => {
             custom_allowances: [],
             bound_device_id: null,
             bound_device_name: null,
+            current_device: null,
             pending_device_id: null,
             pending_device_name: null,
             device_change_reason: null,
             known_devices_json: null,
+            device_history: [],
             multi_device_alert: 0,
-            device_binding_mode: null
+            device_binding_mode: null,
+            monthly_paid_leave_limit: 0,
+            current_month_paid_leave_used: 0
         };
     }
-    if (base.bound_device_name) {
-        base.bound_device_name = sanitizeSingleDeviceModelName(base.bound_device_name);
-    }
+    const deviceHistory = safeParseKnownDevices(base.known_devices_json);
+    const dbBoundName = base.bound_device_name ? sanitizeSingleDeviceModelName(base.bound_device_name) : null;
+    const latestHistName = deviceHistory.length > 0 && deviceHistory[deviceHistory.length - 1]?.device_name
+        ? sanitizeSingleDeviceModelName(deviceHistory[deviceHistory.length - 1].device_name)
+        : null;
+    base.bound_device_name = dbBoundName;
+    base.device_history = deviceHistory;
+    base.current_device = dbBoundName || latestHistName || null;
+    base.monthly_paid_leave_limit = monthlyQuota;
+    base.current_month_paid_leave_used = paidUsageMap ? (paidUsageMap.get(base.ma_nv) || 0) : 0;
     return base;
 };
+
+async function fetchCurrentMonthPaidLeaveUsageMap(maNvs = []) {
+    const csRows = await query('SELECT monthly_paid_leave_limit FROM company_settings LIMIT 1').catch(() => []);
+    const rawLimit = csRows?.[0]?.monthly_paid_leave_limit;
+    const monthlyQuota = (rawLimit !== undefined && rawLimit !== null && rawLimit !== '')
+        ? Math.max(0, Number(rawLimit) || 0)
+        : 1;
+    const usageByEmp = new Map();
+    if (!Array.isArray(maNvs) || maNvs.length === 0) {
+        return { monthlyQuota, usageByEmp };
+    }
+    const { getVietnamDateString } = require('../utils/timeHelper');
+    const vnToday = getVietnamDateString(new Date());
+    const [yStr, mStr] = vnToday.split('-');
+    const year = Number(yStr);
+    const month = Number(mStr);
+    const ph = maNvs.map(() => '?').join(',');
+    const [logRows, reqRows] = await Promise.all([
+        query(
+            `SELECT employee_id, DATE_FORMAT(record_date, '%Y-%m-%d') as d
+             FROM attendance_logs
+             WHERE employee_id IN (${ph}) AND MONTH(record_date) = ? AND YEAR(record_date) = ? AND status = 'P'`,
+            [...maNvs, month, year]
+        ).catch(() => []),
+        query(
+            `SELECT employee_id, request_type, DATE_FORMAT(request_date, '%Y-%m-%d') as d
+             FROM requests
+             WHERE employee_id IN (${ph}) AND MONTH(request_date) = ? AND YEAR(request_date) = ? AND status = 'approved'`,
+            [...maNvs, month, year]
+        ).catch(() => [])
+    ]);
+    const dateSets = new Map();
+    const addDate = (empId, d) => {
+        if (!empId || !d) return;
+        if (!dateSets.has(empId)) dateSets.set(empId, new Set());
+        dateSets.get(empId).add(d);
+    };
+    for (const r of logRows || []) addDate(r.employee_id, r.d);
+    for (const r of reqRows || []) {
+        const lower = String(r.request_type || '').trim().toLowerCase();
+        const isPaid = (lower === 'p' || lower === 'paid_leave' || lower === 'nghi_phep' || lower === 'leave' || lower === 'leave_annual' || lower.includes('phép') || lower.includes('có lương'))
+            && !lower.includes('không lương') && !lower.includes('unpaid') && lower !== 'kp';
+        if (isPaid) addDate(r.employee_id, r.d);
+    }
+    for (const [empId, set] of dateSets.entries()) {
+        usageByEmp.set(empId, set.size);
+    }
+    return { monthlyQuota, usageByEmp };
+}
 
 class EmployeeService {
     async getAllEmployees(pagination = {}) {
@@ -241,15 +301,18 @@ class EmployeeService {
         const offset = (page - 1) * limit;
 
         const sql = `SELECT ${SAFE_EMPLOYEE_FIELDS} FROM employees ORDER BY ma_nv ASC LIMIT ? OFFSET ?`;
-        const results = await query(sql, [limit, offset]);
-        return (results || []).map(sanitizeEmployeeRecord);
+        const results = (await query(sql, [limit, offset])) || [];
+        const { monthlyQuota, usageByEmp } = await fetchCurrentMonthPaidLeaveUsageMap(results.map((r) => r.ma_nv));
+        return results.map((r) => sanitizeEmployeeRecord(r, monthlyQuota, usageByEmp));
     }
 
     async getEmployeeById(ma_nv) {
         await ensureAllowanceSchema();
         const sql = `SELECT ${SAFE_EMPLOYEE_FIELDS} FROM employees WHERE ma_nv = ? LIMIT 1`;
         const results = await query(sql, [ma_nv]);
-        return results && results.length > 0 ? sanitizeEmployeeRecord(results[0]) : null;
+        if (!results || results.length === 0) return null;
+        const { monthlyQuota, usageByEmp } = await fetchCurrentMonthPaidLeaveUsageMap([ma_nv]);
+        return sanitizeEmployeeRecord(results[0], monthlyQuota, usageByEmp);
     }
 
     async createEmployee(data, current_user = null) {
@@ -860,7 +923,7 @@ class EmployeeService {
                      pending_device_id = NULL,
                      pending_device_name = NULL,
                      device_change_reason = NULL,
-                     known_devices_json = NULL,
+                     known_devices_json = '[]',
                      multi_device_alert = 0,
                      device_binding_mode = 'recording',
                      token_version = COALESCE(token_version, 1) + 1

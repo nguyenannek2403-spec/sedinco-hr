@@ -138,14 +138,16 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
           shift_type: isPureAdmin ? null : (rawUser.shift_type || "FULL_DAY"),
           custom_start_time: isPureAdmin ? null : (rawUser.custom_start_time || null),
           custom_end_time: isPureAdmin ? null : (rawUser.custom_end_time || null),
-          annual_leave_quota: isPureAdmin ? null : (rawUser.annual_leave_quota ?? 12),
+          annual_leave_quota: isPureAdmin ? null : (rawUser.annual_leave_quota ?? 1),
           bound_device_id: isPureAdmin ? null : (rawUser.bound_device_id || null),
           bound_device_name: isPureAdmin
             ? null
-            : rawUser.bound_device_name
-            ? sanitizeSingleDeviceModelName(rawUser.bound_device_name)
-            : (device_name || null),
+            : (rawUser.current_device || rawUser.bound_device_name)
+            ? sanitizeSingleDeviceModelName(rawUser.current_device || rawUser.bound_device_name)
+            : null,
+          current_device: isPureAdmin ? null : (rawUser.current_device || null),
           known_devices_json: isPureAdmin ? null : (rawUser.known_devices_json || null),
+          device_history: isPureAdmin ? [] : (Array.isArray(rawUser.device_history) ? rawUser.device_history : []),
           multi_device_alert: isPureAdmin ? false : Boolean(rawUser.multi_device_alert),
           device_binding_mode: isPureAdmin ? null : (rawUser.device_binding_mode || "recording"),
           avatar_url: rawUser.avatar_url || null,
@@ -391,14 +393,16 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
           shift_type: isPureAdmin ? null : (rawUser.shift_type || "FULL_DAY"),
           custom_start_time: isPureAdmin ? null : (rawUser.custom_start_time || null),
           custom_end_time: isPureAdmin ? null : (rawUser.custom_end_time || null),
-          annual_leave_quota: isPureAdmin ? null : (rawUser.annual_leave_quota ?? 12),
+          annual_leave_quota: isPureAdmin ? null : (rawUser.annual_leave_quota ?? 1),
           bound_device_id: isPureAdmin ? null : (rawUser.bound_device_id || null),
           bound_device_name: isPureAdmin
             ? null
-            : rawUser.bound_device_name
-            ? sanitizeSingleDeviceModelName(rawUser.bound_device_name)
-            : (device_name || null),
+            : (rawUser.current_device || rawUser.bound_device_name)
+            ? sanitizeSingleDeviceModelName(rawUser.current_device || rawUser.bound_device_name)
+            : null,
+          current_device: isPureAdmin ? null : (rawUser.current_device || null),
           known_devices_json: isPureAdmin ? null : (rawUser.known_devices_json || null),
+          device_history: isPureAdmin ? [] : (Array.isArray(rawUser.device_history) ? rawUser.device_history : []),
           multi_device_alert: isPureAdmin ? false : Boolean(rawUser.multi_device_alert),
           device_binding_mode: isPureAdmin ? null : (rawUser.device_binding_mode || "recording"),
           avatar_url: rawUser.avatar_url || null,
@@ -489,6 +493,7 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
       .then((res) => {
         if (!active || !res?.success || !res?.data) return;
         const fresh = res.data;
+        const freshIsAdmin = (fresh.role || currentUser.role) === ROLES.ADMIN;
         updateCurrentUser({
           ma_nv: fresh.ma_nv || fresh.username || currentUser.ma_nv,
           username: fresh.username || currentUser.username || null,
@@ -498,6 +503,17 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
           login_username: fresh.login_username || fresh.phone || fresh.ma_nv || fresh.username || currentUser.login_username,
           theme_preference: fresh.theme_preference === "dark" ? "dark" : "light",
           font_scale: Number(fresh.font_scale) || 100,
+          annual_leave_quota: freshIsAdmin ? null : (fresh.annual_leave_quota ?? 1),
+          bound_device_id: freshIsAdmin ? null : (fresh.bound_device_id || null),
+          bound_device_name: freshIsAdmin
+            ? null
+            : (fresh.current_device || fresh.bound_device_name)
+            ? sanitizeSingleDeviceModelName(fresh.current_device || fresh.bound_device_name)
+            : null,
+          current_device: freshIsAdmin ? null : (fresh.current_device || null),
+          known_devices_json: freshIsAdmin ? null : (fresh.known_devices_json || null),
+          device_history: freshIsAdmin ? [] : (Array.isArray(fresh.device_history) ? fresh.device_history : []),
+          multi_device_alert: freshIsAdmin ? false : Boolean(fresh.multi_device_alert),
           dynamic_permissions: fresh.dynamic_permissions || currentUser.dynamic_permissions || {},
           must_change_password: Boolean(fresh.must_change_password)
         });

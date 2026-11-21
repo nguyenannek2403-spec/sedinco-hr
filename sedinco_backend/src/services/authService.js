@@ -9,7 +9,38 @@ const {
     SAFE_EMPLOYEE_FIELDS
 } = require('../middlewares/authMiddleware');
 const { verifyZaloAccessToken } = require('../utils/zaloAdapter');
-const { recordEmployeeDeviceActivity, sanitizeSingleDeviceModelName } = require('../utils/deviceIdentityHelper');
+const {
+    recordEmployeeDeviceActivity,
+    sanitizeSingleDeviceModelName,
+    safeParseKnownDevices
+} = require('../utils/deviceIdentityHelper');
+
+function attachDbDeviceState(safeTarget, rawEmp, isPureAdmin) {
+    if (!safeTarget) return safeTarget;
+    if (isPureAdmin) {
+        safeTarget.bound_device_id = null;
+        safeTarget.bound_device_name = null;
+        safeTarget.current_device = null;
+        safeTarget.known_devices = [];
+        safeTarget.device_history = [];
+        safeTarget.multi_device_alert = false;
+        safeTarget.device_binding_enforced = false;
+        safeTarget.pending_device_id = null;
+        safeTarget.pending_device_name = null;
+        return safeTarget;
+    }
+    const deviceHistory = safeParseKnownDevices(rawEmp?.known_devices_json);
+    const dbBoundName = rawEmp?.bound_device_name
+        ? sanitizeSingleDeviceModelName(rawEmp.bound_device_name)
+        : null;
+    const latestHistName = deviceHistory.length > 0 && deviceHistory[deviceHistory.length - 1]?.device_name
+        ? sanitizeSingleDeviceModelName(deviceHistory[deviceHistory.length - 1].device_name)
+        : null;
+    safeTarget.bound_device_name = dbBoundName;
+    safeTarget.device_history = deviceHistory;
+    safeTarget.current_device = dbBoundName || latestHistName || null;
+    return safeTarget;
+}
 const { 
     hashPassword, 
     comparePassword, 
@@ -430,17 +461,7 @@ class AuthService {
         safeEmp.login_username = emp.login_username || emp.phone || emp.ma_nv;
         safeEmp.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
         safeEmp.font_scale = normalizeFontScale(emp.font_scale);
-        if (isPureAdmin) {
-            safeEmp.bound_device_id = null;
-            safeEmp.bound_device_name = null;
-            safeEmp.known_devices = [];
-            safeEmp.multi_device_alert = false;
-            safeEmp.device_binding_enforced = false;
-            safeEmp.pending_device_id = null;
-            safeEmp.pending_device_name = null;
-        } else if (safeEmp.bound_device_name) {
-            safeEmp.bound_device_name = sanitizeSingleDeviceModelName(safeEmp.bound_device_name);
-        }
+        attachDbDeviceState(safeEmp, emp, isPureAdmin);
         if (role === 'accountant') {
             safeEmp.dynamic_permissions = await getAccountantPermissions();
         }
@@ -550,17 +571,7 @@ class AuthService {
         safeEmp.login_username = emp.login_username || emp.phone || emp.ma_nv;
         safeEmp.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
         safeEmp.font_scale = normalizeFontScale(emp.font_scale);
-        if (isPureAdmin) {
-            safeEmp.bound_device_id = null;
-            safeEmp.bound_device_name = null;
-            safeEmp.known_devices = [];
-            safeEmp.multi_device_alert = false;
-            safeEmp.device_binding_enforced = false;
-            safeEmp.pending_device_id = null;
-            safeEmp.pending_device_name = null;
-        } else if (safeEmp.bound_device_name) {
-            safeEmp.bound_device_name = sanitizeSingleDeviceModelName(safeEmp.bound_device_name);
-        }
+        attachDbDeviceState(safeEmp, emp, isPureAdmin);
         if (role === 'accountant') {
             safeEmp.dynamic_permissions = await getAccountantPermissions();
         }
@@ -1061,17 +1072,7 @@ class AuthService {
                 safe.login_username = emp.login_username || emp.phone || emp.ma_nv;
                 safe.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
                 safe.font_scale = normalizeFontScale(emp.font_scale);
-                if (role === 'admin') {
-                    safe.bound_device_id = null;
-                    safe.bound_device_name = null;
-                    safe.known_devices = [];
-                    safe.multi_device_alert = false;
-                    safe.device_binding_enforced = false;
-                    safe.pending_device_id = null;
-                    safe.pending_device_name = null;
-                } else if (safe.bound_device_name) {
-                    safe.bound_device_name = sanitizeSingleDeviceModelName(safe.bound_device_name);
-                }
+                attachDbDeviceState(safe, emp, role === 'admin');
                 if (role === 'accountant') {
                     safe.dynamic_permissions = await getAccountantPermissions();
                 }
@@ -1093,9 +1094,7 @@ class AuthService {
                 safeAdm.theme_preference = adm.theme_preference === 'dark' ? 'dark' : 'light';
                 safeAdm.font_scale = normalizeFontScale(adm.font_scale);
                 safeAdm.must_change_password = Boolean(adm.must_change_password);
-                safeAdm.bound_device_id = null;
-                safeAdm.bound_device_name = null;
-                safeAdm.known_devices = [];
+                attachDbDeviceState(safeAdm, adm, true);
                 return safeAdm;
             }
         }

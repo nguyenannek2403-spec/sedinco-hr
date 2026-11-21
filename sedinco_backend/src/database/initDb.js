@@ -371,7 +371,7 @@ async function initDatabase() {
         await query("ALTER TABLE attendance_logs ADD COLUMN field_note TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN work_location_type VARCHAR(30) DEFAULT 'OFFICE'").catch(() => {});
         // V7 / V10 Feature Upgrades: Leave Balance, Salary Advance & Adjustments, Flexible Shifts, Announcements
-        await query("ALTER TABLE employees ADD COLUMN annual_leave_quota DECIMAL(4,1) DEFAULT 12.0").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN annual_leave_quota DECIMAL(4,1) DEFAULT 1.0").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN shift_type VARCHAR(30) DEFAULT 'FULL_DAY'").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN shift_type VARCHAR(30) DEFAULT 'FULL_DAY'").catch(() => {});
         await query("ALTER TABLE requests ADD COLUMN advance_amount DECIMAL(12,0) DEFAULT 0").catch(() => {});
@@ -507,6 +507,12 @@ async function initDatabase() {
         await query("ALTER TABLE employees ADD COLUMN custom_allowances TEXT NULL").catch(() => {});
         await query("ALTER TABLE company_settings ADD COLUMN allowance_presets TEXT NULL").catch(() => {});
         await query("UPDATE employees SET device_binding_mode = 'recording' WHERE device_binding_mode = 'enforced'").catch(() => {});
+
+        // V39: Chuyển định mức nghỉ có lương từ phép năm (12 ngày) sang phép tháng (mặc định 1 lượt/tháng, không cộng dồn)
+        await query("ALTER TABLE company_settings ADD COLUMN monthly_paid_leave_limit DECIMAL(4,1) NOT NULL DEFAULT 1.0").catch(() => {});
+        await query("ALTER TABLE employees MODIFY COLUMN annual_leave_quota DECIMAL(4,1) DEFAULT 1.0").catch(() => {});
+        await query("UPDATE company_settings SET monthly_paid_leave_limit = 1.0 WHERE monthly_paid_leave_limit IS NULL").catch(() => {});
+        await query("UPDATE employees SET annual_leave_quota = 1.0 WHERE annual_leave_quota = 12.0 OR annual_leave_quota IS NULL").catch(() => {});
 
         // Khởi tạo Điểm 1 mặc định trong allowed_locations và allowance_presets mặc định nếu chưa có
         const csRows = await query("SELECT id, latitude, longitude, radius_meters, allowed_locations, allowance_presets FROM company_settings LIMIT 1").catch(() => []);

@@ -108,6 +108,7 @@ export default function CompanySettingsTab({ showToast }) {
     free_late_exempts_halfday: 0,
     negative_salary_policy: "CLAMP_ZERO",
     insurance_rate: 10.5,
+    monthly_paid_leave_limit: 1,
     log_retention_days: 30,
     office_ip_whitelist: "",
     announcement_text: "",
@@ -739,7 +740,7 @@ export default function CompanySettingsTab({ showToast }) {
       <AccordionSection
         id="payroll"
         title="3. Quy tắc tính công, Tăng ca & Bảo hiểm"
-        subtitle={`Công chuẩn ${config.standard_work_days || 26} ngày • Bảo hiểm ${config.insurance_rate ?? 10.5}%`}
+        subtitle={`Công chuẩn ${config.standard_work_days || 26} ngày • Phép tháng ${config.monthly_paid_leave_limit ?? 1} lượt • Bảo hiểm ${config.insurance_rate ?? 10.5}%`}
         icon={Calculator}
         iconColor="text-[#E11D48] dark:text-rose-300"
         iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
@@ -785,6 +786,24 @@ export default function CompanySettingsTab({ showToast }) {
               onChange={(e) => updateField("insurance_rate", e.target.value)}
               className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+              Định mức nghỉ có lương mỗi tháng (lượt/tháng)
+            </label>
+            <input
+              data-testid="company-monthly-leave-limit-input"
+              type="number"
+              min="0"
+              max="31"
+              step="1"
+              value={config.monthly_paid_leave_limit ?? 1}
+              onChange={(e) => updateField("monthly_paid_leave_limit", e.target.value)}
+              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Mặc định: 1 lượt/tháng, không cộng dồn sang tháng sau.
+            </p>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">

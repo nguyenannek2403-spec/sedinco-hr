@@ -44,10 +44,13 @@ export default function WorkerRequestsTab({
   const fetchMyRequests = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const curNow = new Date();
+    const curMonth = curNow.getMonth() + 1;
+    const curYear = curNow.getFullYear();
     try {
       const [reqRes, balRes] = await Promise.all([
         safeGet("/requests/me"),
-        safeGet("/requests/leave-balance").catch(() => null)
+        safeGet("/requests/leave-balance", { month: curMonth, year: curYear }).catch(() => null)
       ]);
       if (reqRes?.success && Array.isArray(reqRes.data)) {
         setRequests(reqRes.data);
@@ -105,8 +108,13 @@ export default function WorkerRequestsTab({
     return String(req.status).toUpperCase() === filterStatus.toUpperCase();
   });
 
-  const quota = Number(leaveBalance?.quota || 12);
-  const used = Number(leaveBalance?.used || 0);
+  const curNow = new Date();
+  const displayMonth = Number(leaveBalance?.month || (curNow.getMonth() + 1));
+  const displayYear = Number(leaveBalance?.year || curNow.getFullYear());
+  const quota = Number(leaveBalance?.quota ?? 1);
+  const used = Number(
+    leaveBalance?.committed ?? (Number(leaveBalance?.used || 0) + Number(leaveBalance?.pending || 0))
+  );
   const remaining = Number(leaveBalance?.remaining ?? Math.max(0, quota - used));
 
   return (
@@ -130,22 +138,22 @@ export default function WorkerRequestsTab({
         </AppButton>
       </div>
 
-      {/* Thẻ ngang siêu gọn: Quỹ phép năm */}
+      {/* Thẻ ngang siêu gọn: Quỹ phép Tháng M/YYYY */}
       {leaveBalance && (
         <div
           data-testid="leave-balance-compact"
           className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs"
         >
           <span className="font-extrabold text-[#111C2D] dark:text-white shrink-0">
-            Quỹ phép năm {leaveBalance.year}
+            Quỹ phép Tháng {displayMonth}/{displayYear}
           </span>
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-slate-600 dark:text-slate-300">
             <span>
-              Tổng phép: <strong className="font-mono text-[#111C2D] dark:text-white">{quota}</strong>
+              Phép tháng: <strong className="font-mono text-[#111C2D] dark:text-white">{quota}</strong>
             </span>
             <span className="text-slate-300 dark:text-slate-600">•</span>
             <span>
-              Đã nghỉ: <strong className="font-mono text-[#E11D48] dark:text-rose-400">{used}</strong>
+              Đã dùng: <strong className="font-mono text-[#E11D48] dark:text-rose-400">{used}</strong>
             </span>
             <span className="text-slate-300 dark:text-slate-600">•</span>
             <span>

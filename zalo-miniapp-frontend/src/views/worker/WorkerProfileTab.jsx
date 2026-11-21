@@ -20,7 +20,6 @@ import SalarySlipModal from "../../components/SalarySlipModal";
 import { getShiftLabel } from "../../utils/viLabels";
 import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
 import {
-  getDeviceIdentitySync,
   parseKnownDevices,
   sanitizeSingleDeviceModelName
 } from "../../utils/deviceIdentity";
@@ -49,6 +48,7 @@ export default function WorkerProfileTab({
   const handleOpenPayslipProp = onOpenPayslip || onOpenPeriodPayslip;
   const [fallbackSlipOpen, setFallbackSlipOpen] = useState(false);
   const [showDeviceHistory, setShowDeviceHistory] = useState(false);
+  const [syncedUser, setSyncedUser] = useState(null);
   const [attendanceSummary, setAttendanceSummary] = useState({
     total_work_days: 0,
     on_time_count: 0,
@@ -63,28 +63,34 @@ export default function WorkerProfileTab({
     if (currentUser?.role === "admin") return undefined;
     let active = true;
     const now = new Date();
-    safeGet("/attendance/me", {
-      month: now.getMonth() + 1,
-      year: now.getFullYear()
-    })
-      .then((attRes) => {
-        if (!active) return;
-        const rawAtt = attRes?.data;
-        if (rawAtt && !Array.isArray(rawAtt) && rawAtt.summary) {
-          setAttendanceSummary((prev) => ({
-            ...prev,
-            ...rawAtt.summary
-          }));
-        } else if (Array.isArray(rawAtt)) {
-          const totalDays = rawAtt.filter((r) => r.status && r.status !== "0" && r.status !== "V").length;
-          setAttendanceSummary((prev) => ({ ...prev, total_work_days: totalDays }));
-        }
-      })
-      .catch(() => {});
+    Promise.all([
+      safeGet("/attendance/me", {
+        month: now.getMonth() + 1,
+        year: now.getFullYear()
+      }).catch(() => null),
+      safeGet("/auth/me", {}, { cancelPrevious: false }).catch(() => null)
+    ]).then(([attRes, meRes]) => {
+      if (!active) return;
+      const rawAtt = attRes?.data;
+      if (rawAtt && !Array.isArray(rawAtt) && rawAtt.summary) {
+        setAttendanceSummary((prev) => ({
+          ...prev,
+          ...rawAtt.summary
+        }));
+      } else if (Array.isArray(rawAtt)) {
+        const totalDays = rawAtt.filter((r) => r.status && r.status !== "0" && r.status !== "V").length;
+        setAttendanceSummary((prev) => ({ ...prev, total_work_days: totalDays }));
+      }
+      if (meRes?.success && meRes?.data) {
+        setSyncedUser(meRes.data);
+      }
+    });
     return () => {
       active = false;
     };
-  }, [currentUser?.role]);
+  }, [currentUser?.ma_nv, currentUser?.role]);
+
+  const profileUser = syncedUser ? { ...currentUser, ...syncedUser } : currentUser;
 
   const handleOpenSalarySlip = () => {
     const now = new Date();
@@ -97,36 +103,41 @@ export default function WorkerProfileTab({
     }
   };
 
-  const activeShiftLabel = getShiftLabel(currentUser?.shift_type);
-  const effStart = attendanceSummary?.effective_shift_start || currentUser?.custom_start_time || "08:00";
-  const effEnd = attendanceSummary?.effective_shift_end || currentUser?.custom_end_time || "17:30";
+  const activeShiftLabel = getShiftLabel(profileUser?.shift_type);
+  const effStart = attendanceSummary?.effective_shift_start || profileUser?.custom_start_time || "08:00";
+  const effEnd = attendanceSummary?.effective_shift_end || profileUser?.custom_end_time || "17:30";
   const currentMonthNum = new Date().getMonth() + 1;
   const currentYearNum = new Date().getFullYear();
 
-  const knownDevicesRaw = parseKnownDevices(currentUser?.known_devices_json);
+  const knownDevicesRaw = Array.isArray(profileUser?.device_history)
+    ? profileUser.device_history
+    : parseKnownDevices(profileUser?.known_devices_json);
   const sortedDeviceHistory = [...knownDevicesRaw]
+    .filter((item) => item && (item.device_id || item.device_name || item.model))
     .sort((a, b) => {
       const ta = new Date(a?.last_seen || a?.first_seen || 0).getTime() || 0;
       const tb = new Date(b?.last_seen || b?.first_seen || 0).getTime() || 0;
       return tb - ta;
     })
-    .map((item) => ({
-      ...item,
-      cleanModel: sanitizeSingleDeviceModelName(
-        item?.device_name || item?.model || currentUser?.bound_device_name || ""
-      ),
-      seenLabel: formatDeviceSeenShort(item?.last_seen || item?.first_seen)
-    }));
+    .map((item) => {
+      const rawModel = String(item?.device_name || item?.model || "").trim();
+      return {
+        ...item,
+        cleanModel: rawModel ? sanitizeSingleDeviceModelName(rawModel) : "Thiết bị không rõ",
+        seenLabel: formatDeviceSeenShort(item?.last_seen || item?.first_seen)
+      };
+    });
 
-  const fallbackModel = sanitizeSingleDeviceModelName(
-    currentUser?.bound_device_name || getDeviceIdentitySync().device_model_name
-  );
-  const latestDeviceModel = sortedDeviceHistory[0]?.cleanModel || fallbackModel;
-  const secondDeviceModel = sortedDeviceHistory[1]?.cleanModel || "";
+  const dbBoundRaw = String(profileUser?.current_device || profileUser?.bound_device_name || "").trim();
+  const dbCurrentModel = dbBoundRaw ? sanitizeSingleDeviceModelName(dbBoundRaw) : "";
+  const hasDeviceData = sortedDeviceHistory.length > 0 || Boolean(dbCurrentModel);
+  const latestDeviceModel = hasDeviceData ? (sortedDeviceHistory[0]?.cleanModel || dbCurrentModel) : "";
+  const secondDeviceModel = hasDeviceData ? (sortedDeviceHistory[1]?.cleanModel || "") : "";
   const hasMultiDeviceAlert =
-    Boolean(currentUser?.multi_device_alert) ||
-    new Set(sortedDeviceHistory.map((d) => d.device_id || d.cleanModel).filter(Boolean)).size >= 2;
-  const hasLongDeviceHistory = sortedDeviceHistory.length > 2;
+    hasDeviceData &&
+    (Boolean(profileUser?.multi_device_alert) ||
+      new Set(sortedDeviceHistory.map((d) => d.device_id || d.cleanModel).filter(Boolean)).size >= 2);
+  const hasLongDeviceHistory = hasDeviceData && sortedDeviceHistory.length > 2;
 
   const initials = String(currentUser?.ho_ten || "NV")
     .trim()
@@ -216,7 +227,7 @@ export default function WorkerProfileTab({
             </div>
           </div>
 
-          {/* 1 dòng thông báo / cảnh báo thiết bị đăng nhập gọn nhẹ */}
+          {/* 1 dòng thông báo / cảnh báo thiết bị đăng nhập gọn nhẹ (100% từ DB, không tự suy đoán User-Agent) */}
           <div
             data-testid="device-login-alert"
             className={`px-3 py-2 rounded-xl border space-y-2 ${
@@ -227,7 +238,9 @@ export default function WorkerProfileTab({
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                {hasMultiDeviceAlert ? (
+                {!hasDeviceData ? (
+                  <Smartphone className="w-4 h-4 text-slate-400 dark:text-slate-400 shrink-0" />
+                ) : hasMultiDeviceAlert ? (
                   <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                 ) : (
                   <Smartphone className="w-4 h-4 text-[#16A34A] dark:text-emerald-400 shrink-0" />
@@ -235,10 +248,16 @@ export default function WorkerProfileTab({
                 <span className="truncate">
                   Thiết bị:{" "}
                   <strong className="font-bold">
-                    {latestDeviceModel}
-                    {sortedDeviceHistory.length === 2 && secondDeviceModel && secondDeviceModel !== latestDeviceModel
-                      ? ` • ${secondDeviceModel}`
-                      : ""}
+                    {!hasDeviceData ? (
+                      "Chưa ghi nhận"
+                    ) : (
+                      <>
+                        {latestDeviceModel}
+                        {sortedDeviceHistory.length === 2 && secondDeviceModel && secondDeviceModel !== latestDeviceModel
+                          ? ` • ${secondDeviceModel}`
+                          : ""}
+                      </>
+                    )}
                   </strong>
                 </span>
               </div>

@@ -349,6 +349,18 @@ export default function RequestsManagementTab({
                             </span>
                           )}
                         </span>
+                        {req.is_paid_leave && req.request_month && (
+                          <span
+                            data-testid={`req-monthly-leave-badge-${req.id}`}
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-bold mt-1 whitespace-nowrap ${
+                              (req.monthly_paid_leave_used ?? 0) >= (req.monthly_paid_leave_limit ?? 1)
+                                ? "bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300"
+                                : "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-700 text-[#0051CA] dark:text-blue-300"
+                            }`}
+                          >
+                            Lượt phép tháng {req.request_month}: {req.monthly_paid_leave_used ?? 0}/{req.monthly_paid_leave_limit ?? 1}
+                          </span>
+                        )}
                         {(req.correction_mode || req.check_in_time || req.check_out_time) && (
                           <div className="inline-block text-xs text-cyan-800 dark:text-cyan-200 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-500/40 px-2.5 py-1 rounded-full mt-1.5 break-words leading-snug">
                             {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
@@ -456,6 +468,17 @@ export default function RequestsManagementTab({
                       </td>
                       <td className="p-3.5 font-semibold text-slate-800 dark:text-slate-200">
                         <div>{getRequestTypeLabel(req.request_type || req.type)}</div>
+                        {req.is_paid_leave && req.request_month && (
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-bold mt-1 whitespace-nowrap ${
+                              (req.monthly_paid_leave_used ?? 0) >= (req.monthly_paid_leave_limit ?? 1)
+                                ? "bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300"
+                                : "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-700 text-[#0051CA] dark:text-blue-300"
+                            }`}
+                          >
+                            Lượt phép tháng {req.request_month}: {req.monthly_paid_leave_used ?? 0}/{req.monthly_paid_leave_limit ?? 1}
+                          </span>
+                        )}
                         {(req.correction_mode || req.check_in_time || req.check_out_time) && (
                           <div className="inline-block text-xs text-cyan-800 dark:text-cyan-200 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-500/40 px-2 py-0.5 rounded-md font-normal mt-1">
                             {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}

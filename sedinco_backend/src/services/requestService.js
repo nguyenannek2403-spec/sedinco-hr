@@ -115,6 +115,92 @@ function normalizeOptionalReqTime(val) {
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
+function isPaidLeaveRequestType(requestType) {
+    const raw = String(requestType || '').trim().toLowerCase();
+    if (!raw) return false;
+    if (
+        raw === 'kp' ||
+        raw === 'unpaid' ||
+        raw === 'om' ||
+        raw === 'ct' ||
+        raw === 'ot' ||
+        raw === 'salary_advance' ||
+        raw === 'advance'
+    ) {
+        return false;
+    }
+    if (
+        raw.includes('không lương') ||
+        raw.includes('unpaid') ||
+        raw.includes('ốm') ||
+        raw.includes('bổ sung') ||
+        raw.includes('tăng ca') ||
+        raw.includes('làm thêm') ||
+        raw.includes('công tác') ||
+        raw.includes('ứng lương') ||
+        raw.includes('tạm ứng')
+    ) {
+        return false;
+    }
+    return (
+        raw === 'p' ||
+        raw === 'paid_leave' ||
+        raw === 'nghi_phep' ||
+        raw === 'leave' ||
+        raw === 'leave_annual' ||
+        raw === '0.5' ||
+        raw.includes('phép') ||
+        raw.includes('leave') ||
+        raw.includes('có lương')
+    );
+}
+
+async function getMonthlyLeaveQuota(queryFn = query) {
+    const rows = await queryFn('SELECT monthly_paid_leave_limit FROM company_settings LIMIT 1').catch(() => []);
+    const raw = rows?.[0]?.monthly_paid_leave_limit;
+    if (raw === undefined || raw === null || raw === '') return 1;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? Math.max(0, Math.min(31, parsed)) : 1;
+}
+
+async function getMonthlyPaidLeaveUsage(queryFn, ma_nv, month, year, { lockRows = false, excludeReqId = null } = {}) {
+    const lockClause = lockRows ? ' FOR UPDATE' : '';
+    const logRows = await queryFn(
+        `SELECT DATE_FORMAT(record_date, '%Y-%m-%d') as d
+         FROM attendance_logs
+         WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ? AND status = 'P'${lockClause}`,
+        [ma_nv, month, year]
+    );
+    const reqRows = await queryFn(
+        `SELECT id, request_type, status, DATE_FORMAT(request_date, '%Y-%m-%d') as d
+         FROM requests
+         WHERE employee_id = ? AND MONTH(request_date) = ? AND YEAR(request_date) = ? AND status IN ('pending', 'approved')${lockClause}`,
+        [ma_nv, month, year]
+    );
+    const approvedDates = new Set((logRows || []).map((r) => r.d).filter(Boolean));
+    const pendingDates = new Set();
+    for (const r of reqRows || []) {
+        if (excludeReqId && Number(r.id) === Number(excludeReqId)) continue;
+        if (!isPaidLeaveRequestType(r.request_type)) continue;
+        const st = String(r.status || '').toLowerCase();
+        if (st === 'approved' && r.d) {
+            approvedDates.add(r.d);
+        } else if (st === 'pending' && r.d) {
+            pendingDates.add(r.d);
+        }
+    }
+    for (const d of approvedDates) {
+        pendingDates.delete(d);
+    }
+    const approvedCount = approvedDates.size;
+    const pendingCount = pendingDates.size;
+    return {
+        approvedCount,
+        pendingCount,
+        committedCount: approvedCount + pendingCount
+    };
+}
+
 class RequestService {
     async getAllRequests(pagination = {}) {
         const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 100));
@@ -125,14 +211,73 @@ class RequestService {
             SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, r.request_type,
                    COALESCE(r.advance_amount, 0) as advance_amount,
                    r.correction_mode, r.check_in_time, r.check_out_time, r.evidence_image,
-                   DATE_FORMAT(r.request_date, '%d/%m/%Y') as date, r.reason, r.status, r.created_at
+                   DATE_FORMAT(r.request_date, '%d/%m/%Y') as date,
+                   DATE_FORMAT(r.request_date, '%Y-%m-%d') as request_date_iso,
+                   MONTH(r.request_date) as request_month,
+                   YEAR(r.request_date) as request_year,
+                   r.reason, r.status, r.created_at
             FROM requests r 
             LEFT JOIN employees e ON r.employee_id = e.ma_nv 
             ORDER BY r.created_at DESC, r.id DESC
             LIMIT ? OFFSET ?
         `;
-        const results = await query(sql, [limit, offset]);
-        return results || [];
+        const results = (await query(sql, [limit, offset])) || [];
+        if (results.length === 0) return [];
+
+        const monthlyQuota = await getMonthlyLeaveQuota(query);
+        const empIds = [...new Set(results.map((r) => r.ma_nv).filter(Boolean))];
+        const usageByKey = new Map();
+        if (empIds.length > 0) {
+            const ph = empIds.map(() => '?').join(',');
+            const [paidLogs, paidReqs] = await Promise.all([
+                query(
+                    `SELECT employee_id, MONTH(record_date) as m, YEAR(record_date) as y, DATE_FORMAT(record_date, '%Y-%m-%d') as d
+                     FROM attendance_logs
+                     WHERE employee_id IN (${ph}) AND status = 'P'`,
+                    empIds
+                ).catch(() => []),
+                query(
+                    `SELECT employee_id, request_type, status, MONTH(request_date) as m, YEAR(request_date) as y, DATE_FORMAT(request_date, '%Y-%m-%d') as d
+                     FROM requests
+                     WHERE employee_id IN (${ph}) AND status IN ('approved', 'pending')`,
+                    empIds
+                ).catch(() => [])
+            ]);
+            const getEntry = (empId, m, y) => {
+                const k = `${empId}|${y}-${m}`;
+                if (!usageByKey.has(k)) usageByKey.set(k, { approved: new Set(), pending: new Set() });
+                return usageByKey.get(k);
+            };
+            for (const row of paidLogs || []) {
+                if (row.d) getEntry(row.employee_id, row.m, row.y).approved.add(row.d);
+            }
+            for (const row of paidReqs || []) {
+                if (!row.d || !isPaidLeaveRequestType(row.request_type)) continue;
+                const entry = getEntry(row.employee_id, row.m, row.y);
+                if (String(row.status).toLowerCase() === 'approved') {
+                    entry.approved.add(row.d);
+                } else {
+                    entry.pending.add(row.d);
+                }
+            }
+        }
+
+        return results.map((r) => {
+            const k = `${r.ma_nv}|${r.request_year}-${r.request_month}`;
+            const entry = usageByKey.get(k);
+            const approvedCount = entry ? entry.approved.size : 0;
+            const pendingCount = entry
+                ? [...entry.pending].filter((d) => !entry.approved.has(d)).length
+                : 0;
+            return {
+                ...r,
+                monthly_paid_leave_used: approvedCount,
+                monthly_paid_leave_pending: pendingCount,
+                monthly_paid_leave_committed: approvedCount + pendingCount,
+                monthly_paid_leave_limit: monthlyQuota,
+                is_paid_leave: isPaidLeaveRequestType(r.request_type)
+            };
+        });
     }
 
     async getMyRequests(employee_id, pagination = {}) {
@@ -156,10 +301,12 @@ class RequestService {
         return results || [];
     }
 
-    async getLeaveBalance(ma_nv, year = new Date().getFullYear()) {
-        const targetYear = parseInt(year, 10) || new Date().getFullYear();
+    async getLeaveBalance(ma_nv, year = new Date().getFullYear(), month = new Date().getMonth() + 1) {
+        const now = new Date();
+        const targetYear = parseInt(year, 10) || now.getFullYear();
+        const targetMonth = parseInt(month, 10) || (now.getMonth() + 1);
         const empRows = await query(
-            'SELECT ma_nv, ho_ten, annual_leave_quota FROM employees WHERE ma_nv = ? LIMIT 1',
+            'SELECT ma_nv, ho_ten FROM employees WHERE ma_nv = ? LIMIT 1',
             [ma_nv]
         );
         if (!empRows || empRows.length === 0) {
@@ -167,51 +314,21 @@ class RequestService {
             error.statusCode = 404;
             throw error;
         }
-        const quota = Number(empRows[0].annual_leave_quota) || 12;
-
-        const logCountRows = await query(
-            `SELECT COUNT(*) as cnt FROM attendance_logs WHERE employee_id = ? AND YEAR(record_date) = ? AND status = 'P'`,
-            [ma_nv, targetYear]
-        );
-        const reqExtraRows = await query(
-            `SELECT COUNT(*) as cnt
-             FROM requests r
-             WHERE r.employee_id = ?
-               AND YEAR(r.request_date) = ?
-               AND r.status = 'approved'
-               AND (LOWER(r.request_type) = 'p' OR LOWER(r.request_type) LIKE '%phép%' OR LOWER(r.request_type) LIKE '%leave%')
-               AND LOWER(r.request_type) NOT LIKE '%không lương%'
-               AND LOWER(r.request_type) NOT LIKE '%unpaid%'
-               AND LOWER(r.request_type) != 'kp'
-               AND NOT EXISTS (
-                   SELECT 1 FROM attendance_logs al
-                   WHERE al.employee_id = r.employee_id AND al.record_date = r.request_date AND al.status = 'P'
-               )`,
-            [ma_nv, targetYear]
-        );
-        const pendingRows = await query(
-            `SELECT COUNT(*) as cnt
-             FROM requests
-             WHERE employee_id = ?
-               AND YEAR(request_date) = ?
-               AND status = 'pending'
-               AND (LOWER(request_type) = 'p' OR LOWER(request_type) LIKE '%phép%' OR LOWER(request_type) LIKE '%leave%')
-               AND LOWER(request_type) NOT LIKE '%không lương%'
-               AND LOWER(request_type) NOT LIKE '%unpaid%'
-               AND LOWER(request_type) != 'kp'`,
-            [ma_nv, targetYear]
-        );
-        const used = Number(((Number(logCountRows?.[0]?.cnt) || 0) + (Number(reqExtraRows?.[0]?.cnt) || 0)).toFixed(1));
-        const pending = Number(pendingRows?.[0]?.cnt) || 0;
-        const remaining = Number(Math.max(0, quota - used).toFixed(1));
+        const quota = await getMonthlyLeaveQuota(query);
+        const usage = await getMonthlyPaidLeaveUsage(query, ma_nv, targetMonth, targetYear);
+        const remaining = Number(Math.max(0, quota - usage.committedCount).toFixed(1));
 
         return {
             employee_id: ma_nv,
+            month: targetMonth,
             year: targetYear,
             quota,
-            used,
-            pending,
-            remaining
+            used: usage.approvedCount,
+            pending: usage.pendingCount,
+            committed: usage.committedCount,
+            remaining,
+            approved_remaining: Number(Math.max(0, quota - usage.approvedCount).toFixed(1)),
+            is_monthly_quota: true
         };
     }
 
@@ -390,6 +507,31 @@ class RequestService {
                 }
             }
 
+            // V39: Khóa hạn mức tối đa 1 đơn/ngày nghỉ có lương mỗi tháng (không cộng dồn)
+            if (isPaidLeaveRequestType(cleanType)) {
+                const monthlyQuota = await getMonthlyLeaveQuota(txQuery);
+                const datesByMonth = new Map();
+                for (const iso of datesList) {
+                    const [yStr, mStr] = iso.split('-');
+                    const ymKey = `${yStr}-${mStr}`;
+                    if (!datesByMonth.has(ymKey)) {
+                        datesByMonth.set(ymKey, { y: Number(yStr), m: Number(mStr), dates: [] });
+                    }
+                    datesByMonth.get(ymKey).dates.push(iso);
+                }
+                for (const { y, m, dates } of datesByMonth.values()) {
+                    const usage = await getMonthlyPaidLeaveUsage(txQuery, targetId, m, y, { lockRows: true });
+                    if (usage.committedCount >= monthlyQuota || (usage.committedCount + dates.length) > monthlyQuota) {
+                        const error = new Error(
+                            `Bạn đã dùng hết ${monthlyQuota} lượt nghỉ có lương trong tháng ${m}/${y}. Vui lòng chọn Nghỉ không lương nếu cần nghỉ thêm.`
+                        );
+                        error.statusCode = 400;
+                        error.code = 'MONTHLY_PAID_LEAVE_EXCEEDED';
+                        throw error;
+                    }
+                }
+            }
+
             const insertedIds = [];
             for (const iso of datesList) {
                 const insertRes = await txQuery(
@@ -484,6 +626,24 @@ class RequestService {
                 error.statusCode = 400;
                 error.code = 'PERIOD_LOCKED';
                 throw error;
+            }
+
+            // V39: Khóa hàng nhân viên để serialize phê duyệt đơn và kiểm tra hạn mức phép tháng
+            await txQuery('SELECT ma_nv FROM employees WHERE ma_nv = ? FOR UPDATE', [row.employee_id]);
+            if (normalizedStatus === 'approved' && isPaidLeaveRequestType(row.request_type)) {
+                const monthlyQuota = await getMonthlyLeaveQuota(txQuery);
+                const usage = await getMonthlyPaidLeaveUsage(txQuery, row.employee_id, month, year, {
+                    lockRows: true,
+                    excludeReqId: row.id
+                });
+                if (usage.approvedCount >= monthlyQuota) {
+                    const error = new Error(
+                        `Nhân viên ${row.employee_id} đã sử dụng hết ${monthlyQuota} lượt nghỉ có lương trong tháng ${month}/${year}. Chỉ có thể duyệt Nghỉ không lương!`
+                    );
+                    error.statusCode = 400;
+                    error.code = 'MONTHLY_PAID_LEAVE_EXCEEDED';
+                    throw error;
+                }
             }
 
             const updateRes = await txQuery(
@@ -582,7 +742,7 @@ class RequestService {
                          ON DUPLICATE KEY UPDATE status = ?, work_credit = ?`,
                         [row.employee_id, dateStr, nextSt, nextCred, nextSt, nextCred]
                     );
-                } else if (type === 'p' || type === 'leave' || type.includes('phép') || type.includes('nghỉ') || type.includes('leave_annual')) {
+                } else if (isPaidLeaveRequestType(row.request_type)) {
                     await txQuery(
                         `INSERT INTO attendance_logs (employee_id, record_date, status, work_credit)
                          VALUES (?, ?, 'P', 1)

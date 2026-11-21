@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   FileText,
   AlertCircle,
@@ -11,7 +11,7 @@ import {
   Image as ImageIcon,
   Trash2
 } from "lucide-react";
-import { safePost, generateIdempotencyKey } from "../utils/api";
+import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { analyzeLeaveRequest, formatDateKey } from "../utils/holidayUtils";
 import { CORRECTION_MODES, getRequestTypeLabel } from "../utils/viLabels";
@@ -19,7 +19,7 @@ import { formatViCurrency, formatViNumber, parseViNumberInput } from "../utils/v
 import { AppButton, AppModal, FormRow } from "./ui";
 
 const LEAVE_TYPES = [
-  { id: "P", label: "Nghỉ phép năm (Hưởng nguyên lương)" },
+  { id: "P", label: "Nghỉ phép có lương (Tối đa 1 lượt/tháng)" },
   { id: "KP", label: "Nghỉ không lương (Việc riêng)" },
   { id: "Bổ sung công / Quên chấm giờ ra", label: "Giải trình Bổ sung công (Quên chấm / Đổi ca)" },
   { id: "OT", label: "Đăng ký Tăng ca (Làm thêm giờ)" },
@@ -73,7 +73,7 @@ export default function SmartLeaveRequestModal({
   currentUser,
   holidaysList = [],
   existingRequests = [],
-  leaveBalance = 12,
+  leaveBalance = null,
   initialDate = null,
   initialType = "P",
   initialMode = null,
@@ -103,6 +103,7 @@ export default function SmartLeaveRequestModal({
   const [reason, setReason] = useState(initialReason || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [monthBalance, setMonthBalance] = useState(null);
 
   const isSubmittingRef = useRef(false);
   const proofInputRef = useRef(null);
@@ -114,13 +115,82 @@ export default function SmartLeaveRequestModal({
   const needsCheckIn = isCompensation && (correctionMode === "CHECK_IN" || correctionMode === "BOTH" || correctionMode === "SHIFT_CHANGE");
   const needsCheckOut = isCompensation && (correctionMode === "CHECK_OUT" || correctionMode === "BOTH" || correctionMode === "SHIFT_CHANGE");
 
-  const availableLeaveDays = useMemo(() => {
-    if (leaveBalance && typeof leaveBalance === "object") {
-      return Number(leaveBalance.remaining ?? 0);
+  const [selYear, selMonth] = useMemo(() => {
+    const parts = String(startDate || "").split("-").map(Number);
+    if (parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1]) && parts[1] >= 1 && parts[1] <= 12) {
+      return [parts[0], parts[1]];
     }
-    const parsed = Number(leaveBalance);
-    return Number.isFinite(parsed) ? parsed : 12;
-  }, [leaveBalance]);
+    const n = new Date();
+    return [n.getFullYear(), n.getMonth() + 1];
+  }, [startDate]);
+
+  useEffect(() => {
+    let active = true;
+    safeGet("/requests/leave-balance", { month: selMonth, year: selYear }, { cancelPrevious: false })
+      .then((res) => {
+        if (active && res?.success && res?.data) {
+          setMonthBalance(res.data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [selMonth, selYear]);
+
+  const effectiveMonthBalance = useMemo(() => {
+    if (monthBalance && Number(monthBalance.month) === selMonth && Number(monthBalance.year) === selYear) {
+      return monthBalance;
+    }
+    if (
+      leaveBalance &&
+      typeof leaveBalance === "object" &&
+      Number(leaveBalance.month) === selMonth &&
+      Number(leaveBalance.year) === selYear
+    ) {
+      return leaveBalance;
+    }
+    return null;
+  }, [monthBalance, leaveBalance, selMonth, selYear]);
+
+  const monthlyQuotaLimit = Number(
+    effectiveMonthBalance?.quota ?? (leaveBalance && typeof leaveBalance === "object" ? leaveBalance.quota : 1) ?? 1
+  );
+
+  const existingMonthPaidCount = useMemo(() => {
+    return (existingRequests || []).filter((req) => {
+      const st = String(req.status || "").toLowerCase();
+      if (st === "rejected" || st === "cancelled") return false;
+      const rawType = String(req.request_type || req.type || "").trim().toLowerCase();
+      const isPaid =
+        (rawType === "p" ||
+          rawType === "paid_leave" ||
+          rawType === "nghi_phep" ||
+          rawType === "leave" ||
+          rawType === "leave_annual" ||
+          rawType === "0.5" ||
+          rawType.includes("phép") ||
+          rawType.includes("có lương")) &&
+        !rawType.includes("không lương") &&
+        !rawType.includes("unpaid") &&
+        rawType !== "kp";
+      if (!isPaid) return false;
+      const iso = formatDateKey(req.request_date || req.start_date);
+      if (!iso) return false;
+      const [y, m] = iso.split("-").map(Number);
+      return y === selYear && m === selMonth;
+    }).length;
+  }, [existingRequests, selMonth, selYear]);
+
+  const availableLeaveDays = useMemo(() => {
+    if (effectiveMonthBalance) {
+      return Math.max(0, Number(effectiveMonthBalance.remaining ?? 0));
+    }
+    if (typeof leaveBalance === "number" && Number.isFinite(leaveBalance)) {
+      return Math.max(0, Math.min(monthlyQuotaLimit, leaveBalance) - existingMonthPaidCount);
+    }
+    return Math.max(0, monthlyQuotaLimit - existingMonthPaidCount);
+  }, [effectiveMonthBalance, leaveBalance, monthlyQuotaLimit, existingMonthPaidCount]);
 
   // Phân tích thông minh ngày nghỉ và ngày lễ
   const analysis = useMemo(() => {
@@ -150,10 +220,11 @@ export default function SmartLeaveRequestModal({
     }) || null;
   }, [startDate, endDate, existingRequests, isSalaryAdvance]);
 
-  // Cảnh báo vượt số dư phép năm hoặc đã hết phép năm
-  const isOutOfLeave = requestType === "P" && availableLeaveDays <= 0;
+  // Cảnh báo hết/vượt lượt nghỉ có lương trong tháng (tối đa 1 lượt/tháng)
+  const isMonthOutOfLeave = availableLeaveDays <= 0;
+  const isOutOfLeave = requestType === "P" && isMonthOutOfLeave;
   const isExceedingBalance =
-    requestType === "P" && (availableLeaveDays <= 0 || analysis.actualDeductedDays > availableLeaveDays);
+    requestType === "P" && (isMonthOutOfLeave || analysis.actualDeductedDays > availableLeaveDays);
 
   const parsedAdvanceNum = Math.max(0, Math.round(parseViNumberInput(advanceAmount)));
 
@@ -239,6 +310,15 @@ export default function SmartLeaveRequestModal({
 
     if (trimmedReason.length < 5) {
       const msg = "Lý do phải có tối thiểu 5 ký tự.";
+      setErrorMessage(msg);
+      if (showToast) showToast(msg, "warning");
+      return;
+    }
+
+    if (isExceedingBalance) {
+      const msg = isOutOfLeave
+        ? `Bạn đã dùng hết ${monthlyQuotaLimit} lượt nghỉ có lương trong tháng ${selMonth}/${selYear}. Vui lòng chọn Nghỉ không lương nếu cần nghỉ thêm.`
+        : `Định mức phép có lương tối đa ${monthlyQuotaLimit} lượt/tháng (${selMonth}/${selYear}). Số ngày xin nghỉ (${analysis.actualDeductedDays}) vượt quá hạn mức còn lại (${availableLeaveDays}).`;
       setErrorMessage(msg);
       if (showToast) showToast(msg, "warning");
       return;
@@ -385,8 +465,22 @@ export default function SmartLeaveRequestModal({
           )}
 
           {/* Chọn Loại đơn */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1.5">Loại đơn / chế độ</label>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100">
+                Loại đơn / chế độ
+              </label>
+              <span
+                data-testid="modal-monthly-leave-quota"
+                className={`px-2.5 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${
+                  isMonthOutOfLeave
+                    ? "bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300"
+                    : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300"
+                }`}
+              >
+                Phép có lương T{selMonth}/{selYear}: {availableLeaveDays}/{monthlyQuotaLimit} lượt
+              </span>
+            </div>
             <select
               value={requestType}
               onChange={(e) => {
@@ -395,11 +489,14 @@ export default function SmartLeaveRequestModal({
               }}
               className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-blue-600 dark:focus:border-blue-400 font-semibold bg-white dark:bg-slate-800"
             >
-              {LEAVE_TYPES.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
+              {LEAVE_TYPES.map((t) => {
+                const lockedPaid = t.id === "P" && isMonthOutOfLeave;
+                return (
+                  <option key={t.id} value={t.id} disabled={lockedPaid && requestType !== "P"}>
+                    {lockedPaid ? `Nghỉ phép có lương (Hết lượt T${selMonth})` : t.label}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -682,7 +779,7 @@ export default function SmartLeaveRequestModal({
                     ))}
                   </ul>
                   <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                    Theo Điều 112 BLLĐ, ngày nghỉ lễ được hưởng nguyên lương, không trừ vào quỹ phép năm.
+                    Theo Điều 112 BLLĐ, ngày nghỉ lễ được hưởng nguyên lương, không trừ vào lượt phép tháng.
                   </p>
                 </div>
               )}
@@ -722,7 +819,7 @@ export default function SmartLeaveRequestModal({
                   <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
                 </div>
                 <div className="flex justify-between items-center text-base font-extrabold text-[#111C2D] dark:text-white">
-                  <span>Số ngày trừ phép thực tế:</span>
+                  <span>Số ngày nghỉ có lương dự kiến:</span>
                   <span className="text-[#E11D48] dark:text-rose-400 font-extrabold whitespace-nowrap">
                     {requestType === "P" ? analysis.actualDeductedDays : 0} ngày
                   </span>
@@ -730,18 +827,24 @@ export default function SmartLeaveRequestModal({
                 {requestType === "P" && (
                   <div className="pt-1 space-y-2">
                     <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                      Quỹ phép năm còn lại: <span className="font-bold text-slate-900 dark:text-white">{availableLeaveDays} ngày</span>
+                      Phép có lương Tháng {selMonth}/{selYear} còn lại:{" "}
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        {availableLeaveDays}/{monthlyQuotaLimit} lượt
+                      </span>
                     </p>
                     {isExceedingBalance && (
                       <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 space-y-2">
                         <p className="text-xs text-rose-700 dark:text-rose-200 font-semibold leading-relaxed">
                           {isOutOfLeave
-                            ? "Quỹ phép năm của bạn đã hết (0 ngày còn lại). Hãy chuyển sang Nghỉ không lương (KP)."
-                            : `Số ngày xin nghỉ (${analysis.actualDeductedDays} ngày) vượt quá phép năm còn lại (${availableLeaveDays} ngày).`}
+                            ? `Bạn đã dùng hết ${monthlyQuotaLimit} lượt nghỉ có lương trong tháng ${selMonth}/${selYear}. Vui lòng chọn Nghỉ không lương nếu cần nghỉ thêm.`
+                            : `Định mức nghỉ có lương tối đa ${monthlyQuotaLimit} lượt/tháng (${selMonth}/${selYear}). Số ngày xin nghỉ (${analysis.actualDeductedDays}) vượt quá lượt còn lại (${availableLeaveDays}).`}
                         </p>
                         <button
                           type="button"
-                          onClick={() => setRequestType("KP")}
+                          onClick={() => {
+                            setErrorMessage("");
+                            setRequestType("KP");
+                          }}
                           className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-xs cursor-pointer transition whitespace-nowrap"
                         >
                           Chuyển sang Nghỉ Không Lương (KP)

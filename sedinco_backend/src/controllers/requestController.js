@@ -33,8 +33,10 @@ class RequestController {
             if (!targetId) {
                 return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
             }
-            const year = parseInt(req.query.year, 10) || new Date().getFullYear();
-            const data = await requestService.getLeaveBalance(targetId, year);
+            const now = new Date();
+            const year = parseInt(req.query.year, 10) || now.getFullYear();
+            const month = parseInt(req.query.month, 10) || (now.getMonth() + 1);
+            const data = await requestService.getLeaveBalance(targetId, year, month);
             return res.json({ success: true, data });
         } catch (err) {
             next(err);
