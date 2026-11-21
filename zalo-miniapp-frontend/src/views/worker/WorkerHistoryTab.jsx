@@ -49,9 +49,10 @@ function getHeatmapCellStyle(log, dayNum, isFuture, isSunday = false) {
   }
 
   const st = String(log.status || "").toUpperCase();
-  const forgotOut = Boolean(log.check_in_time && !log.check_out_time);
-  const isLate = Number(log.late_minutes) > 0;
-  const isEarly = Number(log.early_leave_minutes) > 0;
+  const isAdminAdjustedFull = String(log.duration_status || "").toUpperCase() === "ADMIN_ADJUSTED_FULL";
+  const forgotOut = !isAdminAdjustedFull && Boolean(log.check_in_time && !log.check_out_time);
+  const isLate = !isAdminAdjustedFull && Number(log.late_minutes) > 0;
+  const isEarly = !isAdminAdjustedFull && Number(log.early_leave_minutes) > 0;
 
   if (st === "P" || st === "L") {
     return {

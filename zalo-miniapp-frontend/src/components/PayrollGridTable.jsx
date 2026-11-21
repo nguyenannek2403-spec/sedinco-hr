@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  DollarSign,
   Search,
   Download,
   FileText,
   Users,
-  Award,
-  TrendingUp,
+  X,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
@@ -29,7 +27,6 @@ import BankTransferModal from "./BankTransferModal";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "./ui";
 import { safeGet, safePost, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
-import { useDebouncedValue } from "../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
 import {
   formatViNumber,
@@ -61,7 +58,6 @@ export default function PayrollGridTable({
   const canManagePayment = isAdmin || dynamicPerms?.payroll_payment_status_manage === true;
   const notify = showToast || onShowToast;
   const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSearch = useDebouncedValue(searchQuery, 300);
   const [selectedDepartment, setSelectedDepartment] = useState("ALL");
   const [selectedSlipItem, setSelectedSlipItem] = useState(null);
   const [slipRefreshTick, setSlipRefreshTick] = useState(0);
@@ -306,16 +302,35 @@ export default function PayrollGridTable({
     ])
   );
 
-  // Lọc dữ liệu theo tìm kiếm và khối/bộ phận (chặn tuyệt đối tài khoản Admin khỏi bảng lương)
-  const filteredList = (sourceList || []).filter(item => {
-    if (item.role === "admin") return false;
-    const q = (debouncedSearch || "").toLowerCase();
-    const id = (item.ma_nv || item.id_nhan_vien || "").toLowerCase();
-    const name = (item.ho_ten || "").toLowerCase();
-    const role = (item.chuc_danh || "").toLowerCase();
-    const dept = (item.department || "Khối Công trình");
-    const matchText = !q || id.includes(q) || name.includes(q) || role.includes(q) || dept.toLowerCase().includes(q);
-    const matchDept = selectedDepartment === "ALL" || dept === selectedDepartment;
+  const normalizeSearchText = (val) =>
+    String(val || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
+      .toLowerCase()
+      .trim();
+
+  // Loại trừ tuyệt đối tài khoản Admin khỏi danh sách tính lương & đếm tổng nhân sự hợp lệ
+  const payrollEmployees = (sourceList || []).filter((item) => item && item.role !== "admin");
+  const totalEmployeesCount = payrollEmployees.length;
+  const normalizedSearchQuery = normalizeSearchText(searchQuery);
+  const isFiltering = Boolean(normalizedSearchQuery) || selectedDepartment !== "ALL";
+
+  // Lọc tức thì (real-time, hỗ trợ tiếng Việt có dấu / không dấu) theo họ tên, mã NV, chức danh, bộ phận
+  const filteredList = payrollEmployees.filter((item) => {
+    const id = normalizeSearchText(item.ma_nv || item.id_nhan_vien || "");
+    const name = normalizeSearchText(item.ho_ten || "");
+    const role = normalizeSearchText(item.chuc_danh || "");
+    const deptRaw = item.department || "Khối Công trình";
+    const dept = normalizeSearchText(deptRaw);
+    const matchText =
+      !normalizedSearchQuery ||
+      id.includes(normalizedSearchQuery) ||
+      name.includes(normalizedSearchQuery) ||
+      role.includes(normalizedSearchQuery) ||
+      dept.includes(normalizedSearchQuery);
+    const matchDept = selectedDepartment === "ALL" || deptRaw === selectedDepartment;
     return matchText && matchDept;
   });
 
@@ -337,11 +352,9 @@ export default function PayrollGridTable({
     }
   }, [focusTarget, payrollData, internalPayroll, loadingPayroll]);
 
-  // Tính 4 chỉ số KPI tổng hợp
+  // Tổng hợp số liệu footer bảng đối soát
   const totalNetSalary = filteredList.reduce((acc, cur) => acc + (Number(cur.netSalary) || 0), 0);
-  const totalEmployees = filteredList.length;
   const totalWorkDays = filteredList.reduce((acc, cur) => acc + (Number(cur.totalWorkDays) || 0), 0);
-  const averageIncome = totalEmployees > 0 ? totalNetSalary / totalEmployees : 0;
 
   // Xuất file CSV UTF-8 BOM chuẩn tiếng Việt
   const handleExportCSV = async () => {
@@ -432,58 +445,50 @@ export default function PayrollGridTable({
 
   return (
     <div className="space-y-4 pb-28">
-      {/* 4 Card KPI Tổng Quan Tài Chính */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* KPI 1: Tổng Quỹ Lương Net */}
-        <div className="bg-[#E11D48] bg-gradient-to-br from-[#E11D48] via-[#B80035] to-[#263143] dark:bg-slate-900 dark:from-[#9F1239] dark:via-rose-950 dark:to-slate-900 text-white rounded-2xl p-4 shadow-md border border-rose-500/40 space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-rose-100 font-semibold">Tổng thực lĩnh (Net)</span>
-            <span className="px-2 py-0.5 rounded-full bg-white/15 text-white text-xs font-extrabold shrink-0">
-              {formatViNumber(totalEmployees, 0)} NV
-            </span>
-          </div>
-          <span className="text-xl sm:text-2xl font-extrabold text-white font-mono block">
-            {formatViCurrency(totalNetSalary)}
+      {/* Thanh Công Cụ Tinh Gọn: Đếm Nhân Sự & Tìm Kiếm Nhanh */}
+      <div
+        data-testid="payroll-summary-header"
+        className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+      >
+        <div
+          data-testid="payroll-employee-count"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 text-xs sm:text-sm font-bold text-[#111C2D] dark:text-slate-100 shrink-0 self-start sm:self-auto"
+        >
+          <Users size={16} className="text-[#E11D48] dark:text-rose-400 shrink-0" />
+          <span>
+            {isLoading && totalEmployeesCount === 0
+              ? "Đang tải nhân sự..."
+              : isFiltering
+                ? `Hiển thị ${formatViNumber(filteredList.length, 0)} / ${formatViNumber(totalEmployeesCount, 0)} nhân viên`
+                : `Số lượng nhân viên: ${formatViNumber(totalEmployeesCount, 0)} nhân viên`}
           </span>
         </div>
 
-        {/* KPI 2: Tổng Số Nhân Sự */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100/90 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Nhân sự</span>
-            <div className="p-2 bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 rounded-xl shrink-0">
-              <Users size={18} />
-            </div>
-          </div>
-          <span className="text-xl font-extrabold text-slate-900 dark:text-white block mt-1.5">
-            {formatViNumber(totalEmployees, 0)} nhân sự
-          </span>
-        </div>
-
-        {/* KPI 3: Tổng Ngày Công Thực Tế */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100/90 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Tổng ngày công</span>
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-xl shrink-0">
-              <TrendingUp size={18} />
-            </div>
-          </div>
-          <span className="text-xl font-extrabold text-slate-900 dark:text-white block mt-1.5">
-            {formatViWorkday(totalWorkDays)} công
-          </span>
-        </div>
-
-        {/* KPI 4: Bình Quân Thu Nhập */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100/90 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Thu nhập bình quân</span>
-            <div className="p-2 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-xl shrink-0">
-              <Award size={18} />
-            </div>
-          </div>
-          <span className="text-xl font-extrabold text-slate-900 dark:text-white block mt-1.5">
-            {formatViCurrency(averageIncome)}
-          </span>
+        <div className="relative w-full sm:flex-1 sm:max-w-md min-w-0">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            data-testid="payroll-search-input"
+            placeholder="Tìm theo họ tên hoặc mã NV..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Tìm kiếm nhân viên theo họ tên hoặc mã nhân viên"
+            className={`w-full min-h-[44px] pl-10 py-2 text-sm bg-slate-50/70 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-[#E11D48] dark:focus:border-rose-400 transition ${
+              searchQuery ? "pr-10" : "pr-3.5"
+            }`}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              data-testid="payroll-search-clear-btn"
+              onClick={() => setSearchQuery("")}
+              aria-label="Xóa từ khóa tìm kiếm"
+              title="Xóa tìm kiếm"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -581,18 +586,6 @@ export default function PayrollGridTable({
                 </option>
               ))}
             </select>
-
-            {/* Tìm kiếm */}
-            <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Tìm nhân sự, chức vụ, mã NV..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] dark:focus:border-rose-400 shadow-sm"
-              />
-            </div>
 
             {/* Nút Tính Lương Tự Động (Nghiệp vụ riêng của Kế toán) */}
             {canCalculatePayroll && (
@@ -728,7 +721,14 @@ export default function PayrollGridTable({
               </div>
             ) : filteredList.length === 0 ? (
               <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
-                <EmptyState icon={FileText} title={`Không có dữ liệu tiền lương tháng ${month}/${year}.`} />
+                <EmptyState
+                  icon={FileText}
+                  title={
+                    payrollEmployees.length > 0
+                      ? "Không tìm thấy nhân viên phù hợp"
+                      : `Không có dữ liệu tiền lương tháng ${month}/${year}.`
+                  }
+                />
               </div>
             ) : (
               filteredList.map((item, idx) => {
@@ -1184,7 +1184,11 @@ export default function PayrollGridTable({
                 <tr>
                   <td colSpan={11} className="py-16 text-center text-slate-500 dark:text-slate-300">
                     <FileText size={36} className="mx-auto mb-2 text-slate-400" />
-                    <p className="text-sm font-semibold">Không có dữ liệu tiền lương trong kỳ tháng {month}/{year}.</p>
+                    <p className="text-sm font-semibold">
+                      {payrollEmployees.length > 0
+                        ? "Không tìm thấy nhân viên phù hợp"
+                        : `Không có dữ liệu tiền lương trong kỳ tháng ${month}/${year}.`}
+                    </p>
                   </td>
                 </tr>
               ) : (

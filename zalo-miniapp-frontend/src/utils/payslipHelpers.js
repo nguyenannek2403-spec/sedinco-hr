@@ -53,11 +53,17 @@ export function resolveLogNote(log) {
   }
   const late = Math.max(0, Math.round(Number(log.late_minutes) || 0));
   const early = Math.max(0, Math.round(Number(log.early_leave_minutes) || 0));
+  const st = String(log.status || "").toUpperCase();
+  const isAdminAdjustedFull = String(log.duration_status || "").trim().toUpperCase() === "ADMIN_ADJUSTED_FULL";
+  if (isAdminAdjustedFull && late === 0 && early === 0) {
+    if (st === "P") return "Nghỉ phép hưởng lương (P)";
+    if (st === "L") return "Nghỉ lễ hưởng lương (L)";
+    return "Đúng giờ • Đủ công";
+  }
   const parts = [];
   if (late > 0) parts.push(`Vào muộn ${late} phút`);
   if (early > 0) parts.push(`Ra sớm ${early} phút`);
   if (parts.length > 0) return parts.join(" • ");
-  const st = String(log.status || "").toUpperCase();
   if (st === "P") return "Nghỉ phép hưởng lương (P)";
   if (st === "L") return "Nghỉ lễ hưởng lương (L)";
   if (log.check_in_time && !log.check_out_time) return "Chưa chấm công ra (Quên check-out)";

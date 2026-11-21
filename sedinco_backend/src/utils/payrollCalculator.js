@@ -124,7 +124,8 @@ function calculateEmployeeSalary({
         const logDate = new Date(log.record_date);
         logDate.setHours(0, 0, 0, 0);
 
-        const lateMins = Number(log.late_minutes) || 0;
+        const isAdminAdjustedFull = String(log.duration_status || '').trim().toUpperCase() === 'ADMIN_ADJUSTED_FULL';
+        const lateMins = isAdminAdjustedFull ? 0 : (Number(log.late_minutes) || 0);
         let isExcessiveLateHalfDay = false;
         if (lateMins > 0) {
             totalLateMinutes += lateMins;

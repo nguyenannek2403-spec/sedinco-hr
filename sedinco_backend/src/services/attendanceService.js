@@ -77,7 +77,7 @@ class AttendanceService {
             `SELECT employee_id, DAY(record_date) as day,
                     DATE_FORMAT(record_date, '%Y-%m-%d') as record_date,
                     status, ot_hours, check_in_time, check_out_time,
-                    late_minutes, early_leave_minutes, duration_status,
+                    late_minutes, early_leave_minutes, work_credit, duration_status,
                     COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
                     COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
                     proxy_by
@@ -103,6 +103,8 @@ class AttendanceService {
                             late_minutes: Number(log.late_minutes) || 0,
                             early_leave_minutes: Number(log.early_leave_minutes) || 0,
                             ot_hours: Number(log.ot_hours) || 0,
+                            duration_status: log.duration_status || null,
+                            work_credit: log.work_credit !== undefined && log.work_credit !== null ? Number(log.work_credit) : null,
                             attendance_note: buildDailyAttendanceNote(log)
                         };
                     }
@@ -260,7 +262,8 @@ class AttendanceService {
             }
             total_ot_hours += Number(l.ot_hours) || 0;
 
-            const lateMins = Number(l.late_minutes) || 0;
+            const isAdminAdjustedFull = String(l.duration_status || '').trim().toUpperCase() === 'ADMIN_ADJUSTED_FULL';
+            const lateMins = isAdminAdjustedFull ? 0 : (Number(l.late_minutes) || 0);
             if (lateMins > 0) {
                 late_count += 1;
                 total_late_minutes += lateMins;
@@ -550,16 +553,87 @@ class AttendanceService {
             return { success: true };
         }
 
-        const sql = `
-            INSERT INTO attendance_logs (employee_id, record_date, status, ot_hours, check_in_time, check_out_time) 
-            VALUES (?, ?, ?, ?, ?, ?) 
-            ON DUPLICATE KEY UPDATE 
-                status = VALUES(status), 
-                ot_hours = VALUES(ot_hours),
-                check_in_time = COALESCE(VALUES(check_in_time), check_in_time),
-                check_out_time = COALESCE(VALUES(check_out_time), check_out_time)
-        `;
-        await query(sql, [ma_nv, dateStr, status, hours, check_in_time || null, check_out_time || null]);
+        const rawStatusUpper = String(status || '').trim().toUpperCase();
+        const dbStatus = rawStatusUpper === 'FULL_DAY'
+            ? '1'
+            : rawStatusUpper === '0.5'
+                ? '0.5'
+                : (rawStatusUpper || String(status || '').trim());
+        const isFullWorkday = ['1', '1/OT', 'P', 'L'].includes(dbStatus);
+        const isHalfWorkday = dbStatus === '0.5';
+        const isZeroWorkday = ['0', 'KP', 'KL', 'V'].includes(dbStatus);
+
+        if (isFullWorkday) {
+            const sql = `
+                INSERT INTO attendance_logs (
+                    employee_id, record_date, status, ot_hours, check_in_time, check_out_time,
+                    late_minutes, early_leave_minutes, work_credit, duration_status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 1.00, 'ADMIN_ADJUSTED_FULL')
+                ON DUPLICATE KEY UPDATE
+                    status = VALUES(status),
+                    ot_hours = VALUES(ot_hours),
+                    check_in_time = COALESCE(VALUES(check_in_time), check_in_time),
+                    check_out_time = COALESCE(VALUES(check_out_time), check_out_time),
+                    late_minutes = 0,
+                    early_leave_minutes = 0,
+                    work_credit = 1.00,
+                    duration_status = 'ADMIN_ADJUSTED_FULL',
+                    proxy_note = CASE
+                        WHEN proxy_note IS NOT NULL AND (LOWER(proxy_note) LIKE '%vào muộn%' OR LOWER(proxy_note) LIKE '%ra sớm%')
+                        THEN 'Đã điều chỉnh đủ 1 công'
+                        ELSE proxy_note
+                    END
+            `;
+            await query(sql, [ma_nv, dateStr, dbStatus, hours, check_in_time || null, check_out_time || null]);
+        } else if (isHalfWorkday) {
+            const sql = `
+                INSERT INTO attendance_logs (
+                    employee_id, record_date, status, ot_hours, check_in_time, check_out_time,
+                    late_minutes, early_leave_minutes, work_credit, duration_status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0.50, NULL)
+                ON DUPLICATE KEY UPDATE
+                    status = VALUES(status),
+                    ot_hours = VALUES(ot_hours),
+                    check_in_time = COALESCE(VALUES(check_in_time), check_in_time),
+                    check_out_time = COALESCE(VALUES(check_out_time), check_out_time),
+                    late_minutes = 0,
+                    early_leave_minutes = 0,
+                    work_credit = 0.50,
+                    duration_status = CASE WHEN duration_status IN ('INVALID_SHORT_DURATION', 'ADMIN_ADJUSTED_FULL') THEN NULL ELSE duration_status END
+            `;
+            await query(sql, [ma_nv, dateStr, dbStatus, hours, check_in_time || null, check_out_time || null]);
+        } else if (isZeroWorkday) {
+            const sql = `
+                INSERT INTO attendance_logs (
+                    employee_id, record_date, status, ot_hours, check_in_time, check_out_time,
+                    late_minutes, early_leave_minutes, work_credit, duration_status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0.00, NULL)
+                ON DUPLICATE KEY UPDATE
+                    status = VALUES(status),
+                    ot_hours = VALUES(ot_hours),
+                    check_in_time = COALESCE(VALUES(check_in_time), check_in_time),
+                    check_out_time = COALESCE(VALUES(check_out_time), check_out_time),
+                    late_minutes = 0,
+                    early_leave_minutes = 0,
+                    work_credit = 0.00,
+                    duration_status = NULL
+            `;
+            await query(sql, [ma_nv, dateStr, dbStatus, hours, check_in_time || null, check_out_time || null]);
+        } else {
+            const sql = `
+                INSERT INTO attendance_logs (employee_id, record_date, status, ot_hours, check_in_time, check_out_time)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    status = VALUES(status),
+                    ot_hours = VALUES(ot_hours),
+                    check_in_time = COALESCE(VALUES(check_in_time), check_in_time),
+                    check_out_time = COALESCE(VALUES(check_out_time), check_out_time)
+            `;
+            await query(sql, [ma_nv, dateStr, dbStatus, hours, check_in_time || null, check_out_time || null]);
+        }
 
         if (current_user) {
             await logAuditEvent({
@@ -567,7 +641,7 @@ class AttendanceService {
                 actor_role: current_user.role || 'unknown',
                 action: 'UPDATE_ATTENDANCE',
                 resource: 'attendance',
-                details: { target_ma_nv: ma_nv, dateStr, status, hours, reason: cleanReason }
+                details: { target_ma_nv: ma_nv, dateStr, status: dbStatus, hours, reason: cleanReason }
             });
         }
 
@@ -678,16 +752,20 @@ class AttendanceService {
         await query(
             `INSERT INTO attendance_logs (
                 employee_id, record_date, status, check_in_time, check_out_time,
-                work_hours, late_minutes, work_location_type, location_name,
+                work_hours, late_minutes, early_leave_minutes, work_credit, duration_status,
+                work_location_type, location_name,
                 field_note, check_in_method, is_suspicious, is_low_trust, proxy_by, proxy_note, shift_type
              )
-             VALUES (?, ?, '1', ?, ?, ?, 0, ?, ?, ?, 'manual', 0, 0, ?, ?, ?)
+             VALUES (?, ?, '1', ?, ?, ?, 0, 0, 1.00, 'ADMIN_ADJUSTED_FULL', ?, ?, ?, 'manual', 0, 0, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                 status = '1',
                 check_in_time = COALESCE(VALUES(check_in_time), check_in_time),
                 check_out_time = COALESCE(VALUES(check_out_time), check_out_time),
                 work_hours = COALESCE(VALUES(work_hours), work_hours),
                 late_minutes = 0,
+                early_leave_minutes = 0,
+                work_credit = 1.00,
+                duration_status = 'ADMIN_ADJUSTED_FULL',
                 work_location_type = VALUES(work_location_type),
                 location_name = VALUES(location_name),
                 field_note = VALUES(field_note),

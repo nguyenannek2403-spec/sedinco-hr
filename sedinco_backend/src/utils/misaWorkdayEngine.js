@@ -303,6 +303,8 @@ function buildDailyAttendanceNote(log = {}, _settings = {}) {
         baseNote = 'Nghỉ lễ hưởng lương (L)';
     } else if (status === 'KP' || status === 'V') {
         baseNote = 'Vắng / Nghỉ không lương';
+    } else if (durationStatus === 'ADMIN_ADJUSTED_FULL' && lateMins === 0 && earlyMins === 0) {
+        baseNote = 'Đúng giờ • Đủ công';
     } else if (durationStatus === 'INVALID_SHORT_DURATION') {
         const inMins = parseTimeToMinutes(log.check_in_time, null);
         const outMins = parseTimeToMinutes(log.check_out_time, null);

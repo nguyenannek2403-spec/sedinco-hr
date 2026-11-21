@@ -241,29 +241,74 @@ export default function AttendanceMatrixTable({
     setEditError("");
     try {
       const idempotencyKey = generateIdempotencyKey("att_edit");
-      const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(editingCell.dayNum).padStart(2, "0")}`;
+      const targetMaNv = editingCell.emp.ma_nv;
+      const targetDayNum = editingCell.dayNum;
+      const targetDayIdx = targetDayNum - 1;
+      const nextStatus = selectedStatus || "";
+      const nextOtHours = nextStatus === "OT" || nextStatus === "1/OT" ? otHours : 0;
+      const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(targetDayNum).padStart(2, "0")}`;
       await safePost("/attendance/update", {
-        ma_nv: editingCell.emp.ma_nv,
+        ma_nv: targetMaNv,
         dateStr,
-        day: editingCell.dayNum,
+        day: targetDayNum,
         month: month,
         year: year,
-        status: selectedStatus || "1",
-        hours: selectedStatus === "OT" || selectedStatus === "1/OT" ? otHours : 0,
-        ot_hours: selectedStatus === "OT" || selectedStatus === "1/OT" ? otHours : 0,
-        isDelete: !selectedStatus
+        status: nextStatus || "1",
+        hours: nextOtHours,
+        ot_hours: nextOtHours,
+        isDelete: !nextStatus
       }, { idempotencyKey });
+
+      // Cập nhật lạc quan trạng thái ma trận ngay lập tức (đặc biệt xóa sạch chấm cam / nhãn đi muộn khi chỉnh thành đủ công)
+      setInternalData((prev) => {
+        if (!Array.isArray(prev) || prev.length === 0) return prev;
+        return prev.map((empRow) => {
+          if (empRow.ma_nv !== targetMaNv) return empRow;
+          const nextDays = Array.isArray(empRow.days) ? [...empRow.days] : [];
+          const nextDetails = Array.isArray(empRow.dayDetails) ? [...empRow.dayDetails] : [];
+          nextDays[targetDayIdx] = nextStatus;
+          if (!nextStatus) {
+            nextDetails[targetDayIdx] = null;
+          } else {
+            const upperSt = String(nextStatus).trim().toUpperCase();
+            const isFullAdj = ["1", "1/OT", "P", "L"].includes(upperSt);
+            const prevDetail = nextDetails[targetDayIdx] || {};
+            const cleanNote = upperSt === "P"
+              ? "Nghỉ phép hưởng lương (P)"
+              : upperSt === "L"
+                ? "Nghỉ lễ hưởng lương (L)"
+                : isFullAdj
+                  ? "Đúng giờ • Đủ công"
+                  : prevDetail.attendance_note;
+            nextDetails[targetDayIdx] = {
+              ...prevDetail,
+              status: nextStatus,
+              ot_hours: nextOtHours,
+              ...(isFullAdj
+                ? {
+                    late_minutes: 0,
+                    early_leave_minutes: 0,
+                    work_credit: 1,
+                    duration_status: "ADMIN_ADJUSTED_FULL",
+                    attendance_note: cleanNote
+                  }
+                : {})
+            };
+          }
+          return { ...empRow, days: nextDays, dayDetails: nextDetails };
+        });
+      });
 
       if (onRecordAuditLog) {
         onRecordAuditLog(
           "Điều chỉnh ngày công",
-          `Sửa công ngày ${editingCell.dayNum}/${month}/${year} của ${editingCell.emp.ho_ten} (${editingCell.emp.ma_nv}) thành [${selectedStatus || "Xóa công"}]`,
+          `Sửa công ngày ${targetDayNum}/${month}/${year} của ${editingCell.emp.ho_ten} (${targetMaNv}) thành [${nextStatus || "Xóa công"}]`,
           "Quản trị viên cập nhật bảng công"
         );
       }
 
       if (notify) {
-        notify(`Đã cập nhật công ngày ${editingCell.dayNum}/${month} cho ${editingCell.emp.ho_ten}!`, "success");
+        notify(`Đã cập nhật công ngày ${targetDayNum}/${month} cho ${editingCell.emp.ho_ten}!`, "success");
       }
       setEditingCell(null);
       await fetchMatrixFromApi();
