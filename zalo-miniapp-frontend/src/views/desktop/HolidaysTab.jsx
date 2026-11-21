@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Gift, Plus, Trash2, Calendar, RefreshCw, AlertCircle } from "lucide-react";
-import { safeGet, safePost, safeDelete } from "../../utils/api";
+import { Gift, Plus, Pencil, Trash2, Calendar, RefreshCw, AlertCircle } from "lucide-react";
+import { safeGet, safePost, safePut, safeDelete } from "../../utils/api";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "../../components/ui";
 
@@ -9,6 +9,7 @@ export default function HolidaysTab({ showToast }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingHolidayId, setEditingHolidayId] = useState(null);
   const [form, setForm] = useState({
     name: "",
     start_date: "",
@@ -42,7 +43,24 @@ export default function HolidaysTab({ showToast }) {
     fetchHolidays();
   }, [fetchHolidays]);
 
-  const handleAddHoliday = async (e) => {
+  const handleOpenAdd = () => {
+    setEditingHolidayId(null);
+    setForm({ name: "", start_date: "", end_date: "", multiplier: 3.0 });
+    setIsAddOpen(true);
+  };
+
+  const handleOpenEdit = (h) => {
+    setEditingHolidayId(h.id);
+    setForm({
+      name: h.holiday_name || h.name || "",
+      start_date: String(h.start_date || "").slice(0, 10),
+      end_date: String(h.end_date || h.start_date || "").slice(0, 10),
+      multiplier: h.multiplier || 3.0
+    });
+    setIsAddOpen(true);
+  };
+
+  const handleSaveHoliday = async (e) => {
     e.preventDefault();
     if (addInFlightRef.current) return;
     if (!form.name || !form.start_date || !form.end_date) {
@@ -53,17 +71,28 @@ export default function HolidaysTab({ showToast }) {
     addInFlightRef.current = true;
     setIsSubmitting(true);
     try {
-      const res = await safePost("/holidays", {
+      const payload = {
         ...form,
         holiday_name: form.name
-      });
+      };
+      const res = editingHolidayId
+        ? await safePut(`/holidays/${editingHolidayId}`, payload)
+        : await safePost("/holidays", payload);
       if (res?.success) {
-        if (showToast) showToast(`Đã thêm ngày lễ "${form.name}"!`, "success");
+        if (showToast) {
+          showToast(
+            editingHolidayId
+              ? `Đã cập nhật ngày lễ "${form.name}"!`
+              : `Đã thêm ngày lễ "${form.name}"!`,
+            "success"
+          );
+        }
         setIsAddOpen(false);
+        setEditingHolidayId(null);
         setForm({ name: "", start_date: "", end_date: "", multiplier: 3.0 });
         fetchHolidays();
       } else {
-        if (showToast) showToast(res?.message || "Không thể thêm ngày lễ.", "error");
+        if (showToast) showToast(res?.message || "Không thể lưu ngày lễ.", "error");
       }
     } catch (err) {
       if (showToast) showToast(err.message || "Lỗi kết nối.", "error");
@@ -127,7 +156,7 @@ export default function HolidaysTab({ showToast }) {
           <AppButton
             variant="danger"
             icon={Plus}
-            onClick={() => setIsAddOpen(true)}
+            onClick={handleOpenAdd}
             className="text-xs shadow-lg shadow-rose-600/25"
           >
             Thêm ngày lễ
@@ -204,14 +233,24 @@ export default function HolidaysTab({ showToast }) {
                       />
                     </td>
                     <td className="p-3.5 text-right pr-5 whitespace-nowrap">
-                      <AppButton
-                        variant="ghost"
-                        icon={Trash2}
-                        onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
-                        className="min-w-[44px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
-                        title="Xóa"
-                        aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
-                      />
+                      <div className="inline-flex items-center gap-1">
+                        <AppButton
+                          variant="ghost"
+                          icon={Pencil}
+                          onClick={() => handleOpenEdit(h)}
+                          className="min-w-[44px] px-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          title="Sửa ngày lễ"
+                          aria-label={`Sửa ngày lễ ${h.holiday_name || h.name}`}
+                        />
+                        <AppButton
+                          variant="ghost"
+                          icon={Trash2}
+                          onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
+                          className="min-w-[44px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
+                          title="Xóa"
+                          aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
+                        />
+                      </div>
                     </td>
                   </tr>
                   );
@@ -235,12 +274,12 @@ export default function HolidaysTab({ showToast }) {
         onConfirm={executeDeleteHoliday}
       />
 
-      {/* Modal Add Holiday */}
+      {/* Modal Add / Edit Holiday */}
       <AppModal
         open={isAddOpen}
         onClose={() => !isSubmitting && setIsAddOpen(false)}
         disableClose={isSubmitting}
-        title="Thêm dịp nghỉ lễ"
+        title={editingHolidayId ? "Cập nhật dịp nghỉ lễ" : "Thêm dịp nghỉ lễ"}
         subtitle="Thiết lập ngày lễ hưởng nguyên lương (3.0x khi OT)"
         icon={<Gift className="w-5 h-5 text-rose-500 dark:text-rose-400" />}
         maxWidthClass="max-w-sm"
@@ -267,7 +306,7 @@ export default function HolidaysTab({ showToast }) {
           </div>
         }
       >
-        <form id="add-holiday-form" onSubmit={handleAddHoliday} className="p-5 space-y-3">
+        <form id="add-holiday-form" onSubmit={handleSaveHoliday} className="p-5 space-y-3">
           <div>
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Tên dịp lễ</label>
             <input

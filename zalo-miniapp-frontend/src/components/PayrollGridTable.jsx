@@ -158,13 +158,14 @@ export default function PayrollGridTable({
   const getEffectivePayoutStatus = (row) => {
     if (!row) return "DRAFT";
     const rawPayout = String(row.payout_status || "").trim().toUpperCase();
+    if (rawPayout === "RECEIVED" || Boolean(row.received_at)) return "RECEIVED";
     const isPaidRow =
       rawPayout === "PAID" ||
       row.employee_payment_status === "PAID" ||
       row.payment_status === "PAID";
     if (isPaidRow) return "PAID";
-    if (rawPayout === "CONFIRMED" || row.salary_confirm_status === "CONFIRMED") return "CONFIRMED";
     if (row.dispute_status !== "RESOLVED" && (rawPayout === "DISPUTED" || row.salary_confirm_status === "DISPUTED")) return "DISPUTED";
+    if (rawPayout === "CONFIRMED" || row.salary_confirm_status === "CONFIRMED") return "CONFIRMED";
     if (rawPayout === "REPORT_SENT") return "REPORT_SENT";
     return "DRAFT";
   };
@@ -172,7 +173,7 @@ export default function PayrollGridTable({
   const getUnconfirmedStatusLabel = (status) => {
     switch (status) {
       case "REPORT_SENT":
-        return "Đang chờ xác nhận";
+        return "Đã gửi báo cáo — Chưa đọc xác nhận";
       case "DISPUTED":
         return "Đang báo sai sót";
       default:
@@ -183,12 +184,24 @@ export default function PayrollGridTable({
   const renderPayoutStatusBadge = (row) => {
     const st = getEffectivePayoutStatus(row);
     const empCode = row?.ma_nv || row?.id_nhan_vien || "";
+    if (st === "RECEIVED") {
+      return (
+        <span
+          data-testid={`payroll-status-badge-${empCode}`}
+          data-payout-status="RECEIVED"
+          title={row.received_at_vn ? `Đã nhận lúc ${row.received_at_vn}` : "Nhân viên đã xác nhận nhận đủ lương"}
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-200 font-extrabold text-xs border border-emerald-400 dark:border-emerald-600 whitespace-nowrap"
+        >
+          💰 Đã nhận lương
+        </span>
+      );
+    }
     if (st === "PAID") {
       return (
         <span
           data-testid={`payroll-status-badge-${empCode}`}
           data-payout-status="PAID"
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-200 font-bold text-xs border border-emerald-300 dark:border-emerald-700 whitespace-nowrap"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-200 font-bold text-xs border border-emerald-300 dark:border-emerald-700 whitespace-nowrap"
         >
           💸 Đã chuyển khoản
         </span>
@@ -201,7 +214,7 @@ export default function PayrollGridTable({
           data-payout-status="CONFIRMED"
           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-200 font-bold text-xs border border-teal-300 dark:border-teal-700 whitespace-nowrap"
         >
-          ✓ Đã xác nhận lương
+          ✓ Đã đọc báo cáo
         </span>
       );
     }
@@ -226,8 +239,7 @@ export default function PayrollGridTable({
           data-payout-status="REPORT_SENT"
           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 font-bold text-xs border border-amber-300 dark:border-amber-700 whitespace-nowrap"
         >
-          <Clock size={12} className="shrink-0" />
-          <span>Chờ xác nhận</span>
+          📩 Đã gửi báo cáo
         </span>
       );
     }
@@ -324,7 +336,7 @@ export default function PayrollGridTable({
   const handleRequestTransfer = (row) => {
     if (!row) return;
     const status = getEffectivePayoutStatus(row);
-    if (status !== "CONFIRMED" && status !== "PAID") {
+    if (!["CONFIRMED", "PAID", "RECEIVED"].includes(status)) {
       setUnconfirmedWarnItem(row);
       return;
     }
@@ -1463,7 +1475,7 @@ export default function PayrollGridTable({
                       </AppButton>
                     )}
                     {canManagePayment && (() => {
-                      const empPaid = getEffectivePayoutStatus(item) === "PAID";
+                      const empPaid = ["PAID", "RECEIVED"].includes(getEffectivePayoutStatus(item));
                       return (
                         <AppButton
                           variant={empPaid ? "success" : "primary"}
@@ -1638,7 +1650,7 @@ export default function PayrollGridTable({
                             </button>
                           )}
                           {canManagePayment && (() => {
-                            const empPaid = getEffectivePayoutStatus(item) === "PAID";
+                            const empPaid = ["PAID", "RECEIVED"].includes(getEffectivePayoutStatus(item));
                             return (
                               <button
                                 type="button"

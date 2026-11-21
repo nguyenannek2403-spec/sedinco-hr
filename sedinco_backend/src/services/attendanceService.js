@@ -10,6 +10,117 @@ const {
     buildDailyAttendanceNote,
     formatViDateWithWeekday
 } = require('../utils/misaWorkdayEngine');
+const {
+    getVietnamDateString,
+    getDaysInMonth,
+    getMonthlyStandardWorkdays,
+    isSundayIsoDate
+} = require('../utils/timeHelper');
+const { findHolidayForDate, buildHolidayDateMap } = require('../utils/vnHolidaysCatalog');
+
+function computeTodayEffectiveStatus({ todayStr, todayLog = null, holidays = [] } = {}) {
+    const holidayMatch = findHolidayForDate(holidays, todayStr);
+    if (!todayLog) {
+        if (holidayMatch) {
+            return {
+                date: todayStr,
+                effective_code: 'L',
+                is_admin_adjusted: false,
+                is_holiday: true,
+                holiday_name: holidayMatch.holiday_name,
+                work_credit: 1,
+                ot_hours: 0,
+                check_in_time: null,
+                check_out_time: null,
+                duration_status: null,
+                note: `Nghỉ lễ hưởng nguyên lương (${holidayMatch.holiday_name})`
+            };
+        }
+        return {
+            date: todayStr,
+            effective_code: 'NONE',
+            is_admin_adjusted: false,
+            is_holiday: false,
+            holiday_name: null,
+            work_credit: 0,
+            ot_hours: 0,
+            check_in_time: null,
+            check_out_time: null,
+            duration_status: null,
+            note: 'Chưa chấm công hôm nay'
+        };
+    }
+
+    const rawStatus = String(todayLog.status || '').trim().toUpperCase();
+    const durStatus = String(todayLog.duration_status || '').trim().toUpperCase();
+    const credit = todayLog.work_credit !== undefined && todayLog.work_credit !== null
+        ? Number(todayLog.work_credit)
+        : null;
+    const otHours = Number(todayLog.ot_hours) || 0;
+    const isAdminFlag = durStatus.startsWith('ADMIN_ADJUSTED') || Boolean(todayLog.proxy_by);
+
+    let effective_code = 'NONE';
+    let is_admin_adjusted = isAdminFlag;
+    let is_holiday = Boolean(holidayMatch);
+    let holiday_name = holidayMatch ? holidayMatch.holiday_name : null;
+    let work_credit = credit !== null ? credit : 0;
+    let note = '';
+
+    if (rawStatus === '1/OT' || rawStatus === '1+OT') {
+        effective_code = '1+OT';
+        is_admin_adjusted = isAdminFlag || !todayLog.check_in_time;
+        work_credit = credit !== null ? credit : 1;
+        note = `Đủ công + Tăng ca (${otHours || 0}h OT)`;
+    } else if (rawStatus === 'OT') {
+        effective_code = 'OT';
+        is_admin_adjusted = isAdminFlag || !todayLog.check_in_time;
+        work_credit = credit !== null ? credit : 0;
+        note = `Tăng ca (${otHours || 0}h OT)`;
+    } else if (rawStatus === 'L') {
+        effective_code = 'L';
+        is_holiday = true;
+        holiday_name = holiday_name || 'Ngày nghỉ lễ';
+        is_admin_adjusted = isAdminFlag || !todayLog.check_in_time;
+        work_credit = 1;
+        note = `Nghỉ lễ hưởng nguyên lương (${holiday_name})`;
+    } else if (rawStatus === 'P') {
+        effective_code = 'P';
+        is_admin_adjusted = isAdminFlag || !todayLog.check_in_time;
+        work_credit = credit !== null ? credit : 1;
+        note = 'Nghỉ phép có lương (1 công)';
+    } else if (['KL', 'KP', '0', 'V', 'ABSENT'].includes(rawStatus)) {
+        effective_code = 'KL';
+        is_admin_adjusted = isAdminFlag || ['KL', 'KP', 'V', 'ABSENT'].includes(rawStatus) || !todayLog.check_in_time;
+        work_credit = 0;
+        note = durStatus === 'INVALID_SHORT_DURATION'
+            ? 'Thời gian làm việc quá ngắn — 0 công'
+            : 'Nghỉ không lương (0 công)';
+    } else if (rawStatus === '0.5') {
+        effective_code = '0.5';
+        is_admin_adjusted = isAdminFlag || (!todayLog.check_in_time && !todayLog.check_out_time);
+        work_credit = credit !== null ? credit : 0.5;
+        note = 'Ghi nhận nửa công (0,5 công)';
+    } else if (rawStatus === '1') {
+        effective_code = '1';
+        is_admin_adjusted = isAdminFlag || (!todayLog.check_in_time && !todayLog.check_out_time);
+        work_credit = credit !== null ? credit : 1;
+        note = is_admin_adjusted ? 'Đã được Quản trị viên xác nhận đủ 1 công' : 'Đủ 1 công';
+    }
+
+    return {
+        date: todayStr,
+        effective_code,
+        is_admin_adjusted: Boolean(is_admin_adjusted),
+        is_holiday,
+        holiday_name,
+        work_credit,
+        ot_hours: otHours,
+        check_in_time: todayLog.check_in_time || null,
+        check_out_time: todayLog.check_out_time || null,
+        duration_status: todayLog.duration_status || null,
+        note
+    };
+}
 
 const SHIFT_DEFINITIONS = {
     FULL_DAY: { code: 'FULL_DAY', label: 'Ca hành chính', start: '08:00', end: '17:30' },
@@ -73,20 +184,26 @@ class AttendanceService {
         );
         if (!emps || emps.length === 0) return [];
 
-        const logs = await query(
-            `SELECT employee_id, DAY(record_date) as day,
-                    DATE_FORMAT(record_date, '%Y-%m-%d') as record_date,
-                    status, ot_hours, check_in_time, check_out_time,
-                    late_minutes, early_leave_minutes, work_credit, duration_status,
-                    COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
-                    COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
-                    proxy_by
-             FROM attendance_logs
-             WHERE MONTH(record_date)=? AND YEAR(record_date)=?`,
-            [month, year]
-        );
+        const [logs, holidays] = await Promise.all([
+            query(
+                `SELECT employee_id, DAY(record_date) as day,
+                        DATE_FORMAT(record_date, '%Y-%m-%d') as record_date,
+                        status, ot_hours, check_in_time, check_out_time,
+                        late_minutes, early_leave_minutes, work_credit, duration_status,
+                        COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
+                        COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
+                        proxy_by
+                 FROM attendance_logs
+                 WHERE MONTH(record_date)=? AND YEAR(record_date)=?`,
+                [month, year]
+            ),
+            query(
+                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC"
+            ).catch(() => [])
+        ]);
         const safeLogs = logs || [];
-        const daysInMonth = new Date(year, month, 0).getDate();
+        const holidayMap = buildHolidayDateMap(holidays || [], month, year);
+        const daysInMonth = getDaysInMonth(month, year);
 
         return emps.map(emp => {
             const days = Array(daysInMonth).fill('');
@@ -109,6 +226,28 @@ class AttendanceService {
                         };
                     }
                 });
+            // Tự động áp dụng mã 'L' cho các ngày nghỉ lễ chuẩn nếu nhân viên chưa có log (hoặc giữ OT nếu có)
+            for (let d = 1; d <= daysInMonth; d++) {
+                if (days[d - 1]) continue;
+                const iso = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const hol = holidayMap[iso];
+                if (hol) {
+                    days[d - 1] = 'L';
+                    dayDetails[d - 1] = {
+                        status: 'L',
+                        check_in_time: null,
+                        check_out_time: null,
+                        late_minutes: 0,
+                        early_leave_minutes: 0,
+                        ot_hours: 0,
+                        duration_status: 'AUTO_HOLIDAY',
+                        work_credit: 1,
+                        is_holiday: true,
+                        holiday_name: hol.holiday_name,
+                        attendance_note: `Nghỉ lễ hưởng nguyên lương (${hol.holiday_name})`
+                    };
+                }
+            }
             return {
                 ma_nv: emp.ma_nv,
                 ho_ten: emp.ho_ten,
@@ -196,12 +335,58 @@ class AttendanceService {
              LIMIT 1`,
             [ma_nv, todayStr]
         );
+        const holidays = await query(
+            "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC"
+        ).catch(() => []);
+        const holidayMap = buildHolidayDateMap(holidays || [], m, y);
         const todayRaw = todayLogRows && todayLogRows.length > 0 ? todayLogRows[0] : null;
-        const enrichedLogs = (logs || []).map((l) => ({
-            ...l,
-            date_label: formatViDateWithWeekday(l.record_date),
-            attendance_note: buildDailyAttendanceNote(l, cs)
-        }));
+        const today_effective_status = computeTodayEffectiveStatus({
+            todayStr,
+            todayLog: todayRaw,
+            holidays: holidays || []
+        });
+
+        const existingDates = new Set((logs || []).map((l) => String(l.record_date || '').slice(0, 10)).filter(Boolean));
+        const enrichedLogs = (logs || []).map((l) => {
+            const iso = String(l.record_date || '').slice(0, 10);
+            const matchedHol = holidayMap[iso] || findHolidayForDate(holidays || [], iso);
+            return {
+                ...l,
+                holiday_name: matchedHol ? matchedHol.holiday_name : null,
+                date_label: formatViDateWithWeekday(l.record_date),
+                attendance_note: matchedHol && String(l.status || '').toUpperCase() === 'L'
+                    ? `Nghỉ lễ hưởng nguyên lương (${matchedHol.holiday_name})`
+                    : buildDailyAttendanceNote(l, cs)
+            };
+        });
+        const totalDaysInM = getDaysInMonth(m, y);
+        const autoHolidayLogs = [];
+        for (let d = 1; d <= totalDaysInM; d++) {
+            const iso = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (existingDates.has(iso)) continue;
+            const hol = holidayMap[iso];
+            if (!hol) continue;
+            const autoHolEntry = {
+                record_date: iso,
+                work_date: iso,
+                status: 'L',
+                ot_hours: 0,
+                check_in_time: null,
+                check_out_time: null,
+                late_minutes: 0,
+                early_leave_minutes: 0,
+                work_credit: 1,
+                duration_status: 'AUTO_HOLIDAY',
+                is_auto_holiday: true,
+                holiday_name: hol.holiday_name,
+                date_label: formatViDateWithWeekday(iso),
+                attendance_note: `Nghỉ lễ hưởng nguyên lương (${hol.holiday_name})`
+            };
+            enrichedLogs.push(autoHolEntry);
+            autoHolidayLogs.push(autoHolEntry);
+        }
+        enrichedLogs.sort((a, b) => String(a.record_date || '').localeCompare(String(b.record_date || '')));
+
         const today_record = todayRaw
             ? {
                   ...todayRaw,
@@ -272,7 +457,12 @@ class AttendanceService {
             }
         });
 
-        const { getMonthlyStandardWorkdays } = require('../utils/timeHelper');
+        (autoHolidayLogs || []).forEach((h) => {
+            if (!isSundayIsoDate(h.record_date)) {
+                total_work_days += 1;
+            }
+        });
+
         const standardDays = getMonthlyStandardWorkdays(m, y);
         const freeLateOccurrences = cs.free_late_occurrences !== undefined && cs.free_late_occurrences !== null
             ? Number(cs.free_late_occurrences)
@@ -282,6 +472,7 @@ class AttendanceService {
             logs: enrichedLogs,
             days: enrichedLogs,
             today_record,
+            today_effective_status,
             forgotten_checkout: forgottenCheckout,
             unclosed_previous_record: unclosedPreviousRecord,
             shift_type: empShiftCode,
@@ -308,6 +499,87 @@ class AttendanceService {
                 effective_shift_end: schedule.workEndStr,
                 standard_days: standardDays
             }
+        };
+    }
+
+    async getTodayEffectiveStatus(ma_nv, nowOverride = null) {
+        const refDate = nowOverride instanceof Date ? nowOverride : new Date();
+        const todayStr = getVietnamDateString(refDate);
+        const [todayY, todayM] = todayStr.split('-').map(Number);
+
+        const empRows = await query(
+            "SELECT ma_nv, role, COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ? LIMIT 1",
+            [ma_nv]
+        ).catch(() => []);
+        const empRow = (empRows && empRows[0]) ? empRows[0] : {};
+        if (empRow.role === 'admin') {
+            return {
+                date: todayStr,
+                excluded_admin: true,
+                today_record: null,
+                today_effective_status: computeTodayEffectiveStatus({ todayStr, todayLog: null, holidays: [] }),
+                is_period_locked: false
+            };
+        }
+
+        const [todayLogRows, holidays, csRows, lockRows] = await Promise.all([
+            query(
+                `SELECT id, employee_id,
+                        DATE_FORMAT(record_date, '%Y-%m-%d') as record_date,
+                        DATE_FORMAT(record_date, '%Y-%m-%d') as work_date,
+                        check_in_time, check_out_time, status, ot_hours,
+                        late_minutes, early_leave_minutes, work_hours,
+                        COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
+                        COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
+                        work_credit, duration_status,
+                        is_suspicious, suspicious_reason, location_name, field_note, work_location_type,
+                        COALESCE(shift_type, 'FULL_DAY') as shift_type, proxy_by, proxy_note
+                 FROM attendance_logs
+                 WHERE employee_id = ? AND record_date = ?
+                 LIMIT 1`,
+                [ma_nv, todayStr]
+            ),
+            query(
+                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC"
+            ).catch(() => []),
+            query(
+                'SELECT work_start, work_end, lunch_start, lunch_end, grace_period_minutes FROM company_settings LIMIT 1'
+            ).catch(() => []),
+            query(
+                'SELECT is_locked FROM period_locks WHERE month = ? AND year = ? LIMIT 1',
+                [todayM, todayY]
+            ).catch(() => [])
+        ]);
+
+        const cs = (csRows && csRows[0]) ? csRows[0] : {};
+        const todayRaw = todayLogRows && todayLogRows[0] ? todayLogRows[0] : null;
+        const today_record = todayRaw
+            ? {
+                  ...todayRaw,
+                  matched_location_name: todayRaw.location_name || 'Văn phòng SEDINCO',
+                  date_label: formatViDateWithWeekday(todayRaw.record_date),
+                  attendance_note: buildDailyAttendanceNote(todayRaw, cs)
+              }
+            : null;
+        const today_effective_status = computeTodayEffectiveStatus({
+            todayStr,
+            todayLog: todayRaw,
+            holidays: holidays || []
+        });
+
+        const empShiftCode = (empRow.shift_type && SHIFT_DEFINITIONS[empRow.shift_type])
+            ? empRow.shift_type
+            : 'FULL_DAY';
+        const schedule = resolveEmployeeWorkSchedule({ emp: empRow, cs, activeShiftCode: empShiftCode });
+
+        return {
+            date: todayStr,
+            excluded_admin: false,
+            today_record,
+            today_effective_status,
+            is_period_locked: Boolean(lockRows && lockRows[0] && lockRows[0].is_locked),
+            effective_shift_start: schedule.workStartStr,
+            effective_shift_end: schedule.workEndStr
         };
     }
 
@@ -573,9 +845,11 @@ class AttendanceService {
         const rawStatusUpper = String(status || '').trim().toUpperCase();
         const dbStatus = rawStatusUpper === 'FULL_DAY'
             ? '1'
-            : rawStatusUpper === '0.5'
-                ? '0.5'
-                : (rawStatusUpper || String(status || '').trim());
+            : rawStatusUpper === '1+OT'
+                ? '1/OT'
+                : rawStatusUpper === '0.5'
+                    ? '0.5'
+                    : (rawStatusUpper || String(status || '').trim());
         const isFullWorkday = ['1', '1/OT', 'P', 'L'].includes(dbStatus);
         const isHalfWorkday = dbStatus === '0.5';
         const isZeroWorkday = ['0', 'KP', 'KL', 'V'].includes(dbStatus);
@@ -609,7 +883,7 @@ class AttendanceService {
                     employee_id, record_date, status, ot_hours, check_in_time, check_out_time,
                     late_minutes, early_leave_minutes, work_credit, duration_status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0.50, NULL)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0.50, 'ADMIN_ADJUSTED_HALF')
                 ON DUPLICATE KEY UPDATE
                     status = VALUES(status),
                     ot_hours = VALUES(ot_hours),
@@ -618,7 +892,7 @@ class AttendanceService {
                     late_minutes = 0,
                     early_leave_minutes = 0,
                     work_credit = 0.50,
-                    duration_status = CASE WHEN duration_status IN ('INVALID_SHORT_DURATION', 'ADMIN_ADJUSTED_FULL') THEN NULL ELSE duration_status END
+                    duration_status = 'ADMIN_ADJUSTED_HALF'
             `;
             await query(sql, [ma_nv, dateStr, dbStatus, hours, check_in_time || null, check_out_time || null]);
         } else if (isZeroWorkday) {
@@ -627,7 +901,7 @@ class AttendanceService {
                     employee_id, record_date, status, ot_hours, check_in_time, check_out_time,
                     late_minutes, early_leave_minutes, work_credit, duration_status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0.00, NULL)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0.00, 'ADMIN_ADJUSTED_ABSENT')
                 ON DUPLICATE KEY UPDATE
                     status = VALUES(status),
                     ot_hours = VALUES(ot_hours),
@@ -636,18 +910,20 @@ class AttendanceService {
                     late_minutes = 0,
                     early_leave_minutes = 0,
                     work_credit = 0.00,
-                    duration_status = NULL
+                    duration_status = 'ADMIN_ADJUSTED_ABSENT'
             `;
             await query(sql, [ma_nv, dateStr, dbStatus, hours, check_in_time || null, check_out_time || null]);
         } else {
             const sql = `
-                INSERT INTO attendance_logs (employee_id, record_date, status, ot_hours, check_in_time, check_out_time)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO attendance_logs (employee_id, record_date, status, ot_hours, check_in_time, check_out_time, work_credit, duration_status)
+                VALUES (?, ?, ?, ?, ?, ?, 0.00, 'ADMIN_ADJUSTED_OT')
                 ON DUPLICATE KEY UPDATE
                     status = VALUES(status),
                     ot_hours = VALUES(ot_hours),
                     check_in_time = COALESCE(VALUES(check_in_time), check_in_time),
-                    check_out_time = COALESCE(VALUES(check_out_time), check_out_time)
+                    check_out_time = COALESCE(VALUES(check_out_time), check_out_time),
+                    work_credit = 0.00,
+                    duration_status = 'ADMIN_ADJUSTED_OT'
             `;
             await query(sql, [ma_nv, dateStr, dbStatus, hours, check_in_time || null, check_out_time || null]);
         }
@@ -1329,6 +1605,27 @@ class AttendanceService {
                 [ma_nv, targetRecordDate]
             );
             let existingLog = existingRows && existingRows.length > 0 ? existingRows[0] : null;
+
+            const holRows = await txQuery(
+                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays WHERE start_date <= ? AND end_date >= ? LIMIT 1",
+                [targetRecordDate, targetRecordDate]
+            ).catch(() => []);
+            const todayHoliday = holRows && holRows[0] ? holRows[0] : null;
+            const effToday = computeTodayEffectiveStatus({
+                todayStr: targetRecordDate,
+                todayLog: existingLog,
+                holidays: todayHoliday ? [todayHoliday] : []
+            });
+            const lockedCodes = ['P', 'L', 'KL', 'OT', '1+OT'];
+            if (
+                lockedCodes.includes(effToday.effective_code) ||
+                (effToday.effective_code === '1' && effToday.is_admin_adjusted)
+            ) {
+                const err = new Error(effToday.note || 'Hôm nay đã được ghi nhận công hoặc nghỉ theo quy định, không thể chấm công thêm!');
+                err.statusCode = 400;
+                err.code = 'EFFECTIVE_STATUS_LOCKED';
+                throw err;
+            }
 
             // Xử lý ranh giới qua đêm dành riêng cho NIGHT_SHIFT (trước 06:00 sáng đóng ca đêm ngày hôm trước)
             if (!existingLog && activeShiftCode === 'NIGHT_SHIFT' && currentMins < 360) {

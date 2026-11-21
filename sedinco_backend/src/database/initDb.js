@@ -181,14 +181,35 @@ async function initDatabase() {
             start_date DATE NOT NULL,
             end_date DATE NOT NULL
         )`);
-        if (process.env.NODE_ENV === 'test') {
-            const holidayCount = await query('SELECT COUNT(*) as cnt FROM public_holidays');
-            if (holidayCount && holidayCount[0].cnt === 0) {
-                await query(`INSERT INTO public_holidays (holiday_name, start_date, end_date) VALUES 
-                    ('Tết Dương Lịch', '2026-01-01', '2026-01-01'),
-                    ('Giải phóng miền Nam & Quốc tế Lao Động', '2026-04-30', '2026-05-01'),
-                    ('Quốc Khánh', '2026-09-01', '2026-09-02')`);
+        await query("ALTER TABLE company_settings ADD COLUMN holidays_v47_synced TINYINT(1) DEFAULT 0").catch(() => {});
+        const holSyncRow = await query('SELECT holidays_v47_synced FROM company_settings LIMIT 1').catch(() => []);
+        const alreadySyncedHolidays = holSyncRow && holSyncRow[0] && Number(holSyncRow[0].holidays_v47_synced) === 1;
+        if (!alreadySyncedHolidays) {
+            const { VIETNAM_PRIVATE_HOLIDAYS_2026_2030 } = require('../utils/vnHolidaysCatalog');
+            // Loại bỏ các ngày kỷ niệm không áp dụng nghỉ cho doanh nghiệp tư nhân (20/11, 24/11) & seed cũ sai dải 2026
+            await query(`
+                DELETE FROM public_holidays
+                WHERE (MONTH(start_date) = 11 AND DAY(start_date) IN (20, 24) AND start_date = end_date)
+                   OR LOWER(holiday_name) LIKE '%nhà giáo%'
+                   OR LOWER(holiday_name) LIKE '%văn hóa việt nam%'
+                   OR (start_date = '2026-02-15' AND end_date = '2026-02-23')
+                   OR (start_date = '2026-04-30' AND end_date = '2026-05-01')
+                   OR (start_date = '2026-01-01' AND end_date = '2026-01-01')
+                   OR (start_date = '2026-09-01' AND end_date = '2026-09-02')
+            `).catch(() => {});
+            for (const h of VIETNAM_PRIVATE_HOLIDAYS_2026_2030) {
+                const dup = await query(
+                    'SELECT id FROM public_holidays WHERE start_date = ? AND end_date = ? LIMIT 1',
+                    [h.start_date, h.end_date]
+                ).catch(() => []);
+                if (!dup || dup.length === 0) {
+                    await query(
+                        'INSERT INTO public_holidays (holiday_name, start_date, end_date) VALUES (?, ?, ?)',
+                        [h.holiday_name, h.start_date, h.end_date]
+                    ).catch(() => {});
+                }
             }
+            await query('UPDATE company_settings SET holidays_v47_synced = 1').catch(() => {});
         }
 
         // 7. Bảng Admin (admins)
@@ -478,6 +499,8 @@ async function initDatabase() {
         await query("ALTER TABLE attendance ADD COLUMN report_sent_at DATETIME NULL").catch(() => {});
         await query("ALTER TABLE attendance ADD COLUMN dispute_note TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance ADD COLUMN transfer_note VARCHAR(255) NULL").catch(() => {});
+        // V47: Xác nhận nhận đủ lương bước 5 (PAID -> RECEIVED)
+        await query("ALTER TABLE attendance ADD COLUMN received_at DATETIME NULL").catch(() => {});
 
         // V46: Vòng đời xử lý & tự động dọn dẹp khiếu nại lương/công (OPEN -> RESOLVED)
         await query("ALTER TABLE attendance ADD COLUMN dispute_status VARCHAR(20) NULL").catch(() => {});

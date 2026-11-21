@@ -13,12 +13,13 @@ function sanitizeSheetCell(val) {
 
 function getPayoutLabelVi(item, confirmStatus) {
   const payout = String(item?.payout_status || "").toUpperCase();
+  if (payout === "RECEIVED" || Boolean(item?.received_at)) return "Đã nhận đủ lương";
   const paid =
     payout === "PAID" ||
     item?.employee_payment_status === "PAID" ||
     item?.payment_status === "PAID";
   if (paid) return "Đã chuyển khoản";
-  if (payout === "CONFIRMED" || confirmStatus === "CONFIRMED") return "Đã xác nhận đúng lương";
+  if (payout === "CONFIRMED" || confirmStatus === "CONFIRMED") return "Đã đọc báo cáo lương";
   if (payout === "DISPUTED" || confirmStatus === "DISPUTED") return "Đang báo sai sót";
   if (payout === "REPORT_SENT") return "Đã gửi báo cáo — Chờ xác nhận";
   return "Bản nháp";

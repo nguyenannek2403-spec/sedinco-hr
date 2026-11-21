@@ -167,7 +167,7 @@ export function resolveHeatmapCellMeta({ log = null, isoDate = "", todayIso = ge
         : "1";
     const badgeText =
       shortCode === "L"
-        ? "Nghỉ lễ hưởng lương (L)"
+        ? (log?.holiday_name ? `Nghỉ lễ: ${log.holiday_name}` : "Nghỉ lễ hưởng lương (L)")
         : shortCode === "OT"
         ? `Tăng ca (${otHours || 0}h OT)`
         : forgotOut

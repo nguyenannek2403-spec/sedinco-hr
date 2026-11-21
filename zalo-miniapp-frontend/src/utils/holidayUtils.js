@@ -1,34 +1,62 @@
 /**
  * Tiện ích xử lý Ngày Lễ & Đơn Xin Nghỉ Thông Minh (Sedinco HR)
- * Căn cứ pháp lý: Điều 112 Bộ luật Lao động 2019 & Nghị quyết 28/2026/QH16 (Thêm ngày 24/11 Ngày Văn hóa Việt Nam)
- * Lịch lễ chính thức là dữ liệu được lấy từ Backend theo từng công ty/năm.
+ * Căn cứ pháp lý: Điều 112 Bộ luật Lao động 2019 — 11 ngày nghỉ lễ hưởng nguyên lương cho Doanh nghiệp Tư nhân (2026–2030)
+ * Lịch lễ chính thức được lấy từ Backend (/api/holidays) theo cấu hình doanh nghiệp.
  */
 
-// Danh mục ngày lễ luật định 2026 (Điều 112 BLLĐ 2019 + NQ 28/2026/QH16)
-const VIETNAM_LEGAL_HOLIDAYS_2026 = [
-  { date: "2026-01-01", name: "Tết Dương lịch", rate: 3.0 },
-  { date: "2026-02-16", name: "Tết Nguyên Đán (29 Tết)", rate: 3.0 },
-  { date: "2026-02-17", name: "Tết Nguyên Đán (Mùng 1)", rate: 3.0 },
-  { date: "2026-02-18", name: "Tết Nguyên Đán (Mùng 2)", rate: 3.0 },
-  { date: "2026-02-19", name: "Tết Nguyên Đán (Mùng 3)", rate: 3.0 },
-  { date: "2026-02-20", name: "Tết Nguyên Đán (Mùng 4)", rate: 3.0 },
-  { date: "2026-04-26", name: "Giỗ Tổ Hùng Vương (10/3 AL)", rate: 3.0 },
-  { date: "2026-04-30", name: "Ngày Giải phóng Miền Nam", rate: 3.0 },
-  { date: "2026-05-01", name: "Ngày Quốc tế Lao động", rate: 3.0 },
-  { date: "2026-09-01", name: "Nghỉ liền kề Quốc Khánh", rate: 3.0 },
-  { date: "2026-09-02", name: "Ngày Quốc Khánh", rate: 3.0 },
-  { date: "2026-11-24", name: "Ngày Văn hóa Việt Nam (NQ 28/2026/QH16)", rate: 3.0 }
+const VIETNAM_PRIVATE_HOLIDAYS_FALLBACK = [
+  // 2026 (11 ngày)
+  { start_date: "2026-01-01", end_date: "2026-01-01", name: "Tết Dương lịch (2026)", rate: 3.0 },
+  { start_date: "2026-02-16", end_date: "2026-02-20", name: "Tết Nguyên Đán Bính Ngọ", rate: 3.0 },
+  { start_date: "2026-04-26", end_date: "2026-04-26", name: "Giỗ Tổ Hùng Vương (10/3 AL)", rate: 3.0 },
+  { start_date: "2026-04-30", end_date: "2026-04-30", name: "Ngày Chiến thắng 30/4", rate: 3.0 },
+  { start_date: "2026-05-01", end_date: "2026-05-01", name: "Quốc tế Lao động 1/5", rate: 3.0 },
+  { start_date: "2026-09-01", end_date: "2026-09-02", name: "Quốc khánh 2/9", rate: 3.0 },
+  // 2027 (11 ngày)
+  { start_date: "2027-01-01", end_date: "2027-01-01", name: "Tết Dương lịch (2027)", rate: 3.0 },
+  { start_date: "2027-02-05", end_date: "2027-02-09", name: "Tết Nguyên Đán Đinh Mùi", rate: 3.0 },
+  { start_date: "2027-04-16", end_date: "2027-04-16", name: "Giỗ Tổ Hùng Vương (10/3 AL)", rate: 3.0 },
+  { start_date: "2027-04-30", end_date: "2027-04-30", name: "Ngày Chiến thắng 30/4", rate: 3.0 },
+  { start_date: "2027-05-01", end_date: "2027-05-01", name: "Quốc tế Lao động 1/5", rate: 3.0 },
+  { start_date: "2027-09-02", end_date: "2027-09-03", name: "Quốc khánh 2/9", rate: 3.0 },
+  // 2028 (11 ngày)
+  { start_date: "2028-01-01", end_date: "2028-01-01", name: "Tết Dương lịch (2028)", rate: 3.0 },
+  { start_date: "2028-01-25", end_date: "2028-01-29", name: "Tết Nguyên Đán Mậu Thân", rate: 3.0 },
+  { start_date: "2028-04-04", end_date: "2028-04-04", name: "Giỗ Tổ Hùng Vương (10/3 AL)", rate: 3.0 },
+  { start_date: "2028-04-30", end_date: "2028-04-30", name: "Ngày Chiến thắng 30/4", rate: 3.0 },
+  { start_date: "2028-05-01", end_date: "2028-05-01", name: "Quốc tế Lao động 1/5", rate: 3.0 },
+  { start_date: "2028-09-01", end_date: "2028-09-02", name: "Quốc khánh 2/9", rate: 3.0 },
+  // 2029 (11 ngày)
+  { start_date: "2029-01-01", end_date: "2029-01-01", name: "Tết Dương lịch (2029)", rate: 3.0 },
+  { start_date: "2029-02-12", end_date: "2029-02-16", name: "Tết Nguyên Đán Kỷ Dậu", rate: 3.0 },
+  { start_date: "2029-04-23", end_date: "2029-04-23", name: "Giỗ Tổ Hùng Vương (10/3 AL)", rate: 3.0 },
+  { start_date: "2029-04-30", end_date: "2029-04-30", name: "Ngày Chiến thắng 30/4", rate: 3.0 },
+  { start_date: "2029-05-01", end_date: "2029-05-01", name: "Quốc tế Lao động 1/5", rate: 3.0 },
+  { start_date: "2029-09-02", end_date: "2029-09-03", name: "Quốc khánh 2/9", rate: 3.0 },
+  // 2030 (11 ngày)
+  { start_date: "2030-01-01", end_date: "2030-01-01", name: "Tết Dương lịch (2030)", rate: 3.0 },
+  { start_date: "2030-02-02", end_date: "2030-02-06", name: "Tết Nguyên Đán Canh Tuất", rate: 3.0 },
+  { start_date: "2030-04-12", end_date: "2030-04-12", name: "Giỗ Tổ Hùng Vương (10/3 AL)", rate: 3.0 },
+  { start_date: "2030-04-30", end_date: "2030-04-30", name: "Ngày Chiến thắng 30/4", rate: 3.0 },
+  { start_date: "2030-05-01", end_date: "2030-05-01", name: "Quốc tế Lao động 1/5", rate: 3.0 },
+  { start_date: "2030-09-02", end_date: "2030-09-03", name: "Quốc khánh 2/9", rate: 3.0 }
 ];
 
-// Định dạng ngày YYYY-MM-DD
+// Định dạng ngày YYYY-MM-DD chuẩn thuần
 export const formatDateKey = (date) => {
   if (!date) return "";
+  if (typeof date === "string") {
+    const trimmed = date.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  }
   const d = new Date(date);
   if (isNaN(d.getTime())) return "";
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(d);
 };
 
 /**
@@ -36,8 +64,10 @@ export const formatDateKey = (date) => {
  * Mặc định Sedinco nghỉ Chủ nhật (day === 0)
  */
 const isWeeklyRestDay = (dateStr) => {
-  const d = new Date(dateStr);
-  return d.getDay() === 0;
+  const iso = formatDateKey(dateStr);
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay() === 0;
 };
 
 /**
@@ -56,8 +86,11 @@ const findHoliday = (dateStr, holidaysList = []) => {
     if (found) return found;
   }
 
-  // Fallback danh mục luật định 2026 (Điều 112 BLLĐ 2019 + NQ 28/2026/QH16)
-  return VIETNAM_LEGAL_HOLIDAYS_2026.find((h) => h.date === dKey) || null;
+  return (
+    VIETNAM_PRIVATE_HOLIDAYS_FALLBACK.find(
+      (h) => dKey >= h.start_date && dKey <= h.end_date
+    ) || null
+  );
 };
 
 /**

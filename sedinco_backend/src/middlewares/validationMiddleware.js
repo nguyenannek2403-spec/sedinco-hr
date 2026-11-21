@@ -3,7 +3,7 @@
  * Đã xác minh qua bộ test tự động TC-ATT-01 đến TC-ATT-05
  */
 
-function validateAttendanceInput({ ma_nv, day, month, year, date, dateStr: rawDateStr, status, ot_hours }) {
+function validateAttendanceInput({ ma_nv, day, month, year, date, dateStr: rawDateStr, status, ot_hours, isDelete: rawIsDelete }) {
     let resolvedDay = day;
     let resolvedMonth = month;
     let resolvedYear = year;
@@ -34,7 +34,7 @@ function validateAttendanceInput({ ma_nv, day, month, year, date, dateStr: rawDa
     if (hours > 24) hours = 24; // Chống tràn và hạn chế rủi ro DoS / gian lận
 
     const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const isDelete = (!status || status === '');
+    const isDelete = Boolean(rawIsDelete === true || rawIsDelete === 'true' || rawIsDelete === 1 || !status || String(status).trim() === '');
 
     return {
         valid: true,

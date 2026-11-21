@@ -47,9 +47,10 @@ function resolveEffectivePayoutStatus(row = {}, periodRow = null) {
     const payRaw = String(row.employee_payment_status || row.payment_status || '').trim().toUpperCase();
     const confirmRaw = String(row.salary_confirm_status || '').trim().toUpperCase();
     const isResolved = String(row.dispute_status || '').trim().toUpperCase() === 'RESOLVED';
+    if (payoutRaw === 'RECEIVED' || Boolean(row.received_at)) return 'RECEIVED';
     if (payoutRaw === 'PAID' || payRaw === 'PAID' || periodRow?.payment_status === 'PAID') return 'PAID';
-    if (payoutRaw === 'CONFIRMED' || confirmRaw === 'CONFIRMED') return 'CONFIRMED';
     if (!isResolved && (payoutRaw === 'DISPUTED' || confirmRaw === 'DISPUTED')) return 'DISPUTED';
+    if (payoutRaw === 'CONFIRMED' || confirmRaw === 'CONFIRMED') return 'CONFIRMED';
     if (payoutRaw === 'REPORT_SENT') return 'REPORT_SENT';
     return 'DRAFT';
 }
@@ -71,7 +72,7 @@ class PayrollService {
             SELECT e.*, ? as cong_chuan,
                    COALESCE(a.salary_confirm_status, 'PENDING') as salary_confirm_status,
                    COALESCE(a.payout_status, 'DRAFT') as payout_status,
-                   a.report_sent_at, a.dispute_note, a.transfer_note,
+                   a.report_sent_at, a.dispute_note, a.transfer_note, a.received_at,
                    a.dispute_reason, a.dispute_evidence_media, a.admin_response, a.confirmed_at,
                    a.dispute_status, a.dispute_resolved_at, a.dispute_resolved_note,
                    COALESCE(a.bonus_amount, 0) as bonus_amount,
@@ -96,7 +97,7 @@ class PayrollService {
         ).catch(() => []);
         const periodRow = (periodRows && periodRows[0]) ? periodRows[0] : null;
 
-        const holidays = await query('SELECT start_date, end_date FROM public_holidays');
+        const holidays = await query("SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC");
         const safeHolidays = holidays || [];
 
         const { startDateStr, endDateStr } = getMonthDateBounds(m, y);
@@ -227,6 +228,8 @@ class PayrollService {
                 admin_response: resolveIsOpenDispute(emp) ? (emp.admin_response || null) : null,
                 confirmed_at: emp.confirmed_at || null,
                 confirmed_at_vn: formatVietnamDateTime(emp.confirmed_at),
+                received_at: emp.received_at || null,
+                received_at_vn: formatVietnamDateTime(emp.received_at),
                 transfer_note: emp.transfer_note || null,
                 bank_code: emp.bank_code || null,
                 bank_name: emp.bank_name || null,
@@ -258,7 +261,7 @@ class PayrollService {
             SELECT e.*, ? as cong_chuan,
                    COALESCE(a.salary_confirm_status, 'PENDING') as salary_confirm_status,
                    COALESCE(a.payout_status, 'DRAFT') as payout_status,
-                   a.report_sent_at, a.dispute_note, a.transfer_note,
+                   a.report_sent_at, a.dispute_note, a.transfer_note, a.received_at,
                    a.dispute_reason, a.dispute_evidence_media, a.admin_response, a.confirmed_at,
                    a.dispute_status, a.dispute_resolved_at, a.dispute_resolved_note,
                    COALESCE(a.bonus_amount, 0) as bonus_amount,
@@ -278,7 +281,7 @@ class PayrollService {
 
         const emp = emps[0];
         if (emp.role === 'admin') return null;
-        const holidays = await query('SELECT start_date, end_date FROM public_holidays');
+        const holidays = await query("SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC");
         const safeHolidays = holidays || [];
 
         const { startDateStr, endDateStr } = getMonthDateBounds(m, y);
@@ -411,6 +414,8 @@ class PayrollService {
             admin_response: resolveIsOpenDispute(emp) ? (emp.admin_response || null) : null,
             confirmed_at: emp.confirmed_at || null,
             confirmed_at_vn: formatVietnamDateTime(emp.confirmed_at),
+            received_at: emp.received_at || null,
+            received_at_vn: formatVietnamDateTime(emp.received_at),
             transfer_note: emp.transfer_note || null,
             bank_code: emp.bank_code || null,
             bank_name: emp.bank_name || null,
@@ -461,14 +466,18 @@ class PayrollService {
         }
         const empName = (targetEmpRows && targetEmpRows[0] && targetEmpRows[0].ho_ten) || ma_nv;
 
-        const rawAction = String(action || status || 'CONFIRM').trim().toUpperCase();
-        const normalizedStatus = (rawAction === 'CONFIRM' || rawAction === 'CONFIRMED')
-            ? 'CONFIRMED'
-            : (rawAction === 'DISPUTE' || rawAction === 'DISPUTED')
-                ? 'DISPUTED'
-                : rawAction;
+        const rawAction = String(action || status || 'CONFIRM_REPORT').trim().toUpperCase();
+        const isConfirmReceived = rawAction === 'CONFIRM_RECEIVED' || rawAction === 'RECEIVED';
+        const isConfirmReport = rawAction === 'CONFIRM_REPORT' || rawAction === 'CONFIRM' || rawAction === 'CONFIRMED';
+        const normalizedStatus = isConfirmReceived
+            ? 'RECEIVED'
+            : isConfirmReport
+                ? 'CONFIRMED'
+                : (rawAction === 'DISPUTE' || rawAction === 'DISPUTED')
+                    ? 'DISPUTED'
+                    : rawAction;
 
-        if (!['CONFIRMED', 'DISPUTED'].includes(normalizedStatus)) {
+        if (!['CONFIRMED', 'DISPUTED', 'RECEIVED'].includes(normalizedStatus)) {
             const err = new Error('Trạng thái xác nhận lương không hợp lệ!');
             err.statusCode = 400;
             throw err;
@@ -496,15 +505,26 @@ class PayrollService {
         const stdDays = getMonthlyStandardWorkdays(m, y);
 
         let finalPayoutStatus = normalizedStatus;
+        let savedReceivedAt = null;
         await withTransaction(async (txQuery) => {
             const existingRows = await txQuery(
-                'SELECT id, salary_confirm_status, payout_status, payment_status, dispute_status FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? FOR UPDATE',
+                'SELECT id, salary_confirm_status, payout_status, payment_status, dispute_status, received_at FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? FOR UPDATE',
                 [ma_nv, m, y]
             );
             const existing = existingRows && existingRows[0] ? existingRows[0] : null;
+            const periodRows = await txQuery('SELECT payment_status FROM payroll_periods WHERE month = ? AND year = ? LIMIT 1', [m, y]).catch(() => []);
+            const periodPaid = Boolean(periodRows && periodRows[0] && periodRows[0].payment_status === 'PAID');
             const currentStatus = existing ? existing.salary_confirm_status : null;
             const currentPayout = existing ? existing.payout_status : null;
-            const alreadyPaid = existing && (existing.payout_status === 'PAID' || existing.payment_status === 'PAID');
+            const alreadyReceived = Boolean(existing && (existing.payout_status === 'RECEIVED' || existing.received_at));
+            const alreadyPaid = Boolean(periodPaid || (existing && (existing.payout_status === 'PAID' || existing.payment_status === 'PAID' || alreadyReceived)));
+
+            if (normalizedStatus === 'RECEIVED' && !alreadyPaid) {
+                const err = new Error(`Khoản lương Tháng ${m}/${y} chưa được Quản trị viên xác nhận chuyển khoản!`);
+                err.statusCode = 400;
+                err.code = 'SALARY_NOT_PAID_YET';
+                throw err;
+            }
 
             if (normalizedStatus === 'DISPUTED' && resolveIsOpenDispute(existing || {}) && currentStatus === 'DISPUTED' && currentPayout === 'DISPUTED') {
                 const err = new Error(`Bạn đã gửi khiếu nại bảng lương Tháng ${m}/${y} trước đó và đang chờ giải quyết. Vui lòng không gửi trùng!`);
@@ -513,57 +533,91 @@ class PayrollService {
                 throw err;
             }
 
-            finalPayoutStatus = alreadyPaid ? 'PAID' : normalizedStatus;
+            const dbConfirmStatus = normalizedStatus === 'DISPUTED' ? 'DISPUTED' : 'CONFIRMED';
+            finalPayoutStatus = normalizedStatus === 'RECEIVED'
+                ? 'RECEIVED'
+                : alreadyReceived
+                    ? 'RECEIVED'
+                    : alreadyPaid
+                        ? 'PAID'
+                        : normalizedStatus;
             const cleanDisputeNote = normalizedStatus === 'DISPUTED' ? rawNoteText : null;
             const nextDisputeStatus = normalizedStatus === 'DISPUTED' ? 'OPEN' : 'RESOLVED';
+            const nowTs = new Date();
+            if (normalizedStatus === 'RECEIVED') {
+                savedReceivedAt = existing?.received_at || nowTs;
+            } else if (existing?.received_at) {
+                savedReceivedAt = existing.received_at;
+            }
 
             await txQuery(`
                 INSERT INTO attendance (
                     ma_nv, thang, nam, cong_chuan,
                     salary_confirm_status, payout_status,
                     dispute_status, dispute_resolved_at, dispute_resolved_note,
-                    dispute_reason, dispute_note, dispute_evidence_media, confirmed_at
+                    dispute_reason, dispute_note, dispute_evidence_media, confirmed_at, received_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
                 ON DUPLICATE KEY UPDATE
                     cong_chuan = VALUES(cong_chuan),
                     salary_confirm_status = VALUES(salary_confirm_status),
-                    payout_status = CASE WHEN payout_status = 'PAID' OR payment_status = 'PAID' THEN 'PAID' ELSE VALUES(payout_status) END,
+                    payout_status = CASE
+                        WHEN VALUES(payout_status) = 'RECEIVED' OR payout_status = 'RECEIVED' OR received_at IS NOT NULL THEN 'RECEIVED'
+                        WHEN payout_status = 'PAID' OR payment_status = 'PAID' THEN 'PAID'
+                        ELSE VALUES(payout_status)
+                    END,
+                    received_at = CASE
+                        WHEN VALUES(received_at) IS NOT NULL THEN COALESCE(received_at, VALUES(received_at))
+                        ELSE received_at
+                    END,
                     dispute_status = CASE WHEN VALUES(salary_confirm_status) = 'DISPUTED' THEN 'OPEN' WHEN dispute_status = 'OPEN' THEN 'RESOLVED' ELSE dispute_status END,
                     dispute_resolved_at = CASE WHEN VALUES(salary_confirm_status) = 'DISPUTED' THEN NULL WHEN dispute_status = 'OPEN' THEN NOW() ELSE dispute_resolved_at END,
                     dispute_resolved_note = CASE WHEN VALUES(salary_confirm_status) = 'DISPUTED' THEN NULL ELSE dispute_resolved_note END,
                     dispute_reason = VALUES(dispute_reason),
                     dispute_note = VALUES(dispute_note),
                     dispute_evidence_media = CASE WHEN VALUES(salary_confirm_status) = 'DISPUTED' THEN COALESCE(VALUES(dispute_evidence_media), dispute_evidence_media) ELSE NULL END,
-                    confirmed_at = NOW()
+                    confirmed_at = COALESCE(confirmed_at, NOW())
             `, [
                 ma_nv,
                 m,
                 y,
                 stdDays,
-                normalizedStatus,
+                dbConfirmStatus,
                 finalPayoutStatus,
                 nextDisputeStatus,
-                normalizedStatus === 'DISPUTED' ? null : new Date(),
-                normalizedStatus === 'CONFIRMED' && existing && resolveIsOpenDispute(existing) ? 'Nhân viên đã xác nhận lại bảng lương' : null,
+                normalizedStatus === 'DISPUTED' ? null : nowTs,
+                normalizedStatus !== 'DISPUTED' && existing && resolveIsOpenDispute(existing) ? 'Nhân viên đã xác nhận lại bảng lương' : null,
                 cleanDisputeNote,
                 cleanDisputeNote,
-                normalizedStatus === 'DISPUTED' ? (dispute_evidence_media || null) : null
+                normalizedStatus === 'DISPUTED' ? (dispute_evidence_media || null) : null,
+                normalizedStatus === 'RECEIVED' ? savedReceivedAt : null
             ]);
 
-            if (normalizedStatus === 'CONFIRMED' && existing?.id) {
+            if (normalizedStatus !== 'DISPUTED' && existing?.id) {
                 await txQuery(
                     `UPDATE user_notifications SET is_read = 1, read_at = NOW() WHERE alert_key IN (?, ?) AND is_read = 0`,
                     [`dispute:${existing.id}`, `salary_confirm_admin_${m}_${y}_${ma_nv}`]
                 ).catch(() => {});
             }
 
-            const notifTitle = normalizedStatus === 'CONFIRMED'
-                ? `✓ ${empName} (${ma_nv}) đã xác nhận lương T${m}/${y}`
-                : `⚠️ ${empName} (${ma_nv}) báo sai sót lương T${m}/${y}`;
-            const notifMessage = normalizedStatus === 'CONFIRMED'
-                ? `${empName} (${ma_nv}) đã xác nhận đúng báo cáo lương Tháng ${m}/${y}. Sẵn sàng chuyển khoản.`
-                : `${empName} (${ma_nv}) báo sai sót lương Tháng ${m}/${y}: "${cleanDisputeNote}"`;
+            const notifAlertKey = normalizedStatus === 'RECEIVED'
+                ? `salary_received_admin_${m}_${y}_${ma_nv}`
+                : `salary_confirm_admin_${m}_${y}_${ma_nv}`;
+            const notifType = normalizedStatus === 'RECEIVED'
+                ? 'SALARY_RECEIVED'
+                : normalizedStatus === 'CONFIRMED'
+                    ? 'SALARY_CONFIRMED'
+                    : 'SALARY_DISPUTED';
+            const notifTitle = normalizedStatus === 'RECEIVED'
+                ? `💰 ${empName} (${ma_nv}) đã nhận đủ lương T${m}/${y}`
+                : normalizedStatus === 'CONFIRMED'
+                    ? `✓ ${empName} (${ma_nv}) đã đọc báo cáo lương T${m}/${y}`
+                    : `⚠️ ${empName} (${ma_nv}) báo sai sót lương T${m}/${y}`;
+            const notifMessage = normalizedStatus === 'RECEIVED'
+                ? `${empName} (${ma_nv}) đã xác nhận nhận đủ lương Tháng ${m}/${y}.`
+                : normalizedStatus === 'CONFIRMED'
+                    ? `${empName} (${ma_nv}) đã xác nhận đã đọc báo cáo lương Tháng ${m}/${y}.`
+                    : `${empName} (${ma_nv}) báo sai sót lương Tháng ${m}/${y}: "${cleanDisputeNote}"`;
 
             await txQuery(`
                 INSERT INTO user_notifications (
@@ -585,10 +639,10 @@ class PayrollService {
                     read_at = NULL,
                     created_at = NOW()
             `, [
-                `salary_confirm_admin_${m}_${y}_${ma_nv}`,
-                normalizedStatus === 'CONFIRMED' ? 'SALARY_CONFIRMED' : 'SALARY_DISPUTED',
-                normalizedStatus === 'CONFIRMED' ? 'salary_confirm' : 'salary_dispute',
-                normalizedStatus === 'CONFIRMED' ? 'info' : 'high',
+                notifAlertKey,
+                notifType,
+                normalizedStatus === 'DISPUTED' ? 'salary_dispute' : 'salary_confirm',
+                normalizedStatus === 'DISPUTED' ? 'high' : 'info',
                 notifTitle.slice(0, 255),
                 notifMessage.slice(0, 1000),
                 m,
@@ -601,7 +655,11 @@ class PayrollService {
         await logAuditEvent({
             actor_id: ma_nv,
             actor_role: current_user ? current_user.role : 'worker',
-            action: normalizedStatus === 'DISPUTED' ? 'SALARY_DISPUTED' : 'SALARY_CONFIRMED',
+            action: normalizedStatus === 'RECEIVED'
+                ? 'SALARY_RECEIVED'
+                : normalizedStatus === 'DISPUTED'
+                    ? 'SALARY_DISPUTED'
+                    : 'SALARY_CONFIRMED',
             resource: 'payroll',
             details: {
                 ma_nv,
@@ -616,11 +674,15 @@ class PayrollService {
 
         return {
             success: true,
-            salary_confirm_status: normalizedStatus,
+            salary_confirm_status: normalizedStatus === 'DISPUTED' ? 'DISPUTED' : 'CONFIRMED',
             payout_status: finalPayoutStatus,
-            message: normalizedStatus === 'CONFIRMED'
-                ? `Đã xác nhận đúng bảng lương Tháng ${m}/${y}!`
-                : `Đã gửi báo cáo sai lương Tháng ${m}/${y} kèm minh chứng tới Phòng Kế Toán & Ban Giám Đốc!`
+            received_at: savedReceivedAt || null,
+            received_at_vn: formatVietnamDateTime(savedReceivedAt),
+            message: normalizedStatus === 'RECEIVED'
+                ? `Đã xác nhận nhận đủ lương Tháng ${m}/${y}!`
+                : normalizedStatus === 'CONFIRMED'
+                    ? `Đã xác nhận đã đọc báo cáo lương Tháng ${m}/${y}!`
+                    : `Đã gửi báo cáo sai lương Tháng ${m}/${y} kèm minh chứng tới Phòng Kế Toán & Ban Giám Đốc!`
         };
     }
 
@@ -1173,11 +1235,12 @@ class PayrollService {
                     ON DUPLICATE KEY UPDATE
                         cong_chuan = VALUES(cong_chuan),
                         payout_status = CASE
+                            WHEN payout_status = 'RECEIVED' OR received_at IS NOT NULL THEN 'RECEIVED'
                             WHEN payout_status = 'PAID' OR payment_status = 'PAID' THEN 'PAID'
                             ELSE 'REPORT_SENT'
                         END,
                         salary_confirm_status = CASE
-                            WHEN payout_status = 'PAID' OR payment_status = 'PAID' THEN salary_confirm_status
+                            WHEN payout_status IN ('PAID', 'RECEIVED') OR payment_status = 'PAID' THEN salary_confirm_status
                             ELSE 'PENDING'
                         END,
                         dispute_status = CASE
@@ -1276,7 +1339,7 @@ class PayrollService {
                 recipients: targets.map((t) => ({
                     ma_nv: t.ma_nv || t.id_nhan_vien,
                     ho_ten: t.ho_ten,
-                    payout_status: t.employee_payment_status === 'PAID' || t.payout_status === 'PAID' ? 'PAID' : 'REPORT_SENT'
+                    payout_status: t.payout_status === 'RECEIVED' ? 'RECEIVED' : (t.employee_payment_status === 'PAID' || t.payout_status === 'PAID' ? 'PAID' : 'REPORT_SENT')
                 }))
             }
         };
@@ -1328,7 +1391,7 @@ class PayrollService {
             const stdDays = getMonthlyStandardWorkdays(m, y);
 
             const existingAtt = await txQuery(
-                'SELECT id, payment_status, payout_status, paid_at, paid_by, transfer_note, salary_confirm_status FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1 FOR UPDATE',
+                'SELECT id, payment_status, payout_status, paid_at, paid_by, transfer_note, salary_confirm_status, received_at FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1 FOR UPDATE',
                 [cleanMaNv, m, y]
             );
             const existingRow = existingAtt && existingAtt[0] ? existingAtt[0] : null;
@@ -1339,11 +1402,13 @@ class PayrollService {
                     month: m,
                     year: y,
                     employee_payment_status: 'PAID',
-                    payout_status: 'PAID',
+                    payout_status: existingRow.payout_status === 'RECEIVED' || existingRow.received_at ? 'RECEIVED' : 'PAID',
                     transfer_note: existingRow.transfer_note || cleanTransferNote,
                     employee_paid_at: existingRow.paid_at || null,
                     employee_paid_at_vn: formatVietnamDateTime(existingRow.paid_at),
                     employee_paid_by: existingRow.paid_by || actorId,
+                    received_at: existingRow.received_at || null,
+                    received_at_vn: formatVietnamDateTime(existingRow.received_at),
                     already_paid: true
                 };
             }
@@ -1353,9 +1418,10 @@ class PayrollService {
                     INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payment_status, payout_status, paid_at, paid_by, transfer_note)
                     VALUES (?, ?, ?, ?, 'PAID', 'PAID', NOW(), ?, ?)
                     ON DUPLICATE KEY UPDATE
+                        cong_chuan = VALUES(cong_chuan),
                         payment_status = 'PAID',
-                        payout_status = 'PAID',
-                        paid_at = NOW(),
+                        payout_status = CASE WHEN payout_status = 'RECEIVED' OR received_at IS NOT NULL THEN 'RECEIVED' ELSE 'PAID' END,
+                        paid_at = COALESCE(paid_at, NOW()),
                         paid_by = VALUES(paid_by),
                         transfer_note = VALUES(transfer_note)
                 `, [cleanMaNv, m, y, stdDays, actorId, cleanTransferNote]);
@@ -1380,7 +1446,7 @@ class PayrollService {
                     cleanMaNv,
                     `salary_paid_${m}_${y}_${cleanMaNv}`,
                     `💸 Đã chuyển khoản lương Tháng ${m}/${y}`,
-                    `Công ty SEDINCO đã chuyển khoản lương Tháng ${m}/${y} (Số tiền: ${paidAmtStr}).`,
+                    `Công ty SEDINCO đã chuyển khoản lương Tháng ${m}/${y} (Số tiền: ${paidAmtStr}). Vui lòng mở phiếu lương để bấm Xác nhận đã nhận lương.`,
                     m,
                     y,
                     cleanMaNv,
@@ -1395,19 +1461,20 @@ class PayrollService {
                             ? 'REPORT_SENT'
                             : 'DRAFT';
                 await txQuery(`
-                    INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payment_status, payout_status, paid_at, paid_by, transfer_note)
-                    VALUES (?, ?, ?, ?, 'UNPAID', ?, NULL, NULL, NULL)
+                    INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payment_status, payout_status, paid_at, paid_by, transfer_note, received_at)
+                    VALUES (?, ?, ?, ?, 'UNPAID', ?, NULL, NULL, NULL, NULL)
                     ON DUPLICATE KEY UPDATE
                         payment_status = 'UNPAID',
                         payout_status = ?,
                         paid_at = NULL,
                         paid_by = NULL,
-                        transfer_note = NULL
+                        transfer_note = NULL,
+                        received_at = NULL
                 `, [cleanMaNv, m, y, stdDays, fallbackPayout, fallbackPayout]);
             }
 
             const refreshed = await txQuery(
-                'SELECT payment_status, payout_status, paid_at, paid_by, transfer_note FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1',
+                'SELECT payment_status, payout_status, paid_at, paid_by, transfer_note, received_at FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1',
                 [cleanMaNv, m, y]
             );
             const saved = refreshed && refreshed[0] ? refreshed[0] : {};
@@ -1422,6 +1489,8 @@ class PayrollService {
                 employee_paid_at: saved.paid_at || null,
                 employee_paid_at_vn: formatVietnamDateTime(saved.paid_at),
                 employee_paid_by: saved.paid_by || null,
+                received_at: saved.received_at || null,
+                received_at_vn: formatVietnamDateTime(saved.received_at),
                 already_paid: false
             };
         });

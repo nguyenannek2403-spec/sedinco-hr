@@ -25,6 +25,19 @@ class AttendanceController {
         }
     }
 
+    async getTodayAttendance(req, res, next) {
+        try {
+            const ma_nv = req.user ? req.user.ma_nv : null;
+            if (!ma_nv) {
+                return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
+            }
+            const data = await attendanceService.getTodayEffectiveStatus(ma_nv);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async updateAttendance(req, res, next) {
         try {
             const { ma_nv, check_in_time, check_out_time, reason } = req.body;

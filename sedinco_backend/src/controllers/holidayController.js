@@ -12,9 +12,19 @@ class HolidayController {
 
     async createHoliday(req, res, next) {
         try {
-            const { holiday_name, start_date, end_date } = req.body;
-            await holidayService.createHoliday(holiday_name, start_date, end_date, req.user);
-            return res.status(201).json({ success: true });
+            const { holiday_name, name, start_date, end_date } = req.body;
+            const result = await holidayService.createHoliday(holiday_name || name, start_date, end_date, req.user);
+            return res.status(201).json({ success: true, id: result?.id || null });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async updateHoliday(req, res, next) {
+        try {
+            const { holiday_name, name, start_date, end_date } = req.body;
+            await holidayService.updateHoliday(req.params.id, holiday_name || name, start_date, end_date, req.user);
+            return res.json({ success: true });
         } catch (err) {
             next(err);
         }

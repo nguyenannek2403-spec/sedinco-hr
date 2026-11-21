@@ -24,12 +24,20 @@ const STATE_META = {
       "bg-rose-50 dark:bg-rose-950/70 border-rose-200 dark:border-rose-700 text-[#E11D48] dark:text-rose-200",
     stickerClass:
       "bg-white dark:bg-slate-800 border-2 border-[#E11D48] dark:border-rose-400 text-[#111C2D] dark:text-white shadow-lg"
+  },
+  completed: {
+    stickerText: "Tuyệt vời! Bạn đã hoàn thành công hôm nay! 🎉",
+    caption: "Đã ghi nhận đủ công / nghỉ theo quy định ✨",
+    captionClass:
+      "bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-200",
+    stickerClass:
+      "bg-white dark:bg-slate-800 border-2 border-[#16A34A] dark:border-emerald-400 text-[#111C2D] dark:text-white shadow-lg"
   }
 };
 
 /**
  * Nhân vật Chibi SEDINCO mặc áo đồng phục Polo trắng chuẩn công ty:
- * - Khóa trạng thái thuần hiển thị theo DB chấm công ('sleeping' | 'waving_hello' | 'waving_goodbye')
+ * - Khóa trạng thái thuần hiển thị theo DB chấm công ('sleeping' | 'waving_hello' | 'waving_goodbye' | 'completed')
  * - Không cho phép nhấn/chạm trực tiếp làm đổi trạng thái giả lập
  */
 export default function SedincoMascot({
@@ -40,7 +48,7 @@ export default function SedincoMascot({
   const activeState = STATE_META[state] ? state : "sleeping";
   const meta = STATE_META[activeState];
   const isSleeping = activeState === "sleeping";
-  const isWaving = activeState === "waving_hello" || activeState === "waving_goodbye";
+  const isWaving = activeState === "waving_hello" || activeState === "waving_goodbye" || activeState === "completed";
   const clipId = `sedinco-polo-body-${uid}`;
   const shadowGradId = `sedinco-stage-glow-${uid}`;
 

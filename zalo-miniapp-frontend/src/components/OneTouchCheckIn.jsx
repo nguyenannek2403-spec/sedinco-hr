@@ -12,6 +12,7 @@ import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
 import { getDeviceIdentity } from "../utils/deviceIdentity";
 import { formatViWorkday } from "../utils/viNumberFormat";
+import { getVietnamTodayIso } from "../utils/workdayUtils";
 import { useSpamClickGuard, SPAM_WARNING_MESSAGE } from "../hooks/useAttendanceCheckIn";
 import { useTheme } from "../context/ThemeContext";
 import { AppButton, AppModal, SedincoMascot } from "./ui";
@@ -75,6 +76,7 @@ export default function OneTouchCheckIn({
   const [fraudDetails, setFraudDetails] = useState("");
   const [isDebounceLocked, setIsDebounceLocked] = useState(false);
   const [liveTodayRecord, setLiveTodayRecord] = useState(todayAttendance);
+  const [liveTodayEffective, setLiveTodayEffective] = useState(null);
   const [forgottenCheckout, setForgottenCheckout] = useState(null);
   const [attendanceSummary, setAttendanceSummary] = useState({
     late_count: 0,
@@ -177,11 +179,13 @@ export default function OneTouchCheckIn({
 
   const fetchTodayStatus = useCallback(async () => {
     try {
-      const now = new Date();
-      const [attRes, compRes] = await Promise.all([
+      const todayIso = getVietnamTodayIso();
+      const [todayMonY, todayMonM] = todayIso.split("-").map(Number);
+      const [todayRes, attRes, compRes] = await Promise.all([
+        safeGet("/attendance/today").catch(() => null),
         safeGet("/attendance/me", {
-          month: now.getMonth() + 1,
-          year: now.getFullYear()
+          month: todayMonM,
+          year: todayMonY
         }),
         safeGet("/company").catch(() => null)
       ]);
@@ -190,6 +194,7 @@ export default function OneTouchCheckIn({
         evaluateFriendlyLocation(compRes.data);
       }
 
+      const todayPayload = todayRes?.data || null;
       const rawData = attRes?.data;
       const list = Array.isArray(rawData)
         ? rawData
@@ -212,11 +217,18 @@ export default function OneTouchCheckIn({
         setForgottenCheckout(null);
       }
 
-      const todayIso = new Date(now.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
-      const todayRec =
-        (rawData && !Array.isArray(rawData) && rawData.today_record) ||
-        list.find((r) => String(r.work_date || r.record_date || "").slice(0, 10) === todayIso) ||
+      const resolvedEffective =
+        todayPayload?.today_effective_status ||
+        (rawData && !Array.isArray(rawData) && rawData.today_effective_status) ||
         null;
+      setLiveTodayEffective(resolvedEffective);
+
+      const hasEffectiveRec = todayPayload && Object.prototype.hasOwnProperty.call(todayPayload, "today_record");
+      const todayRec = hasEffectiveRec
+        ? todayPayload.today_record
+        : (rawData && !Array.isArray(rawData) && rawData.today_record) ||
+          list.find((r) => String(r.work_date || r.record_date || "").slice(0, 10) === todayIso) ||
+          null;
       setLiveTodayRecord(todayRec);
       if (!todayRec || !todayRec.check_in_time) {
         setLastCheckAction(null);
@@ -227,6 +239,21 @@ export default function OneTouchCheckIn({
 
   useEffect(() => {
     fetchTodayStatus();
+  }, [fetchTodayStatus]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const handleFocusSync = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        fetchTodayStatus();
+      }
+    };
+    window.addEventListener("focus", handleFocusSync);
+    document.addEventListener("visibilitychange", handleFocusSync);
+    return () => {
+      window.removeEventListener("focus", handleFocusSync);
+      document.removeEventListener("visibilitychange", handleFocusSync);
+    };
   }, [fetchTodayStatus]);
 
   useEffect(() => {
@@ -255,9 +282,20 @@ export default function OneTouchCheckIn({
     };
   }, []);
 
-  const effectiveToday = liveTodayRecord || todayAttendance;
-  const hasCheckedIn = Boolean(effectiveToday && effectiveToday.check_in_time);
-  const hasCheckedOut = Boolean(effectiveToday && effectiveToday.check_out_time);
+  const effectiveCode = String(liveTodayEffective?.effective_code || "").toUpperCase();
+  const isDeletedOrClearedToday = effectiveCode === "NONE";
+  const effectiveToday = isDeletedOrClearedToday ? null : (liveTodayRecord || todayAttendance);
+  const isAdminAdjusted = Boolean(liveTodayEffective?.is_admin_adjusted);
+  const isDayLockedByEffective = Boolean(
+    effectiveCode === "P" ||
+      effectiveCode === "KL" ||
+      effectiveCode === "L" ||
+      effectiveCode === "OT" ||
+      effectiveCode === "1+OT" ||
+      (effectiveCode === "1" && isAdminAdjusted)
+  );
+  const hasCheckedIn = !isDeletedOrClearedToday && Boolean(effectiveToday && effectiveToday.check_in_time);
+  const hasCheckedOut = !isDeletedOrClearedToday && Boolean(effectiveToday && effectiveToday.check_out_time);
   const checkinType = hasCheckedIn ? "out" : "in";
 
   useEffect(() => {
@@ -525,15 +563,32 @@ export default function OneTouchCheckIn({
   const clockSS = `:${pad2(nowClock.getSeconds())}`;
 
   const mascotState =
-    hasCheckedOut || lastCheckAction === "out"
+    effectiveCode === "NONE" || effectiveCode === "KL"
+      ? "sleeping"
+      : (effectiveCode === "1" && isAdminAdjusted) ||
+        effectiveCode === "P" ||
+        effectiveCode === "L" ||
+        effectiveCode === "OT" ||
+        effectiveCode === "1+OT"
+      ? "completed"
+      : hasCheckedOut || lastCheckAction === "out"
       ? "waving_goodbye"
       : hasCheckedIn || lastCheckAction === "in"
       ? "waving_hello"
       : "sleeping";
 
   const isActionBusy = isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || stage === STAGES.LOCATING;
-  const checkInBtnEnabled = !hasCheckedIn && !isLockedPeriod && !isActionBusy;
-  const checkOutBtnEnabled = hasCheckedIn && !hasCheckedOut && !isLockedPeriod && !isActionBusy;
+  const checkInBtnEnabled =
+    !isDayLockedByEffective &&
+    !hasCheckedIn &&
+    !isLockedPeriod &&
+    !isActionBusy;
+  const checkOutBtnEnabled =
+    !isDayLockedByEffective &&
+    hasCheckedIn &&
+    !hasCheckedOut &&
+    !isLockedPeriod &&
+    !isActionBusy;
   const confirmTimeStr =
     hasCheckedOut || lastCheckAction === "out"
       ? String(effectiveToday?.check_out_time || serverTimeResult || "").slice(0, 8)
@@ -613,9 +668,119 @@ export default function OneTouchCheckIn({
       {/* STITCH SCREEN 2 — SECTION 2: CENTER MASCOT STAGE */}
       <SedincoMascot state={mascotState} />
 
-      {/* STITCH SCREEN 2 — SECTION 3: PERFORATED REAL-TIME VERIFICATION TICKET CARD */}
-      <div className="w-full rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-[0_6px_20px_-4px_rgba(17,28,45,0.06)] overflow-hidden">
-        {(hasCheckedIn || stage === STAGES.SUCCESS) ? (
+      {/* STITCH SCREEN 2 — SECTION 3: PERFORATED REAL-TIME VERIFICATION & ADMIN SYNC TICKET CARD */}
+      <div
+        data-testid="checkin-effective-status-card"
+        data-effective-code={effectiveCode || (hasCheckedOut ? "DONE" : hasCheckedIn ? "IN_SHIFT" : "NONE")}
+        className="w-full rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-[0_6px_20px_-4px_rgba(17,28,45,0.06)] overflow-hidden"
+      >
+        {effectiveCode === "1" && isAdminAdjusted ? (
+          <div className="p-3.5 bg-emerald-50/85 dark:bg-emerald-950/50 space-y-1">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-[#16A34A] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <CheckCircle2 size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs sm:text-sm font-extrabold text-[#16A34A] dark:text-emerald-300 leading-snug">
+                  ✓ Bạn đã đủ công của ngày hôm nay
+                </div>
+                <p className="text-xs font-medium text-emerald-900 dark:text-emerald-100 mt-0.5 leading-snug">
+                  Đã được Quản trị viên xác nhận đủ 1 công
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : effectiveCode === "0.5" ? (
+          <div className="p-3.5 bg-sky-50/85 dark:bg-sky-950/45 space-y-1">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-xs font-black text-sm">
+                ◐
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs sm:text-sm font-extrabold text-sky-900 dark:text-sky-200 leading-snug">
+                  ◐ Hôm nay bạn đã được ghi nhận 0,5 công
+                </div>
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
+                  {hasCheckedIn && !hasCheckedOut
+                    ? "Đang trong ca — có thể bấm Tan ca khi kết thúc buổi chiều."
+                    : hasCheckedOut
+                    ? "Đã hoàn tất ghi nhận ca làm việc 0,5 công hôm nay."
+                    : "Có thể bấm Chấm công Vào nếu tiếp tục làm ca còn lại."}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : effectiveCode === "P" ? (
+          <div className="p-3.5 bg-sky-50/85 dark:bg-sky-950/45 space-y-1">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-[#0051CA] text-white flex items-center justify-center shrink-0 shadow-xs text-sm">
+                📋
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs sm:text-sm font-extrabold text-[#0051CA] dark:text-sky-200 leading-snug">
+                  📋 Hôm nay bạn nghỉ phép có lương (1 công)
+                </div>
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
+                  Đã khóa thao tác chấm công theo trạng thái nghỉ phép được duyệt.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : effectiveCode === "KL" ? (
+          <div className="p-3.5 bg-amber-50/85 dark:bg-amber-950/40 space-y-1">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-slate-700 text-white flex items-center justify-center shrink-0 shadow-xs text-sm">
+                ⏸️
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-amber-200 leading-snug">
+                  ⏸️ Hôm nay bạn nghỉ không lương
+                </div>
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
+                  Ngày nghỉ không tính công — Liên hệ Quản trị nếu có thay đổi
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : effectiveCode === "L" ? (
+          <div className="p-3.5 bg-emerald-50/85 dark:bg-emerald-950/50 space-y-1">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-[#16A34A] text-white flex items-center justify-center shrink-0 shadow-xs text-sm">
+                🎉
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs sm:text-sm font-extrabold text-[#16A34A] dark:text-emerald-300 leading-snug">
+                  🎉 Hôm nay là ngày Nghỉ lễ (Hưởng nguyên lương)
+                </div>
+                <p className="text-xs font-medium text-emerald-900 dark:text-emerald-100 mt-0.5 leading-snug">
+                  {liveTodayEffective?.holiday_name
+                    ? `Dịp lễ: ${liveTodayEffective.holiday_name}`
+                    : "Nghỉ lễ chính thức theo quy định công ty."}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : effectiveCode === "1+OT" || effectiveCode === "OT" ? (
+          <div className="p-3.5 bg-indigo-50/85 dark:bg-indigo-950/50 space-y-1">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs text-sm">
+                ⚡
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs sm:text-sm font-extrabold text-indigo-900 dark:text-indigo-200 leading-snug">
+                  {effectiveCode === "1+OT"
+                    ? "⚡ Bạn đã đủ công và tăng ca (OT) hôm nay"
+                    : "⚡ Hôm nay bạn được ghi nhận Tăng ca (OT)"}
+                </div>
+                <p className="text-xs font-medium text-indigo-800 dark:text-indigo-200 mt-0.5 leading-snug">
+                  {Number(liveTodayEffective?.ot_hours || 0) > 0
+                    ? `Đã ghi nhận ${formatViWorkday(liveTodayEffective.ot_hours)} giờ tăng ca hôm nay.`
+                    : "Đã khóa thao tác chấm công theo ghi nhận tăng ca của Quản trị."}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : !isDeletedOrClearedToday && (hasCheckedIn || stage === STAGES.SUCCESS) ? (
           <div className="p-3.5 bg-emerald-50/75 dark:bg-emerald-950/40 space-y-1.5">
             <div className="flex items-start gap-2.5">
               <div className="w-8 h-8 rounded-full bg-[#16A34A] text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -651,8 +816,8 @@ export default function OneTouchCheckIn({
               <Clock size={16} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-extrabold text-[#111C2D] dark:text-white uppercase tracking-tight">
-                PHIẾU ĐIỂM DANH CA LÀM VIỆC
+              <div className="text-xs font-extrabold text-[#111C2D] dark:text-white leading-snug">
+                Chưa chấm công hôm nay
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
                 Chạm nút màu xanh bên dưới để ghi nhận giờ vào ca hôm nay.
@@ -699,7 +864,11 @@ export default function OneTouchCheckIn({
                 }`}
               />
               <span>
-                {hasCheckedOut
+                {isDayLockedByEffective
+                  ? liveTodayEffective?.note || "Đã chốt trạng thái hôm nay"
+                  : effectiveCode === "0.5" && !hasCheckedIn
+                  ? "Đã ghi nhận 0,5 công"
+                  : hasCheckedOut
                   ? "Đã hoàn tất ca"
                   : hasCheckedIn
                   ? Number(effectiveToday?.late_minutes || 0) > 0
@@ -716,17 +885,17 @@ export default function OneTouchCheckIn({
       <div className="w-full space-y-2.5">
         {/* NÚT 1: CHẤM CÔNG VÀO (VÀO CA) */}
         <button
-          id={!hasCheckedIn ? "btn-start-checkin" : undefined}
+          id={!hasCheckedIn && checkInBtnEnabled ? "btn-start-checkin" : undefined}
           data-testid="btn-checkin"
           type="button"
           disabled={!checkInBtnEnabled}
           onClick={() => handleStartCheckIn(false)}
           className={`min-h-[58px] w-full rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-left transition-transform duration-150 ${
-            !hasCheckedIn && !isLockedPeriod
+            !isDayLockedByEffective && !hasCheckedIn && !isLockedPeriod
               ? isFieldWorkMode
                 ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-[0.98]"
                 : "bg-[#16A34A] hover:bg-[#15803D] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-700/80 shadow-[0_8px_20px_-4px_rgba(22,163,74,0.3)] cursor-pointer active:scale-[0.98]"
-              : "bg-[#E7EEFF] dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-75 cursor-not-allowed pointer-events-none"
+              : "bg-[#E7EEFF] dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-40 cursor-not-allowed pointer-events-none"
           }`}
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -743,13 +912,15 @@ export default function OneTouchCheckIn({
               </div>
               <div
                 className={`text-xs font-semibold mt-0.5 leading-snug ${
-                  !hasCheckedIn && !isLockedPeriod
+                  !isDayLockedByEffective && !hasCheckedIn && !isLockedPeriod
                     ? "text-emerald-50"
                     : "text-slate-600 dark:text-slate-300"
                 }`}
               >
                 {isLockedPeriod
                   ? "Kỳ công tháng này đã chốt"
+                  : isDayLockedByEffective
+                  ? liveTodayEffective?.note || "Đã chốt công / nghỉ hôm nay"
                   : hasCheckedIn
                   ? `Đã vào ca lúc ${String(effectiveToday?.check_in_time || serverTimeResult).slice(0, 5)}`
                   : `Bắt đầu ca làm việc (${effStart})`}
@@ -761,37 +932,39 @@ export default function OneTouchCheckIn({
 
         {/* NÚT 2: CHẤM CÔNG RA (TAN CA — LUÔN SÁNG & BẤM ĐƯỢC NGAY SAU KHI ĐÃ VÀO CA) */}
         <button
-          id={hasCheckedIn ? "btn-start-checkin" : undefined}
+          id={hasCheckedIn && checkOutBtnEnabled ? "btn-start-checkin" : undefined}
           data-testid="btn-checkout"
           type="button"
           disabled={!checkOutBtnEnabled}
           onClick={() => handleStartCheckIn(false)}
           className={`min-h-[58px] w-full rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-left transition-transform duration-150 ${
-            hasCheckedIn && !hasCheckedOut && !isLockedPeriod
+            !isDayLockedByEffective && hasCheckedIn && !hasCheckedOut && !isLockedPeriod
               ? isFieldWorkMode
                 ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-[0.98]"
                 : "sedinco-crimson-gradient hover:bg-[#BE123C] dark:bg-rose-600 dark:hover:bg-rose-500 text-white border border-[#BE123C]/80 shadow-[0_8px_20px_-4px_rgba(225,29,72,0.35)] cursor-pointer active:scale-[0.98]"
-              : "bg-[#E7EEFF] dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-75 cursor-not-allowed pointer-events-none"
+              : "bg-[#E7EEFF] dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-40 cursor-not-allowed pointer-events-none"
           }`}
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <span className="text-xl leading-none shrink-0" aria-hidden="true">🌙</span>
             <div className="min-w-0 flex-1">
               <div className="text-sm sm:text-base font-extrabold leading-tight break-words">
-                {hasCheckedIn && !hasCheckedOut && stage === STAGES.SUBMITTING
+                {!isDayLockedByEffective && hasCheckedIn && !hasCheckedOut && stage === STAGES.SUBMITTING
                   ? "ĐANG GỬI CHẤM CÔNG RA..."
-                  : hasCheckedIn && !hasCheckedOut && stage === STAGES.LOCATING
+                  : !isDayLockedByEffective && hasCheckedIn && !hasCheckedOut && stage === STAGES.LOCATING
                   ? "ĐANG ĐỊNH VỊ GPS..."
                   : "VỀ THÔI!!! (TAN CA)"}
               </div>
               <div
                 className={`text-xs font-semibold mt-0.5 leading-snug ${
-                  hasCheckedIn && !hasCheckedOut && !isLockedPeriod
+                  !isDayLockedByEffective && hasCheckedIn && !hasCheckedOut && !isLockedPeriod
                     ? "text-rose-100"
                     : "text-slate-600 dark:text-slate-300"
                 }`}
               >
-                {hasCheckedOut
+                {isDayLockedByEffective
+                  ? liveTodayEffective?.note || "Đã chốt công / nghỉ hôm nay"
+                  : hasCheckedOut
                   ? "Đã hoàn thành chấm công hôm nay"
                   : hasCheckedIn
                   ? `Bấm để chốt giờ tan ca (${effEnd})`

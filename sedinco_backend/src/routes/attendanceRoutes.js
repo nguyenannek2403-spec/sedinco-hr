@@ -11,6 +11,7 @@ const {
 } = require('../middlewares/authMiddleware');
 
 // 1. Xem lịch sử chấm công cá nhân của chính mình (Công nhân, Kế toán, Admin)
+router.get('/today', authenticateToken, requireAuth, (req, res, next) => attendanceController.getTodayAttendance(req, res, next));
 router.get('/me', authenticateToken, requireAuth, (req, res, next) => attendanceController.getMyAttendance(req, res, next));
 router.get('/my-logs', authenticateToken, requireAuth, (req, res, next) => attendanceController.getMyAttendance(req, res, next));
 router.get('/my-monthly', authenticateToken, requireAuth, (req, res, next) => attendanceController.getMyAttendance(req, res, next));

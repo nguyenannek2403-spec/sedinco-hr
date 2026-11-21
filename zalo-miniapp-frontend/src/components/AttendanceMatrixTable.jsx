@@ -255,7 +255,7 @@ export default function AttendanceMatrixTable({
         day: targetDayNum,
         month: month,
         year: year,
-        status: nextStatus || "1",
+        status: nextStatus,
         hours: nextOtHours,
         ot_hours: nextOtHours,
         isDelete: !nextStatus

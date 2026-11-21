@@ -8,7 +8,13 @@ const {
     buildDailyAttendanceNote,
     formatViDateWithWeekday
 } = require('./misaWorkdayEngine');
-const { getMonthlyStandardWorkdays, normalizePureIsoDate } = require('./timeHelper');
+const {
+    getDaysInMonth,
+    getMonthlyStandardWorkdays,
+    isSundayIsoDate,
+    normalizePureIsoDate
+} = require('./timeHelper');
+const { findHolidayForDate, buildHolidayDateMap } = require('./vnHolidaysCatalog');
 
 const ALLOWANCE_DEFINITIONS = [
     { key: 'an_trua', label: 'Phụ cấp ăn trưa' },
@@ -125,9 +131,11 @@ function calculateEmployeeSalary({
     const negativeSalaryPolicy = validNegPolicies.includes(rawNegPolicy) ? rawNegPolicy : 'CLAMP_ZERO';
     let billableLateMinutes = 0;
     let billableLateOccurrences = 0;
+    const seenIsoDates = new Set();
 
     logs.forEach(log => {
         const cleanIsoDate = normalizePureIsoDate(log.record_date_iso || log.record_date);
+        if (cleanIsoDate) seenIsoDates.add(cleanIsoDate);
         const logDate = cleanIsoDate ? new Date(`${cleanIsoDate}T00:00:00+07:00`) : new Date(log.record_date);
         logDate.setHours(0, 0, 0, 0);
 
@@ -149,18 +157,9 @@ function calculateEmployeeSalary({
             }
         }
 
-        const isSunday = (log.dow === 1);
-        let isHoliday = false;
-        for (let h of holidays) {
-            const startDate = new Date(h.start_date);
-            startDate.setHours(0, 0, 0, 0);
-            const endDate = new Date(h.end_date);
-            endDate.setHours(23, 59, 59, 999);
-            if (logDate >= startDate && logDate <= endDate) {
-                isHoliday = true;
-                break;
-            }
-        }
+        const isSunday = cleanIsoDate ? isSundayIsoDate(cleanIsoDate) : (log.dow === 1);
+        const matchedHoliday = findHolidayForDate(holidays, cleanIsoDate || logDate);
+        const isHoliday = Boolean(matchedHoliday);
 
         const isProbation = ngayChinhThuc && (logDate < ngayChinhThuc);
         const dayCredit = (unit) => (isExcessiveLateHalfDay && unit > 0.5 ? 0.5 : unit);
@@ -244,19 +243,61 @@ function calculateEmployeeSalary({
             workCredit: appliedDayCredit
         });
 
-        const recordDateIso = normalizePureIsoDate(log.record_date_iso || log.record_date);
+        const recordDateIso = cleanIsoDate || normalizePureIsoDate(log.record_date_iso || log.record_date);
         daily_breakdown.push({
             ...log,
             status: effectiveStatus,
             record_date_iso: recordDateIso,
             date_label: formatViDateWithWeekday(recordDateIso),
-            attendance_note: customAttendanceNote || buildDailyAttendanceNote({ ...log, status: effectiveStatus }, companySettings),
+            holiday_name: matchedHoliday ? matchedHoliday.holiday_name : null,
+            attendance_note: customAttendanceNote || (matchedHoliday && effectiveStatus === 'L' ? `Nghỉ lễ hưởng nguyên lương (${matchedHoliday.holiday_name})` : buildDailyAttendanceNote({ ...log, status: effectiveStatus }, companySettings)),
             work_credit: appliedDayCredit,
             ot_hours_applied: appliedOtHours,
             is_probation_day: Boolean(isProbation),
             daily_earned_amount: dailyEarnedAmount
         });
     });
+
+    // Tự động áp dụng 1.0 công hưởng nguyên lương cho các ngày lễ nằm trong ngày làm việc (T2-T7) chưa có log
+    if (month && year && Array.isArray(holidays) && holidays.length > 0) {
+        const holidayMap = buildHolidayDateMap(holidays, month, year);
+        const totalDaysInMonth = getDaysInMonth(month, year);
+        for (let d = 1; d <= totalDaysInMonth; d++) {
+            const iso = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (seenIsoDates.has(iso)) continue;
+            const hol = holidayMap[iso];
+            if (!hol) continue;
+            const isSun = isSundayIsoDate(iso);
+            if (!isSun) {
+                const holDate = new Date(`${iso}T00:00:00+07:00`);
+                holDate.setHours(0, 0, 0, 0);
+                const isProbHol = Boolean(ngayChinhThuc && holDate < ngayChinhThuc);
+                holidayDays += 1;
+                if (isProbHol) congThuViec += 1; else congChinhThuc += 1;
+                const earnedAmt = calculateDailyEarnedAmount({
+                    luong_cb: luongCb,
+                    cong_chuan: congChuan,
+                    probationRatio: isProbHol ? probationRatio : 1,
+                    workCredit: 1
+                });
+                daily_breakdown.push({
+                    record_date: iso,
+                    record_date_iso: iso,
+                    status: 'L',
+                    ot_hours: 0,
+                    work_credit: 1,
+                    ot_hours_applied: 0,
+                    holiday_name: hol.holiday_name,
+                    date_label: formatViDateWithWeekday(iso),
+                    attendance_note: `Nghỉ lễ hưởng nguyên lương (${hol.holiday_name})`,
+                    is_probation_day: isProbHol,
+                    is_auto_holiday: true,
+                    daily_earned_amount: earnedAmt
+                });
+            }
+        }
+        daily_breakdown.sort((a, b) => String(a.record_date_iso || '').localeCompare(String(b.record_date_iso || '')));
+    }
 
     const actualWorkDays = congThuViec + congChinhThuc;
     const effectiveDays = (congThuViec * probationRatio) + congChinhThuc;

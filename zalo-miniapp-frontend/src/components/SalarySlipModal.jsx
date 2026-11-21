@@ -341,7 +341,7 @@ export default function SalarySlipModal({
       const res = await safePost("/payroll/confirm", {
         month: thang,
         year: nam,
-        action: "CONFIRM",
+        action: "CONFIRM_REPORT",
         status: "CONFIRMED"
       }, {
         idempotencyKey: generateIdempotencyKey("pay_confirm")
@@ -353,15 +353,60 @@ export default function SalarySlipModal({
             ? {
                 ...prev,
                 salary_confirm_status: "CONFIRMED",
-                payout_status: prev.payout_status === "PAID" ? "PAID" : "CONFIRMED"
+                payout_status:
+                  prev.payout_status === "RECEIVED"
+                    ? "RECEIVED"
+                    : prev.payout_status === "PAID"
+                    ? "PAID"
+                    : "CONFIRMED"
               }
             : prev
         );
         setShowDisputeForm(false);
-        notify("Cảm ơn bạn đã xác nhận bảng lương chính xác!", "success");
+        notify("Đã xác nhận đã đọc báo cáo bảng lương!", "success");
         if (onStatusUpdated) onStatusUpdated("CONFIRMED");
       } else {
         notify(res?.message || "Lỗi xác nhận lương", "error");
+      }
+    } catch (err) {
+      notify(err.message || "Không thể kết nối máy chủ", "error");
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
+  const handleConfirmReceived = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      const res = await safePost("/payroll/confirm", {
+        month: thang,
+        year: nam,
+        action: "CONFIRM_RECEIVED",
+        status: "RECEIVED"
+      }, {
+        idempotencyKey: generateIdempotencyKey("pay_received")
+      });
+      if (res?.success) {
+        setConfirmStatus("CONFIRMED");
+        setLoadedItem((prev) =>
+          prev
+            ? {
+                ...prev,
+                salary_confirm_status: "CONFIRMED",
+                payout_status: "RECEIVED",
+                received_at: res.received_at || new Date().toISOString(),
+                received_at_vn: res.received_at_vn || prev.received_at_vn
+              }
+            : prev
+        );
+        setShowDisputeForm(false);
+        notify("Đã xác nhận nhận đủ lương thành công!", "success");
+        if (onStatusUpdated) onStatusUpdated("RECEIVED");
+      } else {
+        notify(res?.message || "Lỗi xác nhận đã nhận lương", "error");
       }
     } catch (err) {
       notify(err.message || "Không thể kết nối máy chủ", "error");
@@ -694,6 +739,7 @@ export default function SalarySlipModal({
           onOpenTransfer={onOpenTransfer}
           onExportSlip={handleExportSingleSlipExcel}
           onConfirmSalary={handleConfirmSalary}
+          onConfirmReceived={handleConfirmReceived}
           onToggleDispute={handleToggleDispute}
         />
       }
@@ -731,11 +777,19 @@ export default function SalarySlipModal({
                         <Lock size={12} /> {periodLockBadge.label}
                       </span>
                     )}
-                    {confirmStatus === "CONFIRMED" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-800/80 border border-emerald-300/40 text-white text-xs font-bold">
-                        ✓ Đã xác nhận đúng lương
+                    {(item.payout_status === "RECEIVED" || Boolean(item.received_at)) ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-800/90 border border-emerald-300/50 text-white text-xs font-extrabold">
+                        💰 Đã nhận đủ lương
                       </span>
-                    )}
+                    ) : isEmployeePaid ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-800/80 border border-emerald-300/40 text-white text-xs font-bold">
+                        💸 Đã chuyển khoản
+                      </span>
+                    ) : confirmStatus === "CONFIRMED" ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-teal-800/80 border border-teal-300/40 text-white text-xs font-bold">
+                        ✓ Đã đọc báo cáo
+                      </span>
+                    ) : null}
                     {disputeStatus !== "RESOLVED" && confirmStatus === "DISPUTED" && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-950/85 border border-rose-300/40 text-white text-xs font-bold">
                         <AlertTriangle size={12} /> Đang khiếu nại sai lương
@@ -756,19 +810,28 @@ export default function SalarySlipModal({
 
             {/* Banner trạng thái báo cáo lương + Nút Tải file Excel phiếu lương 1 chạm */}
             <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-              {item.payout_status === "REPORT_SENT" && !isEmployeePaid && confirmStatus !== "CONFIRMED" && (
+              {(item.payout_status === "RECEIVED" || Boolean(item.received_at)) ? (
+                <div
+                  data-testid="payslip-received-banner"
+                  className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-xs font-extrabold"
+                >
+                  💰 Đã xác nhận nhận đủ lương{item.received_at_vn ? ` lúc ${item.received_at_vn}` : ""}
+                </div>
+              ) : isEmployeePaid ? (
+                <div
+                  data-testid="payslip-paid-banner"
+                  className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs font-bold"
+                >
+                  💸 Công ty đã chuyển khoản lương{item.employee_paid_at_vn ? ` lúc ${item.employee_paid_at_vn}` : ""} • Vui lòng bấm Xác nhận đã nhận lương bên dưới.
+                </div>
+              ) : item.payout_status === "REPORT_SENT" && confirmStatus !== "CONFIRMED" ? (
                 <div
                   data-testid="payslip-report-waiting-banner"
                   className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-extrabold"
                 >
-                  📩 Báo cáo lương Tháng {thang}/{nam} đang chờ xác nhận
+                  📩 Báo cáo lương Tháng {thang}/{nam} đang chờ xác nhận đã đọc
                 </div>
-              )}
-              {isEmployeePaid && (
-                <div className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs font-bold">
-                  💸 Đã chuyển khoản lương{item.employee_paid_at_vn ? ` lúc ${item.employee_paid_at_vn}` : ""}
-                </div>
-              )}
+              ) : null}
               <AppButton
                 variant="success"
                 icon={FileSpreadsheet}
