@@ -69,9 +69,9 @@ function unlockBackgroundLayers() {
 
 /**
  * Quản lý ngăn xếp Modal lồng nhau + Khóa cuộn đa tầng (document, #app, main, .overflow-y-auto)
- * và cách ly hoàn toàn sự kiện Wheel/Touch khi Modal mở.
+ * theo chuẩn tầng --z-modal (60) -> --z-nested-modal (70).
  */
-export function useModalStack(isOpen = true, baseZIndex = 100) {
+export function useModalStack(isOpen = true, baseZIndex = 60) {
   const [modalId] = useState(() => Symbol("modal"));
   const [, setStackTick] = useState(0);
 
@@ -95,27 +95,7 @@ export function useModalStack(isOpen = true, baseZIndex = 100) {
     lockBackgroundLayers(wasEmpty);
     notifyStackListeners();
 
-    let focusTimer = null;
-    const handleFocusIn = (e) => {
-      const target = e?.target;
-      if (!target || typeof target.scrollIntoView !== "function") return;
-      const tag = String(target.tagName || "").toUpperCase();
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
-        if (focusTimer) clearTimeout(focusTimer);
-        focusTimer = setTimeout(() => {
-          try {
-            target.scrollIntoView({ block: "center", behavior: "smooth" });
-          } catch {
-            // Bỏ qua nếu trình duyệt không hỗ trợ smooth scroll options
-          }
-        }, 150);
-      }
-    };
-    document.addEventListener("focusin", handleFocusIn);
-
     return () => {
-      document.removeEventListener("focusin", handleFocusIn);
-      if (focusTimer) clearTimeout(focusTimer);
       const idx = activeModalStack.indexOf(modalId);
       if (idx !== -1) {
         activeModalStack.splice(idx, 1);
@@ -129,13 +109,16 @@ export function useModalStack(isOpen = true, baseZIndex = 100) {
 
   const idx = activeModalStack.indexOf(modalId);
   const stackIndex = idx !== -1 ? idx : activeModalStack.length;
-  const zIndex = baseZIndex + stackIndex * 10;
+  const zIndex =
+    stackIndex === 0
+      ? baseZIndex
+      : Math.min(85, Math.max(baseZIndex, 65) + stackIndex * 5);
   const isTopModal = idx === -1 || idx === activeModalStack.length - 1;
 
   return { stackIndex, zIndex, isTopModal };
 }
 
-export function useLockBodyScroll(isOpen = true, baseZIndex = 90) {
+export function useLockBodyScroll(isOpen = true, baseZIndex = 60) {
   return useModalStack(isOpen, baseZIndex);
 }
 

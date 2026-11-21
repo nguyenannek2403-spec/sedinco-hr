@@ -94,7 +94,7 @@ export default function SalaryReportModal({
     <AppModal
       open={Boolean(open && item)}
       onClose={onClose}
-      zIndexClass="z-[115]"
+      nested={true}
       maxWidthClass="sm:max-w-md"
       icon={
         <UserAvatar

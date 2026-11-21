@@ -12,6 +12,7 @@ import { BrowserRouter, Routes } from "react-router-dom";
 import HomePage from "../pages/index";
 import { ThemeProvider, useTheme } from "../context/ThemeContext";
 import { FontScaleProvider } from "../context/FontScaleContext";
+import { useAdaptiveViewport } from "../hooks/useAdaptiveViewport";
 
 // Error Boundary to prevent blank screens on uncaught render errors
 class ErrorBoundary extends React.Component {
@@ -33,7 +34,7 @@ class ErrorBoundary extends React.Component {
       return (
         <div
           style={{
-            minHeight: "100vh",
+            minHeight: "var(--visual-vh, 100dvh)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -162,6 +163,7 @@ const SmartRouter = ({ children }) => {
 
 const ThemedApp = () => {
   const { theme, setTheme } = useTheme();
+  useAdaptiveViewport();
 
   React.useEffect(() => {
     if (isZaloEnvironment()) {

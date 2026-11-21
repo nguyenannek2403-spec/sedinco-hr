@@ -1,0 +1,67 @@
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --zalo-capsule-w: clamp(96px, 26vw, 112px);
+  --header-min-h: 52px;
+  --bottom-nav-h: 62px;
+  --visual-vh: 100vh;
+
+  /* Strict Layering Hierarchy */
+  --z-content: 1;
+  --z-sticky-sub: 20;
+  --z-header: 40;
+  --z-bottom-nav: 45;
+  --z-modal: 60;
+  --z-nested-modal: 70;
+  --z-toast: 90;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --visual-vh: 100dvh;
+  }
+}
+
+/* Auto-hide Bottom Navigation when soft keyboard opens on mobile WebView */
+html[data-keyboard-open="true"] [data-unified-bottom-nav="true"] {
+  display: none !important;
+}
+
+/* Reusable Safe-Area Layout Helpers */
+.u-app-shell {
+  height: var(--visual-vh);
+  max-height: var(--visual-vh);
+}
+
+.u-header-safe {
+  min-height: calc(var(--sat) + var(--header-min-h));
+  padding-top: calc(var(--sat) + 8px);
+  padding-bottom: 8px;
+}
+
+.u-modal-header-safe {
+  min-height: calc(var(--sat) + var(--header-min-h) + 8px);
+  padding-top: calc(var(--sat) + 10px);
+  padding-bottom: 10px;
+  padding-left: 10px;
+  padding-right: calc(var(--zalo-capsule-w) + 8px);
+}
+
+@media (min-width: 640px) {
+  .u-modal-header-safe {
+    min-height: 60px;
+    padding-top: 10px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+.u-footer-safe {
+  padding-top: 10px;
+  padding-bottom: calc(var(--sab) + 10px);
+}
+
+.u-bottom-nav-safe {
+  min-height: calc(var(--bottom-nav-h) + max(var(--sab), 8px));
+  padding-bottom: max(var(--sab), 8px);
+}

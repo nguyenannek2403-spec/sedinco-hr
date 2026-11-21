@@ -81,8 +81,6 @@ export default function ConfirmDialog({
         </div>
       }
       maxWidthClass="sm:max-w-md"
-      maxHeightClass="max-h-[88vh]"
-      zIndexClass="z-[120]"
       footer={
         <div className="grid grid-cols-2 gap-2.5">
           <AppButton

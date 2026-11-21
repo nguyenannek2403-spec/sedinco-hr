@@ -8,7 +8,7 @@ import AuthView from "../views/AuthView";
 import WorkerDashboard from "../views/worker/WorkerDashboard";
 import DesktopDashboard from "../views/desktop/DesktopDashboard";
 import { ROLES } from "../constants/roles";
-import { CheckCircle2, AlertCircle, Info, RefreshCw, X } from "lucide-react";
+import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 
 // Lazy-load modal đổi mật khẩu bắt buộc
 const ForcePasswordChangeModal = lazy(() => import("../components/ForcePasswordChangeModal"));
@@ -85,7 +85,10 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] dark:bg-[#0B1120] text-[#111C2D] dark:text-slate-100 font-sans selection:bg-[#E11D48] selection:text-white transition-colors duration-200">
+    <div
+      className="overflow-x-hidden bg-[#F1F5F9] dark:bg-[#0B1120] text-[#111C2D] dark:text-slate-100 font-sans selection:bg-[#E11D48] selection:text-white transition-colors duration-200"
+      style={{ minHeight: "var(--visual-vh)" }}
+    >
       {/* 1. Màn hình Chưa Đăng Nhập */}
       {!currentUser ? (
         <AuthView
@@ -154,14 +157,17 @@ export default function HomePage() {
         onCancel={() => setShowLogoutConfirm(false)}
       />
 
-      {/* Global Toast Notification Container - Render qua Portal z-[130], tránh header & cụm nút Zalo */}
+      {/* Global Toast Notification Container - Render qua Portal --z-toast (90), tránh header & cụm nút Zalo */}
       {toastNotification && typeof document !== "undefined" &&
         createPortal(
           <div
             data-toast-root="true"
             key={toastNotification.id}
             className="fixed left-1/2 -translate-x-1/2 w-[calc(100vw-24px)] max-w-md animate-toast-down"
-            style={{ zIndex: 130, top: "calc(env(safe-area-inset-top, 0px) + 64px)" }}
+            style={{
+              zIndex: "var(--z-toast, 90)",
+              top: "calc(var(--sat, 0px) + var(--header-min-h, 52px) + 10px)"
+            }}
           >
             <div
               className={`relative overflow-hidden p-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border flex items-center justify-between gap-2.5 text-xs sm:text-sm font-bold ${

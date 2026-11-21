@@ -615,7 +615,6 @@ export default function AttendanceMatrixTable({
             title={`Sửa công ngày ${editingCell.dayNum}/${month}`}
             subtitle={`${editingCell.emp.ho_ten} • ${editingCell.emp.department || "Khối Công trình"}`}
             maxWidthClass="max-w-md"
-            maxHeightClass="max-h-[88vh]"
             disableClose={isSubmitting}
             footer={
               <div className="flex gap-3">

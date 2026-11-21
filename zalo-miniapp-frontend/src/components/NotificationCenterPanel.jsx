@@ -65,7 +65,7 @@ export default function NotificationCenterPanel({
   const isWorker = mode === "worker";
   const { isDark } = useTheme();
   const visible = Boolean(open);
-  const { zIndex, isTopModal } = useModalStack(visible, 125);
+  const { zIndex, isTopModal } = useModalStack(visible, 60);
   const cardRef = useRef(null);
   const previousFocusRef = useRef(null);
 
@@ -106,7 +106,7 @@ export default function NotificationCenterPanel({
 
   if (!visible || typeof document === "undefined") return null;
 
-  const effectiveZ = Math.max(zIndex, 125);
+  const effectiveZ = zIndex;
   const resolvedSubtitle =
     subtitle ||
     (unreadCount > 0
@@ -125,28 +125,13 @@ export default function NotificationCenterPanel({
       role="dialog"
       aria-modal="true"
       aria-label={`${title} (${unreadCount} chưa đọc)`}
-      className={`fixed inset-0 ${isDark ? "dark" : ""}`}
-      style={{ zIndex: effectiveZ }}
-      onWheel={(e) => e.stopPropagation()}
-      onTouchMove={(e) => {
-        if (!e.target?.closest?.(".modal-scroll-area")) {
-          e.preventDefault();
-        }
-        e.stopPropagation();
-      }}
+      className={`fixed top-0 left-0 right-0 ${isDark ? "dark" : ""}`}
+      style={{ zIndex: effectiveZ, height: "var(--visual-vh, 100dvh)" }}
     >
       <div
         className="fixed inset-0 bg-slate-950/45 dark:bg-slate-950/65 transition-opacity"
         aria-hidden="true"
         onClick={handleClose}
-        onWheel={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onTouchMove={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
       />
 
       <div
@@ -154,15 +139,16 @@ export default function NotificationCenterPanel({
         data-testid="notification-popover"
         onClick={(e) => e.stopPropagation()}
         style={{
-          paddingBottom: "env(safe-area-inset-bottom, 0px)"
+          maxHeight: "calc(var(--visual-vh, 100dvh) - var(--sat, 0px) - 20px)",
+          bottom: "calc(var(--sab, 0px) + 12px)"
         }}
-        className={`fixed left-3 right-3 bottom-3 sm:bottom-auto sm:top-[calc(env(safe-area-inset-top,0px)+58px)] sm:left-auto sm:right-4 sm:w-[420px] max-h-[82vh] sm:max-h-[75vh] z-10 flex flex-col rounded-[28px] sm:rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 overflow-hidden animate-sheet-up sm:animate-fade-in ${
+        className={`fixed left-3 right-3 sm:bottom-auto sm:top-[calc(var(--sat,0px)+var(--header-min-h,52px)+10px)] sm:left-auto sm:right-4 sm:w-[420px] z-10 flex flex-col rounded-[28px] sm:rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 overflow-hidden animate-sheet-up sm:animate-fade-in ${
           !isTopModal ? "pointer-events-none select-none" : ""
         }`}
       >
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-1.5 mb-1 shrink-0 sm:hidden" aria-hidden="true" />
 
-        <div className="pl-3.5 pr-[104px] sm:pr-4 py-2 min-h-[52px] border-b border-slate-200/80 dark:border-slate-800 bg-[#F4F6F9] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
+        <div className="pl-3.5 pr-[calc(var(--zalo-capsule-w)+8px)] sm:pr-4 py-2 min-h-[52px] border-b border-slate-200/80 dark:border-slate-800 bg-[#F4F6F9] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             {typeof onClose === "function" && (
               <button

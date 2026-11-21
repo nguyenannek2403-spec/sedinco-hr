@@ -1006,7 +1006,7 @@ export default function PayrollGridTable({
         />
       )}
 
-      {/* Modal Chuyển khoản lương VietQR (z-[115] chồng chuẩn trên SalarySlipModal) */}
+      {/* Modal Chuyển khoản lương VietQR (--z-nested-modal chồng chuẩn trên SalarySlipModal) */}
       <BankTransferModal
         open={Boolean(transferItem)}
         item={transferItem}
@@ -1063,12 +1063,12 @@ export default function PayrollGridTable({
         }}
       />
 
-      {/* Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2) — z-[115] luôn nổi trên SalarySlipModal */}
+      {/* Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2) — --z-nested-modal nổi trên SalarySlipModal */}
       <AppModal
         open={Boolean(adjustItem)}
         onClose={() => !adjSaving && setAdjustItem(null)}
         disableClose={adjSaving}
-        zIndexClass="z-[115]"
+        nested={true}
         title="Điều chỉnh thưởng / phạt"
         subtitle={
           adjustItem
@@ -1211,7 +1211,7 @@ export default function PayrollGridTable({
         <AppModal
           open={Boolean(unconfirmedWarnItem)}
           onClose={() => setUnconfirmedWarnItem(null)}
-          zIndexClass="z-[120]"
+          nested={true}
           maxWidthClass="sm:max-w-md"
           icon={
             <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 flex items-center justify-center shrink-0">

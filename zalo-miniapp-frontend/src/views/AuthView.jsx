@@ -23,13 +23,18 @@ export default function AuthView({
 
   return (
     <div
-      className="min-h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] flex flex-col px-4 pb-4 pt-[max(env(safe-area-inset-top,0px),8px)] overflow-x-hidden transition-colors duration-200 relative"
+      className="bg-[#F1F5F9] dark:bg-[#0B1120] flex flex-col px-4 overflow-x-hidden transition-colors duration-200 relative"
       style={{
-        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
+        minHeight: "var(--visual-vh)",
+        paddingTop: "calc(var(--sat, 0px) + 10px)",
+        paddingBottom: "calc(var(--sab, 0px) + 16px)"
       }}
     >
-      {/* Nút chuyển Sáng/Tối gọn ở góc trên bên trái (chừa 104px vùng nút Zalo góc phải) */}
-      <div className="w-full max-w-sm mx-auto flex items-center justify-start min-h-[44px] py-1 pr-[104px] shrink-0 relative z-10">
+      {/* Nút chuyển Sáng/Tối gọn ở góc trên bên trái (chừa vùng nút Zalo Capsule bên phải) */}
+      <div
+        className="w-full max-w-sm mx-auto flex items-center justify-start min-h-[44px] py-1 shrink-0 relative z-10"
+        style={{ paddingRight: "calc(var(--zalo-capsule-w, 104px) + 10px)" }}
+      >
         <ThemeToggleButton compact />
       </div>
 

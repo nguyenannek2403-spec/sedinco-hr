@@ -638,12 +638,12 @@ export default function RequestsManagementTab({
         )}
       </AppModal>
 
-      {/* Modal nhập lý do từ chối (tùy chọn) — z-[115] chồng chuẩn trên modal chi tiết */}
+      {/* Modal nhập lý do từ chối (tùy chọn) — --z-nested-modal chồng chuẩn trên modal chi tiết */}
       <AppModal
         open={Boolean(rejectDialogReq)}
         onClose={() => !actionLoadingId && setRejectDialogReq(null)}
         disableClose={Boolean(actionLoadingId)}
-        zIndexClass="z-[115]"
+        nested={true}
         maxWidthClass="max-w-md"
         title="Từ chối đơn từ"
         subtitle={

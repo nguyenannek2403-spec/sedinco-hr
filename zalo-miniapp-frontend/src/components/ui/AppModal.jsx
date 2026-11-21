@@ -26,9 +26,10 @@ export default function AppModal({
   closeLabel = "Đóng / Quay lại",
   theme = "auto",
   fullScreenSheet = false,
+  nested = false,
   customHeader = null,
   maxWidthClass = "max-w-lg",
-  maxHeightClass = "max-h-[90vh]",
+  maxHeightClass = "",
   zIndexClass = "",
   closeOnBackdrop = true,
   disableClose = false,
@@ -37,7 +38,7 @@ export default function AppModal({
 }) {
   const { isDark: globalDark } = useTheme();
   const visible = open !== undefined ? Boolean(open) : Boolean(isOpen);
-  const { zIndex, isTopModal } = useModalStack(visible, 100);
+  const { zIndex, isTopModal } = useModalStack(visible, nested ? 70 : 60);
   const dialogCardRef = useRef(null);
   const previousFocusRef = useRef(null);
 
@@ -94,13 +95,14 @@ export default function AppModal({
       data-modal-root="true"
       role="dialog"
       aria-modal="true"
-      className={`fixed inset-0 flex ${
+      className={`fixed top-0 left-0 right-0 flex ${
         fullScreenSheet ? "items-stretch sm:items-center" : "items-end sm:items-center"
       } justify-center bg-slate-900/55 backdrop-blur-[3px] transition-opacity duration-200 p-0 sm:p-4 animate-fade-in`}
       style={{
         zIndex: effectiveZIndex,
-        paddingTop: fullScreenSheet ? "0px" : "max(env(safe-area-inset-top, 0px), 8px)",
-        paddingBottom: fullScreenSheet ? "0px" : "env(safe-area-inset-bottom, 0px)"
+        height: "var(--visual-vh, 100dvh)",
+        paddingTop: fullScreenSheet ? "0px" : "calc(var(--sat, 0px) + 12px)",
+        paddingBottom: "0px"
       }}
       onClick={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) {
@@ -112,13 +114,18 @@ export default function AppModal({
         ref={dialogCardRef}
         className={`flex flex-col w-full ${maxWidthClass} ${
           fullScreenSheet
-            ? "h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[92dvh] rounded-none sm:rounded-[24px]"
-            : `${maxHeightClass} rounded-t-[28px] sm:rounded-[24px]`
+            ? "h-full max-h-full sm:h-auto sm:max-h-[92dvh] rounded-none sm:rounded-[24px]"
+            : `${maxHeightClass || ""} rounded-t-[28px] sm:rounded-[24px]`
         } overflow-hidden shadow-2xl animate-sheet-up border ${
           isDark
             ? "bg-slate-900 text-slate-100 border-slate-700/80"
             : "bg-white text-slate-800 border-slate-200/90 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700/80"
         } ${!isTopModal ? "pointer-events-none select-none" : ""}`}
+        style={
+          !fullScreenSheet && !maxHeightClass
+            ? { maxHeight: "calc(var(--visual-vh, 100dvh) - var(--sat, 0px) - 16px)" }
+            : undefined
+        }
         onClick={(e) => e.stopPropagation()}
       >
         {!fullScreenSheet && (
@@ -128,12 +135,16 @@ export default function AppModal({
           />
         )}
 
-        {/* Thanh tiêu đề cố định: chừa 104px góc trên phải cho Zalo Capsule */}
+        {/* Thanh tiêu đề cố định: fullScreenSheet áp dụng u-modal-header-safe (1 lần --sat + capsule guard); Sheet thu gọn chỉ chừa capsule ngang để không nhân đôi --sat */}
         {customHeader ? (
           customHeader({ handleSafeClose, isDark })
         ) : (
           <div
-            className={`pl-3.5 pr-[104px] sm:pr-4 py-2 min-h-[52px] border-b flex items-center justify-between gap-2 shrink-0 ${
+            className={`${
+              fullScreenSheet
+                ? "u-modal-header-safe"
+                : "pl-3.5 pr-[calc(var(--zalo-capsule-w)+8px)] sm:pr-4 py-2 min-h-[52px]"
+            } border-b flex items-center justify-between gap-2 shrink-0 ${
               isDark
                 ? "bg-slate-900 border-slate-800"
                 : "bg-white border-slate-100 dark:bg-slate-900 dark:border-slate-800"
@@ -218,14 +229,13 @@ export default function AppModal({
           {children}
         </div>
 
-        {/* Đáy Modal cố định: chuẩn safe-area-inset-bottom */}
+        {/* Đáy Modal cố định: 1 lần safe-area-inset-bottom qua .u-footer-safe */}
         <div
-          className={`px-4 py-3 border-t shrink-0 ${
+          className={`px-4 u-footer-safe border-t shrink-0 ${
             isDark
               ? "bg-slate-900 border-slate-800"
               : "bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800"
           }`}
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
         >
           {footer ? (
             footer

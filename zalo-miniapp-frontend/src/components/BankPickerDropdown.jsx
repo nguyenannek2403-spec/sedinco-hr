@@ -155,12 +155,12 @@ export default function BankPickerDropdown({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Tìm nhanh: VCB, MB, Techcombank, BIDV..."
-                className="w-full min-h-[38px] pl-8 pr-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-[#111C2D] dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#0051CA]"
+                className="w-full min-h-[44px] pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-[#111C2D] dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#0051CA]"
               />
             </div>
           </div>
 
-          <div className="max-h-60 overflow-y-auto modal-scroll-area divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="max-h-56 overflow-y-auto overscroll-contain divide-y divide-slate-100 dark:divide-slate-800">
             {filteredBanks.length === 0 ? (
               <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
                 Không tìm thấy ngân hàng khớp từ khóa "{query}".

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import DesktopSidebar, { DesktopMobileBottomNav } from "../../components/DesktopSidebar";
 import DesktopHeader from "../../components/DesktopHeader";
+import UniversalAppShell from "../../components/layout/UniversalAppShell";
 import RequestsManagementTab from "./RequestsManagementTab";
 import EmployeeManagementTab from "./EmployeeManagementTab";
 import CompanySettingsTab from "./CompanySettingsTab";
@@ -200,59 +201,71 @@ export default function DesktopDashboard({
   const mgmtInitialFilter = focusTarget?.category === "device" ? "alerts" : "all";
 
   return (
-    <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] text-[#111C2D] dark:text-slate-100 overflow-hidden font-sans relative transition-colors duration-200">
-      {/* Sidebar Trái (Tự động chuyển thành Drawer Portal + Bottom Nav khi mở trên điện thoại < 1024px) */}
-      <DesktopSidebar
-        currentTab={effectiveTab}
-        setCurrentTab={(tabId) => {
-          setFocusTarget(null);
-          navigateToTarget(tabId);
-        }}
-        activeRole={resolvedRole}
-        dynamicPerms={effectiveDynamicPerms}
-        currentUser={currentUser}
-        onLogout={onLogout}
-        onClearCache={onClearCache}
-        alertsSummary={alertsSummary}
-        pendingRequestsCount={alertsSummary.pending_requests_count || 0}
-        isMobileMenuOpen={isMobileMenuOpen}
-        onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
-        onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-        showMobileBottomNav={false}
-      />
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        {/* Header (Hỗ trợ Safe Area Top & Tránh cụm nút Zalo góc phải trên điện thoại) */}
-        <DesktopHeader
-          currentUser={currentUser}
-          activeRole={resolvedRole}
-          dynamicPerms={effectiveDynamicPerms}
-          currentTab={effectiveTab}
-          settingsSubTab={settingsSubTab}
-          setCurrentTab={(tabId) => {
-          setFocusTarget(null);
-          navigateToTarget(tabId);
-        }}
-          onNavigateAlert={handleNavigateAlert}
-          onLogout={onLogout}
-          onChangePasswordRequest={onChangePasswordRequest}
-          alertsSummary={alertsSummary}
-          refreshSignal={refreshTick}
-          isLoading={alertsLoading}
-          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-          onRefresh={() => {
-            setRefreshTick((t) => t + 1);
-            fetchAlertsSummary();
-          }}
-        />
-
-        {/* Tab Content with Suspense Loading */}
-        <main
-          data-scroll-container="desktop"
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:p-6 pb-8 bg-[#F1F5F9] dark:bg-[#0B1120] transition-colors duration-200"
-        >
-          <div key={effectiveTab} className="animate-tab-enter">
+    <>
+      <UniversalAppShell
+        role={resolvedRole}
+        dataScrollContainer="desktop"
+        mainClassName="p-3 sm:p-5 pb-8 bg-[#F1F5F9] dark:bg-[#0B1120]"
+        sidebar={
+          <DesktopSidebar
+            currentTab={effectiveTab}
+            setCurrentTab={(tabId) => {
+              setFocusTarget(null);
+              navigateToTarget(tabId);
+            }}
+            activeRole={resolvedRole}
+            dynamicPerms={effectiveDynamicPerms}
+            currentUser={currentUser}
+            onLogout={onLogout}
+            onClearCache={onClearCache}
+            alertsSummary={alertsSummary}
+            pendingRequestsCount={alertsSummary.pending_requests_count || 0}
+            isMobileMenuOpen={isMobileMenuOpen}
+            onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+            showMobileBottomNav={false}
+          />
+        }
+        header={
+          <DesktopHeader
+            currentUser={currentUser}
+            activeRole={resolvedRole}
+            dynamicPerms={effectiveDynamicPerms}
+            currentTab={effectiveTab}
+            settingsSubTab={settingsSubTab}
+            setCurrentTab={(tabId) => {
+              setFocusTarget(null);
+              navigateToTarget(tabId);
+            }}
+            onNavigateAlert={handleNavigateAlert}
+            onLogout={onLogout}
+            onChangePasswordRequest={onChangePasswordRequest}
+            alertsSummary={alertsSummary}
+            refreshSignal={refreshTick}
+            isLoading={alertsLoading}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+            onRefresh={() => {
+              setRefreshTick((t) => t + 1);
+              fetchAlertsSummary();
+            }}
+          />
+        }
+        bottomNav={
+          <DesktopMobileBottomNav
+            activeRole={resolvedRole}
+            dynamicPerms={effectiveDynamicPerms}
+            alertsSummary={alertsSummary}
+            pendingRequestsCount={alertsSummary.pending_requests_count || 0}
+            currentTab={effectiveTab}
+            setCurrentTab={(tabId) => {
+              setFocusTarget(null);
+              navigateToTarget(tabId);
+            }}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+          />
+        }
+      >
+        <div key={effectiveTab} className="animate-tab-enter">
           <Suspense
             fallback={
               <div className="h-full flex flex-col items-center justify-center text-slate-500 gap-3 py-12">
@@ -537,23 +550,8 @@ export default function DesktopDashboard({
               )
             )}
           </Suspense>
-          </div>
-        </main>
-
-        {/* Bottom Navigation Bar in-flow cho Mobile (< 1024px), không bao giờ đè lên nội dung chính */}
-        <DesktopMobileBottomNav
-          activeRole={resolvedRole}
-          dynamicPerms={effectiveDynamicPerms}
-          alertsSummary={alertsSummary}
-          pendingRequestsCount={alertsSummary.pending_requests_count || 0}
-          currentTab={effectiveTab}
-          setCurrentTab={(tabId) => {
-          setFocusTarget(null);
-          navigateToTarget(tabId);
-        }}
-          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-        />
-      </div>
+        </div>
+      </UniversalAppShell>
 
       {personalPayslipModal.open && resolvedRole !== ROLES.ADMIN && (
         <SalarySlipModal
@@ -569,6 +567,6 @@ export default function DesktopDashboard({
           onClose={() => setPersonalPayslipModal((p) => ({ ...p, open: false }))}
         />
       )}
-    </div>
+    </>
   );
 }

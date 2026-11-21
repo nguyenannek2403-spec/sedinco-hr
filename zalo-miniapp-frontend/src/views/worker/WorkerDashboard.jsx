@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { Clock, Calendar, FileText, User, LogOut, Bell } from "lucide-react";
+import { Clock, Calendar, FileText, User, Bell } from "lucide-react";
 import OneTouchCheckIn from "../../components/OneTouchCheckIn";
 import WorkerHistoryTab from "./WorkerHistoryTab";
 import WorkerRequestsTab from "./WorkerRequestsTab";
@@ -10,7 +10,7 @@ import CompanyLogo from "../../components/CompanyLogo";
 import { ThemeToggleButton, useTheme } from "../../context/ThemeContext";
 import { useNotifications } from "../../hooks/useNotifications";
 import NotificationCenterPanel from "../../components/NotificationCenterPanel";
-import { UserAvatar } from "../../components/ui";
+import UniversalAppShell, { UnifiedAppHeader, UnifiedBottomNav } from "../../components/layout/UniversalAppShell";
 
 const TAB_TITLES = {
   checkin: "Chấm Công",
@@ -113,65 +113,56 @@ export default function WorkerDashboard({
   ];
 
   return (
-    <div className="w-full h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] text-[#111C2D] dark:text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden transition-colors duration-200">
-      {/* STITCH SINGLE-ROW TOP GLASS HEADER (Screens 2–5) — Reserves 104px top-right Zalo Mini App capsule safe zone */}
-      <header
-        className="shrink-0 z-30 w-full sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 pl-3.5 pr-[104px] py-2 pt-[max(env(safe-area-inset-top,0px),8px)] min-h-[52px] flex items-center transition-colors duration-200"
-      >
-        <div className="w-full flex items-center justify-between gap-2">
-          {/* Left: Brand Mark + Active Screen Title */}
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <CompanyLogo size="compact" theme={isDark ? "dark" : "light"} iconOnly />
-            <h2 className="text-sm sm:text-base font-extrabold text-[#111C2D] dark:text-white tracking-tight truncate">
-              {TAB_TITLES[activeTab] || "Chấm Công"}
-            </h2>
-          </div>
+    <>
+      <UniversalAppShell
+        role="worker"
+        dataScrollContainer="worker"
+        containerClassName="max-w-md mx-auto shadow-2xl"
+        header={
+          <UnifiedAppHeader
+            title={TAB_TITLES[activeTab] || "Chấm Công"}
+            leftAddon={
+              <div className="hidden min-[360px]:block shrink-0">
+                <CompanyLogo size="compact" theme={isDark ? "dark" : "light"} iconOnly />
+              </div>
+            }
+            avatarUser={currentUser}
+            onAvatarClick={() => setActiveTab("profile")}
+            actions={
+              <>
+                <ThemeToggleButton compact />
 
-          {/* Right: Theme Toggle + Notification Bell + Profile Avatar (Reserves 104px Zalo safe zone) */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <ThemeToggleButton compact />
-
-            <button
-              type="button"
-              data-testid="worker-bell-btn"
-              data-bell-button="true"
-              onClick={handleOpenBell}
-              aria-label={`Thông báo (${unreadCount} chưa đọc)`}
-              title="Thông báo & Bảng lương"
-              className="relative min-w-[40px] min-h-[40px] p-2 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#111C2D] dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer inline-flex items-center justify-center"
-            >
-              <Bell className="w-4 h-4 text-[#E11D48] dark:text-rose-400" />
-              {unreadCount > 0 && (
-                <span
-                  data-testid="worker-bell-badge"
-                  className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#E11D48] text-white text-[11px] font-extrabold flex items-center justify-center shadow-sm"
+                <button
+                  type="button"
+                  data-testid="worker-bell-btn"
+                  data-bell-button="true"
+                  onClick={handleOpenBell}
+                  aria-label={`Thông báo (${unreadCount} chưa đọc)`}
+                  title="Thông báo & Bảng lương"
+                  className="relative min-w-[40px] min-h-[40px] p-2 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#111C2D] dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer inline-flex items-center justify-center"
                 >
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("profile")}
-              aria-label="Hồ sơ tài khoản cá nhân"
-              title={currentUser?.ho_ten || "Tài khoản"}
-              className="min-w-[40px] min-h-[40px] p-1 rounded-full border border-slate-200/80 dark:border-slate-700 bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 inline-flex items-center justify-center cursor-pointer transition-colors"
-            >
-              <UserAvatar
-                name={currentUser?.ho_ten || currentUser?.ma_nv}
-                avatarUrl={currentUser?.avatar_url}
-                size="xs"
-              />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* MAIN CONTENT VIEWPORT (Scroll-isolated above in-flow bottom navigation) */}
-      <main
-        data-scroll-container="worker"
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain pb-6"
+                  <Bell className="w-4 h-4 text-[#E11D48] dark:text-rose-400" />
+                  {unreadCount > 0 && (
+                    <span
+                      data-testid="worker-bell-badge"
+                      className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#E11D48] text-white text-[11px] font-extrabold flex items-center justify-center shadow-sm"
+                    >
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+              </>
+            }
+          />
+        }
+        bottomNav={
+          <UnifiedBottomNav
+            items={navItems}
+            activeTab={activeTab}
+            onSelectTab={setActiveTab}
+            ariaLabel="Điều hướng chính nhân viên"
+          />
+        }
       >
         <div key={activeTab} className="animate-tab-enter">
           {activeTab === "checkin" && (
@@ -221,40 +212,7 @@ export default function WorkerDashboard({
             </div>
           )}
         </div>
-      </main>
-
-      {/* STITCH 4-TAB IN-FLOW BOTTOM NAVIGATION BAR (Screens 2–5) */}
-      <nav
-        aria-label="Điều hướng chính nhân viên"
-        className="shrink-0 z-30 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800 px-2 pt-1.5 shadow-[0_-4px_20px_rgba(17,28,45,0.06)] transition-colors duration-200"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
-      >
-        <div className="grid grid-cols-4 gap-1.5">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                data-tab={item.id}
-                data-active={active ? "true" : "false"}
-                onClick={() => setActiveTab(item.id)}
-                className={`relative min-h-[52px] flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl border transition-all cursor-pointer ${
-                  active
-                    ? "text-[#B80035] dark:text-rose-300 bg-[#FFE4E6] dark:bg-rose-950/80 border-[#E11D48]/50 dark:border-rose-500/60 font-extrabold"
-                    : "text-slate-600 dark:text-slate-400 hover:text-[#111C2D] dark:hover:text-slate-200 border-transparent font-semibold"
-                }`}
-              >
-                <Icon className={`w-5 h-5 ${active ? "stroke-[2.5]" : "stroke-[2]"}`} />
-                <span className="text-xs mt-0.5 leading-tight whitespace-nowrap">
-                  {item.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      </UniversalAppShell>
 
       {/* Portal Notification Center (Stitch Screen 14) */}
       <NotificationCenterPanel
@@ -310,6 +268,6 @@ export default function WorkerDashboard({
           }}
         />
       )}
-    </div>
+    </>
   );
 }

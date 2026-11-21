@@ -1065,7 +1065,6 @@ export default function EmployeeManagementTab({
         }}
         disableClose={savingDetail || resolvingDevice}
         maxWidthClass="max-w-2xl"
-        maxHeightClass="max-h-[92vh]"
         title="Chi tiết Nhân viên"
         subtitle={detailEmp ? `${detailEmp.ho_ten} (${detailEmp.ma_nv})` : ""}
         icon={<Eye className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />}

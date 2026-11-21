@@ -762,20 +762,20 @@ export default function SalarySlipModal({
       customHeader={({ handleSafeClose }) => (
         <header
           data-testid="payslip-sticky-header"
-          className="h-[56px] shrink-0 pl-2.5 pr-[104px] sm:pr-4 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 print:hidden"
+          className="u-modal-header-safe shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-1.5 sm:gap-2 print:hidden"
         >
           <button
             type="button"
             data-testid="payslip-top-close-btn"
             disabled={submitting || resolving || sendingReport}
             onClick={handleSafeClose}
-            className="min-w-[44px] min-h-[44px] px-2.5 rounded-xl inline-flex items-center gap-1 text-xs sm:text-sm font-bold text-[#B80035] dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-slate-800 shrink-0 cursor-pointer whitespace-nowrap disabled:opacity-50"
+            className="min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-xl inline-flex items-center gap-1 text-xs sm:text-sm font-bold text-[#B80035] dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-slate-800 shrink-0 cursor-pointer whitespace-nowrap disabled:opacity-50"
           >
             <ArrowLeft className="w-4 h-4 shrink-0" />
             <span>Đóng</span>
           </button>
 
-          <h2 className="flex-1 min-w-0 text-center font-extrabold text-sm sm:text-base text-[#111C2D] dark:text-white truncate">
+          <h2 className="flex-1 min-w-0 text-center font-extrabold text-xs sm:text-base text-[#111C2D] dark:text-white truncate">
             Phiếu lương T{monthLabelPadded}/{nam}
           </h2>
 
@@ -784,7 +784,7 @@ export default function SalarySlipModal({
             data-testid="payslip-download-excel-btn"
             disabled={!item || loadingPeriod}
             onClick={handleExportSingleSlipExcel}
-            className="min-w-[44px] min-h-[44px] px-3 rounded-xl inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 cursor-pointer whitespace-nowrap disabled:opacity-50 shadow-xs"
+            className="min-w-[44px] min-h-[44px] px-2.5 sm:px-3 rounded-xl inline-flex items-center gap-1 sm:gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 cursor-pointer whitespace-nowrap disabled:opacity-50 shadow-xs"
             title="Tải file Excel phiếu lương (.xlsx)"
           >
             <FileSpreadsheet className="w-4 h-4 shrink-0" />

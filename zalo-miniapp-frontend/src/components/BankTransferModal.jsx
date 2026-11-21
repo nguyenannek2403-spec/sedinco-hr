@@ -342,7 +342,7 @@ export default function BankTransferModal({
       open={open}
       onClose={onClose}
       disableClose={confirming || quickSaving}
-      zIndexClass="z-[115]"
+      nested={true}
       maxWidthClass="sm:max-w-lg"
       icon={
         <UserAvatar

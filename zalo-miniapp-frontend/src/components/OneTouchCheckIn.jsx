@@ -1111,7 +1111,6 @@ export default function OneTouchCheckIn({
       <AppModal
         open={stage === STAGES.SECURITY_FRAUD}
         onClose={() => setStage(STAGES.IDLE)}
-        zIndexClass="z-[100]"
         title="Cảnh báo an ninh chấm công"
         maxWidthClass="max-w-sm"
         footer={

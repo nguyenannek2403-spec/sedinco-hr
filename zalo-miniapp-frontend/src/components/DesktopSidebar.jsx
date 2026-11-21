@@ -15,6 +15,7 @@ import { ROLES, ROLE_LABELS, isTabAllowedForRole } from "../constants/roles";
 import CompanyLogo from "./CompanyLogo";
 import { useTheme } from "../context/ThemeContext";
 import { useModalStack } from "../hooks/useLockBodyScroll";
+import { UnifiedBottomNav } from "./layout/UniversalAppShell";
 
 const ALL_MENU_ITEMS = [
   { id: "employees", label: "Nhân sự 360°", shortLabel: "Nhân sự", icon: Users },
@@ -62,55 +63,16 @@ export function DesktopMobileBottomNav({
       : allowedItems.slice(0, 5);
 
   const pendingReqCount = Number(pendingRequestsCount || alertsSummary?.pending_requests_count || 0);
-  const gridColsClass =
-    navItems.length >= 5
-      ? "grid-cols-5"
-      : navItems.length === 4
-      ? "grid-cols-4"
-      : navItems.length === 3
-      ? "grid-cols-3"
-      : "grid-cols-2";
 
   return (
-    <nav
-      aria-label="Điều hướng chính quản trị"
-      className="lg:hidden shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800 px-1 pt-1.5 shadow-[0_-4px_20px_rgba(17,28,45,0.06)] transition-colors duration-200"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 6px)" }}
-    >
-      <div className={`max-w-lg mx-auto grid ${gridColsClass} gap-0.5`}>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = resolvedTab === item.id;
-          const showBadge = item.id === "requests" && pendingReqCount > 0;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              data-tab={item.id}
-              data-active={isActive ? "true" : "false"}
-              onClick={() => handleSelect && handleSelect(item.id)}
-              className={`relative min-h-[52px] flex flex-col items-center justify-center py-1 px-0.5 rounded-2xl border transition-all cursor-pointer ${
-                isActive
-                  ? "text-[#B80035] dark:text-rose-300 bg-[#FFE4E6] dark:bg-rose-950/80 border-[#E11D48]/50 dark:border-rose-500/60 font-extrabold"
-                  : "text-slate-600 dark:text-slate-400 hover:text-[#111C2D] dark:hover:text-slate-200 border-transparent font-semibold"
-              }`}
-            >
-              <div className="relative">
-                <Icon className={`w-5 h-5 shrink-0 ${isActive ? "stroke-[2.5]" : "stroke-[2]"}`} />
-                {showBadge && (
-                  <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#E11D48] text-white text-xs font-extrabold flex items-center justify-center">
-                    {pendingReqCount > 9 ? "9+" : pendingReqCount}
-                  </span>
-                )}
-              </div>
-              <span className="text-xs mt-0.5 leading-tight tracking-tight whitespace-nowrap">
-                {item.shortLabel}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
+    <UnifiedBottomNav
+      items={navItems}
+      activeTab={resolvedTab}
+      onSelectTab={handleSelect}
+      badgeMap={{ requests: pendingReqCount }}
+      hideOnDesktop={true}
+      ariaLabel="Điều hướng chính quản trị"
+    />
   );
 }
 
@@ -137,7 +99,7 @@ export default function DesktopSidebar({
   const handleCloseMobile = onCloseMobileMenu || onCloseMobile;
   const menuItems = getAllowedDesktopMenuItems(effectiveRole, dynamicPerms);
 
-  const { zIndex, isTopModal } = useModalStack(resolvedMobileOpen, 115);
+  const { zIndex, isTopModal } = useModalStack(resolvedMobileOpen, 60);
 
   useEffect(() => {
     if (!resolvedMobileOpen || !isTopModal) return undefined;
@@ -162,7 +124,7 @@ export default function DesktopSidebar({
   const renderDrawerContent = () => (
     <div className="w-72 bg-white dark:bg-slate-900 border-r border-slate-200/80 dark:border-slate-800 flex flex-col h-full shrink-0 select-none transition-colors duration-200">
       {/* Brand Header — Stitch Executive Identity */}
-      <div className="p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 bg-[#F4F6F9] dark:bg-slate-900">
+      <div className="px-5 pb-4 pt-[max(var(--sat),16px)] lg:pt-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 bg-[#F4F6F9] dark:bg-slate-900">
         <div className="flex items-center gap-3 min-w-0">
           <CompanyLogo size="compact" theme={isDark ? "dark" : "light"} iconOnly />
           <div className="min-w-0">
@@ -278,13 +240,6 @@ export default function DesktopSidebar({
             aria-label="Danh mục quản trị"
             style={{ zIndex }}
             className={`lg:hidden fixed inset-0 flex ${isDark ? "dark" : ""}`}
-            onWheel={(e) => e.stopPropagation()}
-            onTouchMove={(e) => {
-              if (!e.target?.closest?.(".modal-scroll-area")) {
-                e.preventDefault();
-              }
-              e.stopPropagation();
-            }}
           >
             <div
               className="fixed inset-0 bg-slate-950/60 transition-opacity"
@@ -294,8 +249,8 @@ export default function DesktopSidebar({
             <div
               className="relative z-10 h-full max-w-[85vw] flex"
               style={{
-                paddingTop: "env(safe-area-inset-top, 0px)",
-                paddingBottom: "env(safe-area-inset-bottom, 0px)"
+                paddingTop: "var(--sat)",
+                paddingBottom: "var(--sab)"
               }}
             >
               {renderDrawerContent()}
