@@ -498,7 +498,7 @@ export default function BankTransferModal({
                   type="button"
                   data-testid="copy-bank-acct-btn"
                   onClick={() => handleCopy(effectiveBank.bank_account_number, "số tài khoản")}
-                  className="min-h-[40px] px-3 py-1.5 rounded-xl bg-[#F4F6FA] dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-[#111C2D] dark:text-slate-100 inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  className="min-h-[44px] px-3 py-2 rounded-xl bg-[#F4F6FA] dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-[#111C2D] dark:text-slate-100 inline-flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>Copy STK</span>
@@ -516,7 +516,7 @@ export default function BankTransferModal({
                   <button
                     type="button"
                     onClick={() => handleCopy(transferNote, "nội dung chuyển khoản")}
-                    className="min-h-[34px] px-2.5 py-1 rounded-lg bg-[#F4F6FA] dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-[#111C2D] dark:text-slate-100 inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                    className="min-h-[42px] px-3 py-1.5 rounded-lg bg-[#F4F6FA] dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-[#111C2D] dark:text-slate-100 inline-flex items-center gap-1 shrink-0 cursor-pointer whitespace-nowrap"
                   >
                     <Copy className="w-3 h-3" />
                     <span>Copy</span>

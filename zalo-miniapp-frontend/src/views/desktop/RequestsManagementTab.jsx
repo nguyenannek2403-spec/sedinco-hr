@@ -250,7 +250,7 @@ export default function RequestsManagementTab({
           <div
             data-filter-group="requests-employee-filter"
             data-testid="requests-filter-bar"
-            className="flex flex-wrap bg-[#F4F6F9] dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 p-1 rounded-xl gap-1 text-xs"
+            className="flex flex-wrap bg-[#F4F6F9] dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 p-1 rounded-xl gap-2 text-xs"
           >
             {[
               { id: "pending", label: `Chờ duyệt (${stats.withPending})` },
@@ -265,7 +265,7 @@ export default function RequestsManagementTab({
                   data-testid={`requests-filter-${tab.id}`}
                   data-active={active ? "true" : "false"}
                   onClick={() => setFilterMode(tab.id)}
-                  className={`min-h-[38px] px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap ${
+                  className={`min-h-[44px] px-3 py-2 rounded-lg font-bold transition cursor-pointer whitespace-nowrap ${
                     active
                       ? "bg-[#E11D48] text-white shadow-xs dark:bg-rose-600"
                       : "text-slate-600 dark:text-slate-300 hover:text-[#111C2D] dark:hover:text-white"
@@ -402,7 +402,7 @@ export default function RequestsManagementTab({
                 </div>
 
                 {/* Phải: Nút Xem chi tiết + Duyệt/Từ chối nhanh (nếu đơn mới nhất đang PENDING) */}
-                <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                <div className="flex flex-wrap items-center justify-end gap-2.5 shrink-0">
                   {canQuickAct && (
                     <>
                       <AppButton
@@ -415,7 +415,7 @@ export default function RequestsManagementTab({
                           setRejectDialogReq(latest);
                           setRejectReasonInput("");
                         }}
-                        className="text-xs px-3 py-2"
+                        className="text-xs px-3 py-2 whitespace-nowrap"
                       >
                         Từ chối
                       </AppButton>
@@ -426,7 +426,7 @@ export default function RequestsManagementTab({
                         disabled={Boolean(actionLoadingId)}
                         data-testid={`req-quick-approve-${emp.ma_nv}`}
                         onClick={() => executeAction(latest.id, "approved")}
-                        className="text-xs px-3 py-2"
+                        className="text-xs px-3 py-2 whitespace-nowrap"
                       >
                         ✓ Duyệt nhanh
                       </AppButton>
@@ -438,7 +438,7 @@ export default function RequestsManagementTab({
                     icon={Eye}
                     data-testid={`req-emp-detail-btn-${emp.ma_nv}`}
                     onClick={() => setSelectedEmpMaNv(emp.ma_nv)}
-                    className="text-xs px-3.5 py-2"
+                    className="text-xs px-3.5 py-2 whitespace-nowrap"
                   >
                     Xem chi tiết{emp.total_requests > 0 ? ` (${emp.total_requests})` : ""}
                   </AppButton>

@@ -1,10 +1,8 @@
 import React from "react";
 import {
-  SlidersHorizontal,
   Download,
   CheckCircle2,
   AlertTriangle,
-  Clock,
   Send
 } from "lucide-react";
 import { AppButton } from "./ui";
@@ -15,8 +13,10 @@ export default function PayslipActionFooter({
   confirmStatus = "PENDING",
   submitting = false,
   resolving = false,
+  sendingReport = false,
   canAdjust = false,
   canManagePayment = false,
+  canSendReport = false,
   isLockedOrPaid = false,
   thang = null,
   nam = null,
@@ -24,6 +24,7 @@ export default function PayslipActionFooter({
   onClose,
   onOpenAdjustment,
   onOpenTransfer,
+  onSendReport,
   onExportSlip,
   onConfirmSalary,
   onConfirmReceived,
@@ -34,10 +35,13 @@ export default function PayslipActionFooter({
       item && !isLockedOrPaid && canAdjust && typeof onOpenAdjustment === "function"
     );
     const isEmployeePaid = Boolean(
-      item && (item.employee_payment_status === "PAID" || item.payment_status === "PAID")
+      item && (item.payout_status === "PAID" || item.payout_status === "RECEIVED" || item.employee_payment_status === "PAID" || item.payment_status === "PAID")
     );
     const showTransferBtn = Boolean(
       item && canManagePayment && typeof onOpenTransfer === "function"
+    );
+    const showSendReportBtn = Boolean(
+      item && canSendReport && typeof onSendReport === "function"
     );
     const payload = item
       ? {
@@ -48,61 +52,90 @@ export default function PayslipActionFooter({
         }
       : null;
 
+    if (showSendReportBtn && showTransferBtn) {
+      return (
+        <div
+          data-testid="payslip-admin-footer"
+          className="flex items-center gap-3 w-full"
+        >
+          <AppButton
+            data-testid="payslip-admin-send-report-btn"
+            variant="zalo"
+            icon={Send}
+            loading={sendingReport}
+            disabled={resolving || sendingReport}
+            onClick={() => payload && onSendReport(payload)}
+            className="basis-[45%] shrink-0 min-h-[46px] !px-2.5 sm:!px-4 rounded-xl font-semibold text-xs sm:text-sm whitespace-nowrap"
+          >
+            Gửi báo cáo
+          </AppButton>
+
+          <AppButton
+            data-testid="payslip-admin-transfer-btn"
+            variant={isEmployeePaid ? "success" : "primary"}
+            icon={isEmployeePaid ? CheckCircle2 : Send}
+            disabled={resolving || sendingReport}
+            onClick={() => payload && onOpenTransfer(payload)}
+            className={`flex-1 min-w-0 min-h-[46px] !px-2.5 sm:!px-4 rounded-xl font-semibold text-xs sm:text-sm whitespace-nowrap ${
+              isEmployeePaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"
+            }`}
+          >
+            {isEmployeePaid ? "✓ Đã chuyển" : "Chuyển khoản"}
+          </AppButton>
+        </div>
+      );
+    }
+
     return (
       <div
         data-testid="payslip-admin-footer"
-        className="flex flex-wrap items-center justify-between gap-2 w-full"
+        className="flex items-center gap-3 w-full"
       >
         <AppButton
           data-testid="payslip-close-btn"
           variant="secondary"
           disabled={resolving}
           onClick={onClose}
-          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[84px]"
+          className="basis-[45%] shrink-0 min-h-[46px] rounded-xl font-semibold text-xs sm:text-sm whitespace-nowrap"
         >
           Đóng
         </AppButton>
 
-        {showAdjustBtn && (
-          <AppButton
-            data-testid="payslip-admin-adjust-btn"
-            variant="warning"
-            icon={SlidersHorizontal}
-            disabled={resolving}
-            title="Điều chỉnh Thưởng / Phạt / Tạm ứng"
-            onClick={() => payload && onOpenAdjustment(payload)}
-            className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm"
-          >
-            Điều chỉnh
-          </AppButton>
-        )}
-
-        {showTransferBtn && (
+        {showTransferBtn ? (
           <AppButton
             data-testid="payslip-admin-transfer-btn"
             variant={isEmployeePaid ? "success" : "primary"}
             icon={isEmployeePaid ? CheckCircle2 : Send}
             disabled={resolving}
-            title={isEmployeePaid ? "Đã chuyển khoản lương kỳ này" : "Mở mã VietQR chuyển khoản"}
             onClick={() => payload && onOpenTransfer(payload)}
-            className={`min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm ${
+            className={`flex-1 min-w-0 min-h-[46px] rounded-xl font-semibold text-xs sm:text-sm whitespace-nowrap ${
               isEmployeePaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"
             }`}
           >
-            {isEmployeePaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}
+            {isEmployeePaid ? "✓ Đã chuyển" : "💸 Chuyển khoản"}
+          </AppButton>
+        ) : showAdjustBtn ? (
+          <AppButton
+            data-testid="payslip-admin-adjust-btn"
+            variant="warning"
+            disabled={resolving}
+            onClick={() => payload && onOpenAdjustment(payload)}
+            className="flex-1 min-w-0 min-h-[46px] rounded-xl font-semibold text-xs sm:text-sm whitespace-nowrap"
+          >
+            Điều chỉnh
+          </AppButton>
+        ) : (
+          <AppButton
+            data-testid="payslip-admin-export-btn"
+            variant="primary"
+            icon={Download}
+            disabled={!item || resolving}
+            onClick={onExportSlip}
+            className="flex-1 min-w-0 min-h-[46px] rounded-xl font-semibold text-xs sm:text-sm whitespace-nowrap"
+          >
+            Xuất Excel
           </AppButton>
         )}
-
-        <AppButton
-          data-testid="payslip-admin-export-btn"
-          variant="primary"
-          icon={Download}
-          disabled={!item || resolving}
-          onClick={onExportSlip}
-          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm"
-        >
-          Xuất phiếu
-        </AppButton>
       </div>
     );
   }
@@ -128,33 +161,18 @@ export default function PayslipActionFooter({
   );
 
   if (isEmployeeReceived) {
-    const rawTime = String(item.received_at_vn || "").trim();
-    let shortReceived = "";
-    const vnMatch = rawTime.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})/);
-    if (vnMatch) {
-      shortReceived = ` (${vnMatch[4]} ${vnMatch[1]}/${vnMatch[2]}/${vnMatch[3]})`;
-    }
     return (
       <div
         data-testid="payslip-worker-footer"
-        className="flex flex-wrap items-center justify-between gap-2 w-full"
+        className="flex items-center gap-3 w-full"
       >
-        <span
+        <div
           data-testid="payslip-worker-received-badge"
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs sm:text-sm font-extrabold flex-1 min-w-[200px]"
+          className="inline-flex items-center justify-center gap-2 min-h-[46px] px-4 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs sm:text-sm font-extrabold w-full whitespace-nowrap"
         >
           <CheckCircle2 size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <span>💰 Đã xác nhận nhận đủ lương{shortReceived}</span>
-        </span>
-        <AppButton
-          data-testid="payslip-close-btn"
-          variant="secondary"
-          disabled={submitting}
-          onClick={onClose}
-          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[96px]"
-        >
-          Đóng
-        </AppButton>
+          <span>💰 Đã xác nhận nhận đủ lương</span>
+        </div>
       </div>
     );
   }
@@ -163,7 +181,7 @@ export default function PayslipActionFooter({
     return (
       <div
         data-testid="payslip-worker-footer"
-        className="flex flex-wrap items-center justify-between gap-2 w-full"
+        className="flex items-center w-full"
       >
         <AppButton
           data-testid="payslip-worker-confirm-received-btn"
@@ -171,19 +189,11 @@ export default function PayslipActionFooter({
           icon={CheckCircle2}
           loading={submitting}
           loadingText="Đang xác nhận..."
+          fullWidth
           onClick={onConfirmReceived}
-          className="min-h-[44px] rounded-xl font-extrabold flex-1 min-w-[210px] text-xs sm:text-sm shadow-sm"
+          className="min-h-[46px] rounded-xl font-semibold text-sm whitespace-nowrap shadow-sm"
         >
           💰 Xác nhận đã nhận lương
-        </AppButton>
-        <AppButton
-          data-testid="payslip-close-btn"
-          variant="secondary"
-          disabled={submitting}
-          onClick={onClose}
-          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[96px]"
-        >
-          Đóng
         </AppButton>
       </div>
     );
@@ -193,24 +203,15 @@ export default function PayslipActionFooter({
     return (
       <div
         data-testid="payslip-worker-footer"
-        className="flex flex-wrap items-center justify-between gap-2 w-full"
+        className="flex items-center gap-3 w-full"
       >
         <span
           data-testid="payslip-worker-confirmed-badge"
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-200 text-xs sm:text-sm font-bold flex-1 min-w-[200px]"
+          className="flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 min-h-[46px] px-3 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-200 text-xs sm:text-sm font-bold whitespace-nowrap"
         >
           <CheckCircle2 size={16} className="shrink-0 text-teal-600 dark:text-teal-400" />
-          <span>✓ Đã xác nhận đã đọc báo cáo lương — Chờ chuyển khoản</span>
+          <span>✓ Đã xác nhận đọc báo cáo</span>
         </span>
-        <AppButton
-          data-testid="payslip-close-btn"
-          variant="secondary"
-          disabled={submitting}
-          onClick={onClose}
-          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[96px]"
-        >
-          Đóng
-        </AppButton>
       </div>
     );
   }
@@ -219,37 +220,30 @@ export default function PayslipActionFooter({
     return (
       <div
         data-testid="payslip-worker-footer"
-        className="flex flex-wrap items-center gap-2 w-full"
+        className="flex items-center gap-3 w-full"
       >
+        <AppButton
+          data-testid="payslip-worker-dispute-btn"
+          variant="warning"
+          size="compact"
+          icon={AlertTriangle}
+          disabled={submitting}
+          onClick={onToggleDispute}
+          className="shrink-0 min-h-[46px] px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap"
+        >
+          Báo sai sót
+        </AppButton>
         <AppButton
           data-testid="payslip-worker-confirm-btn"
           variant="success"
+          size="compact"
           icon={CheckCircle2}
           loading={submitting}
           loadingText="Đang lưu..."
           onClick={onConfirmSalary}
-          className="min-h-[44px] rounded-xl font-bold flex-1 min-w-[190px] text-xs sm:text-sm"
+          className="flex-1 min-w-0 min-h-[46px] px-3 sm:px-4 text-xs sm:text-sm whitespace-nowrap"
         >
-          ✓ Xác nhận đã đọc báo cáo bảng lương
-        </AppButton>
-        <AppButton
-          data-testid="payslip-worker-dispute-btn"
-          variant="warning"
-          icon={AlertTriangle}
-          disabled={submitting}
-          onClick={onToggleDispute}
-          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm"
-        >
-          ⚠️ Báo sai sót
-        </AppButton>
-        <AppButton
-          data-testid="payslip-close-btn"
-          variant="secondary"
-          disabled={submitting}
-          onClick={onClose}
-          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[84px]"
-        >
-          Đóng
+          Xác nhận đọc báo cáo
         </AppButton>
       </div>
     );
@@ -258,22 +252,16 @@ export default function PayslipActionFooter({
   return (
     <div
       data-testid="payslip-worker-footer"
-      className="flex flex-wrap items-center justify-between gap-2 w-full"
+      className="flex items-center gap-3 w-full"
     >
-      <div
-        data-testid="payslip-draft-notice"
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-700/70 text-amber-900 dark:text-amber-200 text-xs font-semibold flex-1 min-w-[190px]"
-      >
-        <Clock size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
-        <span>Bảng lương tạm tính — Đang chờ chốt kỳ</span>
-      </div>
       <AppButton
         data-testid="payslip-close-btn"
         variant="secondary"
+        fullWidth
         onClick={onClose}
-        className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[96px]"
+        className="min-h-[46px] rounded-xl font-semibold text-sm whitespace-nowrap"
       >
-        Đóng
+        Đóng phiếu lương
       </AppButton>
     </div>
   );

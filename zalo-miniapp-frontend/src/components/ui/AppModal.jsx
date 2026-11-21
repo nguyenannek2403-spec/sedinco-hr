@@ -21,9 +21,12 @@ export default function AppModal({
   icon = null,
   headerExtra = null,
   subHeader = null,
+  stickyTabs = null,
   footer = null,
   closeLabel = "Đóng / Quay lại",
   theme = "auto",
+  fullScreenSheet = false,
+  customHeader = null,
   maxWidthClass = "max-w-lg",
   maxHeightClass = "max-h-[90vh]",
   zIndexClass = "",
@@ -91,20 +94,13 @@ export default function AppModal({
       data-modal-root="true"
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 flex items-end sm:items-center justify-center bg-slate-900/55 backdrop-blur-[3px] transition-opacity duration-200 p-0 sm:p-4 animate-fade-in"
+      className={`fixed inset-0 flex ${
+        fullScreenSheet ? "items-stretch sm:items-center" : "items-end sm:items-center"
+      } justify-center bg-slate-900/55 backdrop-blur-[3px] transition-opacity duration-200 p-0 sm:p-4 animate-fade-in`}
       style={{
         zIndex: effectiveZIndex,
-        paddingTop: "max(env(safe-area-inset-top, 0px), 8px)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)"
-      }}
-      onWheel={(e) => {
-        e.stopPropagation();
-      }}
-      onTouchMove={(e) => {
-        if (!e.target?.closest?.(".modal-scroll-area")) {
-          e.preventDefault();
-        }
-        e.stopPropagation();
+        paddingTop: fullScreenSheet ? "0px" : "max(env(safe-area-inset-top, 0px), 8px)",
+        paddingBottom: fullScreenSheet ? "0px" : "env(safe-area-inset-bottom, 0px)"
       }}
       onClick={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) {
@@ -114,84 +110,95 @@ export default function AppModal({
     >
       <div
         ref={dialogCardRef}
-        className={`flex flex-col w-full ${maxWidthClass} ${maxHeightClass} rounded-t-[28px] sm:rounded-[24px] overflow-hidden shadow-2xl animate-sheet-up border ${
+        className={`flex flex-col w-full ${maxWidthClass} ${
+          fullScreenSheet
+            ? "h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[92dvh] rounded-none sm:rounded-[24px]"
+            : `${maxHeightClass} rounded-t-[28px] sm:rounded-[24px]`
+        } overflow-hidden shadow-2xl animate-sheet-up border ${
           isDark
             ? "bg-slate-900 text-slate-100 border-slate-700/80"
             : "bg-white text-slate-800 border-slate-200/90 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700/80"
         } ${!isTopModal ? "pointer-events-none select-none" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Sedinco Pulse Bottom Sheet Drag Handle Pill */}
-        <div
-          className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-2.5 mb-1 shrink-0"
-          aria-hidden="true"
-        />
+        {!fullScreenSheet && (
+          <div
+            className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-2.5 mb-1 shrink-0"
+            aria-hidden="true"
+          />
+        )}
 
-        {/* Thanh tiêu đề cố định: luôn có "< Trở về" ở góc trên trái & chừa 104px góc trên phải cho Zalo Capsule */}
-        <div
-          className={`pl-3.5 pr-[104px] sm:pr-4 py-2 min-h-[52px] border-b flex items-center justify-between gap-2 shrink-0 ${
-            isDark
-              ? "bg-slate-900 border-slate-800"
-              : "bg-white border-slate-100 dark:bg-slate-900 dark:border-slate-800"
-          }`}
-          onWheel={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center gap-2.5 min-w-[200px] flex-1">
-            <button
-              type="button"
-              disabled={disableClose}
-              onClick={handleSafeClose}
-              className={`min-h-[44px] px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
-                isDark
-                  ? "bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700"
-                  : "bg-rose-50/90 hover:bg-rose-100 text-[#B80035] border border-rose-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-rose-300 dark:border-slate-700"
-              }`}
-            >
-              <ArrowLeft className="w-4 h-4 shrink-0" />
-              <span>Trở về</span>
-            </button>
-
-            {icon && <div className="shrink-0">{icon}</div>}
-
-            <div className="min-w-0 flex-1">
-              <h3
-                className={`font-bold text-sm sm:text-base leading-snug break-words ${
-                  isDark ? "text-white" : "text-slate-900 dark:text-white"
-                }`}
-              >
-                {title}
-              </h3>
-              {subtitle && (
-                <p
-                  className={`text-xs mt-0.5 leading-snug break-words ${
-                    isDark ? "text-slate-300" : "text-slate-500 dark:text-slate-300"
-                  }`}
-                >
-                  {subtitle}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-            {headerExtra}
-            {showCloseX && (
+        {/* Thanh tiêu đề cố định: chừa 104px góc trên phải cho Zalo Capsule */}
+        {customHeader ? (
+          customHeader({ handleSafeClose, isDark })
+        ) : (
+          <div
+            className={`pl-3.5 pr-[104px] sm:pr-4 py-2 min-h-[52px] border-b flex items-center justify-between gap-2 shrink-0 ${
+              isDark
+                ? "bg-slate-900 border-slate-800"
+                : "bg-white border-slate-100 dark:bg-slate-900 dark:border-slate-800"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <button
                 type="button"
                 disabled={disableClose}
                 onClick={handleSafeClose}
-                aria-label="Đóng"
-                className={`min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
+                className={`min-h-[44px] px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
                   isDark
-                    ? "bg-slate-800 hover:bg-slate-700 text-slate-200"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200"
+                    ? "bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700"
+                    : "bg-rose-50/90 hover:bg-rose-100 text-[#B80035] border border-rose-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-rose-300 dark:border-slate-700"
                 }`}
               >
-                <X className="w-4 h-4" />
+                <ArrowLeft className="w-4 h-4 shrink-0" />
+                <span>Trở về</span>
               </button>
-            )}
+
+              {icon && <div className="shrink-0">{icon}</div>}
+
+              <div className="min-w-0 flex-1">
+                <h3
+                  className={`font-bold text-sm sm:text-base leading-snug break-words ${
+                    isDark ? "text-white" : "text-slate-900 dark:text-white"
+                  }`}
+                >
+                  {title}
+                </h3>
+                {subtitle && (
+                  <p
+                    className={`text-xs mt-0.5 leading-snug break-words ${
+                      isDark ? "text-slate-300" : "text-slate-500 dark:text-slate-300"
+                    }`}
+                  >
+                    {subtitle}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 ml-auto">
+              {headerExtra}
+              {showCloseX && (
+                <button
+                  type="button"
+                  disabled={disableClose}
+                  onClick={handleSafeClose}
+                  aria-label="Đóng"
+                  className={`min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
+                    isDark
+                      ? "bg-slate-800 hover:bg-slate-700 text-slate-200"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200"
+                  }`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Thanh tab hoặc bộ lọc ghim cố định ngay dưới Header (nếu có) */}
+        {stickyTabs}
 
         {/* Thanh điều khiển phụ cố định dưới tiêu đề (nếu có) */}
         {subHeader && (
@@ -201,18 +208,17 @@ export default function AppModal({
                 ? "bg-slate-900/95 border-slate-800"
                 : "bg-slate-50/90 border-slate-200/80 dark:bg-slate-900/95 dark:border-slate-800"
             }`}
-            onWheel={(e) => e.stopPropagation()}
           >
             {subHeader}
           </div>
         )}
 
-        {/* Nội dung Modal cuộn mượt, cách ly cuộn nền 100% */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area">
+        {/* DUY NHẤT 1 vùng cuộn mượt trên iOS/Android Zalo WebView */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y modal-scroll-area">
           {children}
         </div>
 
-        {/* Đáy Modal cố định: luôn có nút Đóng / Quay lại tối thiểu 46px */}
+        {/* Đáy Modal cố định: chuẩn safe-area-inset-bottom */}
         <div
           className={`px-4 py-3 border-t shrink-0 ${
             isDark
@@ -220,7 +226,6 @@ export default function AppModal({
               : "bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800"
           }`}
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
-          onWheel={(e) => e.stopPropagation()}
         >
           {footer ? (
             footer

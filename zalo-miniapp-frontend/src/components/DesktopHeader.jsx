@@ -130,7 +130,7 @@ export default function DesktopHeader({
                 onClick={onOpenMobileMenu}
                 aria-label="Mở danh mục quản trị"
                 title="Danh mục điều hành"
-                className="lg:hidden min-w-[40px] min-h-[40px] w-10 h-10 p-1.5 rounded-xl bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-100 inline-flex items-center justify-center cursor-pointer transition-colors shrink-0"
+                className="lg:hidden min-w-[44px] min-h-[44px] w-11 h-11 p-2 rounded-xl bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-100 inline-flex items-center justify-center cursor-pointer transition-colors shrink-0"
               >
                 <Menu className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
               </button>

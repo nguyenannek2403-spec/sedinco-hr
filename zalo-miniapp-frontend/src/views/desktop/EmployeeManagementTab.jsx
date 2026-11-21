@@ -1594,7 +1594,7 @@ export default function EmployeeManagementTab({
                               setNewAllowanceAmount(500000);
                               setIsAddingAllowance(true);
                             }}
-                            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 dark:bg-slate-900 dark:hover:bg-rose-500/20 border border-rose-300 dark:border-rose-500/40 text-xs font-extrabold text-[#E11D48] dark:text-rose-300 inline-flex items-center gap-1.5 transition cursor-pointer"
+                            className="min-h-[44px] px-3 py-2 rounded-xl bg-white hover:bg-rose-50 dark:bg-slate-900 dark:hover:bg-rose-500/20 border border-rose-300 dark:border-rose-500/40 text-xs font-extrabold text-[#E11D48] dark:text-rose-300 inline-flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             <span>Thêm phụ cấp</span>
@@ -1696,18 +1696,18 @@ export default function EmployeeManagementTab({
                             />
                           </div>
 
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-2.5">
                             <button
                               type="button"
                               onClick={() => setIsAddingAllowance(false)}
-                              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
+                              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer whitespace-nowrap"
                             >
                               Hủy
                             </button>
                             <button
                               type="button"
                               onClick={handleConfirmAddAllowance}
-                              className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[#E11D48] hover:bg-[#BE123C] text-xs font-extrabold text-white cursor-pointer"
+                              className="min-h-[44px] px-4 py-2 rounded-xl bg-[#E11D48] hover:bg-[#BE123C] text-xs font-extrabold text-white cursor-pointer whitespace-nowrap"
                             >
                               Gán phụ cấp
                             </button>
@@ -1786,6 +1786,7 @@ export default function EmployeeManagementTab({
           month={new Date().getMonth() + 1}
           year={new Date().getFullYear()}
           isAdminOrAccountant={true}
+          isAdminUser={isAdmin}
           showToast={showToast}
           onClose={() => setPayslipEmp(null)}
         />

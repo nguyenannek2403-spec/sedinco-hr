@@ -34,6 +34,7 @@ const VARIANT_CLASSES = {
 export default function AppButton({
   children,
   variant = "primary",
+  size = "md",
   tone = "auto",
   loading = false,
   disabled = false,
@@ -78,20 +79,25 @@ export default function AppButton({
     }
   };
 
+  const sizeClass =
+    size === "compact"
+      ? "min-h-[44px] h-auto py-2 px-1.5 sm:px-3 rounded-xl font-semibold leading-snug text-[11px] sm:text-xs gap-1 sm:gap-1.5"
+      : "min-h-[46px] h-auto py-2.5 px-4 rounded-xl font-semibold leading-snug text-sm gap-2";
+
   return (
     <button
       type={type}
       disabled={isDisabled}
       onClick={typeof onClick === "function" ? handleClick : undefined}
-      className={`min-h-[46px] h-auto py-2.5 px-4 rounded-xl font-semibold leading-snug text-sm inline-flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-transform duration-150 disabled:opacity-55 disabled:cursor-not-allowed ${
+      className={`${sizeClass} inline-flex items-center justify-center cursor-pointer active:scale-[0.98] transition-transform duration-150 disabled:opacity-55 disabled:cursor-not-allowed ${
         fullWidth ? "w-full" : ""
       } ${variantClass} ${className}`}
       {...rest}
     >
       {isBusy ? (
-        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+        <Loader2 className={`${size === "compact" ? "w-3.5 h-3.5" : "w-4 h-4"} animate-spin shrink-0`} />
       ) : Icon ? (
-        <Icon className="w-4 h-4 shrink-0" />
+        <Icon className={`${size === "compact" ? "w-3.5 h-3.5" : "w-4 h-4"} shrink-0`} />
       ) : null}
       {((isBusy && loadingText) ||
         (children !== null && children !== undefined && children !== false && children !== "")) && (

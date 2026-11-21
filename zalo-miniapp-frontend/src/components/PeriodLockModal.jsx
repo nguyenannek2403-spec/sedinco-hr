@@ -208,7 +208,7 @@ export default function PeriodLockModal({
                 Kỳ công này có các bản ghi có dấu hiệu bất thường về vị trí hoặc thiết bị. Kế toán cần đối soát kỹ trước khi xác nhận.
               </p>
               {lowTrustLogs.length > 0 && (
-                <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                <div className="space-y-1.5">
                   {lowTrustLogs.slice(0, 10).map((item, idx) => (
                     <div key={idx} className="perf-list-item bg-white/80 dark:bg-slate-900 p-2 rounded-lg border border-rose-200 dark:border-rose-800/60 text-xs flex justify-between items-center gap-2">
                       <span className="font-bold text-slate-800 dark:text-slate-100">{item.ho_ten || item.employee_id} ({item.employee_id})</span>

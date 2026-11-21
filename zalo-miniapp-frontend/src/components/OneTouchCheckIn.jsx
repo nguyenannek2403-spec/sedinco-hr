@@ -992,18 +992,18 @@ export default function OneTouchCheckIn({
                   <HardHat className="w-4 h-4 shrink-0" />
                   <span>Đang bật chế độ Đi Công Trình (GPS)</span>
                 </span>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2.5">
                   <AppButton
                     variant="secondary"
                     onClick={() => setShowFieldWorkModal(true)}
-                    className="text-xs px-2.5 py-1 min-h-[34px]"
+                    className="text-xs px-3 py-2 min-h-[44px] whitespace-nowrap"
                   >
                     Sửa ghi chú
                   </AppButton>
                   <AppButton
                     variant="ghost"
                     onClick={() => setIsFieldWorkMode(false)}
-                    className="text-xs px-2.5 py-1 min-h-[34px] text-amber-800 dark:text-amber-200"
+                    className="text-xs px-3 py-2 min-h-[44px] whitespace-nowrap text-amber-800 dark:text-amber-200"
                   >
                     Tắt
                   </AppButton>

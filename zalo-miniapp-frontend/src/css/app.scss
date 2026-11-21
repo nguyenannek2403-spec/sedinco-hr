@@ -52,7 +52,8 @@ html.dark,
 }
 
 html,
-body {
+body,
+#app {
   font-family: "Be Vietnam Pro", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   overflow-x: hidden;
   max-width: 100vw;
@@ -233,10 +234,11 @@ input[type="month"] {
   line-height: 1.25;
 }
 
-/* Cuộn bên trong Modal mượt trên iOS mà không kéo trôi nền */
+/* Cuộn bên trong Modal mượt trên iOS/Android WebView mà không kéo trôi nền */
 .modal-scroll-area {
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }

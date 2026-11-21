@@ -203,8 +203,11 @@ export default function PayrollGridTable({
           type="button"
           data-testid={`payroll-status-badge-${empCode}`}
           data-payout-status="DISPUTED"
-          onClick={() => setSelectedSlipItem(row)}
-          className="min-h-[36px] inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm cursor-pointer whitespace-nowrap"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedSlipItem(row);
+          }}
+          className="min-h-[44px] inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm cursor-pointer whitespace-nowrap"
           title={row.dispute_note || row.dispute_reason || "Nhấn để xem báo cáo sai sót lương"}
         >
           ⚠️ Báo sai sót (Xem)
@@ -273,7 +276,7 @@ export default function PayrollGridTable({
     }
   };
 
-  const handleSendSingleReport = async (row) => {
+  const handleSendSingleReport = async (row, { skipModal = false } = {}) => {
     const empCode = row?.ma_nv || row?.id_nhan_vien;
     if (!empCode || sendingReportId) return;
     setSendingReportId(empCode);
@@ -296,7 +299,9 @@ export default function PayrollGridTable({
         setSelectedSlipItem((prev) =>
           prev && (prev.ma_nv || prev.id_nhan_vien) === empCode ? updatedRow : prev
         );
-        setReportModalItem(updatedRow);
+        if (!skipModal) {
+          setReportModalItem(updatedRow);
+        }
         if (notify) {
           notify(res.message || `Đã gửi báo cáo lương cho ${row.ho_ten || empCode}!`, "success");
         }
@@ -701,7 +706,7 @@ export default function PayrollGridTable({
         )}
 
         {/* Danh sách Thẻ Bảng Lương Nhân Sự (Responsive Unified Cards — Ẩn Mọi Giá Trị 0) */}
-        <div className="p-3 sm:p-4">
+        <div className="px-2 py-3 sm:p-4">
           {isLoading ? (
             <SkeletonList rows={4} label="Đang tải và đồng bộ bảng lương..." />
           ) : filteredList.length === 0 ? (
@@ -741,7 +746,8 @@ export default function PayrollGridTable({
                   <div
                     key={empId || idx}
                     data-testid={`payroll-card-${empId}`}
-                    className={`perf-list-item rounded-2xl border p-4 flex flex-col justify-between gap-3 shadow-xs transition-colors ${
+                    onClick={() => setSelectedSlipItem(item)}
+                    className={`perf-list-item rounded-2xl border p-3 sm:p-4 flex flex-col justify-between gap-3 shadow-xs transition-colors cursor-pointer ${
                       isRowDisputed
                         ? "bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700"
                         : "bg-white dark:bg-slate-900 border-slate-200/85 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
@@ -895,53 +901,60 @@ export default function PayrollGridTable({
                       </div>
                     </div>
 
-                    {/* Nút hành động chính */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {/* 1 hàng đáy gọn tối đa 3 nút cân đối, chữ ngắn 2-3 từ, khoảng cách 10px, không tràn 360px */}
+                    <div
+                      className="flex items-center gap-2 sm:gap-2.5 pt-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <AppButton
                         variant="secondary"
-                        icon={Eye}
+                        size="compact"
+                        icon={FileText}
                         data-testid={`payroll-view-detail-btn-${empId}`}
                         onClick={() => setSelectedSlipItem(item)}
-                        className="flex-1 min-w-[100px] text-xs font-bold"
+                        className="flex-auto min-w-0 whitespace-nowrap"
                       >
-                        {isRowDisputed ? "Xem khiếu nại" : "Chi tiết"}
+                        {isRowDisputed ? "Khiếu nại" : "Xem phiếu"}
                       </AppButton>
 
                       {isAdmin && (
                         <AppButton
                           variant="zalo"
+                          size="compact"
                           icon={Send}
                           loading={sendingReportId === empId}
                           disabled={Boolean(sendingReportId)}
                           data-testid={`payroll-send-report-btn-${empId}`}
                           onClick={() => handleSendSingleReport(item)}
-                          className="flex-1 min-w-[125px] text-xs font-bold"
+                          className="flex-auto min-w-0 whitespace-nowrap"
                         >
-                          📨 Gửi báo cáo
+                          Gửi báo cáo
                         </AppButton>
                       )}
 
                       {canManagePayment && (
                         <AppButton
                           variant={empPaid ? "success" : "primary"}
+                          size="compact"
                           icon={empPaid ? CheckCircle2 : Send}
                           data-testid={`payroll-transfer-btn-${empId}`}
                           onClick={() => handleRequestTransfer(item)}
-                          className={`flex-1 min-w-[130px] text-xs font-bold ${
+                          className={`flex-auto min-w-0 whitespace-nowrap ${
                             empPaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"
                           }`}
                         >
-                          {empPaid ? "✓ Đã chuyển khoản" : "💸 Chuyển khoản"}
+                          {empPaid ? "Đã chuyển" : "Chuyển khoản"}
                         </AppButton>
                       )}
 
-                      {canCalculatePayroll && !empPaid && !isPeriodLocked && (
+                      {!isAdmin && canCalculatePayroll && !empPaid && !isPeriodLocked && (
                         <AppButton
                           variant="ghost"
+                          size="compact"
                           icon={SlidersHorizontal}
                           data-testid={`payroll-adjust-btn-${empId}`}
                           onClick={() => handleOpenAdjustmentModal(item)}
-                          className="flex-1 min-w-[110px] bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 text-xs font-semibold"
+                          className="flex-auto min-w-0 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 whitespace-nowrap"
                         >
                           Điều chỉnh
                         </AppButton>
@@ -967,7 +980,7 @@ export default function PayrollGridTable({
 
       </div>
 
-      {/* Modal Phiếu Lương & Bảng Công Chi Tiết */}
+      {/* Modal Phiếu Lương 1 Lớp Toàn Màn Hình */}
       {selectedSlipItem && (
         <SalarySlipModal
           payrollItem={selectedSlipItem}
@@ -975,12 +988,14 @@ export default function PayrollGridTable({
           month={month}
           year={year}
           isAdminOrAccountant={isAdmin || isAccountant}
+          isAdminUser={isAdmin}
           employeeList={filteredList}
           onSelectEmployee={(emp) => setSelectedSlipItem(emp)}
           canAdjust={isAdmin || canCalculatePayroll}
           canManagePayment={canManagePayment}
           onOpenAdjustment={(slip) => handleOpenAdjustmentModal(slip)}
           onOpenTransfer={(slip) => handleRequestTransfer(slip)}
+          onSendReport={(slip) => handleSendSingleReport(slip, { skipModal: true })}
           refreshKey={slipRefreshTick}
           showToast={notify}
           onStatusUpdated={() => {

@@ -1,25 +1,21 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
-  Printer,
-  Share2,
   AlertTriangle,
+  ArrowLeft,
   Camera,
   Video,
   Image as ImageIcon,
   Send,
   ShieldCheck,
   Calendar,
-  Clock,
-  RefreshCw,
-  Lock,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   FileSpreadsheet,
-  FileText,
-  ArrowLeft
+  SlidersHorizontal
 } from "lucide-react";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
-import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { exportEmployeeSalaryExcel } from "../utils/salaryExcelExport";
 import { compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { formatViCurrency, formatViWorkday, formatViNumber } from "../utils/viNumberFormat";
@@ -29,23 +25,44 @@ import {
   normalizePureIsoDate,
   resolveHeatmapCellMeta
 } from "../utils/workdayUtils";
-import { AppButton, AppModal, StatusBadge, SkeletonList, UserAvatar } from "./ui";
+import { AppButton, AppModal, SkeletonList, UserAvatar } from "./ui";
 import PayslipActionFooter from "./PayslipActionFooter";
 import {
   formatDayWithWeekday,
   formatFullDateWithWeekday,
   resolveDailyStatusLabelVi,
   getPositiveAllowances,
-  resolveLogNote,
-  getNoteBadgeClass
+  resolveLogNote
 } from "../utils/payslipHelpers";
 
+const VI_SHORT_WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+function resolveCompactDailyStatus(row) {
+  if (!row) return "Chưa phát sinh";
+  const st = String(row.status || "").trim().toUpperCase();
+  if (st === "L" || st === "HOLIDAY") return "Nghỉ lễ";
+  if (st === "P" || st === "PAID_LEAVE") return "Nghỉ phép";
+  if (row.isSunday && row.credit <= 0 && row.otHours <= 0) return "Chủ nhật";
+  if (row.isFutureOrTodayEmpty) return "Chưa phát sinh";
+  if (row.credit >= 1) return "Đủ 1 công";
+  if (row.credit === 0.5) return "Nửa công 0,5";
+  if (row.otHours > 0) return "Tăng ca OT";
+  return "Nghỉ KP";
+}
+
+function getDailyDotClass(colorName) {
+  if (colorName === "green") return "bg-emerald-500";
+  if (colorName === "blue") return "bg-sky-500";
+  if (colorName === "red") return "bg-rose-500";
+  return "bg-slate-400 dark:bg-slate-500";
+}
+
 /**
- * SalarySlipModal V29
- * - Hợp nhất Phiếu lương Chi tiết (Phần A) + Bảng công Từng ngày (Phần B)
- * - Bộ chọn Tháng / Năm lịch sử ngay trên đầu Modal + Chuyển nhanh Nhân viên Trước/Sau (cho Quản lý)
- * - Thanh Thao Tác Đáy Cố Định (Sticky Bottom Action Bar) tách bạch 100% theo vai trò Admin vs Worker
- * - Hiển thị Phụ cấp có điều kiện (> 0 mới hiện, = 0 ẩn hoàn toàn)
+ * SalarySlipModal V50 — Single-Layer Full-Screen Payslip Sheet (100dvh)
+ * - 1 màn hình toàn diện duy nhất (không chồng modal) + 1 vùng cuộn mượt
+ * - Sticky Header 56px: [← Đóng] | Phiếu lương T[MM]/[YYYY] | [📥 Excel]
+ * - 2 Pill Tabs tức thì (h-42px): [Tổng hợp lương] & [Thu nhập từng ngày]
+ * - Sticky Bottom Bar: tối đa 2 nút cân đối chuẩn safe-area
  */
 export default function SalarySlipModal({
   payrollItem = null,
@@ -54,12 +71,14 @@ export default function SalarySlipModal({
   month,
   year,
   isAdminOrAccountant = false,
+  isAdminUser = false,
   employeeList = [],
   onSelectEmployee = null,
   canAdjust = false,
   canManagePayment = false,
   onOpenAdjustment = null,
   onOpenTransfer = null,
+  onSendReport = null,
   refreshKey = 0,
   showToast,
   onStatusUpdated,
@@ -77,8 +96,8 @@ export default function SalarySlipModal({
   const [loadedItem, setLoadedItem] = useState(initialItem);
   const [loadingPeriod, setLoadingPeriod] = useState(!initialItem);
   const [loadError, setLoadError] = useState("");
-  const [selectedHeatmapIso, setSelectedHeatmapIso] = useState(null);
-  const [showFullPayslip, setShowFullPayslip] = useState(false);
+  const [activeTab, setActiveTab] = useState("summary"); // 'summary' | 'daily'
+  const [expandedDayIso, setExpandedDayIso] = useState(null);
 
   const [confirmStatus, setConfirmStatus] = useState(initialItem?.salary_confirm_status || "PENDING");
   const [disputeStatus, setDisputeStatus] = useState(
@@ -90,6 +109,7 @@ export default function SalarySlipModal({
   const [evidenceMedia, setEvidenceMedia] = useState(initialItem?.dispute_evidence_media || "");
   const [mediaNotice, setMediaNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
 
   const [adminResponse, setAdminResponse] = useState(initialItem?.admin_response || "");
   const [resolving, setResolving] = useState(false);
@@ -167,8 +187,7 @@ export default function SalarySlipModal({
   }, [selectedMonth, selectedYear, activeMaNv, propMaNv, initialItem, initialMonth, initialYear, fetchPeriodSlip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setSelectedHeatmapIso(null);
-    setShowFullPayslip(false);
+    setExpandedDayIso(null);
   }, [selectedMonth, selectedYear, activeMaNv]);
 
   useEffect(() => {
@@ -181,6 +200,7 @@ export default function SalarySlipModal({
   const thang = Number(selectedMonth || item?.thang || now.getMonth() + 1);
   const nam = Number(selectedYear || item?.nam || now.getFullYear());
   const maNv = activeMaNv || item?.ma_nv || item?.id_nhan_vien || "NV";
+  const monthLabelPadded = String(thang).padStart(2, "0");
 
   const currentEmpIdx = useMemo(() => {
     if (!Array.isArray(employeeList) || employeeList.length <= 1) return -1;
@@ -218,11 +238,6 @@ export default function SalarySlipModal({
     return Array.from(base).sort((a, b) => a - b);
   }, [initialYear]);
 
-  const leadingEmptyCells = useMemo(() => {
-    const firstWeekday = new Date(Date.UTC(nam, thang - 1, 1)).getUTCDay();
-    return (firstWeekday + 6) % 7;
-  }, [nam, thang]);
-
   const displayedDailyRows = useMemo(() => {
     const rawLogs = Array.isArray(item?.daily_logs) ? item.daily_logs : [];
     const byDate = {};
@@ -238,7 +253,9 @@ export default function SalarySlipModal({
     for (let d = 1; d <= daysInMonth; d++) {
       const iso = `${nam}-${String(thang).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const log = byDate[iso] || null;
-      const isSunday = new Date(Date.UTC(nam, thang - 1, d)).getUTCDay() === 0;
+      const utcDow = new Date(Date.UTC(nam, thang - 1, d)).getUTCDay();
+      const isSunday = utcDow === 0;
+      const weekdayShort = VI_SHORT_WEEKDAYS[utcDow] || "";
       const isFutureOrTodayEmpty = !log && !isSunday && Boolean(todayIso && iso >= todayIso);
       const meta = resolveHeatmapCellMeta({ log, isoDate: iso, todayIso, isSunday });
       const note = log ? resolveLogNote(log) : meta.badgeText;
@@ -266,11 +283,30 @@ export default function SalarySlipModal({
           ? Number(log.daily_earned_amount) || 0
           : dailyBaseAmount + dailyOtAmount - dailyPenaltyAmount;
 
-      const hasLateOrEarly = Boolean(
-        meta.hasLateOrEarly ||
-          (log &&
-            String(log.duration_status || "").trim().toUpperCase() !== "ADMIN_ADJUSTED_FULL" &&
-            /vào muộn|ra sớm/i.test(note))
+      const checkWindow =
+        log?.check_in_time || log?.check_out_time
+          ? `${log?.check_in_time ? String(log.check_in_time).slice(0, 5) : "--:--"} – ${
+              log?.check_out_time ? String(log.check_out_time).slice(0, 5) : "--:--"
+            }`
+          : null;
+
+      const compactStatus = resolveCompactDailyStatus({
+        status: log ? (log.status || "0") : isSunday ? "CN" : isFutureOrTodayEmpty ? "" : "KL",
+        credit: meta.credit,
+        otHours,
+        isSunday,
+        isFutureOrTodayEmpty
+      });
+
+      const hasDetails = Boolean(
+        checkWindow ||
+          otHours > 0 ||
+          dailyOtAmount > 0 ||
+          dailyPenaltyAmount > 0 ||
+          log?.holiday_name ||
+          log?.location_name ||
+          log?.proxy_by ||
+          (log && note && !/đủ công/i.test(note))
       );
 
       rows.push({
@@ -278,6 +314,7 @@ export default function SalarySlipModal({
         iso,
         day: d,
         shortDate: `${String(d).padStart(2, "0")}/${String(thang).padStart(2, "0")}`,
+        weekdayShort,
         fullDate: ddmmyyyy,
         weekdayFull,
         dateLabel: formatDayWithWeekday(iso, log?.date_label),
@@ -286,6 +323,7 @@ export default function SalarySlipModal({
         credit: meta.credit,
         otHours,
         status: log ? (log.status || "0") : isSunday ? "CN" : isFutureOrTodayEmpty ? "" : "KL",
+        compactStatus,
         statusLabelVi,
         dailyBaseAmount,
         dailyOtAmount,
@@ -294,10 +332,9 @@ export default function SalarySlipModal({
         dailyEarnedAmount,
         isSunday,
         isFutureOrTodayEmpty,
-        shortCode: meta.shortCode,
-        cellClass: meta.cellClass,
         colorName: meta.colorName,
-        hasLateOrEarly
+        checkWindow,
+        hasDetails
       });
     }
     return rows;
@@ -316,11 +353,6 @@ export default function SalarySlipModal({
       ),
     [displayedDailyRows]
   );
-
-  const selectedHeatmapDay = useMemo(() => {
-    if (!selectedHeatmapIso) return null;
-    return displayedDailyRows.find((r) => r.iso === selectedHeatmapIso) || null;
-  }, [displayedDailyRows, selectedHeatmapIso]);
 
   const handleSelectEvidenceFile = async (e) => {
     const file = e.target.files?.[0];
@@ -342,7 +374,7 @@ export default function SalarySlipModal({
       } else if (file.type.startsWith("video/")) {
         const sizeKB = Math.round(file.size / 1024);
         if (sizeKB > 800) {
-          notify(`Video quá nặng (${sizeKB}KB). Vui lòng chọn video ngắn dưới 800KB (khoảng 3-5 giây) để bảo vệ dung lượng hệ thống!`, "error");
+          notify(`Video quá nặng (${sizeKB}KB). Vui lòng chọn video ngắn dưới 800KB!`, "error");
           e.target.value = "";
           return;
         }
@@ -392,14 +424,16 @@ export default function SalarySlipModal({
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const res = await safePost("/payroll/confirm", {
-        month: thang,
-        year: nam,
-        action: "CONFIRM_REPORT",
-        status: "CONFIRMED"
-      }, {
-        idempotencyKey: generateIdempotencyKey("pay_confirm")
-      });
+      const res = await safePost(
+        "/payroll/confirm",
+        {
+          month: thang,
+          year: nam,
+          action: "CONFIRM_REPORT",
+          status: "CONFIRMED"
+        },
+        { idempotencyKey: generateIdempotencyKey("pay_confirm") }
+      );
       if (res?.success) {
         setConfirmStatus("CONFIRMED");
         setLoadedItem((prev) =>
@@ -411,8 +445,8 @@ export default function SalarySlipModal({
                   prev.payout_status === "RECEIVED"
                     ? "RECEIVED"
                     : prev.payout_status === "PAID"
-                    ? "PAID"
-                    : "CONFIRMED"
+                      ? "PAID"
+                      : "CONFIRMED"
               }
             : prev
         );
@@ -435,14 +469,16 @@ export default function SalarySlipModal({
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const res = await safePost("/payroll/confirm", {
-        month: thang,
-        year: nam,
-        action: "CONFIRM_RECEIVED",
-        status: "RECEIVED"
-      }, {
-        idempotencyKey: generateIdempotencyKey("pay_received")
-      });
+      const res = await safePost(
+        "/payroll/confirm",
+        {
+          month: thang,
+          year: nam,
+          action: "CONFIRM_RECEIVED",
+          status: "RECEIVED"
+        },
+        { idempotencyKey: generateIdempotencyKey("pay_received") }
+      );
       if (res?.success) {
         setConfirmStatus("CONFIRMED");
         setLoadedItem((prev) =>
@@ -471,6 +507,7 @@ export default function SalarySlipModal({
   };
 
   const handleToggleDispute = () => {
+    setActiveTab("summary");
     setShowDisputeForm((prev) => {
       const next = !prev;
       if (next) {
@@ -492,17 +529,19 @@ export default function SalarySlipModal({
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const res = await safePost("/payroll/confirm", {
-        month: thang,
-        year: nam,
-        action: "DISPUTE",
-        status: "DISPUTED",
-        note: disputeReason.trim(),
-        dispute_reason: disputeReason.trim(),
-        dispute_evidence_media: evidenceMedia || null
-      }, {
-        idempotencyKey: generateIdempotencyKey("pay_dispute")
-      });
+      const res = await safePost(
+        "/payroll/confirm",
+        {
+          month: thang,
+          year: nam,
+          action: "DISPUTE",
+          status: "DISPUTED",
+          note: disputeReason.trim(),
+          dispute_reason: disputeReason.trim(),
+          dispute_evidence_media: evidenceMedia || null
+        },
+        { idempotencyKey: generateIdempotencyKey("pay_dispute") }
+      );
       if (res?.success) {
         setConfirmStatus("DISPUTED");
         setDisputeStatus("OPEN");
@@ -543,15 +582,17 @@ export default function SalarySlipModal({
     resolvingRef.current = true;
     setResolving(true);
     try {
-      const res = await safePost("/payroll/resolve-dispute", {
-        ma_nv: maNv,
-        month: thang,
-        year: nam,
-        admin_response: resolvedNoteText,
-        status: newStatus
-      }, {
-        idempotencyKey: generateIdempotencyKey("pay_resolve")
-      });
+      const res = await safePost(
+        "/payroll/resolve-dispute",
+        {
+          ma_nv: maNv,
+          month: thang,
+          year: nam,
+          admin_response: resolvedNoteText,
+          status: newStatus
+        },
+        { idempotencyKey: generateIdempotencyKey("pay_resolve") }
+      );
       if (res?.success) {
         const nextConfirm = isKeepingOpen ? "DISPUTED" : (res.salary_confirm_status || "CONFIRMED");
         const nextDispute = isKeepingOpen ? "OPEN" : "RESOLVED";
@@ -572,8 +613,8 @@ export default function SalarySlipModal({
                   prev.payout_status === "PAID" || prev.employee_payment_status === "PAID"
                     ? "PAID"
                     : isKeepingOpen
-                    ? "DISPUTED"
-                    : nextConfirm,
+                      ? "DISPUTED"
+                      : nextConfirm,
                 dispute_reason: isKeepingOpen ? prev.dispute_reason : null,
                 dispute_note: isKeepingOpen ? prev.dispute_note : null,
                 dispute_evidence_media: isKeepingOpen ? prev.dispute_evidence_media : null,
@@ -599,6 +640,46 @@ export default function SalarySlipModal({
     }
   };
 
+  const handleSendReportAction = async (payload) => {
+    if (typeof onSendReport === "function") {
+      setSendingReport(true);
+      try {
+        await onSendReport(payload);
+      } finally {
+        setSendingReport(false);
+      }
+      return;
+    }
+    if (!maNv || sendingReport) return;
+    setSendingReport(true);
+    try {
+      const res = await safePost("/payroll/send-report", {
+        month: thang,
+        year: nam,
+        ma_nv: maNv
+      });
+      if (res?.success) {
+        setLoadedItem((prev) =>
+          prev
+            ? {
+                ...prev,
+                payout_status: prev.payout_status === "PAID" ? "PAID" : "REPORT_SENT",
+                salary_confirm_status: prev.payout_status === "PAID" ? prev.salary_confirm_status : "PENDING"
+              }
+            : prev
+        );
+        notify(res.message || `Đã gửi báo cáo lương cho ${item?.ho_ten || maNv}!`, "success");
+        if (onStatusUpdated) onStatusUpdated("REPORT_SENT");
+      } else {
+        notify(res?.message || "Không thể gửi báo cáo lương.", "error");
+      }
+    } catch (err) {
+      notify(err?.message || "Lỗi kết nối khi gửi báo cáo lương.", "error");
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
   const handleExportSingleSlipExcel = async () => {
     if (!item) return;
     try {
@@ -613,32 +694,10 @@ export default function SalarySlipModal({
     }
   };
 
-  const handleShareZalo = async () => {
-    if (!item) return;
-    const shareText = `📄 PHIẾU LƯƠNG SEDINCO - THÁNG ${thang}/${nam}\n👤 NV: ${item.ho_ten} (${maNv})\n📅 Ngày công: ${formatViWorkday(item.totalWorkDays || 0)}/${formatViWorkday(item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(thang, nam))}\n💰 Thực lĩnh (NET): ${formatCurrency(item.netSalary)}\n📌 Trạng thái: ${confirmStatus === "CONFIRMED" ? "Đã xác nhận" : confirmStatus === "DISPUTED" && disputeStatus !== "RESOLVED" ? "Đang khiếu nại" : item.payout_status === "PAID" ? "Đã chuyển khoản" : "Chờ xác nhận"}`;
-    try {
-      const res = await zmpAdapter.openShareSheet({
-        type: "text",
-        data: {
-          text: shareText,
-          description: `Phiếu lương T${thang}/${nam} - ${item.ho_ten || maNv}`
-        },
-        fallbackText: shareText
-      });
-      if (res?.cancelled) return;
-      if (res?.method === "zmp") {
-        notify("Đã mở chia sẻ Phiếu lương qua Zalo!", "success");
-      } else if (res?.method === "clipboard") {
-        notify("Đã sao chép tóm tắt Phiếu lương để dán vào Zalo!", "success");
-      }
-    } catch (_e) {
-      // User cancelled share
-    }
-  };
-
   const isEmployeePaid = Boolean(
     item &&
       (item.payout_status === "PAID" ||
+        item.payout_status === "RECEIVED" ||
         item.employee_payment_status === "PAID" ||
         item.payment_status === "PAID")
   );
@@ -646,130 +705,126 @@ export default function SalarySlipModal({
     item && (isEmployeePaid || item.payroll_period_status === "APPROVED" || item.period_locked)
   );
 
-  const periodLockBadge = (() => {
+  const payoutStatusBadge = (() => {
     if (!item) return null;
+    if (item.payout_status === "RECEIVED" || Boolean(item.received_at)) {
+      return {
+        label: "💰 Đã nhận đủ lương",
+        cls: "bg-emerald-100 dark:bg-emerald-950/70 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
+      };
+    }
     if (isEmployeePaid) {
-      return { label: "💸 Đã chuyển khoản", cls: "bg-emerald-800/85 border-emerald-300/40 text-white" };
+      return {
+        label: "💸 Đã chuyển khoản",
+        cls: "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
+      };
+    }
+    if (disputeStatus !== "RESOLVED" && confirmStatus === "DISPUTED") {
+      return {
+        label: "⚠️ Đang báo sai sót",
+        cls: "bg-rose-100 dark:bg-rose-950/70 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200"
+      };
+    }
+    if (confirmStatus === "CONFIRMED" || item.payout_status === "CONFIRMED") {
+      return {
+        label: "✓ Đã đọc báo cáo",
+        cls: "bg-teal-50 dark:bg-teal-950/60 border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-200"
+      };
     }
     if (item.payout_status === "REPORT_SENT") {
-      return { label: "📩 Chờ xác nhận", cls: "bg-amber-700/85 border-amber-200/40 text-white" };
+      return {
+        label: "📩 Chờ xác nhận",
+        cls: "bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200"
+      };
     }
-    if (item.period_locked || item.payroll_period_status === "APPROVED") {
-      return { label: "Đã chốt sổ", cls: "bg-blue-900/65 border-blue-200/40 text-white" };
-    }
-    return { label: "Bản nháp / Tạm tính", cls: "bg-slate-800/75 border-white/25 text-white" };
+    return {
+      label: item.period_locked ? "Đã chốt kỳ" : "Tạm tính",
+      cls: "bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+    };
   })();
+
+  const hasLatePenalty = Number(item?.latePenaltyAmount) > 0;
+  const hasManualPenalty = Number(item?.penaltyAmount) > 0;
+  const hasAdvance = Number(item?.advanceDeduction) > 0;
+  const hasInsurance = Number(item?.totalInsurance || item?.insuranceDeduction || 0) > 0;
+  const hasBonus = Number(item?.bonusAmount) > 0;
+  const hasOt = Number(item?.totalOtHours) > 0 || Number(item?.otAmount) > 0;
+  const hasSalaryByWork = Number(item?.salaryByWork) > 0;
+  const canDoSendReport = Boolean(isAdminUser || (isAdminOrAccountant && typeof onSendReport === "function"));
 
   return (
     <AppModal
       open={Boolean(item || propMaNv || loadingPeriod)}
       onClose={onClose}
-      disableClose={submitting || resolving}
-      showCloseX={true}
-      maxWidthClass={showFullPayslip ? "sm:max-w-4xl" : "sm:max-w-2xl"}
-      maxHeightClass="max-h-[92vh]"
-      title={showFullPayslip ? `Phiếu lương Chi tiết T${thang}/${nam} — ${maNv}` : `Lương & Công T${thang}/${nam} — ${maNv}`}
-      icon={
-        item ? (
-          <UserAvatar
-            name={item.ho_ten || maNv}
-            avatarUrl={item.avatar_url}
-            size="sm"
-          />
-        ) : null
-      }
-      headerExtra={
-        <div className="flex items-center gap-1.5 print:hidden">
-          <AppButton
-            variant="zalo"
-            icon={Share2}
-            disabled={!item || loadingPeriod}
-            onClick={handleShareZalo}
-            className="min-h-[44px] px-3 py-2 text-xs font-bold"
-            title="Chia sẻ qua Zalo"
+      disableClose={submitting || resolving || sendingReport}
+      fullScreenSheet={true}
+      maxWidthClass="sm:max-w-2xl"
+      customHeader={({ handleSafeClose }) => (
+        <header
+          data-testid="payslip-sticky-header"
+          className="h-[56px] shrink-0 pl-2.5 pr-[104px] sm:pr-4 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 print:hidden"
+        >
+          <button
+            type="button"
+            data-testid="payslip-top-close-btn"
+            disabled={submitting || resolving || sendingReport}
+            onClick={handleSafeClose}
+            className="min-w-[44px] min-h-[44px] px-2.5 rounded-xl inline-flex items-center gap-1 text-xs sm:text-sm font-bold text-[#B80035] dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-slate-800 shrink-0 cursor-pointer whitespace-nowrap disabled:opacity-50"
           >
-            Zalo
-          </AppButton>
-          <AppButton
-            variant="secondary"
-            icon={Printer}
-            disabled={!item || loadingPeriod}
-            onClick={() => window.print()}
-            className="hidden sm:inline-flex min-h-[44px] px-3 py-2 text-xs font-bold"
-          >
-            In
-          </AppButton>
-        </div>
-      }
-      subHeader={
-        <div className="print:hidden flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-[#111C2D] dark:text-slate-200">
-            <Calendar className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
-            <select
-              data-testid="payslip-month-select"
-              aria-label="Chọn tháng phiếu lương"
-              value={thang}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#111C2D] dark:text-white cursor-pointer"
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  Tháng {m}
-                </option>
-              ))}
-            </select>
-            <select
-              data-testid="payslip-year-select"
-              aria-label="Chọn năm phiếu lương"
-              value={nam}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#111C2D] dark:text-white cursor-pointer"
-            >
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-            <AppButton
-              variant="secondary"
-              icon={RefreshCw}
-              loading={loadingPeriod}
-              onClick={() => fetchPeriodSlip(thang, nam, maNv)}
-              aria-label="Tải lại kỳ lương"
-              className="min-w-[44px] min-h-[44px] px-2.5 py-1.5"
-            />
-          </div>
+            <ArrowLeft className="w-4 h-4 shrink-0" />
+            <span>Đóng</span>
+          </button>
 
-          {isAdminOrAccountant && Array.isArray(employeeList) && employeeList.length > 1 && currentEmpIdx >= 0 && (
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-1">
-              <button
-                type="button"
-                data-testid="payslip-prev-emp-btn"
-                aria-label="Nhân viên trước"
-                title="NV trước"
-                onClick={() => handleStepEmployee(-1)}
-                className="min-w-[44px] min-h-[44px] px-2 flex items-center gap-0.5 text-xs font-bold text-[#111C2D] dark:text-slate-200 hover:text-[#E11D48] dark:hover:text-rose-300 cursor-pointer"
-              >
-                <ChevronLeft size={15} />
-                <span className="hidden sm:inline">NV trước</span>
-              </button>
-              <span className="text-xs font-mono font-bold px-1.5 text-[#111C2D] dark:text-slate-200 whitespace-nowrap">
-                {currentEmpIdx + 1}/{employeeList.length}
-              </span>
-              <button
-                type="button"
-                data-testid="payslip-next-emp-btn"
-                aria-label="Nhân viên tiếp theo"
-                title="NV sau"
-                onClick={() => handleStepEmployee(1)}
-                className="min-w-[44px] min-h-[44px] px-2 flex items-center gap-0.5 text-xs font-bold text-[#111C2D] dark:text-slate-200 hover:text-[#E11D48] dark:hover:text-rose-300 cursor-pointer"
-              >
-                <span className="hidden sm:inline">NV sau</span>
-                <ChevronRight size={15} />
-              </button>
-            </div>
-          )}
+          <h2 className="flex-1 min-w-0 text-center font-extrabold text-sm sm:text-base text-[#111C2D] dark:text-white truncate">
+            Phiếu lương T{monthLabelPadded}/{nam}
+          </h2>
+
+          <button
+            type="button"
+            data-testid="payslip-download-excel-btn"
+            disabled={!item || loadingPeriod}
+            onClick={handleExportSingleSlipExcel}
+            className="min-w-[44px] min-h-[44px] px-3 rounded-xl inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 cursor-pointer whitespace-nowrap disabled:opacity-50 shadow-xs"
+            title="Tải file Excel phiếu lương (.xlsx)"
+          >
+            <FileSpreadsheet className="w-4 h-4 shrink-0" />
+            <span>Excel</span>
+          </button>
+        </header>
+      )}
+      stickyTabs={
+        <div
+          data-testid="payslip-tab-bar"
+          className="shrink-0 px-3.5 py-2 bg-slate-50/90 dark:bg-slate-900/95 border-b border-slate-200/80 dark:border-slate-800 print:hidden"
+        >
+          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-200/75 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              data-testid="payslip-tab-summary"
+              data-active={activeTab === "summary" ? "true" : "false"}
+              onClick={() => setActiveTab("summary")}
+              className={`h-[42px] px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap truncate ${
+                activeTab === "summary"
+                  ? "bg-white dark:bg-slate-900 text-[#B80035] dark:text-rose-300 shadow-sm"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Tổng hợp lương
+            </button>
+            <button
+              type="button"
+              data-testid="payslip-tab-daily"
+              data-active={activeTab === "daily" ? "true" : "false"}
+              onClick={() => setActiveTab("daily")}
+              className={`h-[42px] px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap truncate ${
+                activeTab === "daily"
+                  ? "bg-white dark:bg-slate-900 text-[#B80035] dark:text-rose-300 shadow-sm"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Thu nhập từng ngày ({displayedDailyRows.length} ngày)
+            </button>
+          </div>
         </div>
       }
       footer={
@@ -779,8 +834,10 @@ export default function SalarySlipModal({
           confirmStatus={confirmStatus}
           submitting={submitting}
           resolving={resolving}
+          sendingReport={sendingReport}
           canAdjust={canAdjust}
           canManagePayment={canManagePayment}
+          canSendReport={canDoSendReport}
           isLockedOrPaid={isLockedOrPaid}
           thang={thang}
           nam={nam}
@@ -788,6 +845,7 @@ export default function SalarySlipModal({
           onClose={onClose}
           onOpenAdjustment={onOpenAdjustment}
           onOpenTransfer={onOpenTransfer}
+          onSendReport={handleSendReportAction}
           onExportSlip={handleExportSingleSlipExcel}
           onConfirmSalary={handleConfirmSalary}
           onConfirmReceived={handleConfirmReceived}
@@ -795,575 +853,179 @@ export default function SalarySlipModal({
         />
       }
     >
-      <div className="p-4 sm:p-6 space-y-4 text-slate-800 dark:text-slate-100">
+      <div className="p-3.5 sm:p-5 space-y-4 text-slate-800 dark:text-slate-100">
         {loadingPeriod ? (
-          <SkeletonList rows={4} label={`Đang tải phiếu lương & bảng công Tháng ${thang}/${nam}...`} />
+          <SkeletonList rows={4} label={`Đang tải phiếu lương Tháng ${thang}/${nam}...`} />
         ) : loadError ? (
           <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 text-xs font-bold flex items-center justify-between gap-3">
             <span>{loadError}</span>
-            <AppButton variant="danger" onClick={() => fetchPeriodSlip(thang, nam, maNv)} className="text-xs px-3 py-1.5 shrink-0">
+            <AppButton
+              variant="danger"
+              onClick={() => fetchPeriodSlip(thang, nam, maNv)}
+              className="text-xs px-3 py-2 shrink-0 whitespace-nowrap"
+            >
               Thử lại
             </AppButton>
           </div>
         ) : item ? (
-          <>
-            {/* Quốc hiệu & Thực lĩnh Hero — Sedinco Pulse Physical Voucher Header */}
-            <div className="bg-gradient-to-br from-[#E11D48] to-[#B80035] dark:from-rose-950 dark:via-slate-900 dark:to-slate-900 border border-rose-500/30 dark:border-rose-800/50 text-white rounded-2xl p-4 space-y-2.5 shadow-[0_8px_24px_-4px_rgba(225,29,72,0.28)]">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                <div>
-                  <h2 className="text-sm sm:text-base font-extrabold text-white uppercase">
-                    CÔNG TY CỔ PHẦN SEDINCO
-                  </h2>
-                  <p className="text-xs text-rose-100 mt-0.5">
-                    Phiếu lương &amp; Bảng công Chi tiết Điện tử
-                  </p>
+          activeTab === "summary" ? (
+            <div data-testid="payslip-summary-panel" className="space-y-4 animate-tab-enter">
+              {/* Thanh chọn kỳ tháng / năm & chuyển nhanh NV gọn nhẹ */}
+              <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+                <div className="flex items-center gap-2 text-xs font-bold">
+                  <Calendar className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
+                  <select
+                    data-testid="payslip-month-select"
+                    aria-label="Chọn tháng phiếu lương"
+                    value={thang}
+                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                    className="min-h-[42px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#111C2D] dark:text-white cursor-pointer"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                      <option key={m} value={m}>
+                        Tháng {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    data-testid="payslip-year-select"
+                    aria-label="Chọn năm phiếu lương"
+                    value={nam}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className="min-h-[42px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#111C2D] dark:text-white cursor-pointer"
+                  >
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="sm:text-right flex flex-wrap sm:flex-col items-center sm:items-end gap-1.5">
-                  <span className="inline-block px-3 py-1 bg-black/25 dark:bg-slate-800 border border-white/25 text-white rounded-full text-xs font-extrabold uppercase">
-                    Kỳ Lương: Tháng {thang}/{nam}
-                  </span>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {periodLockBadge && (
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs font-bold ${periodLockBadge.cls}`}>
-                        <Lock size={12} /> {periodLockBadge.label}
-                      </span>
-                    )}
-                    {(item.payout_status === "RECEIVED" || Boolean(item.received_at)) ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-800/90 border border-emerald-300/50 text-white text-xs font-extrabold">
-                        💰 Đã nhận đủ lương
-                      </span>
-                    ) : isEmployeePaid ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-800/80 border border-emerald-300/40 text-white text-xs font-bold">
-                        💸 Đã chuyển khoản
-                      </span>
-                    ) : confirmStatus === "CONFIRMED" ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-teal-800/80 border border-teal-300/40 text-white text-xs font-bold">
-                        ✓ Đã đọc báo cáo
-                      </span>
-                    ) : null}
-                    {disputeStatus !== "RESOLVED" && confirmStatus === "DISPUTED" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-950/85 border border-rose-300/40 text-white text-xs font-bold">
-                        <AlertTriangle size={12} /> Đang khiếu nại sai lương
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-white/20 flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-rose-100">
-                  Lương thực nhận (NET)
-                </span>
-                <span className="text-2xl font-extrabold font-mono text-white tracking-tight">
-                  {formatCurrency(item.netSalary)}
-                </span>
-              </div>
-            </div>
 
-            {/* Banner trạng thái báo cáo lương + Nút Tải file Excel phiếu lương 1 chạm */}
-            <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-              {(item.payout_status === "RECEIVED" || Boolean(item.received_at)) ? (
-                <div
-                  data-testid="payslip-received-banner"
-                  className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-xs font-extrabold"
-                >
-                  💰 Đã xác nhận nhận đủ lương{item.received_at_vn ? ` lúc ${item.received_at_vn}` : ""}
+                {isAdminOrAccountant && Array.isArray(employeeList) && employeeList.length > 1 && currentEmpIdx >= 0 && (
+                  <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-1">
+                    <button
+                      type="button"
+                      data-testid="payslip-prev-emp-btn"
+                      aria-label="Nhân viên trước"
+                      onClick={() => handleStepEmployee(-1)}
+                      className="min-w-[42px] min-h-[42px] px-2 flex items-center justify-center text-xs font-bold text-[#111C2D] dark:text-slate-200 hover:text-[#E11D48] dark:hover:text-rose-300 cursor-pointer"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="text-xs font-mono font-bold px-1.5 text-[#111C2D] dark:text-slate-200 whitespace-nowrap">
+                      {currentEmpIdx + 1}/{employeeList.length}
+                    </span>
+                    <button
+                      type="button"
+                      data-testid="payslip-next-emp-btn"
+                      aria-label="Nhân viên tiếp theo"
+                      onClick={() => handleStepEmployee(1)}
+                      className="min-w-[42px] min-h-[42px] px-2 flex items-center justify-center text-xs font-bold text-[#111C2D] dark:text-slate-200 hover:text-[#E11D48] dark:hover:text-rose-300 cursor-pointer"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Thẻ Thực Lĩnh Nổi Bật (Avatar + Họ tên + Bộ phận + Con số Thực lĩnh đọc ngay trong 1 giây) */}
+              <div className="rounded-2xl bg-gradient-to-br from-[#E11D48] to-[#B80035] dark:from-rose-950 dark:via-slate-900 dark:to-slate-900 border border-rose-500/30 dark:border-rose-800/60 text-white p-4 sm:p-5 shadow-[0_8px_24px_-4px_rgba(225,29,72,0.28)] space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <UserAvatar
+                      name={item.ho_ten || maNv}
+                      avatarUrl={item.avatar_url}
+                      size="md"
+                    />
+                    <div className="min-w-0">
+                      <h3 className="font-extrabold text-base sm:text-lg text-white truncate">
+                        {item.ho_ten}
+                      </h3>
+                      <p className="text-xs text-rose-100 truncate">
+                        {maNv} • {item.department || "Khối Công trình"}
+                      </p>
+                    </div>
+                  </div>
+                  {payoutStatusBadge && (
+                    <span className={`px-2.5 py-1 rounded-full border text-[11px] font-bold whitespace-nowrap shrink-0 ${payoutStatusBadge.cls}`}>
+                      {payoutStatusBadge.label}
+                    </span>
+                  )}
                 </div>
-              ) : isEmployeePaid ? (
-                <div
-                  data-testid="payslip-paid-banner"
-                  className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs font-bold"
-                >
-                  💸 Công ty đã chuyển khoản lương{item.employee_paid_at_vn ? ` lúc ${item.employee_paid_at_vn}` : ""} • Vui lòng bấm Xác nhận đã nhận lương bên dưới.
+
+                <div className="pt-3 border-t border-white/20 flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-rose-100">
+                    Thực lĩnh Tháng {thang}/{nam}
+                  </span>
+                  <span
+                    data-testid="payslip-net-total"
+                    className="text-2xl sm:text-3xl font-extrabold font-mono text-white tracking-tight"
+                  >
+                    {formatCurrency(item.netSalary)}
+                  </span>
                 </div>
-              ) : item.payout_status === "REPORT_SENT" && confirmStatus !== "CONFIRMED" ? (
+              </div>
+
+              {/* Banner thông báo trạng thái */}
+              {!isAdminOrAccountant && item.payout_status === "REPORT_SENT" && confirmStatus !== "CONFIRMED" && (
                 <div
                   data-testid="payslip-report-waiting-banner"
-                  className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-extrabold"
+                  className="px-3.5 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-bold"
                 >
-                  📩 Báo cáo lương Tháng {thang}/{nam} đang chờ xác nhận đã đọc
+                  📩 Báo cáo lương Tháng {thang}/{nam} đang chờ bạn kiểm tra &amp; xác nhận bên dưới.
                 </div>
-              ) : null}
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <AppButton
-                  variant={showFullPayslip ? "secondary" : "primary"}
-                  icon={showFullPayslip ? ArrowLeft : FileText}
-                  data-testid="payslip-view-full-btn"
-                  onClick={() => setShowFullPayslip((prev) => !prev)}
-                  className="min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold shrink-0"
-                >
-                  {showFullPayslip ? "← Quay lại tóm tắt" : "📄 Xem phiếu lương"}
-                </AppButton>
-                <AppButton
-                  variant="success"
-                  icon={FileSpreadsheet}
-                  data-testid="payslip-download-excel-btn"
-                  onClick={handleExportSingleSlipExcel}
-                  className="min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold shrink-0"
-                >
-                  📥 Tải file Excel phiếu lương
-                </AppButton>
-              </div>
-            </div>
+              )}
 
-            {showFullPayslip ? (
-              <div data-testid="full-payslip-viewer" className="space-y-4">
-                {/* PHẦN A: TỔNG QUAN THU NHẬP & KHẤU TRỪ THÁNG M/YYYY */}
-                <div
-                  data-testid="full-payslip-part-a"
-                  className="border border-slate-200 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs"
-                >
-                  <div className="bg-[#F0F3FF] dark:bg-slate-800 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide">
-                      Phần A • Tổng quan Thu nhập &amp; Khấu trừ Tháng {thang}/{nam}
+              {/* Các dòng kê khai thoáng đãng (py-3, ẩn sạch mọi khoản = 0) */}
+              <div
+                data-testid="payslip-part-a"
+                className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden"
+              >
+                <div className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 block">
+                      Ngày công thực tế
                     </span>
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      Công chuẩn: {formatViWorkday(stdDays)} ngày (trừ Chủ nhật)
+                    <span
+                      data-testid="payslip-unit-daily-wage"
+                      className="text-xs text-slate-500 dark:text-slate-400 block mt-0.5"
+                    >
+                      Đơn giá {formatCurrency(unitDailyWage)}/ngày
                     </span>
                   </div>
-
-                  {/* Hồ sơ nhân sự + Ngân hàng + Đơn giá 1 ngày công chuẩn */}
-                  <div className="p-3.5 sm:p-4 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <UserAvatar
-                        name={item.ho_ten || maNv}
-                        avatarUrl={item.avatar_url}
-                        size="md"
-                      />
-                      <div className="min-w-0">
-                        <div className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
-                          {item.ho_ten}
-                        </div>
-                        <div className="font-mono text-xs text-[#E11D48] dark:text-rose-300 font-semibold">
-                          {maNv}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400 block text-xs font-semibold">
-                        Khối nghề / Bộ phận
-                      </span>
-                      <span className="font-bold text-slate-800 dark:text-slate-100 block mt-0.5">
-                        {item.department || "Khối Công trình"}
-                      </span>
-                      {item.chuc_danh && (
-                        <span className="text-slate-600 dark:text-slate-300 block">
-                          {item.chuc_danh}
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400 block text-xs font-semibold">
-                        Ngân hàng &amp; Số tài khoản
-                      </span>
-                      {item.bank_account_number ? (
-                        <div className="mt-0.5 space-y-0.5">
-                          <span className="font-bold text-slate-800 dark:text-slate-100 block">
-                            {item.bank_name || item.bank_code || "Ngân hàng"}
-                          </span>
-                          <span className="font-mono font-semibold text-blue-700 dark:text-blue-300 block">
-                            {item.bank_account_number}
-                          </span>
-                          {item.bank_account_name && (
-                            <span className="text-slate-600 dark:text-slate-300 block uppercase">
-                              {item.bank_account_name}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="italic text-slate-500 dark:text-slate-400 block mt-0.5">
-                          Chưa liên kết tài khoản ngân hàng
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400 block text-xs font-semibold">
-                        Đơn giá 1 ngày công chuẩn
-                      </span>
-                      <span
-                        data-testid="full-payslip-unit-daily-wage"
-                        className="font-mono font-extrabold text-sm text-[#111C2D] dark:text-white block mt-0.5"
-                      >
-                        {formatCurrency(unitDailyWage)}
-                      </span>
-                      <span className="text-slate-500 dark:text-slate-400 block">
-                        Lương CB {formatCurrency(item.baseSalary || 0)} / {formatViWorkday(stdDays)} công
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Danh sách khoản thu nhập & khấu trừ (Ẩn 100% nếu bằng 0 hoặc trống) */}
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs sm:text-sm">
-                    {Number(item.salaryByWork) > 0 && (
-                      <div className="px-4 py-2.5 flex justify-between items-center gap-2">
-                        <span className="font-semibold text-slate-800 dark:text-slate-100">
-                          Lương theo ngày công thực tế ({formatViWorkday(item.totalWorkDays || 0)} công × {formatCurrency(unitDailyWage)})
-                        </span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white shrink-0">
-                          {formatCurrency(item.salaryByWork)}
-                        </span>
-                      </div>
-                    )}
-
-                    {showAllowancesBlock && (
-                      <div className="px-4 py-2.5 space-y-1.5">
-                        <div className="flex justify-between items-center font-semibold text-slate-800 dark:text-slate-100">
-                          <span>Các khoản Phụ cấp</span>
-                          <span className="font-mono font-bold text-blue-700 dark:text-blue-300">
-                            +{formatCurrency(totalPositiveAllowance)}
-                          </span>
-                        </div>
-                        <div className="pl-3 border-l-2 border-blue-200 dark:border-blue-800 space-y-1 text-xs text-slate-600 dark:text-slate-300">
-                          {positiveAllowances.map((a) => (
-                            <div key={a.key || a.label} className="flex justify-between gap-2">
-                              <span>• {a.label}</span>
-                              <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0">
-                                +{formatCurrency(a.amount)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {(Number(item.totalOtHours) > 0 || Number(item.otAmount) > 0) && (
-                      <div className="px-4 py-2.5 flex justify-between items-center gap-2">
-                        <span className="font-semibold text-slate-800 dark:text-slate-100">
-                          Tổng tiền Tăng ca (OT) ({formatViNumber(item.totalOtHours || 0)} giờ OT)
-                        </span>
-                        <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 shrink-0">
-                          +{formatCurrency(item.otAmount || 0)}
-                        </span>
-                      </div>
-                    )}
-
-                    {Number(item.bonusAmount) > 0 && (
-                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 bg-emerald-50/40 dark:bg-emerald-950/30">
-                        <span className="font-semibold text-emerald-800 dark:text-emerald-300">
-                          Tiền Thưởng
-                        </span>
-                        <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
-                          +{formatCurrency(item.bonusAmount)}
-                        </span>
-                      </div>
-                    )}
-
-                    {Number(item.latePenaltyAmount) > 0 && (
-                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 text-rose-700 dark:text-rose-300">
-                        <span>
-                          Phạt đi muộn ({formatViNumber(item.lateOccurrences || 0, 0)} lần / {formatViNumber(item.totalLateMinutes || 0, 0)} phút)
-                        </span>
-                        <span className="font-mono font-bold shrink-0">
-                          -{formatCurrency(item.latePenaltyAmount)}
-                        </span>
-                      </div>
-                    )}
-
-                    {Number(item.penaltyAmount) > 0 && (
-                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 text-rose-700 dark:text-rose-300">
-                        <span>
-                          Tiền Phạt / Khấu trừ{item.adjustment_note ? ` (${item.adjustment_note})` : ""}
-                        </span>
-                        <span className="font-mono font-bold shrink-0">
-                          -{formatCurrency(item.penaltyAmount)}
-                        </span>
-                      </div>
-                    )}
-
-                    {Number(item.advanceDeduction) > 0 && (
-                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 text-amber-800 dark:text-amber-300">
-                        <span>Tiền Tạm ứng</span>
-                        <span className="font-mono font-bold shrink-0">
-                          -{formatCurrency(item.advanceDeduction)}
-                        </span>
-                      </div>
-                    )}
-
-                    {Number(item.totalInsurance || item.insuranceDeduction || 0) > 0 && (
-                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 text-rose-700 dark:text-rose-300">
-                        <span>Khấu trừ BHXH, BHYT, BHTN ({formatViNumber(item.insuranceRatePercent ?? 10.5)}%)</span>
-                        <span className="font-mono font-bold shrink-0">
-                          -{formatCurrency(item.totalInsurance || item.insuranceDeduction)}
-                        </span>
-                      </div>
-                    )}
-
-                    {!Number(item.penaltyAmount) && item.adjustment_note && (
-                      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/70 text-xs text-slate-600 dark:text-slate-300">
-                        <span className="font-semibold">Ghi chú kế toán: </span>
-                        {item.adjustment_note}
-                      </div>
-                    )}
-
-                    <div className="px-4 py-3 flex justify-between items-center gap-2 bg-emerald-50 dark:bg-emerald-950/60 font-extrabold text-sm sm:text-base">
-                      <span className="text-emerald-900 dark:text-emerald-200">
-                        Tổng thực lĩnh Tháng {thang}/{nam} (NET)
-                      </span>
-                      <span
-                        data-testid="full-payslip-net-total"
-                        className={`font-mono text-base sm:text-lg ${
-                          Number(item.netSalary) < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"
-                        }`}
-                      >
-                        {formatCurrency(item.netSalary)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* PHẦN B: BẢNG KÊ CHI TIẾT TỪNG NGÀY TRONG THÁNG */}
-                <div
-                  data-testid="full-payslip-part-b"
-                  className="border border-slate-200 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs"
-                >
-                  <div className="bg-[#F0F3FF] dark:bg-slate-800 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide">
-                      Phần B • Bảng kê thu nhập từng ngày ({displayedDailyRows.length} ngày)
-                    </span>
-                    <span className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300">
-                      Cộng dồn ngày công &amp; OT: {formatCurrency(dailyLedgerTotals.earned)}
-                    </span>
-                  </div>
-
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {displayedDailyRows.map((row) => {
-                      const hasOt = row.otHours > 0 || row.dailyOtAmount > 0;
-                      const hasPen = row.dailyPenaltyAmount > 0;
-                      const checkWindow =
-                        row.log?.check_in_time || row.log?.check_out_time
-                          ? `${row.log?.check_in_time ? String(row.log.check_in_time).slice(0, 5) : "--:--"} – ${
-                              row.log?.check_out_time ? String(row.log.check_out_time).slice(0, 5) : "--:--"
-                            }`
-                          : null;
-                      return (
-                        <div
-                          key={row.iso}
-                          data-testid={`full-payslip-day-${row.iso}`}
-                          className={`px-3.5 sm:px-4 py-2.5 flex flex-wrap items-start justify-between gap-2 text-xs ${
-                            row.isSunday
-                              ? "bg-slate-50/70 dark:bg-slate-800/30"
-                              : "bg-white dark:bg-slate-900"
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono font-bold text-slate-900 dark:text-white">
-                                {row.weekdayFull}, {row.fullDate}
-                              </span>
-                              <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${
-                                  row.colorName === "green"
-                                    ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
-                                    : row.colorName === "blue"
-                                      ? "bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-700 text-sky-800 dark:text-sky-200"
-                                      : row.colorName === "red"
-                                        ? "bg-rose-50 dark:bg-rose-950/55 border-rose-200 dark:border-rose-700 text-rose-700 dark:text-rose-200"
-                                        : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-                                }`}
-                              >
-                                {row.statusLabelVi}
-                              </span>
-                              {checkWindow && (
-                                <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                                  ({checkWindow})
-                                </span>
-                              )}
-                            </div>
-
-                            {row.log?.holiday_name && (
-                              <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
-                                🎉 {row.log.holiday_name}
-                              </div>
-                            )}
-
-                            {hasOt && (
-                              <div
-                                data-testid={`full-payslip-day-ot-${row.iso}`}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-200 font-semibold text-[11px]"
-                              >
-                                <span>
-                                  +{formatViNumber(row.otHours)} giờ OT = +{formatCurrency(row.dailyOtAmount)}
-                                </span>
-                              </div>
-                            )}
-
-                            {hasPen && (
-                              <div
-                                data-testid={`full-payslip-day-penalty-${row.iso}`}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-semibold text-[11px] ml-1"
-                              >
-                                <span>
-                                  Phạt ngày: -{formatCurrency(row.dailyPenaltyAmount)}
-                                  {row.dailyPenaltyReason ? ` (${row.dailyPenaltyReason})` : ""}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="text-right shrink-0 space-y-0.5">
-                            {row.dailyBaseAmount > 0 && (hasOt || hasPen) && (
-                              <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                                Công ngày: {formatCurrency(row.dailyBaseAmount)}
-                              </div>
-                            )}
-                            <div
-                              data-testid={`full-payslip-day-earned-${row.iso}`}
-                              className={`font-mono font-extrabold text-xs sm:text-sm ${
-                                row.dailyEarnedAmount > 0
-                                  ? "text-emerald-700 dark:text-emerald-300"
-                                  : row.dailyEarnedAmount < 0
-                                    ? "text-rose-600 dark:text-rose-300"
-                                    : "text-slate-400 dark:text-slate-500"
-                              }`}
-                            >
-                              {formatCurrency(row.dailyEarnedAmount)}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Chân trang Đối chiếu Cộng dồn Tháng */}
-                  <div
-                    data-testid="full-payslip-reconciliation"
-                    className="bg-[#F0F3FF] dark:bg-slate-800/90 px-4 py-3 border-t border-slate-200 dark:border-slate-700 space-y-1.5 text-xs"
-                  >
-                    <div className="flex justify-between font-bold text-slate-800 dark:text-slate-100">
-                      <span>Cộng dồn tiền kiếm được từng ngày ({displayedDailyRows.length} ngày)</span>
-                      <span className="font-mono text-emerald-700 dark:text-emerald-300">
-                        {formatCurrency(dailyLedgerTotals.earned)}
-                      </span>
-                    </div>
-                    {totalPositiveAllowance > 0 && (
-                      <div className="flex justify-between text-blue-700 dark:text-blue-300">
-                        <span>+ Tổng phụ cấp theo công</span>
-                        <span className="font-mono font-semibold">+{formatCurrency(totalPositiveAllowance)}</span>
-                      </div>
-                    )}
-                    {Number(item.bonusAmount) > 0 && (
-                      <div className="flex justify-between text-emerald-700 dark:text-emerald-300">
-                        <span>+ Tiền thưởng</span>
-                        <span className="font-mono font-semibold">+{formatCurrency(item.bonusAmount)}</span>
-                      </div>
-                    )}
-                    {Number(item.penaltyAmount) > 0 && (
-                      <div className="flex justify-between text-rose-700 dark:text-rose-300">
-                        <span>- Phạt / Khấu trừ tháng</span>
-                        <span className="font-mono font-semibold">-{formatCurrency(item.penaltyAmount)}</span>
-                      </div>
-                    )}
-                    {Number(item.advanceDeduction) > 0 && (
-                      <div className="flex justify-between text-amber-700 dark:text-amber-300">
-                        <span>- Tiền tạm ứng</span>
-                        <span className="font-mono font-semibold">-{formatCurrency(item.advanceDeduction)}</span>
-                      </div>
-                    )}
-                    {Number(item.totalInsurance || item.insuranceDeduction || 0) > 0 && (
-                      <div className="flex justify-between text-rose-700 dark:text-rose-300">
-                        <span>- Khấu trừ BHXH</span>
-                        <span className="font-mono font-semibold">
-                          -{formatCurrency(item.totalInsurance || item.insuranceDeduction)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="pt-1.5 border-t border-slate-300 dark:border-slate-600 flex justify-between font-extrabold text-sm text-[#111C2D] dark:text-white">
-                      <span>= Tổng Thực lĩnh Tháng {thang}/{nam}</span>
-                      <span className="font-mono text-emerald-700 dark:text-emerald-300">
-                        {formatCurrency(item.netSalary)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-            {/* Thông tin nhân sự — Stitch #F0F3FF Tactical Pod */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#F0F3FF] dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs">
-              <div>
-                <span className="text-slate-600 dark:text-slate-300 block text-xs uppercase font-semibold">
-                  Mã Nhân Viên
-                </span>
-                <span className="font-mono font-bold text-[#111C2D] dark:text-white text-sm">
-                  {maNv}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-600 dark:text-slate-300 block text-xs uppercase font-semibold">
-                  Họ và Tên
-                </span>
-                <span className="font-bold text-[#111C2D] dark:text-white break-words block">
-                  {item.ho_ten}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-600 dark:text-slate-300 block text-xs font-semibold">
-                  Chức danh &amp; Bộ phận
-                </span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200 break-words block">
-                  {item.chuc_danh || "Nhân viên"} • {item.department || "Khối Công trình"}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-600 dark:text-slate-300 block text-xs uppercase font-semibold">
-                  Ngày Công Thực Tế
-                </span>
-                <span className="font-extrabold text-[#16A34A] dark:text-emerald-300 block">
-                  {formatViWorkday(item.totalWorkDays || 0)} / {formatViWorkday(stdDays)} công
-                </span>
-                <span className="text-xs text-slate-600 dark:text-slate-300 block mt-0.5">
-                  Đơn giá: {formatCurrency(unitDailyWage)}/công
-                </span>
-              </div>
-            </div>
-
-            {/* PHẦN A: BẢNG CHI TIẾT THU NHẬP */}
-            <div
-              data-testid="payslip-part-a"
-              className="border border-slate-200/80 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs"
-            >
-              <div className="bg-[#F0F3FF] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-extrabold text-[#111C2D] dark:text-slate-200 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700 flex justify-between">
-                <span>Phần A • Chi Tiết Thu Nhập</span>
-                <span>Số Tiền (VNĐ)</span>
-              </div>
-
-              <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                <div className="px-3.5 py-2.5 flex justify-between items-center gap-2">
-                  <span className="text-slate-600 dark:text-slate-300">
-                    Lương cơ bản hợp đồng (Định mức {formatViWorkday(stdDays)} ngày)
-                  </span>
-                  <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 shrink-0">
-                    {formatCurrency(item.baseSalary)}
+                  <span className="font-mono font-extrabold text-sm text-[#16A34A] dark:text-emerald-300 whitespace-nowrap shrink-0">
+                    {formatViWorkday(item.totalWorkDays || 0)} / {formatViWorkday(stdDays)} ngày chuẩn
                   </span>
                 </div>
 
-                {Number(item.salaryByWork) > 0 && (
-                  <div className="px-3.5 py-2.5 flex justify-between items-center gap-2 bg-slate-50/60 dark:bg-slate-800/40">
-                    <span className="font-semibold text-slate-800 dark:text-slate-100">
-                      Lương chính theo ngày công ({formatViWorkday(item.totalWorkDays || 0)} ngày × {formatCurrency(unitDailyWage)})
+                {hasSalaryByWork && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <span className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      Lương theo ngày công
                     </span>
-                    <span className="font-mono font-bold text-slate-900 dark:text-white shrink-0">
+                    <span className="font-mono font-bold text-sm text-slate-900 dark:text-white whitespace-nowrap shrink-0">
                       {formatCurrency(item.salaryByWork)}
                     </span>
                   </div>
                 )}
 
                 {showAllowancesBlock && (
-                  <div data-testid="payslip-allowances-section" className="px-3.5 py-2.5">
-                    <div className="flex justify-between items-center font-semibold text-slate-800 dark:text-slate-100 mb-1.5">
-                      <span>Các khoản phụ cấp theo công</span>
-                      <span className="font-mono font-bold text-blue-700 dark:text-blue-300">
+                  <div data-testid="payslip-allowances-section" className="px-4 py-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        Phụ cấp ({positiveAllowances.length} khoản)
+                      </span>
+                      <span className="font-mono font-bold text-sm text-blue-700 dark:text-blue-300 whitespace-nowrap shrink-0">
                         +{formatCurrency(totalPositiveAllowance)}
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pl-3 border-l-2 border-blue-200 dark:border-blue-800/70 text-xs text-slate-600 dark:text-slate-300">
+                    <div className="pl-3 border-l-2 border-blue-200 dark:border-blue-800 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                       {positiveAllowances.map((a) => (
                         <div key={a.key || a.label} className="flex justify-between gap-2">
-                          <span>• {a.label}:</span>
-                          <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0">
-                            {formatCurrency(a.amount)}
+                          <span>• {a.label}</span>
+                          <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap shrink-0">
+                            +{formatCurrency(a.amount)}
                           </span>
                         </div>
                       ))}
@@ -1371,432 +1033,465 @@ export default function SalarySlipModal({
                   </div>
                 )}
 
-                {(Number(item.totalOtHours) > 0 || Number(item.otAmount) > 0) && (
-                  <div className="px-3.5 py-2.5 flex justify-between items-center gap-2">
-                    <span className="font-semibold text-slate-800 dark:text-slate-100">
-                      Lương làm thêm giờ (Tăng ca / OT: {formatViNumber(item.totalOtHours || 0)} giờ)
-                    </span>
-                    <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 shrink-0">
-                      +{formatCurrency(item.otAmount)}
+                {hasOt && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 block">
+                        Tăng ca (OT)
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                        Tổng {formatViNumber(item.totalOtHours || 0)} giờ làm thêm
+                      </span>
+                    </div>
+                    <span className="font-mono font-bold text-sm text-indigo-700 dark:text-indigo-300 whitespace-nowrap shrink-0">
+                      +{formatCurrency(item.otAmount || 0)}
                     </span>
                   </div>
                 )}
 
-                {Number(item.bonusAmount) > 0 && (
-                  <div className="px-3.5 py-2.5 flex justify-between items-center gap-2 bg-emerald-50/40 dark:bg-emerald-950/40">
-                    <span className="font-semibold text-emerald-800 dark:text-emerald-300">
-                      Thưởng nóng / Phụ cấp thêm
+                {hasBonus && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <span className="text-xs sm:text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                      Tiền thưởng
                     </span>
-                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
+                    <span className="font-mono font-bold text-sm text-emerald-700 dark:text-emerald-300 whitespace-nowrap shrink-0">
                       +{formatCurrency(item.bonusAmount)}
                     </span>
                   </div>
                 )}
-              </div>
-            </div>
 
-            <div className="sedinco-ticket-cutout">
-              <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
-            </div>
-
-            {/* Khấu trừ & Thực lĩnh */}
-            <div className="border border-slate-200/80 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-              <div className="bg-[#F0F3FF] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-extrabold text-[#111C2D] dark:text-slate-200 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-700">
-                Khấu trừ &amp; Thực lĩnh
-              </div>
-              <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                {Number(item.totalInsurance || item.insuranceDeduction || 0) > 0 && (
-                  <>
-                    <div className="px-3.5 py-2.5 flex justify-between text-slate-600 dark:text-slate-300">
-                      <span>Mức lương đóng BHXH</span>
-                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">
-                        {formatCurrency(item.insuranceBase || item.baseSalary)}
+                {hasLatePenalty && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300 block">
+                        Phạt đi muộn
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                        {formatViNumber(item.totalLateMinutes || 0, 0)} phút ({formatViNumber(item.lateOccurrences || 0, 0)} lần)
                       </span>
                     </div>
-                    <div className="px-3.5 py-2.5 flex justify-between text-rose-700 dark:text-rose-300">
-                      <span>Khấu trừ BHXH, BHYT, BHTN</span>
-                      <span className="font-mono font-bold">
-                        -{formatCurrency(item.totalInsurance || item.insuranceDeduction)}
-                      </span>
-                    </div>
-                  </>
-                )}
-                {Number(item.latePenaltyAmount) > 0 && (
-                  <div className="px-3.5 py-2.5 flex justify-between text-rose-600 dark:text-rose-300">
-                    <span>Khấu trừ đi muộn ({item.totalLateMinutes || 0} phút)</span>
-                    <span className="font-mono font-bold">
+                    <span className="font-mono font-bold text-sm text-rose-600 dark:text-rose-300 whitespace-nowrap shrink-0">
                       -{formatCurrency(item.latePenaltyAmount)}
                     </span>
                   </div>
                 )}
-                {Number(item.penaltyAmount) > 0 && (
-                  <div className="px-3.5 py-2.5 flex justify-between text-rose-600 dark:text-rose-300">
-                    <span>Khấu trừ phạt / Vi phạm</span>
-                    <span className="font-mono font-bold">
+
+                {hasManualPenalty && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300 block">
+                        Phạt / Khấu trừ
+                      </span>
+                      {item.adjustment_note && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400 block break-words">
+                          {item.adjustment_note}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-mono font-bold text-sm text-rose-600 dark:text-rose-300 whitespace-nowrap shrink-0">
                       -{formatCurrency(item.penaltyAmount)}
                     </span>
                   </div>
                 )}
-                {Number(item.advanceDeduction) > 0 && (
-                  <div className="px-3.5 py-2.5 flex justify-between text-amber-800 dark:text-amber-300">
-                    <span>Trừ tiền đã tạm ứng lương</span>
-                    <span className="font-mono font-bold">
+
+                {hasAdvance && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <span className="text-xs sm:text-sm font-semibold text-amber-800 dark:text-amber-300">
+                      Tạm ứng
+                    </span>
+                    <span className="font-mono font-bold text-sm text-amber-700 dark:text-amber-300 whitespace-nowrap shrink-0">
                       -{formatCurrency(item.advanceDeduction)}
                     </span>
                   </div>
                 )}
-                {item.adjustment_note && (
-                  <div className="px-3.5 py-2 bg-slate-50 dark:bg-slate-800/70 text-xs text-slate-600 dark:text-slate-300">
-                    <span className="font-semibold">Ghi chú kế toán: </span>
+
+                {hasInsurance && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <span className="text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300">
+                      Khấu trừ BHXH ({formatViNumber(item.insuranceRatePercent ?? 10.5)}%)
+                    </span>
+                    <span className="font-mono font-bold text-sm text-rose-600 dark:text-rose-300 whitespace-nowrap shrink-0">
+                      -{formatCurrency(item.totalInsurance || item.insuranceDeduction)}
+                    </span>
+                  </div>
+                )}
+
+                {!hasManualPenalty && item.adjustment_note && (
+                  <div className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold">Ghi chú: </span>
                     {item.adjustment_note}
                   </div>
                 )}
-                <div className="px-3.5 py-3 flex justify-between bg-emerald-50 dark:bg-emerald-950/60 font-bold text-sm">
-                  <span className="text-emerald-900 dark:text-emerald-200">
-                    Thực lĩnh cuối cùng (NET)
-                  </span>
-                  <span className={`font-mono text-base ${Number(item.netSalary) < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"}`}>
-                    {formatCurrency(item.netSalary)}
-                  </span>
-                </div>
-                {Number(item.carryOverDebt || item.carry_over_debt || 0) > 0 && (
-                  <div className="px-3.5 py-2.5 flex justify-between items-center gap-2 bg-amber-50 dark:bg-amber-950/60 border-t border-amber-200 dark:border-amber-800/70 text-amber-900 dark:text-amber-200 text-xs sm:text-sm">
-                    <span className="font-semibold">
-                      Khoản khấu trừ còn dư (Chuyển kỳ sau)
+
+                {item.bank_account_number && (
+                  <div data-testid="payslip-bank-info" className="px-4 py-3 flex items-start justify-between gap-3">
+                    <span className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 shrink-0">
+                      Ngân hàng nhận lương
                     </span>
-                    <span className="font-mono font-bold text-amber-800 dark:text-amber-300 shrink-0">
-                      {formatCurrency(item.carryOverDebt || item.carry_over_debt)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* PHẦN B: LƯỚI LỊCH HEATMAP BẢNG CÔNG TRỰC QUAN 7 CỘT (T2 -> CN) */}
-            <div
-              data-testid="payslip-daily-attendance-section"
-              className="border border-slate-200 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900"
-            >
-              <div className="bg-[#F0F3FF] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-[#111C2D] dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5">
-                  <Clock size={14} className="text-[#E11D48] dark:text-rose-400 shrink-0" />
-                  <span>Phần B • Lịch công Tháng {thang}/{nam}</span>
-                </span>
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 print:hidden">
-                  Chạm ô ngày để xem chi tiết
-                </span>
-              </div>
-
-              <div className="p-3 sm:p-4 space-y-3">
-                {/* Tiêu đề thứ T2 -> CN */}
-                <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-extrabold text-slate-500 dark:text-slate-300">
-                  {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((w) => (
-                    <div key={w} className={w === "CN" ? "text-[#E11D48] dark:text-rose-400 py-0.5" : "py-0.5"}>
-                      {w}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Lưới ô ngày bo tròn 7 cột */}
-                <div data-testid="payslip-heatmap-grid" className="grid grid-cols-7 gap-1.5">
-                  {Array.from({ length: leadingEmptyCells }).map((_, idx) => (
-                    <div key={`empty-${idx}`} aria-hidden="true" className="min-h-[46px]" />
-                  ))}
-                  {displayedDailyRows.map((cell) => {
-                    const isSelected = selectedHeatmapIso === cell.iso;
-                    return (
-                      <button
-                        key={cell.iso}
-                        type="button"
-                        data-testid={`payslip-day-cell-${cell.iso}`}
-                        data-heatmap-color={cell.colorName}
-                        onClick={() => setSelectedHeatmapIso((prev) => (prev === cell.iso ? null : cell.iso))}
-                        className={`relative min-h-[46px] p-1 rounded-xl border flex flex-col items-center justify-center transition cursor-pointer ${cell.cellClass} ${
-                          isSelected ? "ring-2 ring-[#E11D48] dark:ring-rose-400 shadow-sm" : "hover:opacity-90"
-                        }`}
-                      >
-                        {cell.hasLateOrEarly && (
-                          <span
-                            aria-label="Có ghi chú vào muộn hoặc ra sớm"
-                            className="absolute top-1 right-1 w-2 h-2 rounded-full bg-orange-500"
-                          />
-                        )}
-                        <span className="text-xs font-extrabold leading-none">{cell.day}</span>
-                        {cell.shortCode && (
-                          <span className="text-[11px] font-bold leading-tight mt-0.5 font-mono">
-                            {cell.shortCode}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Chú thích màu 1 dòng siêu gọn */}
-                <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                    <span>Đủ công / Lễ / OT</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0" />
-                    <span>0,5 / Phép (P)</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0" />
-                    <span>Vào muộn / Ra sớm</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                    <span>KP / Nghỉ (V)</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0" />
-                    <span>Chủ nhật / Chưa tới</span>
-                  </span>
-                </div>
-
-                {/* Thẻ tóm tắt chi tiết khi chạm vào ô ngày trên Heatmap */}
-                {selectedHeatmapDay && (
-                  <div
-                    data-testid="payslip-heatmap-day-detail"
-                    className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs space-y-2"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2 min-w-0">
-                        <span className="font-extrabold text-[#111C2D] dark:text-white">
-                          Ngày {selectedHeatmapDay.shortDate}
-                        </span>
-                        <span className="text-slate-500 dark:text-slate-400">•</span>
-                        <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
-                          {selectedHeatmapDay.log?.check_in_time
-                            ? String(selectedHeatmapDay.log.check_in_time).slice(0, 5)
-                            : "--:--"}
-                          {" – "}
-                          {selectedHeatmapDay.log?.check_out_time
-                            ? String(selectedHeatmapDay.log.check_out_time).slice(0, 5)
-                            : "--:--"}
-                        </span>
+                    <div className="text-right min-w-0 text-xs sm:text-sm">
+                      <div className="font-bold text-slate-900 dark:text-white break-words">
+                        {item.bank_name || item.bank_code || "Ngân hàng"}
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono font-bold text-[#111C2D] dark:text-white">
-                          {formatViWorkday(selectedHeatmapDay.credit)} công
-                        </span>
-                        {selectedHeatmapDay.otHours > 0 && (
-                          <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-700 font-semibold text-indigo-700 dark:text-indigo-300">
-                            +{formatViNumber(selectedHeatmapDay.otHours)}h OT
-                          </span>
-                        )}
-                        {selectedHeatmapDay.log && (
-                          <StatusBadge type="attendance" status={selectedHeatmapDay.log.status} />
-                        )}
+                      <div className="font-mono font-semibold text-blue-700 dark:text-blue-300 break-all">
+                        {item.bank_account_number}
                       </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-lg border text-xs font-semibold ${getNoteBadgeClass(
-                          selectedHeatmapDay.note
-                        )}`}
-                      >
-                        {selectedHeatmapDay.note}
-                      </span>
-                      {selectedHeatmapDay.log?.location_name && (
-                        <span className="text-xs text-slate-600 dark:text-slate-300 break-words">
-                          {selectedHeatmapDay.log.location_name}
-                        </span>
+                      {item.bank_account_name && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 uppercase">
+                          {item.bank_account_name}
+                        </div>
                       )}
                     </div>
                   </div>
                 )}
               </div>
-            </div>
-              </>
-            )}
 
-            {/* Form gửi khiếu nại cho Nhân viên khi bấm nút [⚠️ Báo sai sót] ở Thanh đáy */}
-            {!isAdminOrAccountant && showDisputeForm && (
-              <form
-                ref={disputeSectionRef}
-                onSubmit={handleSubmitDispute}
-                data-testid="payslip-worker-dispute-form"
-                className="bg-amber-50/70 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-2xl p-4 space-y-3 print:hidden"
-              >
-                <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-extrabold text-xs sm:text-sm">
-                  <AlertTriangle size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
-                  <span>Gửi Phản hồi Sai sót Lương / Ngày công</span>
+              {/* Thao tác điều chỉnh thưởng/phạt gọn cho Quản lý nếu kỳ chưa chốt */}
+              {isAdminOrAccountant && canAdjust && !isLockedOrPaid && typeof onOpenAdjustment === "function" && (
+                <div className="flex justify-end">
+                  <AppButton
+                    variant="ghost"
+                    icon={SlidersHorizontal}
+                    onClick={() =>
+                      onOpenAdjustment({
+                        ...item,
+                        thang,
+                        nam,
+                        ma_nv: maNv
+                      })
+                    }
+                    className="min-h-[44px] px-4 rounded-xl text-xs font-bold whitespace-nowrap"
+                  >
+                    Điều chỉnh Thưởng / Phạt / Tạm ứng
+                  </AppButton>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
-                    Lý do sai lệch (ghi rõ ngày công, giờ tăng ca hoặc phụ cấp bị thiếu):
-                  </label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={disputeReason}
-                    onChange={(e) => setDisputeReason(e.target.value)}
-                    placeholder="VD: Ngày 12/11 em có tăng ca 2 tiếng nhưng chưa thấy cộng vào phiếu lương..."
-                    className="w-full p-3 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:border-amber-500"
-                  />
-                </div>
+              )}
 
-                <div className="space-y-2">
-                  <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">
-                    Đính kèm Ảnh minh chứng (&lt;50KB) hoặc Video ngắn (&lt;800KB):
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <AppButton
-                      variant="secondary"
-                      icon={Camera}
-                      onClick={() => handlePickDisputeMedia(["camera"])}
-                      className="text-xs px-3 py-2"
-                    >
-                      Chụp ảnh Camera
-                    </AppButton>
-                    <AppButton
-                      variant="secondary"
-                      icon={ImageIcon}
-                      onClick={() => handlePickDisputeMedia(["album"])}
-                      className="text-xs px-3 py-2"
-                    >
-                      <Video size={14} className="inline mr-1" />
-                      Chọn Thư viện / Video
-                    </AppButton>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,video/*"
-                    onChange={handleSelectEvidenceFile}
-                    className="hidden"
-                  />
-                  {mediaNotice && (
-                    <p className="text-xs text-emerald-700 dark:text-emerald-300 font-bold">{mediaNotice}</p>
-                  )}
-                </div>
-
-                <AppButton
-                  type="submit"
-                  variant="danger"
-                  icon={Send}
-                  fullWidth
-                  loading={submitting}
-                  loadingText="Đang gửi báo cáo..."
+              {/* Form gửi khiếu nại cho Nhân viên khi bấm nút [Báo sai sót] ở Thanh đáy */}
+              {!isAdminOrAccountant && showDisputeForm && (
+                <form
+                  ref={disputeSectionRef}
+                  onSubmit={handleSubmitDispute}
+                  data-testid="payslip-worker-dispute-form"
+                  className="bg-amber-50/70 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-2xl p-4 space-y-3 print:hidden"
                 >
-                  Gửi Báo Cáo Tới Kế Toán &amp; Admin
-                </AppButton>
-              </form>
-            )}
-
-            {/* HIỂN THỊ KHIẾU NẠI & BẰNG CHỨNG (CHỈ HIỆN KHI ĐANG OPEN / CHƯA GIẢI QUYẾT) */}
-            {(disputeStatus === "OPEN" || (disputeStatus !== "RESOLVED" && confirmStatus === "DISPUTED")) && (
-              <div
-                data-testid="payslip-open-dispute-box"
-                className="bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-200 dark:border-rose-800/70 rounded-2xl p-4 space-y-3"
-              >
-                <div className="flex items-center gap-2 text-rose-800 dark:text-rose-200 font-black text-xs uppercase">
-                  <AlertTriangle size={16} className="text-rose-600 dark:text-rose-400 shrink-0" />
-                  <span>Hồ sơ Báo cáo Sai lệch Lương / Công</span>
-                </div>
-
-                {(disputeReason || item.dispute_reason) && (
-                  <div className="text-xs text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 p-3 rounded-xl border border-rose-200 dark:border-rose-800/60">
-                    <span className="font-bold text-rose-700 dark:text-rose-300 block mb-1">Nội dung phản ánh của Nhân viên:</span>
-                    {disputeReason || item.dispute_reason}
+                  <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-extrabold text-xs sm:text-sm">
+                    <AlertTriangle size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span>Gửi Phản hồi Sai sót Lương / Ngày công</span>
                   </div>
-                )}
-
-                {(evidenceMedia || item.dispute_evidence_media) && (
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
-                      Hình ảnh / Video bằng chứng đính kèm:
-                    </span>
-                    {(evidenceMedia || item.dispute_evidence_media).startsWith("data:video") ? (
-                      <video
-                        src={evidenceMedia || item.dispute_evidence_media}
-                        controls
-                        className="w-full max-h-56 rounded-xl border border-slate-300 dark:border-slate-700 bg-black"
-                      />
-                    ) : (
-                      <img
-                        src={evidenceMedia || item.dispute_evidence_media}
-                        alt="Minh chứng lương"
-                        className="w-full max-h-60 object-contain rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
-                      />
-                    )}
-                  </div>
-                )}
-
-                {(adminResponse || item.admin_response) && !isAdminOrAccountant && (
-                  <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 p-3 rounded-xl text-xs text-emerald-950 dark:text-emerald-200">
-                    <span className="font-black text-emerald-800 dark:text-emerald-300 block mb-0.5">
-                      Phản hồi từ Phòng Kế toán / Admin:
-                    </span>
-                    {adminResponse || item.admin_response}
-                  </div>
-                )}
-
-                {isAdminOrAccountant && (
-                  <div className="pt-2 border-t border-rose-200 dark:border-rose-800/70 space-y-2.5">
-                    <label className="block text-xs font-black text-slate-800 dark:text-slate-100">
-                      Phản hồi giải quyết của Kế toán / Admin:
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                      Lý do sai lệch:
                     </label>
                     <textarea
-                      rows={2}
-                      value={adminResponse}
-                      onChange={(e) => setAdminResponse(e.target.value)}
-                      placeholder="Nhập kết quả kiểm tra lại bảng công/lương cho nhân viên..."
-                      className="w-full p-2.5 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:border-emerald-600"
+                      rows={3}
+                      required
+                      value={disputeReason}
+                      onChange={(e) => setDisputeReason(e.target.value)}
+                      placeholder="VD: Ngày 12/11 em có tăng ca 2 tiếng nhưng chưa thấy cộng vào phiếu lương..."
+                      className="w-full p-3 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-2 border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:border-amber-500"
                     />
-                    <div className="flex flex-wrap gap-2">
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">
+                      Đính kèm Ảnh (&lt;50KB) hoặc Video (&lt;800KB):
+                    </span>
+                    <div className="grid grid-cols-2 gap-2.5">
                       <AppButton
-                        variant="success"
-                        icon={ShieldCheck}
-                        loading={resolving}
-                        loadingText="Đang xử lý..."
-                        data-testid="slip-resolve-dispute-btn"
-                        onClick={() => handleResolveDispute("RESOLVED")}
-                        className="text-xs font-bold"
+                        variant="secondary"
+                        icon={Camera}
+                        onClick={() => handlePickDisputeMedia(["camera"])}
+                        className="min-h-[44px] text-xs px-3 py-2 whitespace-nowrap"
                       >
-                        ✓ Đã giải quyết
+                        Chụp ảnh
                       </AppButton>
                       <AppButton
                         variant="secondary"
-                        icon={Send}
-                        loading={resolving}
-                        onClick={() => handleResolveDispute("DISPUTED")}
-                        className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600 text-xs font-bold"
+                        icon={ImageIcon}
+                        onClick={() => handlePickDisputeMedia(["album"])}
+                        className="min-h-[44px] text-xs px-3 py-2 whitespace-nowrap"
                       >
-                        Gửi phản hồi (Giữ trạng thái)
+                        <Video size={14} className="inline mr-1" />
+                        Chọn tệp
                       </AppButton>
                     </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,video/*"
+                      onChange={handleSelectEvidenceFile}
+                      className="hidden"
+                    />
+                    {mediaNotice && (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 font-bold">{mediaNotice}</p>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* Chữ ký xác nhận */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 text-center text-xs text-slate-600 dark:text-slate-300">
-              <div>
-                <p className="font-bold text-slate-800 dark:text-slate-100">Người lập biểu</p>
-                <p className="italic text-xs">(Ký, ghi rõ họ tên)</p>
+                  <AppButton
+                    type="submit"
+                    variant="danger"
+                    icon={Send}
+                    fullWidth
+                    loading={submitting}
+                    loadingText="Đang gửi báo cáo..."
+                    className="min-h-[46px] whitespace-nowrap"
+                  >
+                    Gửi Báo Cáo Tới Kế Toán &amp; Admin
+                  </AppButton>
+                </form>
+              )}
+
+              {/* HIỂN THỊ KHIẾU NẠI & BẰNG CHỨNG */}
+              {(disputeStatus === "OPEN" || (disputeStatus !== "RESOLVED" && confirmStatus === "DISPUTED")) && (
+                <div
+                  data-testid="payslip-open-dispute-box"
+                  className="bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-200 dark:border-rose-800/70 rounded-2xl p-4 space-y-3"
+                >
+                  <div className="flex items-center gap-2 text-rose-800 dark:text-rose-200 font-black text-xs uppercase">
+                    <AlertTriangle size={16} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                    <span>Hồ sơ Báo cáo Sai lệch Lương / Công</span>
+                  </div>
+
+                  {(disputeReason || item.dispute_reason) && (
+                    <div className="text-xs text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 p-3 rounded-xl border border-rose-200 dark:border-rose-800/60">
+                      <span className="font-bold text-rose-700 dark:text-rose-300 block mb-1">Nội dung phản ánh:</span>
+                      {disputeReason || item.dispute_reason}
+                    </div>
+                  )}
+
+                  {(evidenceMedia || item.dispute_evidence_media) && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
+                        Bằng chứng đính kèm:
+                      </span>
+                      {(evidenceMedia || item.dispute_evidence_media).startsWith("data:video") ? (
+                        <video
+                          src={evidenceMedia || item.dispute_evidence_media}
+                          controls
+                          className="w-full max-h-56 rounded-xl border border-slate-300 dark:border-slate-700 bg-black"
+                        />
+                      ) : (
+                        <img
+                          src={evidenceMedia || item.dispute_evidence_media}
+                          alt="Minh chứng lương"
+                          className="w-full max-h-60 object-contain rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {(adminResponse || item.admin_response) && !isAdminOrAccountant && (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 p-3 rounded-xl text-xs text-emerald-950 dark:text-emerald-200">
+                      <span className="font-black text-emerald-800 dark:text-emerald-300 block mb-0.5">
+                        Phản hồi từ Phòng Kế toán / Admin:
+                      </span>
+                      {adminResponse || item.admin_response}
+                    </div>
+                  )}
+
+                  {isAdminOrAccountant && (
+                    <div className="pt-2 border-t border-rose-200 dark:border-rose-800/70 space-y-2.5">
+                      <label className="block text-xs font-black text-slate-800 dark:text-slate-100">
+                        Phản hồi giải quyết của Kế toán / Admin:
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={adminResponse}
+                        onChange={(e) => setAdminResponse(e.target.value)}
+                        placeholder="Nhập kết quả kiểm tra lại bảng công/lương cho nhân viên..."
+                        className="w-full p-2.5 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:border-emerald-600"
+                      />
+                      <div className="flex gap-2.5">
+                        <AppButton
+                          variant="success"
+                          icon={ShieldCheck}
+                          loading={resolving}
+                          loadingText="Đang xử lý..."
+                          data-testid="slip-resolve-dispute-btn"
+                          onClick={() => handleResolveDispute("RESOLVED")}
+                          className="flex-1 min-h-[44px] text-xs font-bold whitespace-nowrap"
+                        >
+                          ✓ Đã giải quyết
+                        </AppButton>
+                        <AppButton
+                          variant="secondary"
+                          icon={Send}
+                          loading={resolving}
+                          onClick={() => handleResolveDispute("DISPUTED")}
+                          className="flex-1 min-h-[44px] text-xs font-bold whitespace-nowrap"
+                        >
+                          Gửi phản hồi
+                        </AppButton>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* TAB 2: THU NHẬP TỪNG NGÀY (30/31 DÒNG NGANG SIÊU GỌN) */
+            <div data-testid="payslip-daily-panel" className="space-y-3 animate-tab-enter">
+              <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+                {displayedDailyRows.map((row) => {
+                  const hasOt = row.otHours > 0 || row.dailyOtAmount > 0;
+                  const hasPen = row.dailyPenaltyAmount > 0;
+                  const isExpanded = expandedDayIso === row.iso;
+                  const RowTag = row.hasDetails ? "button" : "div";
+
+                  return (
+                    <div
+                      key={row.iso}
+                      data-testid={`payslip-day-row-${row.iso}`}
+                      className={row.isSunday ? "bg-slate-50/70 dark:bg-slate-800/25" : ""}
+                    >
+                      <RowTag
+                        {...(row.hasDetails
+                          ? {
+                              type: "button",
+                              onClick: () => setExpandedDayIso((prev) => (prev === row.iso ? null : row.iso))
+                            }
+                          : {})}
+                        className={`w-full min-h-[50px] px-3.5 py-2.5 flex items-center justify-between gap-2 text-left text-xs sm:text-sm ${
+                          row.hasDetails
+                            ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                            : ""
+                        }`}
+                      >
+                        {/* Cột trái: DD/MM + Thứ + Chấm màu */}
+                        <div className="flex items-center gap-2 shrink-0 min-w-[92px]">
+                          <span
+                            aria-hidden="true"
+                            className={`w-2.5 h-2.5 rounded-full shrink-0 ${getDailyDotClass(row.colorName)}`}
+                          />
+                          <span className="font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                            {row.shortDate}
+                          </span>
+                          <span
+                            className={`text-xs font-bold whitespace-nowrap ${
+                              row.isSunday ? "text-[#E11D48] dark:text-rose-400" : "text-slate-500 dark:text-slate-400"
+                            }`}
+                          >
+                            {row.weekdayShort}
+                          </span>
+                        </div>
+
+                        {/* Cột giữa: Nhãn trạng thái ngắn gọn + badge OT / Phạt (chỉ hiện nếu có) */}
+                        <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={`text-xs font-semibold truncate ${
+                              row.colorName === "red"
+                                ? "text-rose-600 dark:text-rose-300"
+                                : row.colorName === "blue"
+                                  ? "text-sky-700 dark:text-sky-300"
+                                  : row.colorName === "green"
+                                    ? "text-emerald-700 dark:text-emerald-300"
+                                    : "text-slate-500 dark:text-slate-400"
+                            }`}
+                          >
+                            {row.compactStatus}
+                          </span>
+                          {hasOt && (
+                            <span
+                              data-testid={`payslip-day-ot-${row.iso}`}
+                              className="px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-200 text-[11px] font-bold whitespace-nowrap"
+                            >
+                              +{formatViNumber(row.otHours)} giờ OT
+                            </span>
+                          )}
+                          {hasPen && (
+                            <span
+                              data-testid={`payslip-day-penalty-${row.iso}`}
+                              className="px-1.5 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-[11px] font-bold whitespace-nowrap"
+                            >
+                              -Phạt
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Cột phải: Số tiền kiếm được trong ngày */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span
+                            data-testid={`payslip-day-earned-${row.iso}`}
+                            className={`font-mono font-extrabold text-xs sm:text-sm whitespace-nowrap ${
+                              row.dailyEarnedAmount > 0
+                                ? "text-emerald-700 dark:text-emerald-300"
+                                : row.dailyEarnedAmount < 0
+                                  ? "text-rose-600 dark:text-rose-300"
+                                  : "text-slate-400 dark:text-slate-500"
+                            }`}
+                          >
+                            {formatCurrency(row.dailyEarnedAmount)}
+                          </span>
+                          {row.hasDetails && (
+                            isExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            )
+                          )}
+                        </div>
+                      </RowTag>
+
+                      {/* Chi tiết mở rộng tại chỗ (không popup phụ) */}
+                      {isExpanded && row.hasDetails && (
+                        <div
+                          data-testid={`payslip-day-expand-${row.iso}`}
+                          className="px-3.5 pb-3 pt-1 bg-slate-50/90 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 text-xs space-y-1 text-slate-600 dark:text-slate-300"
+                        >
+                          <div className="flex flex-wrap justify-between gap-2">
+                            <span className="font-semibold text-slate-800 dark:text-slate-100">
+                              {row.weekdayFull}, {row.fullDate} • {row.statusLabelVi}
+                            </span>
+                            {row.checkWindow && (
+                              <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
+                                {row.checkWindow}
+                              </span>
+                            )}
+                          </div>
+                          {row.dailyBaseAmount > 0 && (hasOt || hasPen) && (
+                            <div>Lương công ngày: {formatCurrency(row.dailyBaseAmount)}</div>
+                          )}
+                          {hasOt && (
+                            <div className="text-indigo-700 dark:text-indigo-300 font-semibold">
+                              Tăng ca: +{formatViNumber(row.otHours)} giờ OT = +{formatCurrency(row.dailyOtAmount)}
+                            </div>
+                          )}
+                          {hasPen && (
+                            <div className="text-rose-700 dark:text-rose-300 font-semibold">
+                              Phạt: -{formatCurrency(row.dailyPenaltyAmount)}
+                              {row.dailyPenaltyReason ? ` (${row.dailyPenaltyReason})` : ""}
+                            </div>
+                          )}
+                          {row.log?.holiday_name && (
+                            <div className="text-purple-700 dark:text-purple-300 font-semibold">
+                              🎉 {row.log.holiday_name}
+                            </div>
+                          )}
+                          {row.note && <div>Ghi chú: {row.note}</div>}
+                          {row.log?.location_name && (
+                            <div className="text-slate-500 dark:text-slate-400">Địa điểm: {row.log.location_name}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <div>
-                <p className="font-bold text-slate-800 dark:text-slate-100">Kế toán trưởng</p>
-                <p className="italic text-xs">(Ký, ghi rõ họ tên)</p>
-              </div>
-              <div>
-                <p className="font-bold text-slate-800 dark:text-slate-100">Giám đốc</p>
-                <p className="italic text-xs">(Ký, đóng dấu)</p>
-              </div>
-              <div>
-                <p className="font-bold text-slate-700 dark:text-slate-200">Người nhận tiền</p>
-                <p className="font-semibold text-slate-800 dark:text-slate-100 mt-4">
-                  {item.ho_ten}
-                </p>
+
+              {/* Đối chiếu tổng thu nhập từng ngày khớp tháng */}
+              <div
+                data-testid="payslip-daily-reconciliation"
+                className="rounded-2xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs"
+              >
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  Cộng dồn từ {displayedDailyRows.length} ngày
+                </span>
+                <span className="font-mono font-extrabold text-sm text-emerald-700 dark:text-emerald-300">
+                  {formatCurrency(dailyLedgerTotals.earned)}
+                </span>
               </div>
             </div>
-          </>
+          )
         ) : null}
       </div>
     </AppModal>
