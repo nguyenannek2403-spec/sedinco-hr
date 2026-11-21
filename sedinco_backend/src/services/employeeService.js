@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { query } = require('../config/db');
 const { SAFE_EMPLOYEE_FIELDS, resolveUserRole, logAuditEvent, invalidateUserCache } = require('../middlewares/authMiddleware');
+const { sanitizeBankCardInput } = require('../utils/bankValidator');
 const { verifyZaloUserToken } = require('../utils/zaloAdapter');
 const { hashPassword, validatePasswordPolicy } = require('../utils/passwordHelper');
 const {
@@ -211,6 +212,10 @@ const sanitizeEmployeeRecord = (emp, monthlyQuota = 1, paidUsageMap = null) => {
         phone: emp.phone || emp.dien_thoai || null,
         login_username: emp.login_username || emp.phone || emp.ma_nv,
         theme_preference: emp.theme_preference === 'dark' ? 'dark' : 'light',
+        bank_code: emp.bank_code || null,
+        bank_name: emp.bank_name || null,
+        bank_account_number: emp.bank_account_number || null,
+        bank_account_name: emp.bank_account_name || null,
         custom_allowances: normalizeCustomAllowances(emp.custom_allowances, emp)
     };
     if (base.role === 'admin') {
@@ -446,7 +451,8 @@ class EmployeeService {
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, custom_allowances, has_insurance,
             status, is_locked, shift_type, annual_leave_quota, keep_logs, new_password,
-            custom_start_time, custom_end_time
+            custom_start_time, custom_end_time,
+            bank_code, bank_name, bank_account_number, bank_account_name
         } = data || {};
 
         const cleanPhone = phone !== undefined
@@ -542,6 +548,28 @@ class EmployeeService {
         }
         if (custom_start_time !== undefined) addField('custom_start_time', normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng'));
         if (custom_end_time !== undefined) addField('custom_end_time', normalizeOptionalTime(custom_end_time, 'Giờ tan ca riêng'));
+
+        if (
+            bank_code !== undefined ||
+            bank_name !== undefined ||
+            bank_account_number !== undefined ||
+            bank_account_name !== undefined
+        ) {
+            const isClearingBank =
+                !bank_code && !bank_name && !bank_account_number && !bank_account_name;
+            if (isClearingBank) {
+                addField('bank_code', null);
+                addField('bank_name', null);
+                addField('bank_account_number', null);
+                addField('bank_account_name', null);
+            } else {
+                const cleanBank = sanitizeBankCardInput(data);
+                addField('bank_code', cleanBank.bank_code);
+                addField('bank_name', cleanBank.bank_name);
+                addField('bank_account_number', cleanBank.bank_account_number);
+                addField('bank_account_name', cleanBank.bank_account_name);
+            }
+        }
 
         if (setClauses.length === 0) {
             const existsRows = await query('SELECT ma_nv FROM employees WHERE ma_nv = ? LIMIT 1', [id]);

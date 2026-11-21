@@ -46,7 +46,9 @@ export default function SalarySlipModal({
   employeeList = [],
   onSelectEmployee = null,
   canAdjust = false,
+  canManagePayment = false,
   onOpenAdjustment = null,
+  onOpenTransfer = null,
   refreshKey = 0,
   showToast,
   onStatusUpdated,
@@ -643,12 +645,14 @@ export default function SalarySlipModal({
           submitting={submitting}
           resolving={resolving}
           canAdjust={canAdjust}
+          canManagePayment={canManagePayment}
           isLockedOrPaid={isLockedOrPaid}
           thang={thang}
           nam={nam}
           maNv={maNv}
           onClose={onClose}
           onOpenAdjustment={onOpenAdjustment}
+          onOpenTransfer={onOpenTransfer}
           onExportSlip={handleExportSingleSlipExcel}
           onConfirmSalary={handleConfirmSalary}
           onToggleDispute={handleToggleDispute}

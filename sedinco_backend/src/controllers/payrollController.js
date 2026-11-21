@@ -222,6 +222,23 @@ class PayrollController {
             next(err);
         }
     }
+
+    async updateEmployeePaymentStatus(req, res, next) {
+        try {
+            const ma_nv = req.body.ma_nv || req.params.ma_nv;
+            const { month, year, status } = req.body || {};
+            const result = await payrollService.updateEmployeePaymentStatus({
+                ma_nv,
+                month,
+                year,
+                status: status || 'PAID',
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 module.exports = new PayrollController();

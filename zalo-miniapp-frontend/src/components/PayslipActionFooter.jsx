@@ -4,7 +4,8 @@ import {
   Download,
   CheckCircle2,
   AlertTriangle,
-  Clock
+  Clock,
+  Send
 } from "lucide-react";
 import { AppButton } from "./ui";
 
@@ -15,12 +16,14 @@ export default function PayslipActionFooter({
   submitting = false,
   resolving = false,
   canAdjust = false,
+  canManagePayment = false,
   isLockedOrPaid = false,
   thang = null,
   nam = null,
   maNv = null,
   onClose,
   onOpenAdjustment,
+  onOpenTransfer,
   onExportSlip,
   onConfirmSalary,
   onToggleDispute
@@ -28,6 +31,12 @@ export default function PayslipActionFooter({
   if (isAdminOrAccountant) {
     const showAdjustBtn = Boolean(
       item && !isLockedOrPaid && canAdjust && typeof onOpenAdjustment === "function"
+    );
+    const isEmployeePaid = Boolean(
+      item && (item.employee_payment_status === "PAID" || item.payment_status === "PAID")
+    );
+    const showTransferBtn = Boolean(
+      item && canManagePayment && typeof onOpenTransfer === "function"
     );
     const payload = item
       ? {
@@ -63,7 +72,23 @@ export default function PayslipActionFooter({
             onClick={() => payload && onOpenAdjustment(payload)}
             className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm"
           >
-            ✏️ Điều chỉnh
+            Điều chỉnh
+          </AppButton>
+        )}
+
+        {showTransferBtn && (
+          <AppButton
+            data-testid="payslip-admin-transfer-btn"
+            variant={isEmployeePaid ? "success" : "primary"}
+            icon={isEmployeePaid ? CheckCircle2 : Send}
+            disabled={resolving}
+            title={isEmployeePaid ? "Đã chuyển khoản lương kỳ này" : "Mở mã VietQR chuyển khoản"}
+            onClick={() => payload && onOpenTransfer(payload)}
+            className={`min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm ${
+              isEmployeePaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"
+            }`}
+          >
+            {isEmployeePaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}
           </AppButton>
         )}
 
@@ -75,7 +100,7 @@ export default function PayslipActionFooter({
           onClick={onExportSlip}
           className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial text-xs sm:text-sm"
         >
-          📄 Xuất phiếu
+          Xuất phiếu
         </AppButton>
       </div>
     );

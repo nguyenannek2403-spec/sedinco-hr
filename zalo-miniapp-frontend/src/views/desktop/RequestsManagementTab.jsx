@@ -1,18 +1,62 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   FileText,
   CheckCircle2,
   XCircle,
   Search,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  Clock,
+  Calendar,
+  UserCheck
 } from "lucide-react";
-import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
+import { safeGet, safePut, generateIdempotencyKey } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
-import ConfirmDialog from "../../components/ConfirmDialog";
 import { getRequestTypeLabel, getCorrectionModeLabel } from "../../utils/viLabels";
 import { formatViCurrency } from "../../utils/viNumberFormat";
-import { AppButton, StatusBadge, SkeletonList, EmptyState } from "../../components/ui";
+import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState } from "../../components/ui";
+
+function formatTimestampVi(isoOrRaw, preformattedVn = null) {
+  if (preformattedVn && /^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2}$/.test(String(preformattedVn).trim())) {
+    return String(preformattedVn).trim();
+  }
+  if (!isoOrRaw) return null;
+  const d = new Date(isoOrRaw);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(d);
+  const map = {};
+  for (const p of parts) map[p.type] = p.value;
+  const hh = map.hour === "24" ? "00" : map.hour;
+  return `${map.day}/${map.month}/${map.year} ${hh}:${map.minute}:${map.second}`;
+}
+
+function getRequestStatusLabel(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "approved") return "Đã duyệt";
+  if (s === "rejected") return "Từ chối";
+  if (s === "cancelled") return "Đã hủy";
+  return "Chờ duyệt";
+}
+
+function normalizeSearchStr(val) {
+  return String(val || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+}
 
 export default function RequestsManagementTab({
   currentUser,
@@ -22,563 +66,607 @@ export default function RequestsManagementTab({
   focusTarget = null
 }) {
   const effectiveRole = activeRole || currentUser?.role || "admin";
-  const canApproveRequest = useCallback(
-    () => {
-      if (effectiveRole !== "accountant") return effectiveRole === "admin";
-      return Boolean(dynamicPerms?.leave_approve || dynamicPerms?.attendance_request_approve);
-    },
-    [effectiveRole, dynamicPerms]
-  );
-  const [requests, setRequests] = useState([]);
+  const canApproveRequest = useCallback(() => {
+    if (effectiveRole !== "accountant") return effectiveRole === "admin";
+    return Boolean(dynamicPerms?.leave_approve || dynamicPerms?.attendance_request_approve);
+  }, [effectiveRole, dynamicPerms]);
+
+  const [employeeGroups, setEmployeeGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterType, setFilterType] = useState("all");
+  const [filterMode, setFilterMode] = useState("all"); // 'pending' | 'all' | 'processed'
   const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSearch = useDebouncedValue(searchQuery, 300);
+  const debouncedSearch = useDebouncedValue(searchQuery, 250);
+  const [selectedEmpMaNv, setSelectedEmpMaNv] = useState(null);
+
   const [actionLoadingId, setActionLoadingId] = useState(null);
-  const [batchApproving, setBatchApproving] = useState(false);
-  const [dialogState, setDialogState] = useState(null);
+  const [rejectDialogReq, setRejectDialogReq] = useState(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState("");
+
   const actionInFlightRef = useRef(false);
-  const batchInFlightRef = useRef(false);
   const lastFocusTsRef = useRef(0);
 
   useEffect(() => {
     if (!focusTarget?.ts || focusTarget.ts === lastFocusTsRef.current) return;
     if (focusTarget.tab !== "requests" && focusTarget.category !== "pending_request") return;
     lastFocusTsRef.current = focusTarget.ts;
-    setFilterStatus("PENDING");
+    setFilterMode("pending");
     if (focusTarget.ma_nv) {
       setSearchQuery(focusTarget.ma_nv);
     }
   }, [focusTarget]);
 
-  const notify = useCallback((msg, type = "info") => {
-    if (showToast) showToast(msg, type);
-  }, [showToast]);
+  const notify = useCallback(
+    (msg, type = "info") => {
+      if (showToast) showToast(msg, type);
+    },
+    [showToast]
+  );
 
-  const fetchRequests = useCallback(async () => {
+  const fetchEmployeeRequests = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await safeGet("/requests", {}, { cancelPrevious: true });
+      const res = await safeGet("/requests/by-employees", {}, { cancelPrevious: true });
       if (res?.success && Array.isArray(res.data)) {
-        setRequests(res.data);
+        setEmployeeGroups(res.data);
       } else {
-        setRequests([]);
+        setEmployeeGroups([]);
       }
     } catch (err) {
-      setError(err.message || "Không thể tải danh sách đơn từ");
+      setError(err?.message || "Không thể tải danh sách đơn từ theo nhân viên.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests]);
+    fetchEmployeeRequests();
+  }, [fetchEmployeeRequests]);
 
   const executeAction = async (id, newStatus, rejectReason = "") => {
-    if (actionInFlightRef.current) return;
+    if (!id || actionInFlightRef.current) return;
     actionInFlightRef.current = true;
     setActionLoadingId(id);
     try {
-      const res = await safePut(`/requests/${id}`, {
-        status: newStatus,
-        reject_reason: rejectReason
-      }, {
-        idempotencyKey: generateIdempotencyKey(`req_${newStatus}`)
-      });
+      const res = await safePut(
+        `/requests/${id}`,
+        {
+          status: newStatus,
+          reject_reason: newStatus === "rejected" ? String(rejectReason || "").trim() : null
+        },
+        {
+          idempotencyKey: generateIdempotencyKey(`req_${newStatus}_${id}`)
+        }
+      );
 
       if (res?.success) {
-        notify(newStatus === "approved" ? "Đã phê duyệt đơn thành công!" : "Đã từ chối đơn!", "success");
-        setDialogState(null);
-        fetchRequests();
+        notify(
+          newStatus === "approved" ? "Đã phê duyệt đơn thành công!" : "Đã từ chối đơn thành công!",
+          "success"
+        );
+        setRejectDialogReq(null);
+        setRejectReasonInput("");
+        await fetchEmployeeRequests();
       } else {
-        notify(res?.message || "Không thể cập nhật trạng thái đơn.", "error");
+        notify(res?.message || "Thao tác không thành công", "error");
       }
     } catch (err) {
-      notify(err.message || "Lỗi xử lý duyệt đơn.", "error");
+      notify(err?.message || "Lỗi kết nối máy chủ", "error");
     } finally {
       actionInFlightRef.current = false;
       setActionLoadingId(null);
     }
   };
 
-  const handleAction = (id, newStatus, ownerMaNv) => {
-    if (actionInFlightRef.current) return;
-    if (ownerMaNv && ownerMaNv === currentUser?.ma_nv) {
-      notify("Theo quy định kiểm soát nội bộ, bạn không thể tự phê duyệt đơn của chính mình!", "warning");
-      return;
-    }
+  const selectedEmployee = useMemo(
+    () => employeeGroups.find((g) => g.ma_nv === selectedEmpMaNv) || null,
+    [employeeGroups, selectedEmpMaNv]
+  );
 
-    if (newStatus === "rejected") {
-      setDialogState({
-        mode: "reject",
-        id,
-        title: "Từ chối đơn yêu cầu",
-        message: "Vui lòng nhập lý do để nhân viên nắm rõ thông tin.",
-        showInput: true,
-        inputLabel: "Lý do từ chối",
-        inputPlaceholder: "VD: Thiếu nhân sự trực ca, vui lòng điều chỉnh ngày...",
-        confirmLabel: "Xác nhận từ chối",
-        variant: "danger"
-      });
-      return;
-    }
-
-    executeAction(id, newStatus, "");
-  };
-
-  const eligiblePendingIds = requests
-    .filter(
-      (r) =>
-        String(r.status).toUpperCase() === "PENDING" &&
-        r.ma_nv !== currentUser?.ma_nv &&
-        canApproveRequest(r)
-    )
-    .map((r) => r.id);
-
-  const handleBatchApprove = () => {
-    if (batchInFlightRef.current || eligiblePendingIds.length === 0) return;
-    setDialogState({
-      mode: "batch",
-      title: "Duyệt nhanh hàng loạt",
-      message: `Xác nhận phê duyệt toàn bộ ${eligiblePendingIds.length} đơn đang chờ hợp lệ? (Đơn của chính người đang duyệt sẽ tự động bỏ qua để đảm bảo minh bạch.)`,
-      showInput: false,
-      confirmLabel: `Duyệt ${eligiblePendingIds.length} đơn`,
-      variant: "primary"
-    });
-  };
-
-  const executeBatchApprove = async () => {
-    if (batchInFlightRef.current || eligiblePendingIds.length === 0) return;
-    batchInFlightRef.current = true;
-    setBatchApproving(true);
-    try {
-      const res = await safePost("/requests/batch-approve", {
-        request_ids: eligiblePendingIds
-      }, {
-        idempotencyKey: generateIdempotencyKey("req_batch")
-      });
-      if (res?.success) {
-        notify(res.message || `Đã duyệt nhanh ${res.approved_count} đơn!`, "success");
-        setDialogState(null);
-        fetchRequests();
-      } else {
-        notify(res?.message || "Lỗi duyệt hàng loạt", "error");
+  const stats = useMemo(() => {
+    let withPending = 0;
+    let totalPending = 0;
+    let withProcessed = 0;
+    for (const g of employeeGroups) {
+      if (g.pending_count > 0) {
+        withPending++;
+        totalPending += g.pending_count;
+      } else if (g.total_requests > 0) {
+        withProcessed++;
       }
-    } catch (err) {
-      notify(err.message || "Lỗi duyệt nhanh hàng loạt.", "error");
-    } finally {
-      batchInFlightRef.current = false;
-      setBatchApproving(false);
     }
-  };
+    return {
+      totalEmployees: employeeGroups.length,
+      withPending,
+      totalPending,
+      withProcessed
+    };
+  }, [employeeGroups]);
 
-  const filtered = requests.filter(r => {
-    const matchStatus = filterStatus === "all" || String(r.status).toUpperCase() === filterStatus.toUpperCase();
-    const rawType = String(r.request_type || r.type || "").toUpperCase();
-    const matchType =
-      filterType === "all" ||
-      (filterType === "LEAVE" && (rawType === "P" || rawType === "KP" || rawType.includes("LEAVE"))) ||
-      (filterType === "CORRECTION" && rawType.includes("ATTENDANCE_CORRECTION")) ||
-      (filterType === "OT" && rawType === "OT") ||
-      (filterType === "ADVANCE" && rawType.includes("ADVANCE"));
-    const query = debouncedSearch.trim().toLowerCase();
-    const matchSearch = !query ||
-      String(r.ma_nv || "").toLowerCase().includes(query) ||
-      String(r.ho_ten || "").toLowerCase().includes(query) ||
-      String(r.reason || "").toLowerCase().includes(query);
-    return matchStatus && matchType && matchSearch;
-  });
+  const filteredEmployees = useMemo(() => {
+    const q = normalizeSearchStr(debouncedSearch);
+    return employeeGroups.filter((emp) => {
+      if (filterMode === "pending" && emp.pending_count === 0) return false;
+      if (filterMode === "processed" && (emp.pending_count > 0 || emp.total_requests === 0)) {
+        return false;
+      }
+      if (!q) return true;
+      const haystack = normalizeSearchStr(
+        `${emp.ma_nv} ${emp.ho_ten} ${emp.department || ""} ${emp.chuc_danh || ""}`
+      );
+      return haystack.includes(q);
+    });
+  }, [employeeGroups, filterMode, debouncedSearch]);
+
+  const myMaNv = currentUser?.ma_nv || currentUser?.username;
+  const managerCanAct = canApproveRequest();
 
   return (
-    <div className="space-y-4 pb-28">
-      {/* Thanh Bộ Lọc & Tìm Kiếm Tinh Gọn */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-sm space-y-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
-          {/* Status Filter */}
-          <div
-            data-filter-group="admin-requests-filter"
-            className="flex flex-wrap bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-2xl text-xs gap-1"
+    <div className="space-y-4">
+      {/* Header tinh gọn + bộ lọc & tìm kiếm */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 space-y-3 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70 text-[#E11D48] dark:text-rose-400 flex items-center justify-center shrink-0">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-extrabold text-[#111C2D] dark:text-white truncate">
+                Đơn từ theo Nhân viên
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
+                {stats.totalPending > 0
+                  ? `${stats.totalPending} đơn đang chờ duyệt tại ${stats.withPending} nhân sự`
+                  : "Không có đơn chờ duyệt"}
+              </p>
+            </div>
+          </div>
+
+          <AppButton
+            variant="secondary"
+            icon={RefreshCw}
+            loading={loading}
+            onClick={fetchEmployeeRequests}
+            className="text-xs px-3 py-2"
           >
-            {["all", "PENDING", "APPROVED", "REJECTED"].map(st => {
-              const active = filterStatus === st;
+            Làm mới
+          </AppButton>
+        </div>
+
+        {/* Tìm kiếm theo Mã NV / Họ tên + Tabs lọc gọn */}
+        <div className="flex flex-col sm:flex-row gap-2.5">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              data-testid="requests-search-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm nhân viên theo Mã NV hoặc Họ tên..."
+              className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl bg-[#F4F6F9] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-medium text-[#111C2D] dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#E11D48]"
+            />
+          </div>
+
+          <div
+            data-filter-group="requests-employee-filter"
+            data-testid="requests-filter-bar"
+            className="flex flex-wrap bg-[#F4F6F9] dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 p-1 rounded-xl gap-1 text-xs"
+          >
+            {[
+              { id: "pending", label: `Chờ duyệt (${stats.withPending})` },
+              { id: "all", label: `Tất cả nhân viên (${stats.totalEmployees})` },
+              { id: "processed", label: `Đã xử lý (${stats.withProcessed})` }
+            ].map((tab) => {
+              const active = filterMode === tab.id;
               return (
                 <button
-                  key={st}
+                  key={tab.id}
                   type="button"
+                  data-testid={`requests-filter-${tab.id}`}
                   data-active={active ? "true" : "false"}
-                  onClick={() => setFilterStatus(st)}
-                  className={`min-h-[40px] px-3 py-1.5 font-semibold rounded-xl whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  onClick={() => setFilterMode(tab.id)}
+                  className={`min-h-[38px] px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap ${
                     active
-                      ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                      : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                      ? "bg-[#E11D48] text-white shadow-xs dark:bg-rose-600"
+                      : "text-slate-600 dark:text-slate-300 hover:text-[#111C2D] dark:hover:text-white"
                   }`}
                 >
-                  {st === "all" ? "Tất cả" : st === "PENDING" ? "Chờ duyệt" : st === "APPROVED" ? "Đã duyệt" : "Từ chối"}
+                  {tab.label}
                 </button>
               );
             })}
           </div>
-
-          <div className="flex flex-wrap items-center gap-2 flex-1 sm:flex-initial justify-end">
-            <div className="relative flex-1 sm:flex-initial min-w-[160px]">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm mã NV, họ tên..."
-                className="w-full sm:w-48 min-h-[40px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
-              />
-            </div>
-
-            <AppButton
-              variant="secondary"
-              icon={RefreshCw}
-              loading={loading}
-              onClick={fetchRequests}
-              className="min-w-[40px] px-3 py-2 text-xs"
-              title="Làm mới"
-              aria-label="Làm mới danh sách đơn"
-            />
-
-            {eligiblePendingIds.length > 0 && (
-              <AppButton
-                variant="success"
-                icon={CheckCircle2}
-                loading={batchApproving}
-                loadingText="Đang duyệt..."
-                onClick={handleBatchApprove}
-                className="text-xs font-bold shadow-md shadow-emerald-600/20"
-              >
-                ✓ Duyệt ({eligiblePendingIds.length})
-              </AppButton>
-            )}
-          </div>
-        </div>
-
-        {/* Bộ lọc loại đơn */}
-        <div
-          data-filter-group="admin-request-type-filter"
-          className="flex flex-wrap items-center gap-1 bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 p-1 rounded-2xl text-xs"
-        >
-          {[
-            { id: "all", label: "Mọi loại đơn" },
-            { id: "LEAVE", label: "Nghỉ phép / KL" },
-            { id: "CORRECTION", label: "Bổ sung công" },
-            { id: "OT", label: "Đăng ký OT" },
-            { id: "ADVANCE", label: "Ứng lương" }
-          ].map((t) => {
-            const active = filterType === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                data-active={active ? "true" : "false"}
-                onClick={() => setFilterType(t.id)}
-                className={`min-h-[38px] px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  active
-                    ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                    : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-                }`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
         </div>
       </div>
 
-      {/* Table Data */}
-      <div className="md:bg-white md:dark:bg-slate-900 md:border md:border-slate-100/90 md:dark:border-slate-800 md:rounded-2xl md:shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
-        {loading ? (
-          <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
-            <SkeletonList rows={4} label="Đang tải dữ liệu đơn từ..." />
+      {/* Error banner */}
+      {error && (
+        <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs font-semibold flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
           </div>
-        ) : error ? (
-          <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl text-center text-rose-600 dark:text-rose-300 text-xs flex flex-col items-center justify-center gap-3">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 shrink-0" />
-              <span>{error}</span>
-            </div>
-            <AppButton variant="danger" onClick={fetchRequests} className="text-xs px-4 py-2">
-              Thử lại
+          <AppButton variant="danger" onClick={fetchEmployeeRequests} className="text-xs px-3 py-1.5">
+            Thử lại
+          </AppButton>
+        </div>
+      )}
+
+      {/* Danh sách nhóm theo nhân viên */}
+      {loading && employeeGroups.length === 0 ? (
+        <SkeletonList rows={5} label="Đang tải danh sách đơn từ theo nhân viên..." />
+      ) : filteredEmployees.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title="Không có nhân viên phù hợp"
+          description={
+            searchQuery
+              ? "Không tìm thấy nhân viên nào khớp từ khóa tìm kiếm."
+              : "Chưa có dữ liệu đơn từ ở bộ lọc này."
+          }
+        />
+      ) : (
+        <div className="space-y-2.5">
+          {filteredEmployees.map((emp) => {
+            const latest = emp.latest_request;
+            const latestPending =
+              latest && String(latest.status || "").toLowerCase() === "pending";
+            const isSelf = myMaNv && myMaNv === emp.ma_nv;
+            const canQuickAct = managerCanAct && latestPending && !isSelf;
+
+            const avatarText = String(emp.ho_ten || emp.ma_nv || "NV")
+              .trim()
+              .split(/\s+/)
+              .slice(-2)
+              .map((w) => w[0] || "")
+              .join("")
+              .toUpperCase()
+              .slice(0, 2);
+
+            const latestCreatedLabel = latest
+              ? formatTimestampVi(latest.created_at, latest.created_at_vn)
+              : null;
+
+            return (
+              <div
+                key={emp.ma_nv}
+                data-testid={`req-emp-card-${emp.ma_nv}`}
+                className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+              >
+                {/* Trái: Avatar + Tên + Mã NV + Tóm tắt 1 dòng đơn mới nhất */}
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="w-11 h-11 rounded-2xl bg-[#F4F6F9] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#E11D48] dark:text-rose-300 font-black text-sm flex items-center justify-center shrink-0">
+                    {avatarText || "NV"}
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-extrabold text-[#111C2D] dark:text-white truncate">
+                        {emp.ho_ten || emp.ma_nv}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] font-bold">
+                        {emp.ma_nv}
+                      </span>
+                      {emp.pending_count > 0 && (
+                        <span
+                          data-testid={`req-emp-pending-badge-${emp.ma_nv}`}
+                          className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/70 text-[11px] font-extrabold"
+                        >
+                          {emp.pending_count} chờ duyệt
+                        </span>
+                      )}
+                    </div>
+
+                    {latest ? (
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+                        <span className="font-bold text-[#111C2D] dark:text-slate-100">
+                          {getRequestTypeLabel(latest.request_type || latest.type)}
+                        </span>
+                        <span aria-hidden="true">•</span>
+                        <span>Ngày {latest.date}</span>
+                        <span aria-hidden="true">•</span>
+                        <StatusBadge
+                          status={String(latest.status || "pending").toUpperCase()}
+                          label={getRequestStatusLabel(latest.status)}
+                        />
+                        {latestCreatedLabel && (
+                          <>
+                            <span aria-hidden="true">•</span>
+                            <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                              Gửi {latestCreatedLabel}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500 dark:text-slate-400 italic">
+                        Chưa phát sinh đơn từ
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Phải: Nút Xem chi tiết + Duyệt/Từ chối nhanh (nếu đơn mới nhất đang PENDING) */}
+                <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                  {canQuickAct && (
+                    <>
+                      <AppButton
+                        variant="danger"
+                        icon={XCircle}
+                        loading={actionLoadingId === latest.id}
+                        disabled={Boolean(actionLoadingId)}
+                        data-testid={`req-quick-reject-${emp.ma_nv}`}
+                        onClick={() => {
+                          setRejectDialogReq(latest);
+                          setRejectReasonInput("");
+                        }}
+                        className="text-xs px-3 py-2"
+                      >
+                        Từ chối
+                      </AppButton>
+                      <AppButton
+                        variant="success"
+                        icon={CheckCircle2}
+                        loading={actionLoadingId === latest.id}
+                        disabled={Boolean(actionLoadingId)}
+                        data-testid={`req-quick-approve-${emp.ma_nv}`}
+                        onClick={() => executeAction(latest.id, "approved")}
+                        className="text-xs px-3 py-2"
+                      >
+                        ✓ Duyệt nhanh
+                      </AppButton>
+                    </>
+                  )}
+
+                  <AppButton
+                    variant="secondary"
+                    icon={Eye}
+                    data-testid={`req-emp-detail-btn-${emp.ma_nv}`}
+                    onClick={() => setSelectedEmpMaNv(emp.ma_nv)}
+                    className="text-xs px-3.5 py-2"
+                  >
+                    Xem chi tiết{emp.total_requests > 0 ? ` (${emp.total_requests})` : ""}
+                  </AppButton>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal Chi tiết toàn bộ đơn từ của nhân viên + Full Timestamps GMT+7 */}
+      <AppModal
+        open={Boolean(selectedEmployee)}
+        onClose={() => setSelectedEmpMaNv(null)}
+        maxWidthClass="sm:max-w-2xl"
+        title={selectedEmployee ? `Lịch sử đơn từ — ${selectedEmployee.ho_ten}` : "Chi tiết đơn từ"}
+        subtitle={
+          selectedEmployee
+            ? `${selectedEmployee.ma_nv} • ${selectedEmployee.department} • Quỹ phép tháng này: ${selectedEmployee.current_month_paid_leave_used || 0}/${selectedEmployee.monthly_paid_leave_limit || 1} lượt`
+            : ""
+        }
+        footer={
+          <div className="flex justify-end w-full">
+            <AppButton variant="secondary" onClick={() => setSelectedEmpMaNv(null)}>
+              Đóng
             </AppButton>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
-            <EmptyState
-              icon={FileText}
-              title="Không tìm thấy đơn từ nào khớp với bộ lọc."
-            />
-          </div>
-        ) : (
-          <>
-            {/* Mobile ZaUI Appointment Ticket Cards View */}
-            <div className="md:hidden space-y-3">
-              {filtered.map((req) => {
-                const isPending = String(req.status).toUpperCase() === "PENDING";
-                const isOwner = req.ma_nv === currentUser?.ma_nv;
-                const isOperating = actionLoadingId === req.id;
-                const isFocused = Boolean(focusTarget?.id && String(req.id) === String(focusTarget.id));
+        }
+      >
+        {selectedEmployee && (
+          <div data-testid="req-employee-detail-modal" className="p-4 sm:p-5 space-y-3">
+            {selectedEmployee.requests.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title="Chưa phát sinh đơn từ"
+                description={`Nhân viên ${selectedEmployee.ho_ten} (${selectedEmployee.ma_nv}) chưa gửi đơn nghỉ phép, tạm ứng hay giải trình chấm công nào.`}
+              />
+            ) : (
+              selectedEmployee.requests.map((req) => {
+                const st = String(req.status || "pending").toLowerCase();
+                const isPending = st === "pending";
+                const isSelf = myMaNv && myMaNv === selectedEmployee.ma_nv;
+                const canActOnItem = managerCanAct && isPending && !isSelf;
+
+                const createdLabel =
+                  formatTimestampVi(req.created_at, req.created_at_vn) || "Không rõ thời gian";
+                const processedLabel = formatTimestampVi(req.processed_at, req.processed_at_vn);
 
                 return (
                   <div
                     key={req.id}
-                    data-request-id={req.id}
-                    className={`perf-list-item rounded-2xl border p-4 space-y-2.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] ${
-                      isFocused
-                        ? "bg-amber-50 dark:bg-amber-950/40 border-amber-400 ring-2 ring-inset ring-amber-400"
-                        : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800"
-                    }`}
+                    data-testid={`req-history-item-${req.id}`}
+                    className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/75 p-4 space-y-2.5 shadow-xs"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <span className="font-bold text-base text-slate-900 dark:text-white block break-words leading-snug">
-                          {req.ho_ten || req.ma_nv}{" "}
-                          <span className="text-xs font-mono text-[#E11D48] dark:text-rose-400">({req.ma_nv})</span>
-                        </span>
-                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 block mt-1 break-words leading-snug">
-                          {getRequestTypeLabel(req.request_type || req.type)} • {req.request_date || req.date || req.start_date}
-                          {Number(req.advance_amount) > 0 && (
-                            <span className="inline-block ml-1.5 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-semibold whitespace-nowrap">
-                              Ứng {formatViCurrency(req.advance_amount)}
-                            </span>
-                          )}
-                        </span>
-                        {req.is_paid_leave && req.request_month && (
-                          <span
-                            data-testid={`req-monthly-leave-badge-${req.id}`}
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-bold mt-1 whitespace-nowrap ${
-                              (req.monthly_paid_leave_used ?? 0) >= (req.monthly_paid_leave_limit ?? 1)
-                                ? "bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300"
-                                : "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-700 text-[#0051CA] dark:text-blue-300"
-                            }`}
-                          >
-                            Lượt phép tháng {req.request_month}: {req.monthly_paid_leave_used ?? 0}/{req.monthly_paid_leave_limit ?? 1}
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-extrabold text-[#111C2D] dark:text-white">
+                            {getRequestTypeLabel(req.request_type || req.type)}
                           </span>
-                        )}
-                        {(req.correction_mode || req.check_in_time || req.check_out_time) && (
-                          <div className="inline-block text-xs text-cyan-800 dark:text-cyan-200 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-500/40 px-2.5 py-1 rounded-full mt-1.5 break-words leading-snug">
-                            {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
-                            {(req.check_in_time || req.check_out_time) && (
-                              <span className="ml-1 font-semibold">
-                                ({req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}
-                                {req.check_in_time && req.check_out_time ? " – " : ""}
-                                {req.check_out_time ? `Ra ${String(req.check_out_time).slice(0, 5)}` : ""})
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <StatusBadge type="request" status={req.status} />
-                    </div>
-
-                    <div className="text-sm text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700 break-words leading-relaxed">
-                      <span className="text-slate-500 dark:text-slate-300 font-semibold">Lý do: </span>
-                      {req.reason || "--"}
-                      {req.evidence_image && (
-                        <div className="mt-2.5 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                          <img
-                            src={req.evidence_image}
-                            alt="Ảnh minh chứng"
-                            className="max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-cover"
+                          <StatusBadge
+                            status={st.toUpperCase()}
+                            label={getRequestStatusLabel(st)}
                           />
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-semibold">
+                          <Calendar className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
+                          <span>Ngày áp dụng: {req.date}</span>
+                          {req.correction_mode && (
+                            <span>• {getCorrectionModeLabel(req.correction_mode)}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {Number(req.advance_amount) > 0 && (
+                        <div className="px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 font-mono text-xs font-extrabold">
+                          {formatViCurrency(req.advance_amount)}
                         </div>
                       )}
                     </div>
 
-                    <div className="sedinco-ticket-divider !my-2" />
+                    {(req.check_in_time || req.check_out_time) && (
+                      <div className="text-xs text-slate-600 dark:text-slate-300 font-mono">
+                        Giờ đề nghị: {req.check_in_time || "--:--"} → {req.check_out_time || "--:--"}
+                      </div>
+                    )}
 
-                    {isPending && (
-                      isOwner ? (
-                        <div className="text-xs text-amber-700 dark:text-amber-300 italic font-semibold leading-snug">
-                          (Đơn của bạn — Cần quản lý khác xét duyệt)
-                        </div>
-                      ) : !canApproveRequest(req) ? (
-                        <div className="text-xs text-slate-500 dark:text-slate-400 italic font-medium leading-snug">
-                          (Chế độ chỉ xem — Chưa được cấp quyền phê duyệt đơn từ)
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-2.5">
-                          <AppButton
-                            variant="danger"
-                            icon={XCircle}
-                            loading={isOperating}
-                            disabled={actionLoadingId !== null && !isOperating}
-                            loadingText="Đang xử lý..."
-                            onClick={() => handleAction(req.id, "rejected", req.ma_nv)}
-                            className="text-xs"
+                    <div className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 bg-[#F4F6F9] dark:bg-slate-900/70 rounded-xl px-3 py-2 border border-slate-200/80 dark:border-slate-700/80">
+                      <span className="font-bold text-slate-500 dark:text-slate-400">Lý do: </span>
+                      <span>{req.reason || "Không có ghi chú"}</span>
+                    </div>
+
+                    {/* Khối hiển thị ĐẦY ĐỦ ngày giờ làm đơn & ngày giờ duyệt/từ chối (GMT+7) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="px-3 py-2 rounded-xl bg-[#F4F6F9] dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/70 flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-[#0051CA] dark:text-blue-400 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                            Thời gian làm đơn
+                          </div>
+                          <div
+                            data-testid={`req-created-at-${req.id}`}
+                            className="font-mono font-bold text-[#111C2D] dark:text-slate-100"
                           >
-                            Từ chối
-                          </AppButton>
-                          <AppButton
-                            variant="success"
-                            icon={CheckCircle2}
-                            loading={isOperating}
-                            disabled={actionLoadingId !== null && !isOperating}
-                            loadingText="Đang xử lý..."
-                            onClick={() => handleAction(req.id, "approved", req.ma_nv)}
-                            className="text-xs"
-                          >
-                            ✓ Duyệt
-                          </AppButton>
+                            {createdLabel}
+                          </div>
                         </div>
-                      )
+                      </div>
+
+                      <div className="px-3 py-2 rounded-xl bg-[#F4F6F9] dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/70 flex items-center gap-2">
+                        <UserCheck className="w-3.5 h-3.5 text-[#16A34A] dark:text-emerald-400 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                            {st === "rejected"
+                              ? "Thời gian từ chối"
+                              : st === "approved"
+                              ? "Thời gian phê duyệt"
+                              : "Trạng thái duyệt"}
+                          </div>
+                          <div
+                            data-testid={`req-processed-at-${req.id}`}
+                            className="font-mono font-bold text-[#111C2D] dark:text-slate-100 break-words"
+                          >
+                            {isPending
+                              ? "Đang chờ duyệt"
+                              : processedLabel
+                              ? `${processedLabel}${req.processed_by ? ` (${req.processed_by})` : ""}`
+                              : getRequestStatusLabel(st)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {st === "rejected" && req.reject_reason && (
+                      <div
+                        data-testid={`req-reject-reason-${req.id}`}
+                        className="px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/70 text-xs text-rose-800 dark:text-rose-200 font-semibold"
+                      >
+                        Lý do từ chối: {req.reject_reason}
+                      </div>
+                    )}
+
+                    {req.evidence_image && (
+                      <div className="pt-1">
+                        <img
+                          src={req.evidence_image}
+                          alt="Minh chứng đính kèm"
+                          className="max-h-40 rounded-xl border border-slate-200 dark:border-slate-700 object-contain"
+                        />
+                      </div>
+                    )}
+
+                    {canActOnItem && (
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-700/80">
+                        <AppButton
+                          variant="danger"
+                          icon={XCircle}
+                          loading={actionLoadingId === req.id}
+                          disabled={Boolean(actionLoadingId)}
+                          data-testid={`req-modal-reject-${req.id}`}
+                          onClick={() => {
+                            setRejectDialogReq(req);
+                            setRejectReasonInput("");
+                          }}
+                          className="text-xs px-3 py-2"
+                        >
+                          Từ chối
+                        </AppButton>
+                        <AppButton
+                          variant="success"
+                          icon={CheckCircle2}
+                          loading={actionLoadingId === req.id}
+                          disabled={Boolean(actionLoadingId)}
+                          data-testid={`req-modal-approve-${req.id}`}
+                          onClick={() => executeAction(req.id, "approved")}
+                          className="text-xs px-3.5 py-2"
+                        >
+                          ✓ Phê duyệt
+                        </AppButton>
+                      </div>
                     )}
                   </div>
                 );
-              })}
-            </div>
-
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto touch-scroll-x">
-              <table className="w-full text-left text-xs">
-              <thead className="bg-[#F0F3FF] dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-400 uppercase tracking-wider font-bold">
-                <tr>
-                  <th className="p-3.5 pl-5">Mã NV / Họ Tên</th>
-                  <th className="p-3.5">Loại Đơn</th>
-                  <th className="p-3.5">Ngày Áp Dụng</th>
-                  <th className="p-3.5">Lý Do</th>
-                  <th className="p-3.5">Trạng Thái</th>
-                  <th className="p-3.5 text-right pr-5">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700/50 text-slate-700 dark:text-slate-300">
-                {filtered.map(req => {
-                  const isPending = String(req.status).toUpperCase() === "PENDING";
-                  const isOwner = req.ma_nv === currentUser?.ma_nv;
-                  const isOperating = actionLoadingId === req.id;
-                  const isFocused = Boolean(focusTarget?.id && String(req.id) === String(focusTarget.id));
-
-                  return (
-                    <tr
-                      key={req.id}
-                      data-request-id={req.id}
-                      className={`perf-list-item transition-colors ${
-                        isFocused ? "bg-amber-50 dark:bg-amber-950/40 ring-2 ring-inset ring-amber-400" : "hover:bg-slate-50 dark:hover:bg-slate-700/30"
-                      }`}
-                    >
-                      <td className="p-3.5 pl-5">
-                        <div className="font-bold text-slate-900 dark:text-white">{req.ho_ten || req.ma_nv}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">{req.ma_nv}</div>
-                      </td>
-                      <td className="p-3.5 font-semibold text-slate-800 dark:text-slate-200">
-                        <div>{getRequestTypeLabel(req.request_type || req.type)}</div>
-                        {req.is_paid_leave && req.request_month && (
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-bold mt-1 whitespace-nowrap ${
-                              (req.monthly_paid_leave_used ?? 0) >= (req.monthly_paid_leave_limit ?? 1)
-                                ? "bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300"
-                                : "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-700 text-[#0051CA] dark:text-blue-300"
-                            }`}
-                          >
-                            Lượt phép tháng {req.request_month}: {req.monthly_paid_leave_used ?? 0}/{req.monthly_paid_leave_limit ?? 1}
-                          </span>
-                        )}
-                        {(req.correction_mode || req.check_in_time || req.check_out_time) && (
-                          <div className="inline-block text-xs text-cyan-800 dark:text-cyan-200 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-500/40 px-2 py-0.5 rounded-md font-normal mt-1">
-                            {getCorrectionModeLabel(req.correction_mode) || "Bổ sung giờ công"}
-                            {(req.check_in_time || req.check_out_time) &&
-                              ` (${req.check_in_time ? `Vào ${String(req.check_in_time).slice(0, 5)}` : ""}${
-                                req.check_in_time && req.check_out_time ? " – " : ""
-                              }${req.check_out_time ? `Ra ${String(req.check_out_time).slice(0, 5)}` : ""})`}
-                          </div>
-                        )}
-                        {Number(req.advance_amount) > 0 && (
-                          <div className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold mt-0.5">
-                            Ứng: {formatViCurrency(req.advance_amount)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3.5 text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
-                        {req.request_date || req.date || req.start_date}
-                      </td>
-                      <td className="p-3.5 max-w-xs break-words text-slate-700 dark:text-slate-300" title={req.reason}>
-                        <div>{req.reason || "--"}</div>
-                        {req.evidence_image && (
-                          <div className="mt-1.5 inline-block p-1 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                            <img
-                              src={req.evidence_image}
-                              alt="Minh chứng"
-                              className="max-h-20 rounded border border-slate-200 dark:border-slate-700 object-cover"
-                            />
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3.5">
-                        <StatusBadge type="request" status={req.status} />
-                      </td>
-                      <td className="p-3.5 text-right pr-5">
-                        {isPending ? (
-                          isOwner ? (
-                            <span className="text-xs text-amber-700 dark:text-amber-300 italic font-semibold">
-                              (Đơn của bạn — Cần quản lý khác duyệt)
-                            </span>
-                          ) : !canApproveRequest(req) ? (
-                            <span className="text-xs text-slate-500 dark:text-slate-400 italic font-medium">
-                              (Chỉ xem — Chưa cấp quyền duyệt)
-                            </span>
-                          ) : (
-                            <div className="flex items-center justify-end gap-2">
-                              <AppButton
-                                variant="danger"
-                                icon={XCircle}
-                                loading={isOperating}
-                                disabled={actionLoadingId !== null && !isOperating}
-                                onClick={() => handleAction(req.id, "rejected", req.ma_nv)}
-                                className="px-3.5 py-2 text-xs"
-                              >
-                                Từ chối
-                              </AppButton>
-                              <AppButton
-                                variant="success"
-                                icon={CheckCircle2}
-                                loading={isOperating}
-                                disabled={actionLoadingId !== null && !isOperating}
-                                onClick={() => handleAction(req.id, "approved", req.ma_nv)}
-                                className="px-3.5 py-2 text-xs"
-                              >
-                                ✓ Duyệt
-                              </AppButton>
-                            </div>
-                          )
-                        ) : (
-                          <span className="text-slate-400 text-xs">Đã xử lý</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+              })
+            )}
           </div>
-          </>
         )}
-      </div>
+      </AppModal>
 
-      <ConfirmDialog
-        open={Boolean(dialogState)}
-        title={dialogState?.title}
-        message={dialogState?.message}
-        confirmLabel={dialogState?.confirmLabel}
-        variant={dialogState?.variant || "primary"}
-        showInput={Boolean(dialogState?.showInput)}
-        inputLabel={dialogState?.inputLabel}
-        inputPlaceholder={dialogState?.inputPlaceholder}
-        loading={batchApproving || actionLoadingId !== null}
-        onCancel={() => setDialogState(null)}
-        onConfirm={(val) => {
-          if (dialogState?.mode === "batch") {
-            executeBatchApprove();
-          } else if (dialogState?.mode === "reject") {
-            executeAction(dialogState.id, "rejected", val || "Không phù hợp kế hoạch công tác");
-          }
-        }}
-      />
+      {/* Modal nhập lý do từ chối (tùy chọn) — z-[115] chồng chuẩn trên modal chi tiết */}
+      <AppModal
+        open={Boolean(rejectDialogReq)}
+        onClose={() => !actionLoadingId && setRejectDialogReq(null)}
+        disableClose={Boolean(actionLoadingId)}
+        zIndexClass="z-[115]"
+        maxWidthClass="max-w-md"
+        title="Từ chối đơn từ"
+        subtitle={
+          rejectDialogReq
+            ? `${getRequestTypeLabel(rejectDialogReq.request_type || rejectDialogReq.type)} • Ngày ${rejectDialogReq.date}`
+            : ""
+        }
+        footer={
+          <div className="flex items-center gap-2.5 w-full">
+            <AppButton
+              variant="secondary"
+              disabled={Boolean(actionLoadingId)}
+              onClick={() => setRejectDialogReq(null)}
+              className="flex-1"
+            >
+              Hủy
+            </AppButton>
+            <AppButton
+              variant="danger"
+              icon={XCircle}
+              loading={Boolean(actionLoadingId)}
+              loadingText="Đang xử lý..."
+              data-testid="confirm-reject-request-btn"
+              onClick={() =>
+                rejectDialogReq && executeAction(rejectDialogReq.id, "rejected", rejectReasonInput)
+              }
+              className="flex-1"
+            >
+              Xác nhận từ chối
+            </AppButton>
+          </div>
+        }
+      >
+        <div className="p-4 space-y-3">
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">
+            Lý do từ chối (tùy chọn — giúp nhân viên nắm rõ nguyên nhân)
+          </label>
+          <textarea
+            rows={3}
+            data-testid="reject-request-reason-input"
+            value={rejectReasonInput}
+            onChange={(e) => setRejectReasonInput(e.target.value)}
+            placeholder="Ví dụ: Đã hết hạn mức phép hoặc thiếu minh chứng chấm công..."
+            className="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-sm text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-rose-500"
+          />
+        </div>
+      </AppModal>
     </div>
   );
 }

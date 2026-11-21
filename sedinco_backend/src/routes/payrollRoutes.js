@@ -35,6 +35,9 @@ router.get('/backup-snapshot', authenticateToken, requirePermission('payroll_exp
 // 6. Cập nhật trạng thái chi trả lương (Yêu cầu permission: payroll_payment_status_manage)
 router.put('/payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), (req, res, next) => payrollController.updatePaymentStatus(req, res, next));
 router.post('/payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), (req, res, next) => payrollController.updatePaymentStatus(req, res, next));
+router.post('/employee-payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), idempotencyMiddleware(), (req, res, next) => payrollController.updateEmployeePaymentStatus(req, res, next));
+router.put('/employee-payment-status', authenticateToken, requirePermission('payroll_payment_status_manage'), idempotencyMiddleware(), (req, res, next) => payrollController.updateEmployeePaymentStatus(req, res, next));
+router.post('/employee-paid', authenticateToken, requirePermission('payroll_payment_status_manage'), idempotencyMiddleware(), (req, res, next) => payrollController.updateEmployeePaymentStatus(req, res, next));
 
 // 7. Danh sách trạng thái kỳ lương & chi trả (Yêu cầu permission: payroll_view_all)
 router.get('/status-list', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => payrollController.getPayrollStatusList(req, res, next));

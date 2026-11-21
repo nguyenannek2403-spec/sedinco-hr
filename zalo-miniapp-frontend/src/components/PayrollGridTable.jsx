@@ -21,9 +21,11 @@ import {
   List,
   ChevronDown,
   ChevronUp,
-  Calendar
+  Calendar,
+  Send
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
+import BankTransferModal from "./BankTransferModal";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "./ui";
 import { safeGet, safePost, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
@@ -91,6 +93,7 @@ export default function PayrollGridTable({
   const [payrollError, setPayrollError] = useState("");
   const [viewMode, setViewMode] = useState("overview"); // 'overview' | 'detailed'
   const [expandedDailyLogs, setExpandedDailyLogs] = useState({});
+  const [transferItem, setTransferItem] = useState(null);
 
   const toggleDailyLogsRow = (empId) => {
     setExpandedDailyLogs((prev) => ({ ...prev, [empId]: !prev[empId] }));
@@ -918,6 +921,20 @@ export default function PayrollGridTable({
                       </button>
 
                       <div className="flex flex-wrap items-center gap-2">
+                        {canManagePayment && (() => {
+                          const empPaid = item.employee_payment_status === "PAID" || item.payment_status === "PAID";
+                          return (
+                            <AppButton
+                              variant={empPaid ? "success" : "primary"}
+                              icon={empPaid ? CheckCircle2 : Send}
+                              data-testid={`payroll-transfer-btn-${empId}`}
+                              onClick={() => setTransferItem(item)}
+                              className={`text-xs ${empPaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"}`}
+                            >
+                              {empPaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}
+                            </AppButton>
+                          );
+                        })()}
                         {canCalculatePayroll && (
                           <AppButton
                             variant="ghost"
@@ -1089,13 +1106,27 @@ export default function PayrollGridTable({
                     )}
                   </div>
 
-                  <div className={`grid ${canCalculatePayroll ? "grid-cols-2" : "grid-cols-1"} gap-2 pt-1`}>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {canManagePayment && (() => {
+                      const empPaid = item.employee_payment_status === "PAID" || item.payment_status === "PAID";
+                      return (
+                        <AppButton
+                          variant={empPaid ? "success" : "primary"}
+                          icon={empPaid ? CheckCircle2 : Send}
+                          data-testid={`payroll-transfer-mobile-btn-${empId}`}
+                          onClick={() => setTransferItem(item)}
+                          className={`flex-1 min-w-[130px] text-xs ${empPaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"}`}
+                        >
+                          {empPaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}
+                        </AppButton>
+                      );
+                    })()}
                     {canCalculatePayroll && (
                       <AppButton
                         variant="ghost"
                         icon={SlidersHorizontal}
                         onClick={() => handleOpenAdjustmentModal(item)}
-                        className="bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 text-xs"
+                        className="flex-1 min-w-[130px] bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 text-xs"
                       >
                         Thưởng / Phạt / Ứng
                       </AppButton>
@@ -1104,7 +1135,7 @@ export default function PayrollGridTable({
                       variant="secondary"
                       icon={Eye}
                       onClick={() => setSelectedSlipItem(item)}
-                      className="text-xs"
+                      className="flex-1 min-w-[110px] text-xs"
                     >
                       {confirmStatus === "DISPUTED" ? "Xem khiếu nại" : "Chi tiết"}
                     </AppButton>
@@ -1228,7 +1259,7 @@ export default function PayrollGridTable({
                           <button
                             type="button"
                             onClick={() => setSelectedSlipItem(item)}
-                            className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-600 text-white font-semibold text-xs shadow-sm animate-pulse cursor-pointer"
+                            className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-600 text-white font-semibold text-xs shadow-sm cursor-pointer"
                             title={item.dispute_reason || "Nhấn để xem minh chứng khiếu nại lương"}
                           >
                             Khiếu nại (Xem)
@@ -1241,6 +1272,25 @@ export default function PayrollGridTable({
                       </td>
                       <td className="p-3.5 text-center pr-5 whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
+                          {canManagePayment && (() => {
+                            const empPaid = item.employee_payment_status === "PAID" || item.payment_status === "PAID";
+                            return (
+                              <button
+                                type="button"
+                                data-testid={`payroll-transfer-btn-${empId}`}
+                                onClick={() => setTransferItem(item)}
+                                className={`inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer whitespace-nowrap ${
+                                  empPaid
+                                    ? "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700"
+                                    : "bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-[#0051CA] dark:text-blue-200 border-blue-300 dark:border-blue-700"
+                                }`}
+                                title={empPaid ? "Đã chuyển khoản lương kỳ này" : "Mở mã VietQR chuyển khoản lương"}
+                              >
+                                {empPaid ? <CheckCircle2 size={14} /> : <Send size={14} />}
+                                <span>{empPaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}</span>
+                              </button>
+                            );
+                          })()}
                           {canCalculatePayroll && (
                             <button
                               type="button"
@@ -1325,7 +1375,9 @@ export default function PayrollGridTable({
           employeeList={filteredList}
           onSelectEmployee={(emp) => setSelectedSlipItem(emp)}
           canAdjust={isAdmin || canCalculatePayroll}
+          canManagePayment={canManagePayment}
           onOpenAdjustment={(slip) => handleOpenAdjustmentModal(slip)}
+          onOpenTransfer={(slip) => setTransferItem(slip)}
           refreshKey={slipRefreshTick}
           showToast={notify}
           onStatusUpdated={() => {
@@ -1335,6 +1387,60 @@ export default function PayrollGridTable({
           onClose={() => setSelectedSlipItem(null)}
         />
       )}
+
+      {/* Modal Chuyển khoản lương VietQR (z-[115] chồng chuẩn trên SalarySlipModal) */}
+      <BankTransferModal
+        open={Boolean(transferItem)}
+        item={transferItem}
+        month={month}
+        year={year}
+        canEditEmployeeBank={isAdmin || dynamicPerms?.employee_edit === true}
+        showToast={notify}
+        onClose={() => setTransferItem(null)}
+        onBankSaved={(targetMaNv, bankData) => {
+          setInternalPayroll((prev) =>
+            prev.map((row) =>
+              (row.ma_nv || row.id_nhan_vien) === targetMaNv ? { ...row, ...bankData } : row
+            )
+          );
+          setSelectedSlipItem((prev) =>
+            prev && (prev.ma_nv || prev.id_nhan_vien) === targetMaNv
+              ? { ...prev, ...bankData }
+              : prev
+          );
+          setTransferItem((prev) =>
+            prev && (prev.ma_nv || prev.id_nhan_vien) === targetMaNv
+              ? { ...prev, ...bankData }
+              : prev
+          );
+          setSlipRefreshTick((t) => t + 1);
+          fetchPayrollFromApi();
+        }}
+        onConfirmedPaid={(payoutData) => {
+          const targetMaNv = payoutData?.ma_nv || transferItem?.ma_nv || transferItem?.id_nhan_vien;
+          if (targetMaNv) {
+            const patch = {
+              employee_payment_status: "PAID",
+              employee_paid_at: payoutData?.employee_paid_at || new Date().toISOString(),
+              employee_paid_at_vn: payoutData?.employee_paid_at_vn || null,
+              employee_paid_by: payoutData?.employee_paid_by || null
+            };
+            setInternalPayroll((prev) =>
+              prev.map((row) =>
+                (row.ma_nv || row.id_nhan_vien) === targetMaNv ? { ...row, ...patch } : row
+              )
+            );
+            setSelectedSlipItem((prev) =>
+              prev && (prev.ma_nv || prev.id_nhan_vien) === targetMaNv
+                ? { ...prev, ...patch }
+                : prev
+            );
+          }
+          setSlipRefreshTick((t) => t + 1);
+          fetchPayrollFromApi();
+          if (onRefresh) onRefresh();
+        }}
+      />
 
       {/* Modal Điều chỉnh Thưởng / Phạt / Tạm ứng (F2) — z-[115] luôn nổi trên SalarySlipModal */}
       <AppModal

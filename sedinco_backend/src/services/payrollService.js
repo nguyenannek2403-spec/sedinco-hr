@@ -1,6 +1,7 @@
 const { query, withTransaction } = require('../config/db');
 const { calculateEmployeeSalary } = require('../utils/payrollCalculator');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
+const { formatVietnamDateTime } = require('../utils/timeHelper');
 
 function parseEmployeeCustomAllowances(emp) {
     if (!emp || emp.custom_allowances === undefined || emp.custom_allowances === null) return null;
@@ -45,7 +46,10 @@ class PayrollService {
                    COALESCE(a.bonus_amount, 0) as bonus_amount,
                    COALESCE(a.penalty_amount, 0) as penalty_amount,
                    COALESCE(a.advance_deduction, 0) as advance_deduction,
-                   a.adjustment_note
+                   a.adjustment_note,
+                   COALESCE(a.payment_status, 'UNPAID') as employee_payment_status,
+                   a.paid_at as employee_paid_at,
+                   a.paid_by as employee_paid_by
             FROM employees e 
             LEFT JOIN attendance a ON e.ma_nv = a.ma_nv AND a.thang = ? AND a.nam = ?
             WHERE (e.role IS NULL OR e.role != 'admin')
@@ -54,6 +58,12 @@ class PayrollService {
         `;
         const emps = await query(sql, [defaultStandardDays, m, y, limit, offset]);
         if (!emps || emps.length === 0) return [];
+
+        const periodRows = await query(
+            'SELECT status, payment_status FROM payroll_periods WHERE month = ? AND year = ? LIMIT 1',
+            [m, y]
+        ).catch(() => []);
+        const periodRow = (periodRows && periodRows[0]) ? periodRows[0] : null;
 
         const holidays = await query('SELECT start_date, end_date FROM public_holidays');
         const safeHolidays = holidays || [];
@@ -175,6 +185,19 @@ class PayrollService {
                 dispute_evidence_media: emp.dispute_evidence_media || null,
                 admin_response: emp.admin_response || null,
                 confirmed_at: emp.confirmed_at || null,
+                bank_code: emp.bank_code || null,
+                bank_name: emp.bank_name || null,
+                bank_account_number: emp.bank_account_number || null,
+                bank_account_name: emp.bank_account_name || null,
+                payroll_period_status: periodRow?.status || 'DRAFT',
+                payment_status: periodRow?.payment_status || 'UNPAID',
+                employee_payment_status:
+                    emp.employee_payment_status === 'PAID' || periodRow?.payment_status === 'PAID'
+                        ? 'PAID'
+                        : 'UNPAID',
+                employee_paid_at: emp.employee_paid_at || null,
+                employee_paid_at_vn: formatVietnamDateTime(emp.employee_paid_at),
+                employee_paid_by: emp.employee_paid_by || null,
                 warning: calc.warning || null
             };
         });
@@ -195,7 +218,10 @@ class PayrollService {
                    COALESCE(a.bonus_amount, 0) as bonus_amount,
                    COALESCE(a.penalty_amount, 0) as penalty_amount,
                    COALESCE(a.advance_deduction, 0) as advance_deduction,
-                   a.adjustment_note
+                   a.adjustment_note,
+                   COALESCE(a.payment_status, 'UNPAID') as employee_payment_status,
+                   a.paid_at as employee_paid_at,
+                   a.paid_by as employee_paid_by
             FROM employees e 
             LEFT JOIN attendance a ON e.ma_nv = a.ma_nv AND a.thang = ? AND a.nam = ?
             WHERE e.ma_nv = ?
@@ -328,6 +354,17 @@ class PayrollService {
             dispute_evidence_media: emp.dispute_evidence_media || null,
             admin_response: emp.admin_response || null,
             confirmed_at: emp.confirmed_at || null,
+            bank_code: emp.bank_code || null,
+            bank_name: emp.bank_name || null,
+            bank_account_number: emp.bank_account_number || null,
+            bank_account_name: emp.bank_account_name || null,
+            employee_payment_status:
+                emp.employee_payment_status === 'PAID' || periodRow?.payment_status === 'PAID'
+                    ? 'PAID'
+                    : 'UNPAID',
+            employee_paid_at: emp.employee_paid_at || null,
+            employee_paid_at_vn: formatVietnamDateTime(emp.employee_paid_at),
+            employee_paid_by: emp.employee_paid_by || null,
             warning: calc.warning || null,
             daily_logs: calc.daily_breakdown || safeLogs
         };
@@ -707,6 +744,121 @@ class PayrollService {
                 ? `Đã xác nhận chi trả lương tháng ${m}/${y} thành công!`
                 : `Đã chuyển trạng thái chi trả lương tháng ${m}/${y} về chưa thanh toán!`,
             data: periodRow
+        };
+    }
+
+    async updateEmployeePaymentStatus({ ma_nv, month, year, status = 'PAID', current_user = null }) {
+        const cleanMaNv = String(ma_nv || '').trim();
+        if (!cleanMaNv) {
+            const err = new Error('Thiếu mã nhân viên cần xác nhận chuyển khoản lương!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const m = parseInt(month, 10);
+        const y = parseInt(year, 10);
+        if (!Number.isInteger(m) || m < 1 || m > 12 || !Number.isInteger(y) || y < 2000 || y > 2200) {
+            const err = new Error('Tháng hoặc năm kỳ lương không hợp lệ!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const cleanStatus = String(status || 'PAID').trim().toUpperCase();
+        if (!['PAID', 'UNPAID'].includes(cleanStatus)) {
+            const err = new Error('Trạng thái chuyển khoản phải là PAID hoặc UNPAID!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const actorId = current_user ? (current_user.ma_nv || current_user.username || 'admin') : 'admin';
+
+        const payoutRow = await withTransaction(async (txQuery) => {
+            const empRows = await txQuery('SELECT ma_nv, ho_ten, role FROM employees WHERE ma_nv = ? FOR UPDATE', [cleanMaNv]);
+            if (!empRows || empRows.length === 0) {
+                const err = new Error(`Không tìm thấy nhân viên ${cleanMaNv}!`);
+                err.statusCode = 404;
+                throw err;
+            }
+            if (empRows[0].role === 'admin') {
+                const err = new Error('Tài khoản Quản trị viên không thuộc danh sách chi trả lương!');
+                err.statusCode = 400;
+                throw err;
+            }
+            const csRows = await txQuery('SELECT standard_work_days FROM company_settings LIMIT 1').catch(() => []);
+            const stdDays = (csRows && csRows[0] && Number(csRows[0].standard_work_days)) || 26;
+
+            const existingAtt = await txQuery(
+                'SELECT id, payment_status, paid_at, paid_by FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1 FOR UPDATE',
+                [cleanMaNv, m, y]
+            );
+            const existingRow = existingAtt && existingAtt[0] ? existingAtt[0] : null;
+            if (cleanStatus === 'PAID' && existingRow && existingRow.payment_status === 'PAID') {
+                return {
+                    ma_nv: cleanMaNv,
+                    ho_ten: empRows[0].ho_ten,
+                    month: m,
+                    year: y,
+                    employee_payment_status: 'PAID',
+                    employee_paid_at: existingRow.paid_at || null,
+                    employee_paid_at_vn: formatVietnamDateTime(existingRow.paid_at),
+                    employee_paid_by: existingRow.paid_by || actorId,
+                    already_paid: true
+                };
+            }
+
+            if (cleanStatus === 'PAID') {
+                await txQuery(`
+                    INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payment_status, paid_at, paid_by)
+                    VALUES (?, ?, ?, ?, 'PAID', NOW(), ?)
+                    ON DUPLICATE KEY UPDATE
+                        payment_status = 'PAID',
+                        paid_at = NOW(),
+                        paid_by = VALUES(paid_by)
+                `, [cleanMaNv, m, y, stdDays, actorId]);
+            } else {
+                await txQuery(`
+                    INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payment_status, paid_at, paid_by)
+                    VALUES (?, ?, ?, ?, 'UNPAID', NULL, NULL)
+                    ON DUPLICATE KEY UPDATE
+                        payment_status = 'UNPAID',
+                        paid_at = NULL,
+                        paid_by = NULL
+                `, [cleanMaNv, m, y, stdDays]);
+            }
+
+            const refreshed = await txQuery(
+                'SELECT payment_status, paid_at, paid_by FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1',
+                [cleanMaNv, m, y]
+            );
+            const saved = refreshed && refreshed[0] ? refreshed[0] : {};
+            return {
+                ma_nv: cleanMaNv,
+                ho_ten: empRows[0].ho_ten,
+                month: m,
+                year: y,
+                employee_payment_status: saved.payment_status || cleanStatus,
+                employee_paid_at: saved.paid_at || null,
+                employee_paid_at_vn: formatVietnamDateTime(saved.paid_at),
+                employee_paid_by: saved.paid_by || null,
+                already_paid: false
+            };
+        });
+
+        if (!payoutRow.already_paid) {
+            await logAuditEvent({
+                actor_id: actorId,
+                actor_role: current_user ? current_user.role : 'admin',
+                action: cleanStatus === 'PAID' ? 'MARK_EMPLOYEE_SALARY_PAID' : 'MARK_EMPLOYEE_SALARY_UNPAID',
+                resource: 'payroll',
+                details: { target_ma_nv: cleanMaNv, month: m, year: y, status: cleanStatus }
+            });
+        }
+
+        return {
+            success: true,
+            message: payoutRow.already_paid
+                ? `Nhân viên ${payoutRow.ho_ten || cleanMaNv} đã được xác nhận chuyển khoản lương tháng ${m}/${y} trước đó.`
+                : cleanStatus === 'PAID'
+                    ? `Đã xác nhận chuyển khoản lương tháng ${m}/${y} cho ${payoutRow.ho_ten || cleanMaNv}!`
+                    : `Đã đặt lại trạng thái chưa chuyển khoản cho ${payoutRow.ho_ten || cleanMaNv}.`,
+            data: payoutRow
         };
     }
 

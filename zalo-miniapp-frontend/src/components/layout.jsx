@@ -40,7 +40,7 @@ class ErrorBoundary extends React.Component {
             justifyContent: "center",
             padding: "24px",
             fontFamily: "'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif",
-            backgroundColor: "#f9f9ff",
+            backgroundColor: "#f1f5f9",
             color: "#111c2d",
             textAlign: "center",
           }}

@@ -1,8 +1,27 @@
 const { query, withTransaction } = require('../config/db');
 const attendanceService = require('./attendanceService');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
-const { getVietnamDateString } = require('../utils/timeHelper');
+const { getVietnamDateString, formatVietnamDateTime } = require('../utils/timeHelper');
 const { evaluateMisaDailyAttendance } = require('../utils/misaWorkdayEngine');
+
+function serializeRequestTimestamps(row) {
+    if (!row) return row;
+    const createdAtIso = row.created_at instanceof Date
+        ? row.created_at.toISOString()
+        : (row.created_at ? String(row.created_at) : null);
+    const processedAtIso = row.processed_at instanceof Date
+        ? row.processed_at.toISOString()
+        : (row.processed_at ? String(row.processed_at) : null);
+    return {
+        ...row,
+        created_at: createdAtIso,
+        created_at_vn: formatVietnamDateTime(row.created_at),
+        processed_at: processedAtIso,
+        processed_at_vn: formatVietnamDateTime(row.processed_at),
+        processed_by: row.processed_by || null,
+        reject_reason: row.reject_reason || null
+    };
+}
 
 function extractIsoDateStr(val) {
     if (!val) return null;
@@ -201,6 +220,62 @@ async function getMonthlyPaidLeaveUsage(queryFn, ma_nv, month, year, { lockRows 
     };
 }
 
+async function buildPaidLeaveUsageMap(empIds = []) {
+    const usageByKey = new Map();
+    if (!Array.isArray(empIds) || empIds.length === 0) return usageByKey;
+    const ph = empIds.map(() => '?').join(',');
+    const [paidLogs, paidReqs] = await Promise.all([
+        query(
+            `SELECT employee_id, MONTH(record_date) as m, YEAR(record_date) as y, DATE_FORMAT(record_date, '%Y-%m-%d') as d
+             FROM attendance_logs
+             WHERE employee_id IN (${ph}) AND status = 'P'`,
+            empIds
+        ).catch(() => []),
+        query(
+            `SELECT employee_id, request_type, status, MONTH(request_date) as m, YEAR(request_date) as y, DATE_FORMAT(request_date, '%Y-%m-%d') as d
+             FROM requests
+             WHERE employee_id IN (${ph}) AND status IN ('approved', 'pending')`,
+            empIds
+        ).catch(() => [])
+    ]);
+    const getEntry = (empId, m, y) => {
+        const k = `${empId}|${y}-${m}`;
+        if (!usageByKey.has(k)) usageByKey.set(k, { approved: new Set(), pending: new Set() });
+        return usageByKey.get(k);
+    };
+    for (const row of paidLogs || []) {
+        if (row.d) getEntry(row.employee_id, row.m, row.y).approved.add(row.d);
+    }
+    for (const row of paidReqs || []) {
+        if (!row.d || !isPaidLeaveRequestType(row.request_type)) continue;
+        const entry = getEntry(row.employee_id, row.m, row.y);
+        if (String(row.status).toLowerCase() === 'approved') {
+            entry.approved.add(row.d);
+        } else {
+            entry.pending.add(row.d);
+        }
+    }
+    return usageByKey;
+}
+
+function attachMonthlyLeaveMeta(reqRow, usageByKey, monthlyQuota) {
+    const serialized = serializeRequestTimestamps(reqRow);
+    const k = `${reqRow.ma_nv}|${reqRow.request_year}-${reqRow.request_month}`;
+    const entry = usageByKey.get(k);
+    const approvedCount = entry ? entry.approved.size : 0;
+    const pendingCount = entry
+        ? [...entry.pending].filter((d) => !entry.approved.has(d)).length
+        : 0;
+    return {
+        ...serialized,
+        monthly_paid_leave_used: approvedCount,
+        monthly_paid_leave_pending: pendingCount,
+        monthly_paid_leave_committed: approvedCount + pendingCount,
+        monthly_paid_leave_limit: monthlyQuota,
+        is_paid_leave: isPaidLeaveRequestType(reqRow.request_type)
+    };
+}
+
 class RequestService {
     async getAllRequests(pagination = {}) {
         const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 100));
@@ -215,7 +290,8 @@ class RequestService {
                    DATE_FORMAT(r.request_date, '%Y-%m-%d') as request_date_iso,
                    MONTH(r.request_date) as request_month,
                    YEAR(r.request_date) as request_year,
-                   r.reason, r.status, r.created_at
+                   r.reason, r.status, r.created_at,
+                   r.processed_at, r.processed_by, r.reject_reason
             FROM requests r 
             LEFT JOIN employees e ON r.employee_id = e.ma_nv 
             ORDER BY r.created_at DESC, r.id DESC
@@ -226,58 +302,117 @@ class RequestService {
 
         const monthlyQuota = await getMonthlyLeaveQuota(query);
         const empIds = [...new Set(results.map((r) => r.ma_nv).filter(Boolean))];
-        const usageByKey = new Map();
-        if (empIds.length > 0) {
-            const ph = empIds.map(() => '?').join(',');
-            const [paidLogs, paidReqs] = await Promise.all([
-                query(
-                    `SELECT employee_id, MONTH(record_date) as m, YEAR(record_date) as y, DATE_FORMAT(record_date, '%Y-%m-%d') as d
-                     FROM attendance_logs
-                     WHERE employee_id IN (${ph}) AND status = 'P'`,
-                    empIds
-                ).catch(() => []),
-                query(
-                    `SELECT employee_id, request_type, status, MONTH(request_date) as m, YEAR(request_date) as y, DATE_FORMAT(request_date, '%Y-%m-%d') as d
-                     FROM requests
-                     WHERE employee_id IN (${ph}) AND status IN ('approved', 'pending')`,
-                    empIds
-                ).catch(() => [])
-            ]);
-            const getEntry = (empId, m, y) => {
-                const k = `${empId}|${y}-${m}`;
-                if (!usageByKey.has(k)) usageByKey.set(k, { approved: new Set(), pending: new Set() });
-                return usageByKey.get(k);
-            };
-            for (const row of paidLogs || []) {
-                if (row.d) getEntry(row.employee_id, row.m, row.y).approved.add(row.d);
-            }
-            for (const row of paidReqs || []) {
-                if (!row.d || !isPaidLeaveRequestType(row.request_type)) continue;
-                const entry = getEntry(row.employee_id, row.m, row.y);
-                if (String(row.status).toLowerCase() === 'approved') {
-                    entry.approved.add(row.d);
-                } else {
-                    entry.pending.add(row.d);
-                }
-            }
+        const usageByKey = await buildPaidLeaveUsageMap(empIds);
+
+        return results.map((r) => attachMonthlyLeaveMeta(r, usageByKey, monthlyQuota));
+    }
+
+    async getRequestsGroupedByEmployee() {
+        const [employeesRows, requestRows, monthlyQuota] = await Promise.all([
+            query(
+                `SELECT ma_nv, ho_ten, chuc_danh,
+                        COALESCE(NULLIF(department, ''), 'Khối Công trình') as department,
+                        avatar_url, status, is_locked
+                 FROM employees
+                 WHERE (role IS NULL OR role != 'admin')
+                 ORDER BY ma_nv ASC`
+            ).catch(() => []),
+            query(
+                `SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, r.request_type,
+                        COALESCE(r.advance_amount, 0) as advance_amount,
+                        r.correction_mode, r.check_in_time, r.check_out_time, r.evidence_image,
+                        DATE_FORMAT(r.request_date, '%d/%m/%Y') as date,
+                        DATE_FORMAT(r.request_date, '%Y-%m-%d') as request_date_iso,
+                        MONTH(r.request_date) as request_month,
+                        YEAR(r.request_date) as request_year,
+                        r.reason, r.status, r.created_at,
+                        r.processed_at, r.processed_by, r.reject_reason
+                 FROM requests r
+                 LEFT JOIN employees e ON r.employee_id = e.ma_nv
+                 ORDER BY r.created_at DESC, r.id DESC
+                 LIMIT 600`
+            ).catch(() => []),
+            getMonthlyLeaveQuota(query)
+        ]);
+
+        const empIds = (employeesRows || []).map((e) => e.ma_nv).filter(Boolean);
+        const usageByKey = await buildPaidLeaveUsageMap(empIds);
+        const { month: curMonth, year: curYear } = require('../utils/timeHelper').getVietnamDateParts(new Date());
+
+        const requestsByEmp = new Map();
+        for (const r of requestRows || []) {
+            if (!r.ma_nv) continue;
+            const enriched = attachMonthlyLeaveMeta(r, usageByKey, monthlyQuota);
+            if (!requestsByEmp.has(r.ma_nv)) requestsByEmp.set(r.ma_nv, []);
+            requestsByEmp.get(r.ma_nv).push(enriched);
         }
 
-        return results.map((r) => {
-            const k = `${r.ma_nv}|${r.request_year}-${r.request_month}`;
-            const entry = usageByKey.get(k);
-            const approvedCount = entry ? entry.approved.size : 0;
-            const pendingCount = entry
-                ? [...entry.pending].filter((d) => !entry.approved.has(d)).length
+        const grouped = (employeesRows || []).map((emp) => {
+            const empReqs = requestsByEmp.get(emp.ma_nv) || [];
+            let pendingCount = 0;
+            let approvedCount = 0;
+            let rejectedCount = 0;
+            let latestPendingTs = 0;
+            let latestAnyTs = 0;
+            for (const reqItem of empReqs) {
+                const st = String(reqItem.status || '').toLowerCase();
+                const ts = reqItem.created_at ? new Date(reqItem.created_at).getTime() || 0 : 0;
+                if (ts > latestAnyTs) latestAnyTs = ts;
+                if (st === 'pending') {
+                    pendingCount++;
+                    if (ts > latestPendingTs) latestPendingTs = ts;
+                } else if (st === 'approved') {
+                    approvedCount++;
+                } else if (st === 'rejected') {
+                    rejectedCount++;
+                }
+            }
+            const curKey = `${emp.ma_nv}|${curYear}-${curMonth}`;
+            const curEntry = usageByKey.get(curKey);
+            const curApproved = curEntry ? curEntry.approved.size : 0;
+            const curPending = curEntry
+                ? [...curEntry.pending].filter((d) => !curEntry.approved.has(d)).length
                 : 0;
+
             return {
-                ...r,
-                monthly_paid_leave_used: approvedCount,
-                monthly_paid_leave_pending: pendingCount,
-                monthly_paid_leave_committed: approvedCount + pendingCount,
+                ma_nv: emp.ma_nv,
+                ho_ten: emp.ho_ten,
+                chuc_danh: emp.chuc_danh || '',
+                department: emp.department || 'Khối Công trình',
+                avatar_url: emp.avatar_url || null,
+                status: emp.status || 'active',
+                is_locked: Boolean(emp.is_locked),
+                total_requests: empReqs.length,
+                pending_count: pendingCount,
+                approved_count: approvedCount,
+                rejected_count: rejectedCount,
+                latest_request: empReqs[0] || null,
+                requests: empReqs,
                 monthly_paid_leave_limit: monthlyQuota,
-                is_paid_leave: isPaidLeaveRequestType(r.request_type)
+                current_month_paid_leave_used: curApproved,
+                current_month_paid_leave_pending: curPending,
+                _latestPendingTs: latestPendingTs,
+                _latestAnyTs: latestAnyTs
             };
         });
+
+        grouped.sort((a, b) => {
+            if ((b.pending_count > 0) !== (a.pending_count > 0)) {
+                return b.pending_count > 0 ? 1 : -1;
+            }
+            if (b.pending_count > 0 && a.pending_count > 0 && b._latestPendingTs !== a._latestPendingTs) {
+                return b._latestPendingTs - a._latestPendingTs;
+            }
+            if ((b.total_requests > 0) !== (a.total_requests > 0)) {
+                return b.total_requests > 0 ? 1 : -1;
+            }
+            if (b._latestAnyTs !== a._latestAnyTs) {
+                return b._latestAnyTs - a._latestAnyTs;
+            }
+            return String(a.ma_nv).localeCompare(String(b.ma_nv));
+        });
+
+        return grouped.map(({ _latestPendingTs, _latestAnyTs, ...item }) => item);
     }
 
     async getMyRequests(employee_id, pagination = {}) {
@@ -290,15 +425,16 @@ class RequestService {
             SELECT r.id, r.employee_id as ma_nv, e.ho_ten, r.request_type as type, r.request_type,
                    COALESCE(r.advance_amount, 0) as advance_amount,
                    r.correction_mode, r.check_in_time, r.check_out_time, r.evidence_image,
-                   DATE_FORMAT(r.request_date, '%d/%m/%Y') as date, r.reason, r.status, r.created_at
+                   DATE_FORMAT(r.request_date, '%d/%m/%Y') as date, r.reason, r.status, r.created_at,
+                   r.processed_at, r.processed_by, r.reject_reason
             FROM requests r 
             LEFT JOIN employees e ON r.employee_id = e.ma_nv 
             WHERE r.employee_id = ?
             ORDER BY r.created_at DESC, r.id DESC
             LIMIT ? OFFSET ?
         `;
-        const results = await query(sql, [employee_id, limit, offset]);
-        return results || [];
+        const results = (await query(sql, [employee_id, limit, offset])) || [];
+        return results.map(serializeRequestTimestamps);
     }
 
     async getLeaveBalance(ma_nv, year = new Date().getFullYear(), month = new Date().getMonth() + 1) {
@@ -578,7 +714,7 @@ class RequestService {
         return { success: true, data: txResult };
     }
 
-    async updateRequestStatus(reqId, status, current_user = null) {
+    async updateRequestStatus(reqId, status, current_user = null, reject_reason = null) {
         const normalizedStatus = String(status || '').trim().toLowerCase();
         if (!['approved', 'rejected'].includes(normalizedStatus)) {
             const error = new Error('Trạng thái xử lý đơn không hợp lệ!');
@@ -587,6 +723,9 @@ class RequestService {
         }
 
         const actorId = current_user ? (current_user.ma_nv || current_user.username) : null;
+        const cleanRejectReason = normalizedStatus === 'rejected' && reject_reason
+            ? String(reject_reason).trim().slice(0, 500)
+            : null;
 
         const reqData = await withTransaction(async (txQuery) => {
             const results = await txQuery('SELECT * FROM requests WHERE id = ? FOR UPDATE', [reqId]);
@@ -647,8 +786,8 @@ class RequestService {
             }
 
             const updateRes = await txQuery(
-                "UPDATE requests SET status = ? WHERE id = ? AND status = 'pending'",
-                [normalizedStatus, reqId]
+                "UPDATE requests SET status = ?, processed_at = NOW(), processed_by = ?, reject_reason = ? WHERE id = ? AND status = 'pending'",
+                [normalizedStatus, actorId || null, cleanRejectReason, reqId]
             );
             if (!updateRes || updateRes.affectedRows === 0) {
                 const error = new Error('Đơn từ này vừa được xử lý trước đó!');
@@ -880,7 +1019,12 @@ class RequestService {
                 actor_role: current_user.role || 'unknown',
                 action: normalizedStatus === 'approved' ? 'APPROVE_REQUEST' : 'REJECT_REQUEST',
                 resource: 'requests',
-                details: { request_id: reqId, target_employee: reqData.employee_id, status: normalizedStatus }
+                details: {
+                    request_id: reqId,
+                    target_employee: reqData.employee_id,
+                    status: normalizedStatus,
+                    ...(cleanRejectReason ? { reject_reason: cleanRejectReason } : {})
+                }
             });
         }
 

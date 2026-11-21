@@ -118,7 +118,7 @@ export default function WorkerDashboard({
     ?.toUpperCase() || "N";
 
   return (
-    <div className="w-full h-[100dvh] bg-[#F9F9FF] dark:bg-[#090D16] text-[#111C2D] dark:text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden transition-colors duration-200">
+    <div className="w-full h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] text-[#111C2D] dark:text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden transition-colors duration-200">
       {/* STITCH SINGLE-ROW TOP GLASS HEADER (Screens 2–5) — Reserves 104px top-right Zalo Mini App capsule safe zone */}
       <header
         className="shrink-0 z-30 w-full sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 pl-3.5 pr-[104px] py-2 pt-[max(env(safe-area-inset-top,0px),8px)] min-h-[52px] flex items-center transition-colors duration-200"

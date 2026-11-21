@@ -460,6 +460,18 @@ async function initDatabase() {
         await query("ALTER TABLE admins ADD COLUMN font_scale INT NOT NULL DEFAULT 100").catch(() => {});
         await query('DROP TABLE IF EXISTS qa_test_runs').catch(() => {});
 
+        // V40: Audit timestamps xử lý đơn + Thẻ ngân hàng nhận lương (chỉ lưu 4 trường text) + Trạng thái chi trả từng nhân viên
+        await query("ALTER TABLE requests ADD COLUMN processed_at DATETIME NULL").catch(() => {});
+        await query("ALTER TABLE requests ADD COLUMN processed_by VARCHAR(50) NULL").catch(() => {});
+        await query("ALTER TABLE requests ADD COLUMN reject_reason TEXT NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN bank_code VARCHAR(32) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN bank_name VARCHAR(120) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN bank_account_number VARCHAR(50) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN bank_account_name VARCHAR(120) NULL").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN payment_status VARCHAR(20) DEFAULT 'UNPAID'").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN paid_at DATETIME NULL").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN paid_by VARCHAR(50) NULL").catch(() => {});
+
         // V18: Account Phone/Custom Username & Persistent Theme Preference + Cleanup Legacy Multi-Model Device Names
         await query("ALTER TABLE employees ADD COLUMN phone VARCHAR(30) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN login_username VARCHAR(100) NULL").catch(() => {});

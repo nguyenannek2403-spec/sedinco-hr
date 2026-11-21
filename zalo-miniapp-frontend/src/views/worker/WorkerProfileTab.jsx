@@ -13,10 +13,13 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  CreditCard,
+  Edit3
 } from "lucide-react";
 import { safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
+import BankCardModal from "../../components/BankCardModal";
 import { getShiftLabel } from "../../utils/viLabels";
 import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
 import {
@@ -40,6 +43,7 @@ function formatDeviceSeenShort(isoStr) {
 export default function WorkerProfileTab({
   currentUser,
   onLogout,
+  onUserUpdated,
   showToast,
   onChangePasswordRequest,
   onOpenPayslip = null,
@@ -47,6 +51,7 @@ export default function WorkerProfileTab({
 }) {
   const handleOpenPayslipProp = onOpenPayslip || onOpenPeriodPayslip;
   const [fallbackSlipOpen, setFallbackSlipOpen] = useState(false);
+  const [bankModalOpen, setBankModalOpen] = useState(false);
   const [showDeviceHistory, setShowDeviceHistory] = useState(false);
   const [syncedUser, setSyncedUser] = useState(null);
   const [attendanceSummary, setAttendanceSummary] = useState({
@@ -322,6 +327,77 @@ export default function WorkerProfileTab({
         </AppButton>
       </div>
 
+      {/* Thẻ ngân hàng nhận lương (Hạng mục 3 - V40) */}
+      {profileUser?.role !== "admin" && (
+        <div
+          data-testid="profile-bank-card-section"
+          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 text-[#0051CA] dark:text-blue-400 flex items-center justify-center shrink-0">
+                <CreditCard className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white truncate">
+                  Thẻ ngân hàng nhận lương
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  Dùng để nhận chuyển khoản lương hàng tháng
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {profileUser?.bank_account_number && profileUser?.bank_code ? (
+            <div className="rounded-xl bg-[#F4F6F9] dark:bg-slate-800/85 border border-slate-200/80 dark:border-slate-700 p-3 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-semibold">Ngân hàng:</span>
+                <span
+                  data-testid="profile-bank-name"
+                  className="font-extrabold text-[#111C2D] dark:text-white text-right"
+                >
+                  {profileUser.bank_name || profileUser.bank_code}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-semibold">Số tài khoản:</span>
+                <span
+                  data-testid="profile-bank-acct"
+                  className="font-mono font-black text-sm text-[#0051CA] dark:text-blue-300"
+                >
+                  {profileUser.bank_account_number}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-semibold">Chủ tài khoản:</span>
+                <span
+                  data-testid="profile-bank-holder"
+                  className="font-bold uppercase text-[#111C2D] dark:text-slate-100 text-right"
+                >
+                  {profileUser.bank_account_name || profileUser.ho_ten}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-[#F4F6F9] dark:bg-slate-800/60 border border-dashed border-slate-300 dark:border-slate-700 px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300">
+              Chưa liên kết tài khoản ngân hàng nhận lương.
+            </div>
+          )}
+
+          <AppButton
+            variant={profileUser?.bank_account_number ? "secondary" : "primary"}
+            fullWidth
+            icon={profileUser?.bank_account_number ? Edit3 : CreditCard}
+            data-testid="open-bank-card-modal-btn"
+            onClick={() => setBankModalOpen(true)}
+            className="min-h-[44px] rounded-xl font-bold"
+          >
+            {profileUser?.bank_account_number ? "Cập nhật thẻ ngân hàng" : "+ Thêm thẻ ngân hàng"}
+          </AppButton>
+        </div>
+      )}
+
       {/* Thống kê công tháng */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3">
         <div className="flex items-center gap-2">
@@ -385,6 +461,20 @@ export default function WorkerProfileTab({
       >
         Đăng xuất
       </AppButton>
+
+      {/* Modal Thẻ ngân hàng nhận lương */}
+      <BankCardModal
+        open={bankModalOpen}
+        onClose={() => setBankModalOpen(false)}
+        currentUser={profileUser}
+        showToast={showToast}
+        onSaved={(savedBank) => {
+          setSyncedUser((prev) => ({ ...(prev || currentUser || {}), ...savedBank }));
+          if (typeof onUserUpdated === "function") {
+            onUserUpdated(savedBank);
+          }
+        }}
+      />
 
       {/* Fallback SalarySlipModal nếu component được dùng độc lập */}
       {fallbackSlipOpen && (

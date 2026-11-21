@@ -159,7 +159,7 @@ export default function NotificationCenterPanel({
       >
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-1.5 mb-1 shrink-0 sm:hidden" aria-hidden="true" />
 
-        <div className="pl-3.5 pr-[104px] sm:pr-4 py-2 min-h-[52px] border-b border-slate-200/80 dark:border-slate-800 bg-[#F9F9FF] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
+        <div className="pl-3.5 pr-[104px] sm:pr-4 py-2 min-h-[52px] border-b border-slate-200/80 dark:border-slate-800 bg-[#F4F6F9] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             {typeof onClose === "function" && (
               <button
@@ -187,7 +187,7 @@ export default function NotificationCenterPanel({
 
         <div
           data-testid={isWorker ? "worker-notification-modal" : undefined}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area p-3.5 bg-[#F9F9FF] dark:bg-slate-900 space-y-3"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y modal-scroll-area p-3.5 bg-[#F4F6F9] dark:bg-slate-900 space-y-3"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div

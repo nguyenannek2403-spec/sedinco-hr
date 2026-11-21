@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { sanitizeBankCardInput } = require('../utils/bankValidator');
 const { 
     sanitizeUserResponse, 
     resolveUserRole, 
@@ -461,6 +462,10 @@ class AuthService {
         safeEmp.login_username = emp.login_username || emp.phone || emp.ma_nv;
         safeEmp.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
         safeEmp.font_scale = normalizeFontScale(emp.font_scale);
+        safeEmp.bank_code = emp.bank_code || null;
+        safeEmp.bank_name = emp.bank_name || null;
+        safeEmp.bank_account_number = emp.bank_account_number || null;
+        safeEmp.bank_account_name = emp.bank_account_name || null;
         attachDbDeviceState(safeEmp, emp, isPureAdmin);
         if (role === 'accountant') {
             safeEmp.dynamic_permissions = await getAccountantPermissions();
@@ -571,6 +576,10 @@ class AuthService {
         safeEmp.login_username = emp.login_username || emp.phone || emp.ma_nv;
         safeEmp.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
         safeEmp.font_scale = normalizeFontScale(emp.font_scale);
+        safeEmp.bank_code = emp.bank_code || null;
+        safeEmp.bank_name = emp.bank_name || null;
+        safeEmp.bank_account_number = emp.bank_account_number || null;
+        safeEmp.bank_account_name = emp.bank_account_name || null;
         attachDbDeviceState(safeEmp, emp, isPureAdmin);
         if (role === 'accountant') {
             safeEmp.dynamic_permissions = await getAccountantPermissions();
@@ -1059,6 +1068,56 @@ class AuthService {
         };
     }
 
+    async updateBankCard(current_user, payload = {}) {
+        if (!current_user) {
+            const err = new Error('Chưa đăng nhập!');
+            err.statusCode = 401;
+            throw err;
+        }
+        if (!current_user.ma_nv || current_user.role === 'admin') {
+            const err = new Error('Tài khoản Quản trị viên không sử dụng thẻ ngân hàng nhận lương!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const cleanBank = sanitizeBankCardInput(payload);
+        const updRes = await query(
+            `UPDATE employees
+             SET bank_code = ?, bank_name = ?, bank_account_number = ?, bank_account_name = ?
+             WHERE ma_nv = ?`,
+            [
+                cleanBank.bank_code,
+                cleanBank.bank_name,
+                cleanBank.bank_account_number,
+                cleanBank.bank_account_name,
+                current_user.ma_nv
+            ]
+        );
+        if (!updRes || updRes.affectedRows === 0) {
+            const err = new Error('Không tìm thấy hồ sơ nhân sự để lưu thẻ ngân hàng!');
+            err.statusCode = 404;
+            throw err;
+        }
+        invalidateUserCache(current_user.ma_nv);
+        await logAuditEvent({
+            actor_id: current_user.ma_nv,
+            actor_role: current_user.role || 'worker',
+            action: 'UPDATE_BANK_CARD',
+            resource: 'employees',
+            details: {
+                ma_nv: current_user.ma_nv,
+                bank_code: cleanBank.bank_code,
+                bank_name: cleanBank.bank_name,
+                bank_account_number: cleanBank.bank_account_number,
+                bank_account_name: cleanBank.bank_account_name
+            }
+        });
+        return {
+            success: true,
+            message: 'Đã lưu thẻ ngân hàng nhận lương!',
+            data: cleanBank
+        };
+    }
+
     async getProfile(current_user) {
         if (!current_user) return null;
         if (current_user.ma_nv) {
@@ -1072,6 +1131,10 @@ class AuthService {
                 safe.login_username = emp.login_username || emp.phone || emp.ma_nv;
                 safe.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
                 safe.font_scale = normalizeFontScale(emp.font_scale);
+                safe.bank_code = emp.bank_code || null;
+                safe.bank_name = emp.bank_name || null;
+                safe.bank_account_number = emp.bank_account_number || null;
+                safe.bank_account_name = emp.bank_account_name || null;
                 attachDbDeviceState(safe, emp, role === 'admin');
                 if (role === 'accountant') {
                     safe.dynamic_permissions = await getAccountantPermissions();

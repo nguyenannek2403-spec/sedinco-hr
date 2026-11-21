@@ -24,7 +24,9 @@
   "dependencies": {
     "axios": "^1.20.0",
     "jotai": "^2.12.1",
+    "jsqr": "^1.4.0",
     "lucide-react": "^1.57.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zmp-sdk": "latest",

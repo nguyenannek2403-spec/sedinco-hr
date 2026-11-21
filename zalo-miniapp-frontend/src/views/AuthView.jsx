@@ -23,7 +23,7 @@ export default function AuthView({
 
   return (
     <div
-      className="min-h-[100dvh] bg-[#F9F9FF] dark:bg-[#090D16] flex flex-col px-4 pb-4 pt-[max(env(safe-area-inset-top,0px),8px)] overflow-x-hidden transition-colors duration-200 relative"
+      className="min-h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] flex flex-col px-4 pb-4 pt-[max(env(safe-area-inset-top,0px),8px)] overflow-x-hidden transition-colors duration-200 relative"
       style={{
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
       }}

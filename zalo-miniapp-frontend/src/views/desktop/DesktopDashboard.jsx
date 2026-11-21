@@ -29,6 +29,7 @@ export default function DesktopDashboard({
   activeRole,
   onLogout,
   onClearCache,
+  onUserUpdated,
   showToast,
   onChangePasswordRequest
 }) {
@@ -178,7 +179,7 @@ export default function DesktopDashboard({
   const mgmtInitialFilter = focusTarget?.category === "device" ? "alerts" : "all";
 
   return (
-    <div className="flex h-[100dvh] bg-[#F9F9FF] dark:bg-[#090D16] text-[#111C2D] dark:text-slate-100 overflow-hidden font-sans relative transition-colors duration-200">
+    <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] text-[#111C2D] dark:text-slate-100 overflow-hidden font-sans relative transition-colors duration-200">
       {/* Sidebar Trái (Tự động chuyển thành Drawer Portal + Bottom Nav khi mở trên điện thoại < 1024px) */}
       <DesktopSidebar
         currentTab={effectiveTab}
@@ -228,7 +229,7 @@ export default function DesktopDashboard({
         {/* Tab Content with Suspense Loading */}
         <main
           data-scroll-container="desktop"
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:p-6 pb-8 bg-[#F9F9FF] dark:bg-slate-900/60 transition-colors duration-200"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:p-6 pb-8 bg-[#F1F5F9] dark:bg-[#0B1120] transition-colors duration-200"
         >
           <div key={effectiveTab} className="animate-tab-enter">
           <Suspense
@@ -435,6 +436,7 @@ export default function DesktopDashboard({
                   <WorkerProfileTab
                     currentUser={currentUser}
                     onLogout={onLogout}
+                    onUserUpdated={onUserUpdated}
                     showToast={showToast}
                     onChangePasswordRequest={onChangePasswordRequest}
                   />

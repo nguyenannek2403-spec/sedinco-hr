@@ -16,6 +16,7 @@ router.get('/my', authenticateToken, requireAuth, (req, res, next) => requestCon
 // 2. Xem toàn bộ đơn từ công ty (Yêu cầu permission: leave_view_all)
 router.get('/', authenticateToken, requirePermission('leave_view_all'), (req, res, next) => requestController.getRequests(req, res, next));
 router.get('/all', authenticateToken, requirePermission('leave_view_all'), (req, res, next) => requestController.getRequests(req, res, next));
+router.get('/by-employees', authenticateToken, requirePermission('leave_view_all'), (req, res, next) => requestController.getRequestsGroupedByEmployee(req, res, next));
 
 // 3. Tạo đơn từ mới (Yêu cầu đăng nhập, công nhân chỉ tạo đơn cho chính mình)
 router.post('/', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => requestController.createRequest(req, res, next));

@@ -17,14 +17,14 @@
   --brand-warning: #d97706;
 
   /* 4-Level Surface Elevation Palette (Light - Sedinco Pulse) */
-  --surface-0: #f9f9ff;
+  --surface-0: #f1f5f9;
   --surface-1: #ffffff;
-  --surface-2: #f0f3ff;
+  --surface-2: #e8eef6;
   --surface-3: #ffffff;
 
-  --surface-base: #f9f9ff;
+  --surface-base: #f1f5f9;
   --surface-card: #ffffff;
-  --surface-muted: #f0f3ff;
+  --surface-muted: #f4f6f9;
   --text-primary: #111c2d;
   --text-secondary: #475569;
   --border-subtle: #e2e8f0;
@@ -38,16 +38,16 @@ html.dark,
 [zaui-theme="dark"] {
   color-scheme: dark;
   /* 4-Level Surface Elevation Palette (Dark - Sedinco Pulse) */
-  --surface-0: #090d16;
-  --surface-1: #0f172a;
+  --surface-0: #0b1120;
+  --surface-1: #111827;
   --surface-2: #1e293b;
   --surface-3: #1e293b;
 
-  --surface-base: #090d16;
-  --surface-card: #0f172a;
+  --surface-base: #0b1120;
+  --surface-card: #111827;
   --surface-muted: #1e293b;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
   --border-subtle: #1e293b;
 }
 

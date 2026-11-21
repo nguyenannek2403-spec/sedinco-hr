@@ -154,6 +154,19 @@ class AuthController {
         }
     }
 
+    async updateBankCard(req, res, next) {
+        try {
+            const result = await authService.updateBankCard(req.user, req.body || {});
+            return res.json({
+                success: true,
+                message: result.message,
+                data: result.data
+            });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async updateAvatar(req, res, next) {
         try {
             const { ma_nv, avatar_url } = req.body;

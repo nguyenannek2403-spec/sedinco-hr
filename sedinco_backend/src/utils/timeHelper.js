@@ -12,22 +12,24 @@ function getVietnamDateParts(date = new Date()) {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: false
+        hourCycle: 'h23'
     });
     const parts = formatter.formatToParts(date);
     const map = {};
     for (const p of parts) {
         map[p.type] = p.value;
     }
+    const hh = map.hour === '24' ? '00' : map.hour;
     return {
         year: parseInt(map.year, 10),
         month: parseInt(map.month, 10),
         day: parseInt(map.day, 10),
-        hour: parseInt(map.hour, 10),
+        hour: parseInt(hh, 10),
         minute: parseInt(map.minute, 10),
         second: parseInt(map.second, 10),
         dateStr: `${map.year}-${map.month}-${map.day}`,
-        timeStr: `${map.hour}:${map.minute}:${map.second}`
+        timeStr: `${hh}:${map.minute}:${map.second}`,
+        dateTimeViStr: `${map.day}/${map.month}/${map.year} ${hh}:${map.minute}:${map.second}`
     };
 }
 
@@ -39,8 +41,26 @@ function getVietnamTimeString(date = new Date()) {
     return getVietnamDateParts(date).timeStr;
 }
 
+function formatVietnamDateTime(input) {
+    if (!input) return null;
+    if (typeof input === 'string') {
+        const trimmed = input.trim();
+        if (!trimmed) return null;
+        if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(trimmed)) {
+            const parsed = new Date(trimmed.replace(' ', 'T') + '+07:00');
+            if (!Number.isNaN(parsed.getTime())) {
+                return getVietnamDateParts(parsed).dateTimeViStr;
+            }
+        }
+    }
+    const d = input instanceof Date ? input : new Date(input);
+    if (Number.isNaN(d.getTime())) return null;
+    return getVietnamDateParts(d).dateTimeViStr;
+}
+
 module.exports = {
     getVietnamDateParts,
     getVietnamDateString,
-    getVietnamTimeString
+    getVietnamTimeString,
+    formatVietnamDateTime
 };

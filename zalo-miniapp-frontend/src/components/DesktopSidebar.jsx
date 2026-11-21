@@ -162,7 +162,7 @@ export default function DesktopSidebar({
   const renderDrawerContent = () => (
     <div className="w-72 bg-white dark:bg-slate-900 border-r border-slate-200/80 dark:border-slate-800 flex flex-col h-full shrink-0 select-none transition-colors duration-200">
       {/* Brand Header — Stitch Executive Identity */}
-      <div className="p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 bg-[#F9F9FF] dark:bg-slate-900">
+      <div className="p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 bg-[#F4F6F9] dark:bg-slate-900">
         <div className="flex items-center gap-3 min-w-0">
           <CompanyLogo size="compact" theme={isDark ? "dark" : "light"} iconOnly />
           <div className="min-w-0">
@@ -218,7 +218,7 @@ export default function DesktopSidebar({
       </nav>
 
       {/* Bottom Profile & Logout Section */}
-      <div className="p-3.5 border-t border-slate-200/80 dark:border-slate-800 space-y-2 bg-[#F9F9FF] dark:bg-slate-900/90">
+      <div className="p-3.5 border-t border-slate-200/80 dark:border-slate-800 space-y-2 bg-[#F4F6F9] dark:bg-slate-900/90">
         <button
           type="button"
           data-tab="profile"

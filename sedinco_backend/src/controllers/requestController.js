@@ -11,6 +11,15 @@ class RequestController {
         }
     }
 
+    async getRequestsGroupedByEmployee(req, res, next) {
+        try {
+            const data = await requestService.getRequestsGroupedByEmployee();
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async getMyRequests(req, res, next) {
         try {
             const employee_id = req.user ? req.user.ma_nv : null;
@@ -82,9 +91,10 @@ class RequestController {
 
     async updateRequestStatus(req, res, next) {
         try {
-            const { status } = req.body;
+            const { status, reject_reason, reason } = req.body;
             const reqId = req.params.id;
-            await requestService.updateRequestStatus(reqId, status, req.user);
+            const rejectReason = status === 'rejected' ? (reject_reason ?? reason ?? null) : null;
+            await requestService.updateRequestStatus(reqId, status, req.user, rejectReason);
             return res.json({ success: true, message: 'Cập nhật trạng thái đơn thành công!' });
         } catch (err) {
             next(err);
