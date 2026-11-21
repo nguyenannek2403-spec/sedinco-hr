@@ -9,6 +9,7 @@ import { AppButton, AppModal, UserAvatar } from "./ui";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { exportEmployeeSalaryExcel } from "../utils/salaryExcelExport";
 import { formatViCurrency, formatViWorkday } from "../utils/viNumberFormat";
+import { getMonthlyStandardWorkdays } from "../utils/workdayUtils";
 
 /**
  * SalaryReportModal V45
@@ -35,7 +36,7 @@ export default function SalaryReportModal({
   const nam = Number(item.nam || year || new Date().getFullYear());
   const netSalary = Math.max(0, Math.round(Number(item.netSalary) || 0));
   const totalWorkDays = Number(item.totalWorkDays || 0);
-  const stdWorkDays = Number(item.standardWorkDays || item.standardDays || 26);
+  const stdWorkDays = Number(item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(thang, nam));
 
   const shareMessage = [
     `📩 BÁO CÁO XÁC NHẬN LƯƠNG THÁNG ${thang}/${nam} — SEDINCO`,

@@ -58,9 +58,85 @@ function formatVietnamDateTime(input) {
     return getVietnamDateParts(d).dateTimeViStr;
 }
 
+/**
+ * Chuẩn hóa chuỗi ngày về dạng thuần 'YYYY-MM-DD' theo GMT+7,
+ * tránh lỗi lệch -1 ngày khi Date / MySQL DATE serializes qua UTC (.toISOString()).
+ */
+function normalizePureIsoDate(input) {
+    if (!input) return '';
+    if (input instanceof Date) {
+        return Number.isNaN(input.getTime()) ? '' : getVietnamDateString(input);
+    }
+    const trimmed = String(input).trim();
+    if (!trimmed) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return trimmed;
+    }
+    if (trimmed.includes('T') || /(?:Z|[+-]\d{2}:?\d{2})$/.test(trimmed)) {
+        const parsed = new Date(trimmed);
+        if (!Number.isNaN(parsed.getTime())) {
+            return getVietnamDateString(parsed);
+        }
+    }
+    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : '';
+}
+
+function getDaysInMonth(month, year) {
+    const parts = getVietnamDateParts();
+    const m = parseInt(month, 10) || parts.month;
+    const y = parseInt(year, 10) || parts.year;
+    if (!Number.isInteger(m) || m < 1 || m > 12 || !Number.isInteger(y) || y < 1900 || y > 2300) {
+        return 30;
+    }
+    return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+function countSundaysInMonth(month, year) {
+    const parts = getVietnamDateParts();
+    const m = parseInt(month, 10) || parts.month;
+    const y = parseInt(year, 10) || parts.year;
+    const totalDays = getDaysInMonth(m, y);
+    let sundays = 0;
+    for (let d = 1; d <= totalDays; d++) {
+        if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 0) {
+            sundays += 1;
+        }
+    }
+    return sundays;
+}
+
+/**
+ * Tính số ngày công chuẩn theo tháng = Tổng số ngày trong tháng - Số ngày Chủ nhật.
+ * VD: Tháng 11/2026 (30 ngày, 5 CN) -> 25 ngày công chuẩn.
+ */
+function getMonthlyStandardWorkdays(month, year) {
+    const parts = getVietnamDateParts();
+    const m = parseInt(month, 10) || parts.month;
+    const y = parseInt(year, 10) || parts.year;
+    const totalDays = getDaysInMonth(m, y);
+    const sundays = countSundaysInMonth(m, y);
+    return Math.max(1, totalDays - sundays);
+}
+
+function isSundayIsoDate(isoDateStr) {
+    const iso = normalizePureIsoDate(isoDateStr);
+    const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return false;
+    const y = Number(match[1]);
+    const m = Number(match[2]);
+    const d = Number(match[3]);
+    return new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 0;
+}
+
 module.exports = {
     getVietnamDateParts,
     getVietnamDateString,
     getVietnamTimeString,
-    formatVietnamDateTime
+    formatVietnamDateTime,
+    normalizePureIsoDate,
+    getDaysInMonth,
+    countSundaysInMonth,
+    getMonthlyStandardWorkdays,
+    isSundayIsoDate
 };

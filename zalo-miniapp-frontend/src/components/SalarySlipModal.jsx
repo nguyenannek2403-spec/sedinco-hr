@@ -21,6 +21,12 @@ import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { exportEmployeeSalaryExcel } from "../utils/salaryExcelExport";
 import { compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { formatViCurrency, formatViWorkday, formatViNumber } from "../utils/viNumberFormat";
+import {
+  getMonthlyStandardWorkdays,
+  getVietnamTodayIso,
+  normalizePureIsoDate,
+  resolveHeatmapCellMeta
+} from "../utils/workdayUtils";
 import { AppButton, AppModal, StatusBadge, SkeletonList, UserAvatar } from "./ui";
 import PayslipActionFooter from "./PayslipActionFooter";
 import {
@@ -70,6 +76,10 @@ export default function SalarySlipModal({
   const [selectedHeatmapIso, setSelectedHeatmapIso] = useState(null);
 
   const [confirmStatus, setConfirmStatus] = useState(initialItem?.salary_confirm_status || "PENDING");
+  const [disputeStatus, setDisputeStatus] = useState(
+    initialItem?.dispute_status ||
+      (initialItem?.salary_confirm_status === "DISPUTED" || initialItem?.payout_status === "DISPUTED" ? "OPEN" : null)
+  );
   const [showDisputeForm, setShowDisputeForm] = useState(false);
   const [disputeReason, setDisputeReason] = useState(initialItem?.dispute_reason || "");
   const [evidenceMedia, setEvidenceMedia] = useState(initialItem?.dispute_evidence_media || "");
@@ -93,6 +103,10 @@ export default function SalarySlipModal({
     if (initialItem) {
       setLoadedItem(initialItem);
       setConfirmStatus(initialItem.salary_confirm_status || "PENDING");
+      setDisputeStatus(
+        initialItem.dispute_status ||
+          (initialItem.salary_confirm_status === "DISPUTED" || initialItem.payout_status === "DISPUTED" ? "OPEN" : null)
+      );
       setDisputeReason(initialItem.dispute_reason || "");
       setEvidenceMedia(initialItem.dispute_evidence_media || "");
       setAdminResponse(initialItem.admin_response || "");
@@ -113,6 +127,10 @@ export default function SalarySlipModal({
       if (res?.success && res.data) {
         setLoadedItem(res.data);
         setConfirmStatus(res.data.salary_confirm_status || "PENDING");
+        setDisputeStatus(
+          res.data.dispute_status ||
+            (res.data.salary_confirm_status === "DISPUTED" || res.data.payout_status === "DISPUTED" ? "OPEN" : null)
+        );
         setDisputeReason(res.data.dispute_reason || "");
         setEvidenceMedia(res.data.dispute_evidence_media || "");
         setAdminResponse(res.data.admin_response || "");
@@ -201,80 +219,29 @@ export default function SalarySlipModal({
     const rawLogs = Array.isArray(item?.daily_logs) ? item.daily_logs : [];
     const byDate = {};
     rawLogs.forEach((log) => {
-      const iso = log.record_date_iso || String(log.record_date || "").slice(0, 10);
+      const iso = normalizePureIsoDate(log.record_date_iso || log.record_date || log.date);
       if (iso) byDate[iso] = log;
     });
 
-    const todayNow = new Date();
-    const todayIso = `${todayNow.getFullYear()}-${String(todayNow.getMonth() + 1).padStart(2, "0")}-${String(todayNow.getDate()).padStart(2, "0")}`;
-    const daysInMonth = new Date(nam, thang, 0).getDate();
+    const todayIso = getVietnamTodayIso();
+    const daysInMonth = new Date(Date.UTC(nam, thang, 0)).getUTCDate();
     const rows = [];
 
     for (let d = 1; d <= daysInMonth; d++) {
       const iso = `${nam}-${String(thang).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const log = byDate[iso] || null;
       const isSunday = new Date(Date.UTC(nam, thang - 1, d)).getUTCDay() === 0;
-      const isFuture = iso > todayIso;
-      const rawSt = String(log?.status || "").trim().toUpperCase();
+      const meta = resolveHeatmapCellMeta({ log, isoDate: iso, todayIso, isSunday });
       const note = log
         ? resolveLogNote(log)
-        : isSunday
-        ? "Nghỉ cuối tuần (CN)"
-        : isFuture
-        ? "Chưa tới ngày"
-        : "Không có dữ liệu chấm công";
-      const credit = log
-        ? log.work_credit ?? (rawSt === "1" || rawSt === "1/OT" || rawSt === "P" || rawSt === "L" ? 1 : rawSt === "0.5" ? 0.5 : 0)
-        : 0;
+        : meta.badgeText;
       const otHours = Number(log?.ot_hours_applied ?? log?.ot_hours) || 0;
       const hasLateOrEarly = Boolean(
-        log &&
-          ((Number(log.late_minutes) || 0) > 0 ||
-            (Number(log.early_leave_minutes) || 0) > 0 ||
+        meta.hasLateOrEarly ||
+          (log &&
+            String(log.duration_status || "").trim().toUpperCase() !== "ADMIN_ADJUSTED_FULL" &&
             /vào muộn|ra sớm/i.test(note))
       );
-
-      let shortCode = "V";
-      let cellClass =
-        "bg-slate-100/80 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400";
-
-      if (log) {
-        if (rawSt === "1/OT" || rawSt === "OT") {
-          shortCode = "OT";
-          cellClass =
-            "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200";
-        } else if (rawSt === "L") {
-          shortCode = "L";
-          cellClass =
-            "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200";
-        } else if (rawSt === "1") {
-          shortCode = "1";
-          cellClass =
-            "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200";
-        } else if (rawSt === "0.5") {
-          shortCode = "0,5";
-          cellClass =
-            "bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-700 text-sky-800 dark:text-sky-200";
-        } else if (rawSt === "P") {
-          shortCode = "P";
-          cellClass =
-            "bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-700 text-sky-800 dark:text-sky-200";
-        } else if (rawSt === "KP" || rawSt === "KL" || rawSt === "0") {
-          shortCode = "KP";
-          cellClass =
-            "bg-rose-50 dark:bg-rose-950/55 border-rose-200 dark:border-rose-700 text-rose-700 dark:text-rose-200";
-        } else if (rawSt === "V") {
-          shortCode = "V";
-        } else {
-          shortCode = rawSt || "V";
-        }
-      } else if (isFuture) {
-        shortCode = "";
-        cellClass =
-          "bg-slate-50/70 dark:bg-slate-900/50 border-slate-200/70 dark:border-slate-800 text-slate-400 dark:text-slate-500";
-      } else if (!isSunday) {
-        shortCode = "V";
-      }
 
       rows.push({
         key: iso,
@@ -284,11 +251,12 @@ export default function SalarySlipModal({
         dateLabel: formatDayWithWeekday(iso, log?.date_label),
         log,
         note,
-        credit,
+        credit: meta.credit,
         otHours,
-        status: log ? (log.status || "0") : isSunday ? "V" : "V",
-        shortCode,
-        cellClass,
+        status: log ? (log.status || "0") : isSunday ? "CN" : "V",
+        shortCode: meta.shortCode,
+        cellClass: meta.cellClass,
+        colorName: meta.colorName,
         hasLateOrEarly
       });
     }
@@ -438,11 +406,13 @@ export default function SalarySlipModal({
       });
       if (res?.success) {
         setConfirmStatus("DISPUTED");
+        setDisputeStatus("OPEN");
         setLoadedItem((prev) =>
           prev
             ? {
                 ...prev,
                 salary_confirm_status: "DISPUTED",
+                dispute_status: "OPEN",
                 payout_status: prev.payout_status === "PAID" ? "PAID" : "DISPUTED",
                 dispute_reason: disputeReason.trim(),
                 dispute_note: disputeReason.trim()
@@ -463,9 +433,11 @@ export default function SalarySlipModal({
     }
   };
 
-  const handleResolveDispute = async (newStatus) => {
+  const handleResolveDispute = async (newStatus = "RESOLVED") => {
     if (resolvingRef.current) return;
-    if (!adminResponse.trim()) {
+    const isKeepingOpen = newStatus === "DISPUTED";
+    const resolvedNoteText = adminResponse.trim() || "Quản trị viên đã kiểm tra và đánh dấu đã giải quyết";
+    if (isKeepingOpen && !adminResponse.trim()) {
       notify("Vui lòng nhập nội dung phản hồi giải quyết cho nhân viên.", "warning");
       return;
     }
@@ -476,15 +448,47 @@ export default function SalarySlipModal({
         ma_nv: maNv,
         month: thang,
         year: nam,
-        admin_response: adminResponse.trim(),
+        admin_response: resolvedNoteText,
         status: newStatus
       }, {
         idempotencyKey: generateIdempotencyKey("pay_resolve")
       });
       if (res?.success) {
-        setConfirmStatus(newStatus);
-        notify("Đã cập nhật phản hồi xử lý khiếu nại lương!", "success");
-        if (onStatusUpdated) onStatusUpdated(newStatus);
+        const nextConfirm = isKeepingOpen ? "DISPUTED" : (res.salary_confirm_status || "CONFIRMED");
+        const nextDispute = isKeepingOpen ? "OPEN" : "RESOLVED";
+        setConfirmStatus(nextConfirm);
+        setDisputeStatus(nextDispute);
+        if (!isKeepingOpen) {
+          setDisputeReason("");
+          setEvidenceMedia("");
+          setAdminResponse("");
+        }
+        setLoadedItem((prev) =>
+          prev
+            ? {
+                ...prev,
+                salary_confirm_status: nextConfirm,
+                dispute_status: nextDispute,
+                payout_status:
+                  prev.payout_status === "PAID" || prev.employee_payment_status === "PAID"
+                    ? "PAID"
+                    : isKeepingOpen
+                    ? "DISPUTED"
+                    : nextConfirm,
+                dispute_reason: isKeepingOpen ? prev.dispute_reason : null,
+                dispute_note: isKeepingOpen ? prev.dispute_note : null,
+                dispute_evidence_media: isKeepingOpen ? prev.dispute_evidence_media : null,
+                admin_response: isKeepingOpen ? resolvedNoteText : null
+              }
+            : prev
+        );
+        notify(
+          isKeepingOpen
+            ? "Đã cập nhật phản hồi xử lý khiếu nại lương!"
+            : "Đã giải quyết và đóng phản ánh sai lệch lương/công!",
+          "success"
+        );
+        if (onStatusUpdated) onStatusUpdated(isKeepingOpen ? "DISPUTED" : "RESOLVED");
       } else {
         notify(res?.message || "Lỗi cập nhật phản hồi", "error");
       }
@@ -512,7 +516,7 @@ export default function SalarySlipModal({
 
   const handleShareZalo = async () => {
     if (!item) return;
-    const shareText = `📄 PHIẾU LƯƠNG SEDINCO - THÁNG ${thang}/${nam}\n👤 NV: ${item.ho_ten} (${maNv})\n📅 Ngày công: ${formatViWorkday(item.totalWorkDays || 0)}/${formatViWorkday(item.standardWorkDays || item.standardDays || 26)}\n💰 Thực lĩnh (NET): ${formatCurrency(item.netSalary)}\n📌 Trạng thái: ${confirmStatus === "CONFIRMED" ? "Đã xác nhận" : confirmStatus === "DISPUTED" ? "Đang khiếu nại" : item.payout_status === "PAID" ? "Đã chuyển khoản" : "Chờ xác nhận"}`;
+    const shareText = `📄 PHIẾU LƯƠNG SEDINCO - THÁNG ${thang}/${nam}\n👤 NV: ${item.ho_ten} (${maNv})\n📅 Ngày công: ${formatViWorkday(item.totalWorkDays || 0)}/${formatViWorkday(item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(thang, nam))}\n💰 Thực lĩnh (NET): ${formatCurrency(item.netSalary)}\n📌 Trạng thái: ${confirmStatus === "CONFIRMED" ? "Đã xác nhận" : confirmStatus === "DISPUTED" && disputeStatus !== "RESOLVED" ? "Đang khiếu nại" : item.payout_status === "PAID" ? "Đã chuyển khoản" : "Chờ xác nhận"}`;
     try {
       const res = await zmpAdapter.openShareSheet({
         type: "text",
@@ -732,7 +736,7 @@ export default function SalarySlipModal({
                         ✓ Đã xác nhận đúng lương
                       </span>
                     )}
-                    {confirmStatus === "DISPUTED" && (
+                    {disputeStatus !== "RESOLVED" && confirmStatus === "DISPUTED" && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-950/85 border border-rose-300/40 text-white text-xs font-bold">
                         <AlertTriangle size={12} /> Đang khiếu nại sai lương
                       </span>
@@ -807,7 +811,7 @@ export default function SalarySlipModal({
                   Ngày Công Thực Tế
                 </span>
                 <span className="font-extrabold text-[#16A34A] dark:text-emerald-300 block">
-                  {formatViWorkday(item.totalWorkDays || 0)} / {formatViWorkday(item.standardWorkDays || item.standardDays || 26)} công
+                  {formatViWorkday(item.totalWorkDays || 0)} / {formatViWorkday(item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(thang, nam))} công
                 </span>
                 <span className="text-xs text-slate-600 dark:text-slate-300 block mt-0.5">
                   TT {formatViWorkday(item.workedDays ?? item.totalWorkDays)} • Phép {formatViWorkday(item.paidLeaveDays || 0)} • Lễ {formatViWorkday(item.holidayDays || 0)}
@@ -828,7 +832,7 @@ export default function SalarySlipModal({
               <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                 <div className="px-3.5 py-2.5 flex justify-between items-center gap-2">
                   <span className="text-slate-600 dark:text-slate-300">
-                    1. Lương cơ bản hợp đồng (Định mức {formatViWorkday(item.standardWorkDays || item.standardDays || 26)} ngày)
+                    1. Lương cơ bản hợp đồng (Định mức {formatViWorkday(item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(thang, nam))} ngày)
                   </span>
                   <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 shrink-0">
                     {formatCurrency(item.baseSalary)}
@@ -997,6 +1001,7 @@ export default function SalarySlipModal({
                         key={cell.iso}
                         type="button"
                         data-testid={`payslip-day-cell-${cell.iso}`}
+                        data-heatmap-color={cell.colorName}
                         onClick={() => setSelectedHeatmapIso((prev) => (prev === cell.iso ? null : cell.iso))}
                         className={`relative min-h-[46px] p-1 rounded-xl border flex flex-col items-center justify-center transition cursor-pointer ${cell.cellClass} ${
                           isSelected ? "ring-2 ring-[#E11D48] dark:ring-rose-400 shadow-sm" : "hover:opacity-90"
@@ -1036,6 +1041,10 @@ export default function SalarySlipModal({
                   <span className="inline-flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
                     <span>KP / Nghỉ (V)</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0" />
+                    <span>Chủ nhật / Chưa tới</span>
                   </span>
                 </div>
 
@@ -1169,9 +1178,12 @@ export default function SalarySlipModal({
               </form>
             )}
 
-            {/* HIỂN THỊ KHIẾU NẠI & BẰNG CHỨNG (NẾU CÓ) */}
-            {(confirmStatus === "DISPUTED" || item.dispute_reason || item.admin_response) && (
-              <div className="bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-200 dark:border-rose-800/70 rounded-2xl p-4 space-y-3">
+            {/* HIỂN THỊ KHIẾU NẠI & BẰNG CHỨNG (CHỈ HIỆN KHI ĐANG OPEN / CHƯA GIẢI QUYẾT) */}
+            {(disputeStatus === "OPEN" || (disputeStatus !== "RESOLVED" && confirmStatus === "DISPUTED")) && (
+              <div
+                data-testid="payslip-open-dispute-box"
+                className="bg-rose-50 dark:bg-rose-950/50 border-2 border-rose-200 dark:border-rose-800/70 rounded-2xl p-4 space-y-3"
+              >
                 <div className="flex items-center gap-2 text-rose-800 dark:text-rose-200 font-black text-xs uppercase">
                   <AlertTriangle size={16} className="text-rose-600 dark:text-rose-400 shrink-0" />
                   <span>Hồ sơ Báo cáo Sai lệch Lương / Công</span>
@@ -1232,10 +1244,11 @@ export default function SalarySlipModal({
                         icon={ShieldCheck}
                         loading={resolving}
                         loadingText="Đang xử lý..."
-                        onClick={() => handleResolveDispute("CONFIRMED")}
+                        data-testid="slip-resolve-dispute-btn"
+                        onClick={() => handleResolveDispute("RESOLVED")}
                         className="text-xs font-bold"
                       >
-                        Đã điều chỉnh &amp; Chốt lại
+                        ✓ Đã giải quyết
                       </AppButton>
                       <AppButton
                         variant="secondary"

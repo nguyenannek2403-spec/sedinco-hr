@@ -272,7 +272,8 @@ class AttendanceService {
             }
         });
 
-        const standardDays = Number(cs.standard_work_days) || 26;
+        const { getMonthlyStandardWorkdays } = require('../utils/timeHelper');
+        const standardDays = getMonthlyStandardWorkdays(m, y);
         const freeLateOccurrences = cs.free_late_occurrences !== undefined && cs.free_late_occurrences !== null
             ? Number(cs.free_late_occurrences)
             : 3;
@@ -541,6 +542,22 @@ class AttendanceService {
 
         if (isDelete) {
             await query('DELETE FROM attendance_logs WHERE employee_id=? AND record_date=?', [ma_nv, dateStr]);
+            if (dateStr) {
+                const parts = String(dateStr).split('-');
+                if (parts.length >= 2) {
+                    const yDel = parseInt(parts[0], 10);
+                    const mDel = parseInt(parts[1], 10);
+                    if (yDel && mDel) {
+                        await require('./payrollService').autoResolveSalaryDisputes({
+                            ma_nv,
+                            month: mDel,
+                            year: yDel,
+                            resolved_note: `Quản trị viên đã cập nhật bảng công ngày ${dateStr}`,
+                            current_user
+                        }).catch(() => {});
+                    }
+                }
+            }
             if (current_user) {
                 await logAuditEvent({
                     actor_id: current_user.ma_nv || current_user.username || 'unknown',
@@ -633,6 +650,23 @@ class AttendanceService {
                     check_out_time = COALESCE(VALUES(check_out_time), check_out_time)
             `;
             await query(sql, [ma_nv, dateStr, dbStatus, hours, check_in_time || null, check_out_time || null]);
+        }
+
+        if (dateStr) {
+            const parts = String(dateStr).split('-');
+            if (parts.length >= 2) {
+                const yUpd = parseInt(parts[0], 10);
+                const mUpd = parseInt(parts[1], 10);
+                if (yUpd && mUpd) {
+                    await require('./payrollService').autoResolveSalaryDisputes({
+                        ma_nv,
+                        month: mUpd,
+                        year: yUpd,
+                        resolved_note: `Quản trị viên đã cập nhật bảng công ngày ${dateStr}`,
+                        current_user
+                    }).catch(() => {});
+                }
+            }
         }
 
         if (current_user) {
@@ -788,6 +822,14 @@ class AttendanceService {
                 emp.shift_type || 'FULL_DAY'
             ]
         );
+
+        await require('./payrollService').autoResolveSalaryDisputes({
+            ma_nv: cleanMaNv,
+            month: m,
+            year: y,
+            resolved_note: `Quản trị viên đã chấm công hộ ngày ${targetDate}`,
+            current_user
+        }).catch(() => {});
 
         await logAuditEvent({
             actor_id: actorId,
@@ -1595,10 +1637,12 @@ class AttendanceService {
         const probationRatio = isProbationWorker
             ? ((Number(cs.probation_salary_percent) || 85) / 100)
             : 1;
+        const [checkOutY, checkOutM] = String(targetRecordDate || '').split('-').map(Number);
+        const { getMonthlyStandardWorkdays } = require('../utils/timeHelper');
         const daily_wage = isCheckOut
             ? calculateDailyEarnedAmount({
                   luong_cb: emp.luong_cb,
-                  cong_chuan: Number(cs.standard_work_days) || 26,
+                  cong_chuan: getMonthlyStandardWorkdays(checkOutM, checkOutY),
                   probationRatio,
                   workCredit: work_credit
               })

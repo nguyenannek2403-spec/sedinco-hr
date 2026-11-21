@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
+const { getMonthlyStandardWorkdays, getVietnamDateParts } = require('../utils/timeHelper');
 
 const DEFAULT_COMPANY_SETTINGS = {
     work_start: '08:00',
@@ -157,7 +158,8 @@ class CompanyService {
             max_late_minutes_for_half_day: row.max_late_minutes_for_half_day !== undefined && row.max_late_minutes_for_half_day !== null
                 ? Number(row.max_late_minutes_for_half_day)
                 : DEFAULT_COMPANY_SETTINGS.max_late_minutes_for_half_day,
-            standard_work_days: Number(row.standard_work_days) || DEFAULT_COMPANY_SETTINGS.standard_work_days,
+            standard_work_days: getMonthlyStandardWorkdays(getVietnamDateParts().month, getVietnamDateParts().year),
+            standard_workdays_mode: 'AUTO_EXCLUDING_SUNDAYS',
             probation_salary_percent: Number(row.probation_salary_percent) || DEFAULT_COMPANY_SETTINGS.probation_salary_percent,
             probation_allowance_full: (row.probation_allowance_full === undefined || row.probation_allowance_full === null)
                 ? DEFAULT_COMPANY_SETTINGS.probation_allowance_full
@@ -228,7 +230,8 @@ class CompanyService {
         const late_penalty_per_minute = penalty_per_minute;
         const late_penalty_amount = penalty_fixed_block;
         const max_late_minutes_for_half_day = Math.max(1, Math.round(toFiniteNumber(payload.max_late_minutes_for_half_day, toFiniteNumber(current.max_late_minutes_for_half_day, 60))));
-        const standard_work_days = Math.max(1, toFiniteNumber(payload.standard_work_days, toFiniteNumber(current.standard_work_days, 26)));
+        const nowVnParts = getVietnamDateParts();
+        const standard_work_days = getMonthlyStandardWorkdays(nowVnParts.month, nowVnParts.year);
         const probation_salary_percent = Math.min(100, Math.max(0, toFiniteNumber(payload.probation_salary_percent, toFiniteNumber(current.probation_salary_percent, 85))));
         const toBoolInt = (val, fallback) => {
             if (val === undefined || val === null || val === '') return fallback;
@@ -397,7 +400,8 @@ class CompanyService {
             late_penalty_per_minute: conf.late_penalty_per_minute !== undefined ? Number(conf.late_penalty_per_minute) : 2000,
             late_penalty_amount: conf.late_penalty_amount !== undefined ? Number(conf.late_penalty_amount) : 50000,
             max_late_minutes_for_half_day: conf.max_late_minutes_for_half_day !== undefined ? Number(conf.max_late_minutes_for_half_day) : 60,
-            standard_work_days: conf.standard_work_days || 26,
+            standard_work_days: getMonthlyStandardWorkdays(getVietnamDateParts().month, getVietnamDateParts().year),
+            standard_workdays_mode: 'AUTO_EXCLUDING_SUNDAYS',
             probation_salary_percent: conf.probation_salary_percent || 85,
             probation_allowance_full: conf.probation_allowance_full !== undefined ? Number(conf.probation_allowance_full) : 1,
             ot_rate_weekday: conf.ot_rate_weekday || 1.5,

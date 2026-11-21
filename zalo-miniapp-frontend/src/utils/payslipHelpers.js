@@ -1,5 +1,6 @@
-import { sanitizeFormula, formatCsvCellRFC4180 } from "./api";
+import { sanitizeFormula } from "./api";
 import { formatViWorkday } from "./viNumberFormat";
+import { getMonthlyStandardWorkdays } from "./workdayUtils";
 
 export const ALLOWANCE_DEFS = [
   { key: "an_trua", alt: "an_ca", label: "Phụ cấp ăn trưa" },
@@ -106,7 +107,7 @@ export function buildSingleSlipCsv({
     ["Mã nhân viên", sanitizeFormula(maNv)],
     ["Họ và tên", sanitizeFormula(item.ho_ten || "")],
     ["Chức danh", sanitizeFormula(item.chuc_danh || "Nhân viên")],
-    ["Ngày công thực tế", `${item.totalWorkDays || 0} / ${item.standardWorkDays || item.standardDays || 26}`],
+    ["Ngày công thực tế", `${item.totalWorkDays || 0} / ${item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(thang, nam)}`],
     ["Lương cơ bản HĐ", Number(item.baseSalary || 0)],
     ["Lương theo ngày công", Number(item.salaryByWork || 0)],
     ...(showAllowancesBlock

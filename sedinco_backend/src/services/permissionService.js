@@ -279,7 +279,7 @@ class PermissionService {
                 SELECT att.id, att.ma_nv, e.ho_ten, att.thang, att.nam, att.dispute_reason, att.confirmed_at
                 FROM attendance att
                 LEFT JOIN employees e ON att.ma_nv = e.ma_nv
-                WHERE att.salary_confirm_status = 'DISPUTED'
+                WHERE (att.dispute_status = 'OPEN' OR (att.dispute_status IS NULL AND att.salary_confirm_status = 'DISPUTED'))
                   AND (e.role IS NULL OR e.role != 'admin')
                 ORDER BY att.nam DESC, att.thang DESC
                 LIMIT 20

@@ -8,6 +8,7 @@ const {
     buildDailyAttendanceNote,
     formatViDateWithWeekday
 } = require('./misaWorkdayEngine');
+const { getMonthlyStandardWorkdays, normalizePureIsoDate } = require('./timeHelper');
 
 const ALLOWANCE_DEFINITIONS = [
     { key: 'an_trua', label: 'Phụ cấp ăn trưa' },
@@ -20,7 +21,9 @@ const ALLOWANCE_DEFINITIONS = [
 
 function calculateEmployeeSalary({
     luong_cb,
-    cong_chuan = 26,
+    cong_chuan = null,
+    month = null,
+    year = null,
     ngay_chinh_thuc,
     status = 'active',
     chuc_danh = '',
@@ -36,7 +39,10 @@ function calculateEmployeeSalary({
     advanceDeduction = 0
 }) {
     const luongCb = Number(luong_cb) || 0;
-    const congChuan = Number(companySettings.standard_work_days) || Number(cong_chuan) || 26;
+    const hasExplicitPeriod = Boolean(month && year);
+    const congChuan = hasExplicitPeriod
+        ? getMonthlyStandardWorkdays(month, year)
+        : (Number(cong_chuan) || getMonthlyStandardWorkdays());
     const probationPercent = Number(companySettings.probation_salary_percent) || 85;
     const probationRatio = probationPercent / 100;
     const otWeekday = Number(companySettings.ot_rate_weekday) || 1.5;
@@ -121,7 +127,8 @@ function calculateEmployeeSalary({
     let billableLateOccurrences = 0;
 
     logs.forEach(log => {
-        const logDate = new Date(log.record_date);
+        const cleanIsoDate = normalizePureIsoDate(log.record_date_iso || log.record_date);
+        const logDate = cleanIsoDate ? new Date(`${cleanIsoDate}T00:00:00+07:00`) : new Date(log.record_date);
         logDate.setHours(0, 0, 0, 0);
 
         const isAdminAdjustedFull = String(log.duration_status || '').trim().toUpperCase() === 'ADMIN_ADJUSTED_FULL';
@@ -237,11 +244,7 @@ function calculateEmployeeSalary({
             workCredit: appliedDayCredit
         });
 
-        const recordDateIso = log.record_date_iso || (
-            log.record_date instanceof Date
-                ? `${log.record_date.getFullYear()}-${String(log.record_date.getMonth() + 1).padStart(2, '0')}-${String(log.record_date.getDate()).padStart(2, '0')}`
-                : String(log.record_date || '').slice(0, 10)
-        );
+        const recordDateIso = normalizePureIsoDate(log.record_date_iso || log.record_date);
         daily_breakdown.push({
             ...log,
             status: effectiveStatus,

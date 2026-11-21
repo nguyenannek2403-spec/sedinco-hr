@@ -115,7 +115,7 @@ export default function PayslipActionFooter({
   const isPeriodPublished = Boolean(
     item &&
       (item.payout_status === "REPORT_SENT" ||
-        item.payout_status === "DISPUTED" ||
+        (item.payout_status === "DISPUTED" && item.dispute_status !== "RESOLVED") ||
         item.period_locked ||
         item.payroll_period_status === "APPROVED" ||
         isEmployeePaid)

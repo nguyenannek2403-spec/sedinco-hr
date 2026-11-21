@@ -15,104 +15,15 @@ import {
 import { safeGet } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
+import {
+  getMonthlyStandardWorkdays,
+  getVietnamTodayIso,
+  normalizePureIsoDate,
+  resolveHeatmapCellMeta
+} from "../../utils/workdayUtils";
 import { AppButton, AppModal, StatusBadge, SkeletonList } from "../../components/ui";
 
 const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-
-function getHeatmapCellStyle(log, dayNum, isFuture, isSunday = false) {
-  if (isFuture) {
-    return {
-      cellClass: "bg-[#F0F3FF]/60 dark:bg-slate-900/50 border-slate-200/70 dark:border-slate-800/70 text-slate-500 dark:text-slate-400",
-      dotClass: "bg-slate-400 dark:bg-slate-600",
-      shortCode: "",
-      badgeText: "Chưa tới",
-      needsCorrection: false
-    };
-  }
-  if (!log && isSunday) {
-    return {
-      cellClass: "bg-[#F0F3FF] dark:bg-slate-900/50 border-slate-200 dark:border-slate-800/70 text-slate-500 dark:text-slate-300",
-      dotClass: "bg-slate-400 dark:bg-slate-500",
-      shortCode: "CN",
-      badgeText: "Cuối tuần",
-      needsCorrection: false
-    };
-  }
-  if (!log) {
-    return {
-      cellClass: "bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-200",
-      dotClass: "bg-rose-500",
-      shortCode: "V",
-      badgeText: "Vắng / Chưa chấm",
-      needsCorrection: true
-    };
-  }
-
-  const st = String(log.status || "").toUpperCase();
-  const isAdminAdjustedFull = String(log.duration_status || "").toUpperCase() === "ADMIN_ADJUSTED_FULL";
-  const forgotOut = !isAdminAdjustedFull && Boolean(log.check_in_time && !log.check_out_time);
-  const isLate = !isAdminAdjustedFull && Number(log.late_minutes) > 0;
-  const isEarly = !isAdminAdjustedFull && Number(log.early_leave_minutes) > 0;
-
-  if (st === "P" || st === "L") {
-    return {
-      cellClass: "bg-purple-50 dark:bg-purple-950/60 border-purple-200 dark:border-purple-500/50 text-purple-700 dark:text-purple-200",
-      dotClass: "bg-purple-500 dark:bg-purple-400",
-      shortCode: st,
-      badgeText: st === "L" ? "Nghỉ lễ (L)" : "Nghỉ phép (P)",
-      needsCorrection: false
-    };
-  }
-  if (st.includes("OT")) {
-    return {
-      cellClass: "bg-blue-50 dark:bg-blue-950/70 border-blue-200 dark:border-blue-500/60 text-blue-700 dark:text-blue-200",
-      dotClass: "bg-blue-500 dark:bg-blue-400",
-      shortCode: st === "1/OT" ? "1/OT" : "OT",
-      badgeText: `Tăng ca (${log.ot_hours || 0}h OT)`,
-      needsCorrection: forgotOut
-    };
-  }
-  if (st === "0" || st === "V" || st === "KP") {
-    return {
-      cellClass: "bg-rose-50 dark:bg-rose-950/70 border-rose-200 dark:border-rose-500/60 text-rose-700 dark:text-rose-200",
-      dotClass: "bg-rose-500",
-      shortCode: st === "0" ? "KP" : st,
-      badgeText: "Vắng không phép / Thiếu công",
-      needsCorrection: true
-    };
-  }
-  if (forgotOut || st === "0.5" || isLate || isEarly) {
-    return {
-      cellClass: "bg-amber-50 dark:bg-amber-950/65 border-amber-200 dark:border-amber-500/60 text-amber-800 dark:text-amber-200",
-      dotClass: "bg-amber-500 dark:bg-amber-400",
-      shortCode: st === "0.5" ? "0.5" : (st || "1"),
-      badgeText: forgotOut
-        ? "Quên Check-out"
-        : st === "0.5"
-        ? "Nửa công (0.5)"
-        : isLate
-        ? `Đi muộn ${log.late_minutes}p`
-        : `Về sớm ${log.early_leave_minutes}p`,
-      needsCorrection: true
-    };
-  }
-  if (st === "1") {
-    return {
-      cellClass: "bg-emerald-50 dark:bg-emerald-950/65 border-emerald-200 dark:border-emerald-500/50 text-emerald-700 dark:text-emerald-200",
-      dotClass: "bg-emerald-500 dark:bg-emerald-400",
-      shortCode: "1",
-      badgeText: "Đủ công (1.0)",
-      needsCorrection: false
-    };
-  }
-  return {
-    cellClass: "bg-slate-100 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200",
-    dotClass: "bg-slate-500",
-    shortCode: st || "·",
-    badgeText: st || "Khác",
-    needsCorrection: false
-  };
-}
 
 /**
  * WorkerHistoryTab — Google Stitch "Sedinco Pulse" Screen 3 (Lịch công & Bảng chấm công)
@@ -185,17 +96,17 @@ export default function WorkerHistoryTab({
 
   // Xây dựng lưới Heatmap 7 cột (T2 -> CN)
   const calendarCells = useMemo(() => {
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const firstDayJs = new Date(year, month - 1, 1).getDay(); // 0 = CN, 1 = T2...
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const firstDayJs = new Date(Date.UTC(year, month - 1, 1)).getUTCDay(); // 0 = CN, 1 = T2...
     const leadingEmpty = firstDayJs === 0 ? 6 : firstDayJs - 1;
 
     const mapByDate = {};
     logs.forEach((item) => {
-      const iso = String(item.record_date || item.date || "").slice(0, 10);
+      const iso = normalizePureIsoDate(item.record_date_iso || item.record_date || item.date);
       if (iso) mapByDate[iso] = item;
     });
 
-    const todayIso = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+    const todayIso = getVietnamTodayIso();
     const cells = [];
     for (let i = 0; i < leadingEmpty; i++) {
       cells.push({ empty: true, key: `empty-${i}` });
@@ -204,8 +115,8 @@ export default function WorkerHistoryTab({
       const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const log = mapByDate[isoDate] || null;
       const isFuture = isoDate > todayIso;
-      const isSunday = new Date(year, month - 1, d).getDay() === 0;
-      const style = getHeatmapCellStyle(log, d, isFuture, isSunday);
+      const isSunday = new Date(Date.UTC(year, month - 1, d)).getUTCDay() === 0;
+      const style = resolveHeatmapCellMeta({ log, isoDate, todayIso, isSunday });
       cells.push({
         empty: false,
         key: isoDate,
@@ -221,7 +132,7 @@ export default function WorkerHistoryTab({
     return cells;
   }, [logs, month, year]);
 
-  const stdDays = Number(summary?.standard_days || 26);
+  const stdDays = getMonthlyStandardWorkdays(month, year);
   const earnedDays = Number(summary?.total_work_days || 0);
   const pctEarned = stdDays > 0 ? Math.min(100, Math.round((earnedDays / stdDays) * 100)) : 0;
 
@@ -275,12 +186,15 @@ export default function WorkerHistoryTab({
           {/* Card 1: Tổng công */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col justify-between">
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tổng công</span>
-            <div className="my-1 flex items-baseline gap-1 font-mono">
+            <div className="my-1 flex flex-wrap items-baseline gap-1 font-mono">
               <span className="text-xl font-black text-[#111C2D] dark:text-white">
                 {formatViWorkday(earnedDays)}
               </span>
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                / {formatViWorkday(stdDays)}
+              <span
+                data-testid="worker-history-std-days"
+                className="text-xs font-bold text-slate-500 dark:text-slate-400"
+              >
+                / {formatViWorkday(stdDays)} ngày chuẩn
               </span>
             </div>
             <div className="inline-flex items-center gap-1 text-xs font-bold text-[#16A34A] dark:text-emerald-300">
@@ -374,14 +288,22 @@ export default function WorkerHistoryTab({
                 <button
                   key={cell.key}
                   type="button"
+                  data-testid={`worker-heatmap-cell-${cell.isoDate}`}
+                  data-heatmap-color={cell.style.colorName}
                   onClick={() => setSelectedDayDetail(cell)}
                   aria-label={`Ngày ${cell.dayNum} tháng ${month}: ${cell.style.badgeText}`}
                   className={`min-h-[48px] py-1 px-0.5 rounded-xl border flex flex-col items-center justify-center relative transition active:scale-95 cursor-pointer ${
                     cell.style.cellClass
                   } ${cell.isToday ? "ring-2 ring-[#E11D48] dark:ring-rose-400" : ""}`}
                 >
+                  {cell.style.hasLateOrEarly && (
+                    <span
+                      aria-label="Có ghi chú vào muộn hoặc ra sớm"
+                      className="absolute top-1 right-1 w-2 h-2 rounded-full bg-orange-500"
+                    />
+                  )}
                   <span className="text-xs font-black leading-none">{cell.dayNum}</span>
-                  <span className="text-xs font-extrabold leading-tight mt-0.5">
+                  <span className="text-xs font-extrabold leading-tight mt-0.5 font-mono">
                     {cell.style.shortCode || "·"}
                   </span>
                 </button>
@@ -395,27 +317,27 @@ export default function WorkerHistoryTab({
           <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
         </div>
 
-        {/* 7-Symbol Legend Bar */}
+        {/* Unified Heatmap Legend matching SalarySlipModal */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-          <span className="inline-flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-[#16A34A] dark:text-emerald-300 font-black">1</span>
-            <span>Đủ công</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+            <span>Đủ công / Lễ / OT</span>
           </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-black">0,5</span>
-            <span>Nửa công</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0" />
+            <span>0,5 / Phép (P)</span>
           </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-black">P/L</span>
-            <span>Phép / Lễ</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0" />
+            <span>Vào muộn / Ra sớm</span>
           </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-[#0051CA] dark:text-blue-300 font-black">OT</span>
-            <span>Tăng ca</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+            <span>Vắng / KP</span>
           </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-[#E11D48] dark:text-rose-300 font-black">V/KP</span>
-            <span>Vắng</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0" />
+            <span>Chủ nhật / Chưa tới</span>
           </span>
         </div>
       </div>

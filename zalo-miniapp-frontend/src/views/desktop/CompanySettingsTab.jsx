@@ -14,10 +14,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Building2,
+  CalendarDays,
 } from "lucide-react";
 import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
 import { zmpAdapter } from "../../adapters/zmp/sdkAdapter";
 import { formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
+import { getMonthlyStandardWorkdays, getVietnamTodayIso } from "../../utils/workdayUtils";
 import { AppButton, FormRow, SkeletonList } from "../../components/ui";
 
 const toNum = (val, fallback) => {
@@ -284,7 +286,6 @@ export default function CompanySettingsTab({ showToast }) {
         late_penalty_per_minute: Math.max(0, toNum(config.late_penalty_per_minute ?? config.penalty_per_minute, 2000)),
         late_penalty_amount: Math.max(0, toNum(config.late_penalty_amount ?? config.penalty_fixed_block, 50000)),
         max_late_minutes_for_half_day: Math.max(1, Math.round(toNum(config.max_late_minutes_for_half_day, 60))),
-        standard_work_days: Math.max(1, toNum(config.standard_work_days, 26)),
         probation_salary_percent: Math.min(100, Math.max(0, toNum(config.probation_salary_percent, 85))),
         probation_allowance_full: config.probation_allowance_full === 0 || config.probation_allowance_full === false || String(config.probation_allowance_full) === "0" ? 0 : 1,
         ot_rate_weekday: Math.max(0, toNum(config.ot_rate_weekday, 1.5)),
@@ -740,7 +741,7 @@ export default function CompanySettingsTab({ showToast }) {
       <AccordionSection
         id="payroll"
         title="3. Quy tắc tính công, Tăng ca & Bảo hiểm"
-        subtitle={`Công chuẩn ${config.standard_work_days || 26} ngày • Phép tháng ${config.monthly_paid_leave_limit ?? 1} lượt • Bảo hiểm ${config.insurance_rate ?? 10.5}%`}
+        subtitle={`Công chuẩn tự động theo tháng (${getMonthlyStandardWorkdays()} ngày) • Phép tháng ${config.monthly_paid_leave_limit ?? 1} lượt • Bảo hiểm ${config.insurance_rate ?? 10.5}%`}
         icon={Calculator}
         iconColor="text-[#E11D48] dark:text-rose-300"
         iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
@@ -748,18 +749,17 @@ export default function CompanySettingsTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Số ngày công chuẩn trong tháng
-            </label>
-            <input
-              type="number"
-              min="1"
-              step="0.5"
-              value={config.standard_work_days ?? 26}
-              onChange={(e) => updateField("standard_work_days", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
+          <div
+            data-testid="auto-standard-workdays-note"
+            className="p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 space-y-1"
+          >
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-blue-900 dark:text-blue-200">
+              <CalendarDays className="w-4 h-4 text-blue-600 dark:text-blue-300 shrink-0" />
+              <span>Công chuẩn tự động theo tháng</span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Ngày công chuẩn được hệ thống tự động tính theo từng tháng (Tổng số ngày trong tháng trừ Chủ nhật) — hiện tại Tháng {Number(getVietnamTodayIso().slice(5, 7))}/{Number(getVietnamTodayIso().slice(0, 4))}: <strong>{getMonthlyStandardWorkdays()} ngày</strong>.
+            </p>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">

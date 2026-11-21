@@ -40,6 +40,12 @@ class PayrollController {
         try {
             const month = req.body?.month || req.query?.month;
             const year = req.body?.year || req.query?.year;
+            await payrollService.autoResolveSalaryDisputes({
+                month,
+                year,
+                resolved_note: `Quản trị viên / Kế toán đã tính toán lại bảng lương Tháng ${month}/${year}`,
+                current_user: req.user
+            }).catch(() => {});
             const data = await payrollService.calculateMonthlyPayroll(month, year, { exportAll: true });
             return res.json({ success: true, message: 'Tính toán bảng lương thành công!', data });
         } catch (err) {

@@ -804,8 +804,8 @@ class RequestService {
                 if (isSalaryAdvance) {
                     const advAmt = Math.max(0, Math.round(Number(row.advance_amount) || 0));
                     if (advAmt > 0) {
-                        const csRows = await txQuery('SELECT standard_work_days FROM company_settings LIMIT 1').catch(() => []);
-                        const stdDays = (csRows && csRows[0] && Number(csRows[0].standard_work_days)) || 26;
+                        const { getMonthlyStandardWorkdays } = require('../utils/timeHelper');
+                        const stdDays = getMonthlyStandardWorkdays(month, year);
                         await txQuery(
                             `INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, advance_deduction, adjustment_note)
                              VALUES (?, ?, ?, ?, ?, ?)

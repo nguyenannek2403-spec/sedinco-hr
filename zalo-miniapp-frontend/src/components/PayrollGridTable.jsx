@@ -37,6 +37,7 @@ import {
   formatViWorkday,
   parseViNumberInput
 } from "../utils/viNumberFormat";
+import { getMonthlyStandardWorkdays } from "../utils/workdayUtils";
 
 export default function PayrollGridTable({
   payrollData,
@@ -98,6 +99,57 @@ export default function PayrollGridTable({
   const [sendingAllReports, setSendingAllReports] = useState(false);
   const [sendingReportId, setSendingReportId] = useState(null);
   const [unconfirmedWarnItem, setUnconfirmedWarnItem] = useState(null);
+  const [resolvingDisputeId, setResolvingDisputeId] = useState(null);
+
+  const handleQuickResolveDispute = async (dItem) => {
+    const dId = dItem?.ma_nv || dItem?.id_nhan_vien;
+    if (!dId || resolvingDisputeId) return;
+    setResolvingDisputeId(dId);
+    try {
+      const targetMonth = Number(dItem?.thang || month);
+      const targetYear = Number(dItem?.nam || year);
+      const res = await safePost(
+        "/payroll/resolve-dispute",
+        {
+          ma_nv: dId,
+          month: targetMonth,
+          year: targetYear,
+          status: "RESOLVED",
+          admin_response: "Quản trị viên đã kiểm tra và đánh dấu đã giải quyết"
+        },
+        { idempotencyKey: generateIdempotencyKey("pay_quick_resolve") }
+      );
+      if (res?.success) {
+        const patch = {
+          dispute_status: "RESOLVED",
+          salary_confirm_status: res.salary_confirm_status || "CONFIRMED",
+          payout_status:
+            dItem.payout_status === "PAID" || dItem.employee_payment_status === "PAID"
+              ? "PAID"
+              : res.salary_confirm_status || "CONFIRMED",
+          dispute_reason: null,
+          dispute_note: null,
+          dispute_evidence_media: null,
+          admin_response: null
+        };
+        setInternalPayroll((prev) =>
+          prev.map((row) => ((row.ma_nv || row.id_nhan_vien) === dId ? { ...row, ...patch } : row))
+        );
+        setSelectedSlipItem((prev) =>
+          prev && (prev.ma_nv || prev.id_nhan_vien) === dId ? { ...prev, ...patch } : prev
+        );
+        if (notify) notify(res.message || `Đã giải quyết khiếu nại của ${dItem.ho_ten || dId}!`, "success");
+        await fetchPayrollFromApi();
+        if (onRefresh) onRefresh();
+      } else if (notify) {
+        notify(res?.message || "Không thể đánh dấu đã giải quyết.", "error");
+      }
+    } catch (err) {
+      if (notify) notify(err?.message || "Lỗi kết nối máy chủ khi xử lý khiếu nại.", "error");
+    } finally {
+      setResolvingDisputeId(null);
+    }
+  };
 
   const toggleDailyLogsRow = (empId) => {
     setExpandedDailyLogs((prev) => ({ ...prev, [empId]: !prev[empId] }));
@@ -112,7 +164,7 @@ export default function PayrollGridTable({
       row.payment_status === "PAID";
     if (isPaidRow) return "PAID";
     if (rawPayout === "CONFIRMED" || row.salary_confirm_status === "CONFIRMED") return "CONFIRMED";
-    if (rawPayout === "DISPUTED" || row.salary_confirm_status === "DISPUTED") return "DISPUTED";
+    if (row.dispute_status !== "RESOLVED" && (rawPayout === "DISPUTED" || row.salary_confirm_status === "DISPUTED")) return "DISPUTED";
     if (rawPayout === "REPORT_SENT") return "REPORT_SENT";
     return "DRAFT";
   };
@@ -497,6 +549,9 @@ export default function PayrollGridTable({
 
   // Loại trừ tuyệt đối tài khoản Admin khỏi danh sách tính lương & đếm tổng nhân sự hợp lệ
   const payrollEmployees = (sourceList || []).filter((item) => item && item.role !== "admin");
+  const openDisputes = payrollEmployees.filter(
+    (item) => item.dispute_status === "OPEN" || getEffectivePayoutStatus(item) === "DISPUTED"
+  );
   const totalEmployeesCount = payrollEmployees.length;
   const normalizedSearchQuery = normalizeSearchText(searchQuery);
   const isFiltering = Boolean(normalizedSearchQuery) || selectedDepartment !== "ALL";
@@ -900,6 +955,67 @@ export default function PayrollGridTable({
           </div>
         )}
 
+        {/* Danh sách Khiếu nại sai lệch lương/công đang mở của kỳ xem */}
+        {openDisputes.length > 0 && (
+          <div
+            data-testid="payroll-open-disputes-banner"
+            className="mx-3.5 sm:mx-4 mt-4 p-3.5 bg-rose-50/90 dark:bg-rose-950/50 border-2 border-rose-300 dark:border-rose-700 rounded-2xl space-y-2.5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-rose-900 dark:text-rose-200 font-extrabold text-xs sm:text-sm">
+                <AlertTriangle size={16} className="text-rose-600 dark:text-rose-300 shrink-0" />
+                <span>
+                  Báo cáo sai lệch lương / công cần kiểm tra — Tháng {month}/{year} ({openDisputes.length})
+                </span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {openDisputes.map((dItem) => {
+                const dId = dItem.ma_nv || dItem.id_nhan_vien;
+                return (
+                  <div
+                    key={dId}
+                    data-testid={`payroll-dispute-row-${dId}`}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800/70"
+                  >
+                    <div className="min-w-0 text-xs space-y-0.5">
+                      <div className="font-bold text-slate-900 dark:text-white">
+                        {dItem.ho_ten || dId} <span className="font-mono text-[#E11D48] dark:text-rose-300">({dId})</span>
+                      </div>
+                      <p className="text-slate-600 dark:text-slate-300 break-words">
+                        {dItem.dispute_reason || dItem.dispute_note || "Nhân viên báo cáo sai lệch số liệu lương/công"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <AppButton
+                        variant="secondary"
+                        icon={Eye}
+                        onClick={() => setSelectedSlipItem(dItem)}
+                        className="text-xs px-2.5 py-1.5"
+                      >
+                        Xem phiếu
+                      </AppButton>
+                      {(isAdmin || canApprovePayroll || canCalculatePayroll) && (
+                        <AppButton
+                          variant="success"
+                          icon={CheckCircle2}
+                          loading={resolvingDisputeId === dId}
+                          disabled={Boolean(resolvingDisputeId)}
+                          data-testid={`payroll-resolve-dispute-btn-${dId}`}
+                          onClick={() => handleQuickResolveDispute(dItem)}
+                          className="text-xs px-3 py-1.5"
+                        >
+                          ✓ Đã giải quyết
+                        </AppButton>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Thông báo khi kỳ lương bật hiển thị số dư thực lĩnh âm */}
         {filteredList.some(item => Number(item.netSalary) < 0) && (
           <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/60 border-2 border-amber-300 dark:border-amber-700 rounded-xl text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between">
@@ -933,6 +1049,7 @@ export default function PayrollGridTable({
               filteredList.map((item, idx) => {
                 const empId = item.ma_nv || item.id_nhan_vien;
                 const confirmStatus = item.salary_confirm_status || "PENDING";
+                const isRowDisputed = item.dispute_status === "OPEN" || (item.dispute_status !== "RESOLVED" && confirmStatus === "DISPUTED");
                 const b = item.allowances_breakdown || {};
                 const detailedAllowanceDefs = [
                   { key: "an_trua", alt: "an_ca", label: "Ăn trưa" },
@@ -960,14 +1077,14 @@ export default function PayrollGridTable({
                 const debtAmt = Number(item.carryOverDebt || item.carry_over_debt) || 0;
                 const dailyLogs = Array.isArray(item.daily_logs) ? item.daily_logs : [];
                 const isExpanded = Boolean(expandedDailyLogs[empId]);
-                const unitWage = item.unitDailyWage || Math.round((Number(item.baseSalary) || 0) / (Number(item.standardWorkDays) || 26));
+                const unitWage = item.unitDailyWage || Math.round((Number(item.baseSalary) || 0) / (Number(item.standardWorkDays) || getMonthlyStandardWorkdays(item.thang || month, item.nam || year)));
 
                 return (
                   <div
                     key={empId || idx}
                     data-testid={`detailed-payroll-card-${empId}`}
                     className={`rounded-2xl border p-4 sm:p-5 space-y-4 shadow-sm ${
-                      confirmStatus === "DISPUTED"
+                      isRowDisputed
                         ? "bg-rose-50/70 dark:bg-rose-950/35 border-rose-300 dark:border-rose-700"
                         : "bg-slate-50/60 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
                     }`}
@@ -1024,7 +1141,7 @@ export default function PayrollGridTable({
                         <div className="flex justify-between gap-2">
                           <span className="text-slate-600 dark:text-slate-300">Công chuẩn / Đơn giá:</span>
                           <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                            {formatViWorkday(item.standardWorkDays || 26)} / {formatViCurrency(unitWage)}
+                            {formatViWorkday(item.standardWorkDays || getMonthlyStandardWorkdays(item.thang || month, item.nam || year))} / {formatViCurrency(unitWage)}
                           </span>
                         </div>
                         <div className="flex justify-between gap-2">
@@ -1255,6 +1372,7 @@ export default function PayrollGridTable({
             filteredList.map((item, idx) => {
               const empId = item.ma_nv || item.id_nhan_vien;
               const confirmStatus = item.salary_confirm_status || "PENDING";
+              const isRowDisputed = item.dispute_status === "OPEN" || (item.dispute_status !== "RESOLVED" && confirmStatus === "DISPUTED");
               const bonusAmt = Number(item.bonusAmount) || 0;
               const penaltyAmt = Number(item.penaltyAmount) || 0;
               const advAmt = Number(item.advanceDeduction) || 0;
@@ -1262,7 +1380,7 @@ export default function PayrollGridTable({
                 <div
                   key={empId || idx}
                   className={`perf-list-item rounded-2xl border p-4 space-y-2.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] ${
-                    confirmStatus === "DISPUTED"
+                    isRowDisputed
                       ? "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700"
                       : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800"
                   }`}
@@ -1374,7 +1492,7 @@ export default function PayrollGridTable({
                       onClick={() => setSelectedSlipItem(item)}
                       className="flex-1 min-w-[110px] text-xs"
                     >
-                      {confirmStatus === "DISPUTED" ? "Xem khiếu nại" : "Chi tiết"}
+                      {isRowDisputed ? "Xem khiếu nại" : "Chi tiết"}
                     </AppButton>
                   </div>
                 </div>
@@ -1424,6 +1542,7 @@ export default function PayrollGridTable({
                 filteredList.map((item, idx) => {
                   const empId = item.ma_nv || item.id_nhan_vien;
                   const confirmStatus = item.salary_confirm_status || "PENDING";
+                  const isRowDisputed = item.dispute_status === "OPEN" || (item.dispute_status !== "RESOLVED" && confirmStatus === "DISPUTED");
                   const bonusAmt = Number(item.bonusAmount) || 0;
                   const penaltyAmt = Number(item.penaltyAmount) || 0;
                   const advAmt = Number(item.advanceDeduction) || 0;
@@ -1432,14 +1551,14 @@ export default function PayrollGridTable({
                     <tr
                       key={empId || idx}
                       className={`group transition-colors ${
-                        confirmStatus === "DISPUTED"
+                        isRowDisputed
                           ? "bg-rose-50 hover:bg-rose-100 dark:bg-[#2a1219] dark:hover:bg-[#381822]"
                           : "bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800"
                       }`}
                     >
                       <td
                         className={`p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 z-10 min-w-[160px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)] ${
-                          confirmStatus === "DISPUTED"
+                          isRowDisputed
                             ? "bg-rose-50 group-hover:bg-rose-100 dark:bg-[#2a1219] dark:group-hover:bg-[#381822]"
                             : "bg-white group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800"
                         }`}

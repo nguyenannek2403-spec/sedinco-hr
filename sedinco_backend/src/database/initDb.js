@@ -479,6 +479,29 @@ async function initDatabase() {
         await query("ALTER TABLE attendance ADD COLUMN dispute_note TEXT NULL").catch(() => {});
         await query("ALTER TABLE attendance ADD COLUMN transfer_note VARCHAR(255) NULL").catch(() => {});
 
+        // V46: Vòng đời xử lý & tự động dọn dẹp khiếu nại lương/công (OPEN -> RESOLVED)
+        await query("ALTER TABLE attendance ADD COLUMN dispute_status VARCHAR(20) NULL").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN dispute_resolved_at DATETIME NULL").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN dispute_resolved_note VARCHAR(255) NULL").catch(() => {});
+        await query(`
+            UPDATE attendance
+            SET dispute_status = 'OPEN'
+            WHERE (salary_confirm_status = 'DISPUTED' OR payout_status = 'DISPUTED')
+              AND (dispute_status IS NULL OR dispute_status = '')
+        `).catch(() => {});
+        await query(`
+            UPDATE attendance
+            SET dispute_status = 'RESOLVED',
+                dispute_resolved_at = COALESCE(dispute_resolved_at, confirmed_at, NOW()),
+                dispute_resolved_note = COALESCE(dispute_resolved_note, NULLIF(admin_response, ''), 'Đã kiểm tra và xử lý xong'),
+                dispute_reason = NULL,
+                dispute_note = NULL,
+                dispute_evidence_media = NULL
+            WHERE salary_confirm_status != 'DISPUTED'
+              AND (payout_status IS NULL OR payout_status != 'DISPUTED')
+              AND (dispute_reason IS NOT NULL OR dispute_note IS NOT NULL OR dispute_status = 'OPEN')
+        `).catch(() => {});
+
         // V18: Account Phone/Custom Username & Persistent Theme Preference + Cleanup Legacy Multi-Model Device Names
         await query("ALTER TABLE employees ADD COLUMN phone VARCHAR(30) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN login_username VARCHAR(100) NULL").catch(() => {});

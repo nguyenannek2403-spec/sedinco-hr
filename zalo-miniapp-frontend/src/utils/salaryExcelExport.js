@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { formatViCurrency, formatViWorkday, formatViNumber } from "./viNumberFormat";
 import { formatDayWithWeekday, getPositiveAllowances, resolveLogNote } from "./payslipHelpers";
+import { getMonthlyStandardWorkdays } from "./workdayUtils";
 
 function sanitizeSheetCell(val) {
   if (typeof val === "number") return val;
@@ -98,7 +99,7 @@ export function buildEmployeeSalaryWorkbook(item, { month, year, dailyRows = nul
     ["Bộ phận", sanitizeSheetCell(item.department || "Khối Công trình")],
     [
       "Ngày công thực tế / chuẩn",
-      `${formatViWorkday(item.totalWorkDays || 0)} / ${formatViWorkday(item.standardWorkDays || item.standardDays || 26)} công`
+      `${formatViWorkday(item.totalWorkDays || 0)} / ${formatViWorkday(item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(m, y))} công`
     ],
     ["Tổng giờ tăng ca (OT)", `${formatViNumber(item.totalOtHours || 0)} giờ`],
     [],

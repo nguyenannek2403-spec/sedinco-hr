@@ -19,6 +19,7 @@ import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { useDebouncedValue } from "../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
 import { formatViWorkday } from "../utils/viNumberFormat";
+import { getMonthlyStandardWorkdays, getVietnamTodayIso, isSundayDay } from "../utils/workdayUtils";
 import PeriodLockModal from "./PeriodLockModal";
 import { ROLES, hasPermission } from "../constants/roles";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "./ui";
@@ -66,7 +67,7 @@ export default function AttendanceMatrixTable({
   const [showProxyModal, setShowProxyModal] = useState(false);
   const [proxyForm, setProxyForm] = useState({
     ma_nv: "",
-    record_date: new Date().toISOString().slice(0, 10),
+    record_date: getVietnamTodayIso(),
     check_in_time: "08:00",
     check_out_time: "17:30",
     work_location_type: "OFFICE",
@@ -128,9 +129,10 @@ export default function AttendanceMatrixTable({
     (effectiveRole !== ROLES.ACCOUNTANT || dynamicPerms?.attendance_lock === true);
   const canUnlockPeriod = hasPermission(effectiveRole, "canUnlockPeriod");
 
-  // Số ngày trong tháng
-  const daysInMonth = new Date(year, month, 0).getDate();
+  // Số ngày trong tháng & Số ngày công chuẩn tự động (trừ Chủ nhật)
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const dayNumbers = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const stdWorkdays = getMonthlyStandardWorkdays(month, year);
 
   const sourceList = Array.isArray(attendanceData) ? attendanceData : internalData;
 
@@ -158,7 +160,7 @@ export default function AttendanceMatrixTable({
     const firstValid = (sourceList || []).find((e) => e.ma_nv !== currentUser?.ma_nv) || sourceList[0];
     setProxyForm({
       ma_nv: firstValid?.ma_nv || "",
-      record_date: new Date().toISOString().slice(0, 10),
+      record_date: getVietnamTodayIso(),
       check_in_time: "08:00",
       check_out_time: "17:30",
       work_location_type: "OFFICE",
@@ -419,6 +421,13 @@ export default function AttendanceMatrixTable({
             </button>
           </div>
 
+          <span
+            data-testid="matrix-standard-workdays-badge"
+            className="min-h-[40px] inline-flex items-center px-3 py-1.5 rounded-xl bg-[#FFE4E6] dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70 text-xs font-extrabold text-[#B80035] dark:text-rose-200 whitespace-nowrap"
+          >
+            Công chuẩn tháng {month}/{year}: {stdWorkdays} ngày
+          </span>
+
           {/* Lọc bộ phận */}
           <select
             value={selectedDepartment}
@@ -542,10 +551,15 @@ export default function AttendanceMatrixTable({
               const countP = days.filter((d) => d === "P").length;
               const countOT = days.filter((d) => String(d).includes("OT")).length;
               const countKP = days.filter((d) => d === "KP" || d === "KL").length;
-              const recent7Days = dayNumbers.slice(0, 7).map((dNum) => ({
-                dayNum: dNum,
-                val: days[dNum - 1] || "·"
-              }));
+              const recent7Days = dayNumbers.slice(0, 7).map((dNum) => {
+                const rawVal = days[dNum - 1] || "";
+                const displayVal = rawVal || (isSundayDay(dNum, month, year) ? "CN" : "·");
+                return {
+                  dayNum: dNum,
+                  val: displayVal,
+                  isSunday: isSundayDay(dNum, month, year)
+                };
+              });
 
               return (
                 <button
@@ -571,7 +585,7 @@ export default function AttendanceMatrixTable({
                       </div>
                     </div>
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-rose-500/15 text-xs font-extrabold text-[#E11D48] dark:text-rose-300 shrink-0 font-mono">
-                      {formatViWorkday(totalWorkDays)} / {daysInMonth}
+                      {formatViWorkday(totalWorkDays)} / {stdWorkdays}
                       <ChevronRight size={14} />
                     </span>
                   </div>
@@ -630,8 +644,8 @@ export default function AttendanceMatrixTable({
                 Nhân Sự
               </th>
               {dayNumbers.map(d => {
-                const dayOfWeek = new Date(year, month - 1, d).getDay();
-                const isSunday = dayOfWeek === 0;
+                const utcDow = new Date(Date.UTC(year, month - 1, d)).getUTCDay();
+                const isSunday = utcDow === 0;
                 return (
                   <th
                     key={d}
@@ -641,7 +655,7 @@ export default function AttendanceMatrixTable({
                   >
                     <div className="text-sm font-black">{d}</div>
                     <span className="text-xs font-bold text-slate-500 dark:text-slate-300 block">
-                      {isSunday ? "CN" : `T${dayOfWeek + 1}`}
+                      {isSunday ? "CN" : `T${utcDow + 1}`}
                     </span>
                   </th>
                 );
@@ -702,8 +716,12 @@ export default function AttendanceMatrixTable({
                             (Number(detail.early_leave_minutes) || 0) > 0 ||
                             /vào muộn|ra sớm|quên check-out|quá ngắn/i.test(detail.attendance_note || ""))
                       );
-                      const badgeClass = getBadgeStyle(val);
-                      const isSunday = new Date(year, month - 1, d).getDay() === 0;
+                      const isSunday = isSundayDay(d, month, year);
+                      const badgeClass = val
+                        ? getBadgeStyle(val)
+                        : isSunday
+                        ? "text-rose-600 dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/60 bg-rose-50/70 dark:bg-rose-950/40 font-bold"
+                        : getBadgeStyle("");
 
                       return (
                         <td
@@ -715,11 +733,11 @@ export default function AttendanceMatrixTable({
                           <button
                             type="button"
                             onClick={() => handleCellClick(emp, dIdx)}
-                            title={`Ngày ${d}/${month}: ${val || "Chưa có công"}${detail?.attendance_note ? ` • ${detail.attendance_note}` : ""} (Nhấp để sửa)`}
-                            aria-label={`${emp.ho_ten} ngày ${d}/${month}: ${val || "Chưa có công"}${detail?.attendance_note ? `, ${detail.attendance_note}` : ""}`}
+                            title={`Ngày ${d}/${month}: ${val || (isSunday ? "Nghỉ cuối tuần (CN)" : "Chưa có công")}${detail?.attendance_note ? ` • ${detail.attendance_note}` : ""} (Nhấp để sửa)`}
+                            aria-label={`${emp.ho_ten} ngày ${d}/${month}: ${val || (isSunday ? "Chủ nhật nghỉ tuần" : "Chưa có công")}${detail?.attendance_note ? `, ${detail.attendance_note}` : ""}`}
                             className={`relative min-w-[44px] min-h-[44px] px-1 mx-auto rounded-xl flex items-center justify-center text-xs font-black shadow-none active:scale-95 transition cursor-pointer ${badgeClass}`}
                           >
-                            {val || "·"}
+                            {val || (isSunday ? "CN" : "·")}
                             {hasLateEarly && (
                               <span
                                 aria-hidden="true"
