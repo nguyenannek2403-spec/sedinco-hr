@@ -9,10 +9,9 @@ import {
   Key,
   AlertCircle,
   AlertTriangle,
-  Clock,
   Copy,
   Building2,
-  Edit3,
+  Eye,
   Smartphone,
   ShieldCheck,
   CheckCircle2,
@@ -844,7 +843,7 @@ export default function EmployeeManagementTab({
         </div>
       </div>
 
-      {/* 3. Danh Sách Thẻ Nhân Viên Trực Quan */}
+      {/* 3. Danh Sách Nhân Viên Tối Giản (V35 Minimalist Directory) */}
       {loading ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
           <SkeletonList rows={4} label="Đang tải danh sách nhân sự..." />
@@ -859,200 +858,47 @@ export default function EmployeeManagementTab({
           <EmptyState icon={Users} title="Không tìm thấy nhân viên nào khớp với bộ lọc." />
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filtered.map((emp) => {
-            const isLocked = Boolean(emp.is_locked || emp.status === "inactive");
-            const devSummary = getEmployeeDeviceSummary(emp);
-            const todayBadge = getEmployeeTodayBadge(emp.ma_nv);
-            const displayPhone = emp.phone || emp.dien_thoai;
-            const displayLogin = emp.login_username || displayPhone || emp.ma_nv;
-
-            const empInitial = String(emp.ho_ten || emp.ma_nv || "N")
-              .trim()
-              .split(/\s+/)
-              .slice(-1)[0]?.[0]
-              ?.toUpperCase() || "N";
+            const empInitial =
+              String(emp.ho_ten || emp.ma_nv || "N")
+                .trim()
+                .split(/\s+/)
+                .slice(-1)[0]?.[0]
+                ?.toUpperCase() || "N";
 
             return (
               <div
                 key={emp.ma_nv}
-                className={`perf-list-item bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden shadow-sm transition ${
-                  devSummary.hasAnyAlert
-                    ? "border-2 border-[#E11D48] dark:border-rose-500"
-                    : "border-slate-200/80 dark:border-slate-800"
-                }`}
+                data-testid={`employee-row-${emp.ma_nv}`}
+                className="perf-list-item bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-500/40 rounded-2xl px-4 py-3 shadow-sm transition flex items-center justify-between gap-3"
               >
-                {/* STITCH ADMIN SCREEN 1 — GRADIENT CRIMSON TOP ALERT RIBBON ON DEVICE CONFLICT CARDS */}
-                {devSummary.hasAnyAlert && (
-                  <div className="bg-gradient-to-r from-[#B80035] to-[#E11D48] text-white px-4 py-2.5 flex items-center justify-between gap-2 text-xs font-extrabold">
-                    <div className="min-w-0">
-                      <span className="inline-flex items-center gap-1.5 uppercase tracking-wider">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                        <span>
-                          {devSummary.hasMultiAlert ? "CẢNH BÁO XUNG ĐỘT THIẾT BỊ" : "YÊU CẦU ĐỔI THIẾT BỊ MỚI"}
-                        </span>
-                      </span>
-                      <span className="block text-xs text-rose-100 font-semibold mt-0.5">
-                        {devSummary.hasMultiAlert ? "Phát hiện 2 máy cùng điểm danh đồng thời" : "Nhân viên đề xuất liên kết điện thoại mới"}
-                      </span>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#B80035] font-extrabold shrink-0 whitespace-nowrap">
-                      {devSummary.hasMultiAlert ? "Khẩn cấp" : "Chờ duyệt"}
-                    </span>
+                {/* Bên trái: Avatar tròn + Họ và tên in đậm + Mã NV nhỏ gọn */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-11 h-11 rounded-full bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-extrabold text-sm flex items-center justify-center shrink-0">
+                    {empInitial}
                   </div>
-                )}
-
-                <div className="p-4 space-y-3">
-                  {/* Header Card — Stitch Profile Row */}
-                  <div className="flex items-start justify-between gap-2.5">
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="w-11 h-11 rounded-2xl bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-extrabold text-sm flex items-center justify-center shrink-0">
-                        {empInitial}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="font-extrabold text-base text-[#111C2D] dark:text-white break-words leading-snug">
-                            {emp.ho_ten}
-                          </span>
-                          <span className="px-2.5 py-0.5 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#E11D48] dark:text-rose-300">
-                            {emp.ma_nv}
-                          </span>
-                          <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/35 text-indigo-700 dark:text-indigo-200 text-xs font-semibold">
-                            {ROLE_LABELS[emp.role] || "Nhân viên"}
-                          </span>
-                          {todayBadge && (
-                            <span className={`px-2.5 py-0.5 rounded-full border text-xs font-semibold ${todayBadge.cls}`}>
-                              {todayBadge.label}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">
-                          {emp.department || "Khối Công trình"} • {emp.chuc_danh || "Nhân viên"}
-                        </div>
-                      </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-extrabold text-base text-[#111C2D] dark:text-white truncate leading-snug">
+                      {emp.ho_ten}
                     </div>
-
-                    <StatusBadge type="employee" status={isLocked ? "locked" : "active"} />
-                  </div>
-
-                  {/* 2-Column Tactical Info Pod (#F0F3FF) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 text-xs">
-                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-mono font-semibold">
-                      <Phone className="w-3.5 h-3.5 text-[#16A34A] dark:text-emerald-400 shrink-0" />
-                      <span className="truncate">
-                        TK: {displayLogin}{displayPhone && displayPhone !== displayLogin ? ` (${displayPhone})` : ""}
-                      </span>
-                    </div>
-                    {emp.role !== "admin" ? (
-                      <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-medium">
-                        <Clock className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
-                        <span className="truncate">{getShiftWindowText(emp)}</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-semibold">
-                        <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                        <span>Điều hành hệ thống</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dòng 3: Hiển thị Thiết bị (chỉ áp dụng với Nhân viên & Kế toán, ẩn với Quản trị viên) */}
-                  {emp.role !== "admin" && (
-                    <div className="px-3 py-2.5 rounded-xl bg-emerald-50/75 dark:bg-slate-800/95 border border-emerald-200/80 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <span className="font-bold text-emerald-900 dark:text-emerald-200 break-words">
-                          📱 {devSummary.primaryLabel}
-                        </span>
-                      </div>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full font-semibold shrink-0 ${
-                          emp.device_binding_mode === "enforced"
-                            ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
-                            : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600"
-                        }`}
-                      >
-                        {emp.device_binding_mode === "enforced" ? "🔒 Khóa 1 máy" : "Ghi nhận"}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Băng cảnh báo đỏ nếu phát hiện >= 2 thiết bị dùng chung tài khoản hoặc yêu cầu đổi máy */}
-                  {devSummary.hasMultiAlert && (
-                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-500/70 text-xs text-rose-800 dark:text-rose-100 space-y-1">
-                      <div className="flex items-start gap-2 font-bold text-rose-900 dark:text-rose-200 leading-snug">
-                        <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-                        <span>
-                          Nguy cơ chấm công hộ! Phát hiện {Math.max(2, devSummary.known.length)} thiết bị dùng chung tài khoản:{" "}
-                          {devSummary.known.length >= 2
-                            ? devSummary.known
-                                .map((d) => `${sanitizeSingleDeviceModelName(d.device_name || UNKNOWN_DEVICE_LABEL)} (#${d.short_tag || computeDeviceShortTag(d.device_id)})`)
-                                .join(" & ")
-                            : "Đã ghi nhận đăng nhập từ máy thứ 2"}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {devSummary.hasPendingChange && (
-                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/65 border border-amber-300 dark:border-amber-500/60 text-xs text-amber-900 dark:text-amber-100 space-y-1">
-                      <div className="font-bold text-amber-950 dark:text-amber-200">
-                        📱 Yêu cầu đổi sang máy mới: {sanitizeSingleDeviceModelName(emp.pending_device_name || emp.pending_device_id)}
-                      </div>
-                      {emp.device_change_reason && (
-                        <div className="opacity-90">Lý do: {emp.device_change_reason}</div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Perforated Ticket Cutout Divider */}
-                  <div className="sedinco-ticket-cutout">
-                    <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
-                  </div>
-
-                  {/* Thanh Hành Động Nhanh trên Thẻ */}
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    {emp.role === "admin" ? (
-                      <span className="text-xs text-amber-700 dark:text-amber-300 font-semibold">
-                        🛡️ Quản trị điều hành (Không tính lương)
-                      </span>
-                    ) : (
-                      <span className="text-xs sm:text-sm text-[#111C2D] dark:text-slate-200 font-mono font-bold whitespace-nowrap">
-                        Lương CB: {formatViCurrency(emp.luong_cb || 0)}
-                      </span>
-                    )}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <AppButton
-                        variant={devSummary.hasAnyAlert ? "danger" : "primary"}
-                        icon={devSummary.hasAnyAlert ? ShieldCheck : Edit3}
-                        onClick={() => handleOpen360Modal(emp)}
-                        className="text-xs px-3.5 py-2"
-                      >
-                        {devSummary.hasAnyAlert
-                          ? "Xử lý thiết bị & 360°"
-                          : canEditEmployees
-                          ? "Hồ sơ 360°"
-                          : "Xem hồ sơ"}
-                      </AppButton>
-
-                      {isAdmin && emp.role !== "admin" && (
-                        <AppButton
-                          variant="secondary"
-                          icon={isLocked ? Unlock : Lock}
-                          onClick={() => handleToggleLock(emp)}
-                          aria-label={isLocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}
-                          className={`min-w-[44px] px-3 py-2 text-xs ${
-                            isLocked
-                              ? "!border-emerald-500/50 !text-emerald-700 dark:!text-emerald-300"
-                              : "!border-rose-500/50 !text-rose-700 dark:!text-rose-300"
-                          }`}
-                        >
-                          {isLocked ? "Mở khóa" : "Khóa"}
-                        </AppButton>
-                      )}
+                    <div className="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      {emp.ma_nv}
                     </div>
                   </div>
                 </div>
+
+                {/* Bên phải: Nút icon Con Mắt (44x44px, rounded-xl) mở Modal Chi tiết Nhân viên */}
+                <button
+                  type="button"
+                  onClick={() => handleOpen360Modal(emp)}
+                  aria-label="Xem chi tiết nhân viên"
+                  title="Xem chi tiết nhân viên"
+                  data-testid={`employee-eye-btn-${emp.ma_nv}`}
+                  className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-500/20 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] hover:text-[#E11D48] dark:text-slate-200 dark:hover:text-rose-300 flex items-center justify-center transition cursor-pointer shrink-0"
+                >
+                  <Eye className="w-5 h-5" />
+                </button>
               </div>
             );
           })}
@@ -1331,7 +1177,7 @@ export default function EmployeeManagementTab({
         </form>
       </AppModal>
 
-      {/* 4. MODAL DUY NHẤT: HỒ SƠ KIỂM SOÁT NHÂN SỰ 360° */}
+      {/* 4. MODAL CHI TIẾT NHÂN VIÊN (KHI BẤM ICON CON MẮT 👁️) */}
       <AppModal
         open={Boolean(detailEmp && detailForm)}
         onClose={() => {
@@ -1343,9 +1189,9 @@ export default function EmployeeManagementTab({
         disableClose={savingDetail || resolvingDevice}
         maxWidthClass="max-w-2xl"
         maxHeightClass="max-h-[92vh]"
-        title="Hồ Sơ Kiểm Soát Nhân Sự 360°"
+        title="Chi tiết Nhân viên"
         subtitle={detailEmp ? `${detailEmp.ho_ten} (${detailEmp.ma_nv})` : ""}
-        icon={<ShieldCheck className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />}
+        icon={<Eye className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />}
         footer={
           <div className="flex gap-2.5">
             <AppButton
@@ -1368,489 +1214,534 @@ export default function EmployeeManagementTab({
                 loadingText="Đang lưu..."
                 className="flex-1 shadow-lg shadow-rose-600/30"
               >
-                Lưu hồ sơ 360°
+                Lưu thay đổi
               </AppButton>
             )}
           </div>
         }
       >
-        {detailEmp && detailForm && detailDevSummary && (
-          <form
-            id="edit-employee-360-form"
-            onSubmit={handleSaveDetailModal}
-            className="p-4 sm:p-5 space-y-5"
-          >
-            {/* STITCH 360° EXECUTIVE PROFILE VOUCHER HEADER CARD */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2.5">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-12 h-12 rounded-2xl bg-[#FFE4E6] dark:bg-rose-500/20 border border-rose-200/80 dark:border-rose-500/40 text-[#B80035] dark:text-rose-300 font-extrabold text-base flex items-center justify-center shrink-0">
-                    {String(detailEmp.ho_ten || detailEmp.ma_nv || "N").trim().split(/\s+/).slice(-1)[0]?.[0]?.toUpperCase() || "N"}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-extrabold text-base text-[#111C2D] dark:text-white break-words">
-                        {detailEmp.ho_ten}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#E11D48] dark:text-rose-300">
-                        {detailEmp.ma_nv}
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">
-                      {detailEmp.department || "Khối Công trình"} • {detailEmp.chuc_danh || "Nhân viên"}
-                    </p>
-                  </div>
-                </div>
-                <StatusBadge type="employee" status={Boolean(detailEmp.is_locked || detailEmp.status === "inactive") ? "locked" : "active"} />
-              </div>
+        {detailEmp && detailForm && detailDevSummary && (() => {
+          const isDetailLocked = Boolean(detailEmp.is_locked || detailEmp.status === "inactive");
+          const detailTodayBadge = getEmployeeTodayBadge(detailEmp.ma_nv) || {
+            label: "⚪ Chưa chấm công",
+            cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600"
+          };
+          const detailDisplayPhone = detailForm.phone || detailEmp.phone || detailEmp.dien_thoai || "";
+          const detailDisplayLogin = detailForm.login_username || detailDisplayPhone || detailEmp.ma_nv;
 
-              {detailEmp.role !== "admin" && (
-                <>
-                  <div className="sedinco-ticket-cutout">
-                    <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="font-bold text-slate-700 dark:text-slate-200">
-                      📱 {detailDevSummary.primaryLabel}
+          return (
+            <form
+              id="edit-employee-360-form"
+              onSubmit={handleSaveDetailModal}
+              className="p-4 sm:p-5 space-y-4"
+            >
+              {/* NHÓM 1 — TRẠNG THÁI HIỆN TẠI */}
+              <section className="space-y-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-black text-[#E11D48] dark:text-rose-300 uppercase tracking-wider flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    <span>1. Trạng thái hiện tại</span>
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/35 text-indigo-700 dark:text-indigo-200 text-xs font-bold">
+                    {ROLE_LABELS[detailForm.role || detailEmp.role] || "Nhân viên"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Trạng thái tài khoản
                     </span>
-                    {canViewPayroll && (
-                      <AppButton
-                        data-testid="emp-360-payslip-btn"
-                        variant="success"
-                        icon={FileSpreadsheet}
-                        onClick={() => setPayslipEmp(detailEmp)}
-                        className="text-xs px-3.5 py-2"
-                      >
-                        Xem Lương &amp; Công chi tiết
-                      </AppButton>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* KHU VỰC 1: THÔNG TIN & CHẾ ĐỘ ĐÃI NGỘ */}
-            <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
-              <h3 className="text-sm font-black text-[#E11D48] dark:text-rose-300 uppercase tracking-wide flex items-center gap-2">
-                <Users className="w-4 h-4 shrink-0" />
-                <span>1. Thông tin &amp; Chế độ đãi ngộ</span>
-              </h3>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Họ và tên</label>
-                  <input
-                    type="text"
-                    required
-                    disabled={!canEditEmployees}
-                    value={detailForm.ho_ten}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, ho_ten: e.target.value }))}
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Chức danh</label>
-                  <input
-                    type="text"
-                    disabled={!canEditEmployees}
-                    value={detailForm.chuc_danh}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, chuc_danh: e.target.value }))}
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Số điện thoại</label>
-                  <input
-                    type="tel"
-                    disabled={!canEditEmployees}
-                    value={detailForm.phone}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, phone: e.target.value, dien_thoai: e.target.value }))}
-                    placeholder="09xx..."
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Tài khoản đăng nhập</label>
-                  <input
-                    type="text"
-                    disabled={!canEditEmployees}
-                    value={detailForm.login_username}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, login_username: e.target.value }))}
-                    placeholder="SĐT hoặc Mã NV"
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Khối / Bộ phận công tác</label>
-                  <select
-                    disabled={!canEditEmployees}
-                    value={detailForm.department}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, department: e.target.value }))}
-                    className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                  >
-                    {availableDepartments.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {detailEmp.role !== "admin" && (
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Quỹ phép năm (ngày)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={60}
-                      disabled={!canEditEmployees}
-                      value={detailForm.annual_leave_quota}
-                      onChange={(e) => setDetailForm((p) => ({ ...p, annual_leave_quota: Number(e.target.value) || 0 }))}
-                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Email</label>
-                <input
-                  type="email"
-                  disabled={!canEditEmployees}
-                  value={detailForm.email}
-                  onChange={(e) => setDetailForm((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="email@congty.vn"
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {detailEmp.role === "admin" ? (
-                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-500/40 text-xs sm:text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
-                  Tài khoản Quản trị viên chỉ dùng để điều hành hệ thống; không áp dụng bảng lương, phép năm, ca chấm công hay khóa thiết bị cá nhân.
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Lương cơ bản (đ)</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        disabled={!canEditEmployees}
-                        value={formatViNumber(detailForm.luong_cb || 0, 0)}
-                        onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
-                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-700 dark:text-emerald-300 disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp ăn trưa (đ)</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        disabled={!canEditEmployees}
-                        value={formatViNumber(detailForm.phu_cap_an_trua || 0, 0)}
-                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
-                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                      />
-                    </div>
+                    <StatusBadge type="employee" status={isDetailLocked ? "locked" : "active"} />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp xăng xe (đ)</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        disabled={!canEditEmployees}
-                        value={formatViNumber(detailForm.phu_cap_xang_xe || 0, 0)}
-                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
-                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp nhà ở / khác (đ)</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        disabled={!canEditEmployees}
-                        value={formatViNumber(detailForm.phu_cap_nha_o || 0, 0)}
-                        onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
-                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                  </div>
-
-                  <label className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      disabled={!canEditEmployees}
-                      checked={Boolean(detailForm.has_insurance)}
-                      onChange={(e) => setDetailForm((p) => ({ ...p, has_insurance: e.target.checked }))}
-                      className="w-5 h-5 rounded accent-[#E11D48] text-[#E11D48]"
-                    />
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                      Có tham gia đóng Bảo hiểm xã hội bắt buộc
+                  <div className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Điểm danh hôm nay
                     </span>
-                  </label>
-                </>
-              )}
-            </section>
-
-            {/* KHU VỰC 2: CA LÀM VIỆC & GIỜ RIÊNG */}
-            {detailEmp.role !== "admin" && (
-              <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wide flex items-center gap-2">
-                  <Clock className="w-4 h-4 shrink-0" />
-                  <span>2. Ca làm việc &amp; Giờ riêng</span>
-                </h3>
-                {canEditEmployees && (detailForm.custom_start_time || detailForm.custom_end_time) && (
-                  <AppButton
-                    variant="ghost"
-                    onClick={() => setDetailForm((p) => ({ ...p, custom_start_time: "", custom_end_time: "" }))}
-                    className="text-xs text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40 px-2.5 py-1.5"
-                  >
-                    Dùng giờ chuẩn
-                  </AppButton>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Ca làm việc chuẩn</label>
-                <select
-                  disabled={!canEditEmployees}
-                  value={detailForm.shift_type || "FULL_DAY"}
-                  onChange={(e) => setDetailForm((p) => ({ ...p, shift_type: e.target.value }))}
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
-                >
-                  {SHIFT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 overflow-hidden">
-                <FormRow label="Giờ vào ca riêng">
-                  <input
-                    type="time"
-                    disabled={!canEditEmployees}
-                    value={detailForm.custom_start_time || ""}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, custom_start_time: e.target.value }))}
-                    className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400"
-                  />
-                </FormRow>
-                <FormRow label="Giờ tan ca riêng">
-                  <input
-                    type="time"
-                    disabled={!canEditEmployees}
-                    value={detailForm.custom_end_time || ""}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, custom_end_time: e.target.value }))}
-                    className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500 dark:disabled:text-slate-400"
-                  />
-                </FormRow>
-              </div>
-            </section>
-            )}
-
-            {/* KHU VỰC 3: KIỂM SOÁT THIẾT BỊ & CHỐNG DÙNG CHUNG TÀI KHOẢN */}
-            {detailEmp.role !== "admin" && (
-            <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wide flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 shrink-0" />
-                  <span>3. Kiểm soát Thiết bị &amp; Chống dùng chung</span>
-                </h3>
-                <span
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-                    detailEmp.device_binding_mode === "enforced"
-                      ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
-                      : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
-                  }`}
-                >
-                  {detailEmp.device_binding_mode === "enforced" ? "🔒 Đang khóa cứng 1 máy" : "Chế độ ghi nhận cảnh báo"}
-                </span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm space-y-1">
-                <div className="text-slate-500 dark:text-slate-400 font-semibold">Thiết bị chính hiện tại:</div>
-                <div className="font-bold text-emerald-700 dark:text-emerald-300 break-words">
-                  📱 {detailDevSummary.primaryLabel}
-                </div>
-              </div>
-
-              {detailDevSummary.hasPendingChange && (
-                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-500/60 space-y-2.5 text-xs">
-                  <div className="font-bold text-amber-900 dark:text-amber-200">
-                    📱 Nhân viên yêu cầu đổi sang máy mới: {sanitizeSingleDeviceModelName(detailEmp.pending_device_name || detailEmp.pending_device_id)}
+                    <span className={`px-2.5 py-0.5 rounded-full border text-xs font-bold ${detailTodayBadge.cls}`}>
+                      {detailTodayBadge.label}
+                    </span>
                   </div>
-                  {detailEmp.device_change_reason && (
-                    <div className="text-amber-800 dark:text-amber-100">Lý do: {detailEmp.device_change_reason}</div>
-                  )}
-                  {isAdmin && (
-                    <div className="flex flex-wrap gap-2">
-                      <AppButton
-                        variant="success"
-                        icon={CheckCircle2}
-                        loading={resolvingDevice}
-                        onClick={() => handlePendingDeviceDecision(detailEmp, "approve")}
-                        className="flex-1 text-xs"
-                      >
-                        ✅ Duyệt đổi sang máy mới
-                      </AppButton>
-                      <AppButton
-                        variant="secondary"
-                        icon={XCircle}
-                        loading={resolvingDevice}
-                        onClick={() => handlePendingDeviceDecision(detailEmp, "reject")}
-                        className="text-xs !border-rose-500/40 !text-rose-700 dark:!text-rose-300"
-                      >
-                        Từ chối
-                      </AppButton>
-                    </div>
-                  )}
                 </div>
-              )}
 
-              {detailDevSummary.known.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    Lịch sử thiết bị đăng nhập ({detailDevSummary.known.length} máy):
-                  </div>
-                  {detailDevSummary.known.map((dev, idx) => {
-                    const tag = dev.short_tag || computeDeviceShortTag(dev.device_id);
-                    const isPrimary = dev.device_id === detailEmp.bound_device_id;
-                    return (
-                      <div
-                        key={dev.device_id || idx}
-                        className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 text-xs ${
-                          isPrimary
-                            ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/50 text-emerald-900 dark:text-emerald-100"
-                            : "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-500/50 text-rose-900 dark:text-rose-100"
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <div className="font-bold break-words">
-                            {formatEmployeeDeviceLabel(detailEmp.ho_ten, dev.device_name || UNKNOWN_DEVICE_LABEL, tag, true)}
-                            {isPrimary && (
-                              <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-200 dark:bg-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs">
-                                Máy chính
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-slate-600 dark:text-slate-300">
-                            Đăng nhập {dev.login_count || 1} lần {dev.ip ? `• IP: ${dev.ip}` : ""}
-                          </div>
-                        </div>
-                        {isAdmin && (
-                          <AppButton
-                            variant={isPrimary ? "primary" : "secondary"}
-                            loading={resolvingDevice}
-                            onClick={() => handleResolveDevices(detailEmp, "lock_primary", dev)}
-                            className="text-xs px-3 py-1.5 shrink-0"
-                          >
-                            Khóa chọn máy này
-                          </AppButton>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {isAdmin && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {detailDevSummary.primaryId && (
+                {isAdmin && detailEmp.role !== "admin" && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <label className="flex items-center gap-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(detailForm.keep_logs)}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, keep_logs: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-[#E11D48] text-[#E11D48]"
+                      />
+                      <span>Lưu giữ nhật ký hoạt động của nhân viên</span>
+                    </label>
                     <AppButton
-                      variant="danger"
-                      icon={Lock}
-                      loading={resolvingDevice}
-                      onClick={() => handleResolveDevices(detailEmp, "lock_primary")}
-                      className="flex-1 min-w-[200px] text-xs"
+                      variant="secondary"
+                      icon={isDetailLocked ? Unlock : Lock}
+                      onClick={() => handleToggleLock(detailEmp)}
+                      className={`text-xs px-3 py-1.5 ${
+                        isDetailLocked
+                          ? "!border-emerald-500/50 !text-emerald-700 dark:!text-emerald-300"
+                          : "!border-rose-500/50 !text-rose-700 dark:!text-rose-300"
+                      }`}
                     >
-                      🔒 Khóa cố định vào máy này &amp; Đăng xuất mọi máy khác
+                      {isDetailLocked ? "Mở khóa tài khoản" : "Tạm khóa tài khoản"}
                     </AppButton>
-                  )}
-                  <AppButton
-                    variant="secondary"
-                    icon={RotateCcw}
-                    loading={resolvingDevice}
-                    onClick={() => handleResolveDevices(detailEmp, "reset_devices")}
-                    className="text-xs"
-                  >
-                    🔄 Làm mới liên kết thiết bị
-                  </AppButton>
-                </div>
-              )}
-            </section>
-            )}
+                  </div>
+                )}
+              </section>
 
-            {/* KHU VỰC 4: QUYỀN HẠN & BẢO MẬT TÀI KHOẢN */}
-            {isAdmin && detailEmp.role !== "admin" && (
-              <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
-                <h3 className="text-sm font-black text-amber-700 dark:text-amber-300 uppercase tracking-wide flex items-center gap-2">
-                  <Key className="w-4 h-4 shrink-0" />
-                  <span>4. Quyền hạn &amp; Bảo mật tài khoản</span>
-                </h3>
+              {/* NHÓM 2 — CÔNG VIỆC & CA LÀM */}
+              <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-2">
+                    <Building2 className="w-4 h-4 shrink-0" />
+                    <span>2. Công việc &amp; Ca làm</span>
+                  </h3>
+                  {detailEmp.role !== "admin" && (
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      🕒 {getShiftWindowText({ ...detailEmp, ...detailForm })}
+                    </span>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Vai trò phân quyền</label>
-                    <select
-                      value={detailForm.role || "worker"}
-                      onChange={(e) => setDetailForm((p) => ({ ...p, role: e.target.value }))}
-                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white"
-                    >
-                      <option value="worker">Nhân viên</option>
-                      <option value="accountant">Kế toán</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Đặt lại mật khẩu mới (tùy chọn)</label>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Họ và tên</label>
                     <input
                       type="text"
-                      value={detailForm.new_password}
-                      onChange={(e) => setDetailForm((p) => ({ ...p, new_password: e.target.value }))}
-                      placeholder="Bỏ trống nếu giữ nguyên..."
-                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400"
+                      required
+                      disabled={!canEditEmployees}
+                      value={detailForm.ho_ten}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, ho_ten: e.target.value }))}
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Chức vụ</label>
+                    <input
+                      type="text"
+                      disabled={!canEditEmployees}
+                      value={detailForm.chuc_danh}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, chuc_danh: e.target.value }))}
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500"
                     />
                   </div>
                 </div>
 
-                <label className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(detailForm.keep_logs)}
-                    onChange={(e) => setDetailForm((p) => ({ ...p, keep_logs: e.target.checked }))}
-                    className="w-5 h-5 rounded accent-[#E11D48] text-[#E11D48]"
-                  />
-                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Lưu giữ toàn bộ nhật ký hoạt động của nhân viên này (không tự động dọn dẹp)
-                  </span>
-                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Khối / Bộ phận</label>
+                    <select
+                      disabled={!canEditEmployees}
+                      value={detailForm.department}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, department: e.target.value }))}
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500"
+                    >
+                      {availableDepartments.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {isAdmin && detailEmp.role !== "admin" && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Vai trò phân quyền</label>
+                      <select
+                        value={detailForm.role || "worker"}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, role: e.target.value }))}
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white"
+                      >
+                        <option value="worker">Nhân viên</option>
+                        <option value="accountant">Kế toán</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
 
-                <div className="pt-1">
-                  <AppButton
-                    variant="secondary"
-                    icon={Boolean(detailEmp.is_locked || detailEmp.status === "inactive") ? Unlock : Lock}
-                    onClick={() => handleToggleLock(detailEmp)}
-                    className="w-full text-xs !border-rose-500/40 !text-rose-700 dark:!text-rose-200"
-                  >
-                    {Boolean(detailEmp.is_locked || detailEmp.status === "inactive")
-                      ? "Mở khóa tài khoản nhân viên này"
-                      : "Tạm khóa tài khoản nhân viên này"}
-                  </AppButton>
+                {detailEmp.role !== "admin" && (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Ca làm việc chuẩn</label>
+                        {canEditEmployees && (detailForm.custom_start_time || detailForm.custom_end_time) && (
+                          <button
+                            type="button"
+                            onClick={() => setDetailForm((p) => ({ ...p, custom_start_time: "", custom_end_time: "" }))}
+                            className="text-xs font-bold text-amber-700 dark:text-amber-300 underline cursor-pointer"
+                          >
+                            Dùng giờ chuẩn
+                          </button>
+                        )}
+                      </div>
+                      <select
+                        disabled={!canEditEmployees}
+                        value={detailForm.shift_type || "FULL_DAY"}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, shift_type: e.target.value }))}
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500"
+                      >
+                        {SHIFT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 overflow-hidden">
+                      <FormRow label="Giờ vào ca riêng">
+                        <input
+                          type="time"
+                          disabled={!canEditEmployees}
+                          value={detailForm.custom_start_time || ""}
+                          onChange={(e) => setDetailForm((p) => ({ ...p, custom_start_time: e.target.value }))}
+                          className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center"
+                        />
+                      </FormRow>
+                      <FormRow label="Giờ tan ca riêng">
+                        <input
+                          type="time"
+                          disabled={!canEditEmployees}
+                          value={detailForm.custom_end_time || ""}
+                          onChange={(e) => setDetailForm((p) => ({ ...p, custom_end_time: e.target.value }))}
+                          className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center"
+                        />
+                      </FormRow>
+                    </div>
+                  </>
+                )}
+              </section>
+
+              {/* NHÓM 3 — TÀI KHOẢN & LIÊN HỆ */}
+              <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-black text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                    <Phone className="w-4 h-4 shrink-0" />
+                    <span>3. Tài khoản &amp; Liên hệ</span>
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#E11D48] dark:text-rose-300">
+                    Mã NV: {detailEmp.ma_nv} • TK {detailDisplayLogin}{detailDisplayPhone && detailDisplayPhone !== detailDisplayLogin ? ` (${detailDisplayPhone})` : ""}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Số điện thoại</label>
+                    <input
+                      type="tel"
+                      disabled={!canEditEmployees}
+                      value={detailForm.phone}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, phone: e.target.value, dien_thoai: e.target.value }))}
+                      placeholder="09xx..."
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Tài khoản đăng nhập</label>
+                    <input
+                      type="text"
+                      disabled={!canEditEmployees}
+                      value={detailForm.login_username}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, login_username: e.target.value }))}
+                      placeholder="SĐT hoặc Mã NV"
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Email</label>
+                    <input
+                      type="email"
+                      disabled={!canEditEmployees}
+                      value={detailForm.email}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, email: e.target.value }))}
+                      placeholder="email@congty.vn"
+                      className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  {isAdmin && detailEmp.role !== "admin" && (
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Đặt lại mật khẩu</label>
+                        <button
+                          type="button"
+                          onClick={() => setDetailForm((p) => ({ ...p, new_password: "123456" }))}
+                          className="text-xs font-bold text-[#E11D48] dark:text-rose-400 underline cursor-pointer"
+                        >
+                          Đặt nhanh 123456
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={detailForm.new_password}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, new_password: e.target.value }))}
+                        placeholder="Nhập MK mới hoặc bỏ trống..."
+                        className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
+                      />
+                    </div>
+                  )}
                 </div>
               </section>
-            )}
-          </form>
-        )}
+
+              {/* NHÓM 4 — THIẾT BỊ ĐĂNG NHẬP */}
+              {detailEmp.role !== "admin" && (
+                <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-xs font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 shrink-0" />
+                      <span>4. Thiết bị đăng nhập</span>
+                    </h3>
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                        detailEmp.device_binding_mode === "enforced"
+                          ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
+                          : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
+                      }`}
+                    >
+                      {detailEmp.device_binding_mode === "enforced" ? "🔒 Đang khóa cứng 1 máy" : "Chế độ ghi nhận cảnh báo"}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm space-y-1">
+                    <div className="text-slate-500 dark:text-slate-400 font-semibold">Thiết bị định danh:</div>
+                    <div className="font-bold text-emerald-700 dark:text-emerald-300 break-words">
+                      📱 {detailDevSummary.primaryLabel}
+                    </div>
+                  </div>
+
+                  {detailDevSummary.hasMultiAlert && (
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-500/70 text-xs text-rose-800 dark:text-rose-100">
+                      <div className="flex items-start gap-2 font-bold text-rose-900 dark:text-rose-200 leading-snug">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                        <span>
+                          Cảnh báo đa thiết bị: Phát hiện {Math.max(2, detailDevSummary.known.length)} thiết bị dùng chung tài khoản!
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {detailDevSummary.hasPendingChange && (
+                    <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-500/60 space-y-2.5 text-xs">
+                      <div className="font-bold text-amber-900 dark:text-amber-200">
+                        📱 Nhân viên yêu cầu đổi sang máy mới: {sanitizeSingleDeviceModelName(detailEmp.pending_device_name || detailEmp.pending_device_id)}
+                      </div>
+                      {detailEmp.device_change_reason && (
+                        <div className="text-amber-800 dark:text-amber-100">Lý do: {detailEmp.device_change_reason}</div>
+                      )}
+                      {isAdmin && (
+                        <div className="flex flex-wrap gap-2">
+                          <AppButton
+                            variant="success"
+                            icon={CheckCircle2}
+                            loading={resolvingDevice}
+                            onClick={() => handlePendingDeviceDecision(detailEmp, "approve")}
+                            className="flex-1 text-xs"
+                          >
+                            ✅ Duyệt đổi sang máy mới
+                          </AppButton>
+                          <AppButton
+                            variant="secondary"
+                            icon={XCircle}
+                            loading={resolvingDevice}
+                            onClick={() => handlePendingDeviceDecision(detailEmp, "reject")}
+                            className="text-xs !border-rose-500/40 !text-rose-700 dark:!text-rose-300"
+                          >
+                            Từ chối
+                          </AppButton>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {detailDevSummary.known.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                        Lịch sử thiết bị đăng nhập ({detailDevSummary.known.length} máy):
+                      </div>
+                      {detailDevSummary.known.map((dev, idx) => {
+                        const tag = dev.short_tag || computeDeviceShortTag(dev.device_id);
+                        const isPrimary = dev.device_id === detailEmp.bound_device_id;
+                        return (
+                          <div
+                            key={dev.device_id || idx}
+                            className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 text-xs ${
+                              isPrimary
+                                ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/50 text-emerald-900 dark:text-emerald-100"
+                                : "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-500/50 text-rose-900 dark:text-rose-100"
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="font-bold break-words">
+                                {formatEmployeeDeviceLabel(detailEmp.ho_ten, dev.device_name || UNKNOWN_DEVICE_LABEL, tag, true)}
+                                {isPrimary && (
+                                  <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-200 dark:bg-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs">
+                                    Máy chính
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-slate-600 dark:text-slate-300">
+                                Đăng nhập {dev.login_count || 1} lần {dev.ip ? `• IP: ${dev.ip}` : ""}
+                              </div>
+                            </div>
+                            {isAdmin && (
+                              <AppButton
+                                variant={isPrimary ? "primary" : "secondary"}
+                                loading={resolvingDevice}
+                                onClick={() => handleResolveDevices(detailEmp, "lock_primary", dev)}
+                                className="text-xs px-3 py-1.5 shrink-0"
+                              >
+                                Khóa chọn máy này
+                              </AppButton>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {isAdmin && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {detailDevSummary.primaryId && (
+                        <AppButton
+                          variant="danger"
+                          icon={Lock}
+                          loading={resolvingDevice}
+                          onClick={() => handleResolveDevices(detailEmp, "lock_primary")}
+                          className="flex-1 min-w-[200px] text-xs"
+                        >
+                          🔒 Khóa cố định vào máy này &amp; Đăng xuất máy khác
+                        </AppButton>
+                      )}
+                      <AppButton
+                        variant="secondary"
+                        icon={RotateCcw}
+                        loading={resolvingDevice}
+                        onClick={() => handleResolveDevices(detailEmp, "reset_devices")}
+                        className="text-xs"
+                      >
+                        🔄 Làm mới liên kết thiết bị
+                      </AppButton>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {/* NHÓM 5 — LƯƠNG & PHỤ CẤP */}
+              <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-black text-[#E11D48] dark:text-rose-300 uppercase tracking-wider flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                    <span>5. Lương &amp; Phụ cấp</span>
+                  </h3>
+                  {detailEmp.role !== "admin" && (
+                    <span className="text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300">
+                      Lương CB: {formatViCurrency(detailForm.luong_cb || 0)}
+                    </span>
+                  )}
+                </div>
+
+                {detailEmp.role === "admin" ? (
+                  <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-500/40 text-xs sm:text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+                    Tài khoản Quản trị viên chỉ dùng để điều hành hệ thống; không áp dụng bảng lương, phụ cấp hay quỹ phép năm.
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Lương cơ bản (đ)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          disabled={!canEditEmployees}
+                          value={formatViNumber(detailForm.luong_cb || 0, 0)}
+                          onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
+                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-700 dark:text-emerald-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Quỹ phép năm (ngày)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={60}
+                          disabled={!canEditEmployees}
+                          value={detailForm.annual_leave_quota}
+                          onChange={(e) => setDetailForm((p) => ({ ...p, annual_leave_quota: Number(e.target.value) || 0 }))}
+                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp ăn trưa (đ)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          disabled={!canEditEmployees}
+                          value={formatViNumber(detailForm.phu_cap_an_trua || 0, 0)}
+                          onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
+                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp xăng xe (đ)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          disabled={!canEditEmployees}
+                          value={formatViNumber(detailForm.phu_cap_xang_xe || 0, 0)}
+                          onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
+                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp nhà ở (đ)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          disabled={!canEditEmployees}
+                          value={formatViNumber(detailForm.phu_cap_nha_o || 0, 0)}
+                          onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
+                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <label className="flex items-center gap-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          disabled={!canEditEmployees}
+                          checked={Boolean(detailForm.has_insurance)}
+                          onChange={(e) => setDetailForm((p) => ({ ...p, has_insurance: e.target.checked }))}
+                          className="w-5 h-5 rounded accent-[#E11D48] text-[#E11D48]"
+                        />
+                        <span>Tham gia Bảo hiểm xã hội bắt buộc</span>
+                      </label>
+
+                      {canViewPayroll && (
+                        <AppButton
+                          data-testid="emp-360-payslip-btn"
+                          variant="success"
+                          icon={FileSpreadsheet}
+                          onClick={() => setPayslipEmp(detailEmp)}
+                          className="text-xs px-3.5 py-2"
+                        >
+                          Phiếu lương &amp; Bảng công chi tiết
+                        </AppButton>
+                      )}
+                    </div>
+                  </>
+                )}
+              </section>
+            </form>
+          );
+        })()}
       </AppModal>
 
       {/* Modal Phiếu Lương & Bảng Công Chi Tiết Cho Nhân Viên Đang Xem */}
