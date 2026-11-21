@@ -124,49 +124,47 @@ export default function DesktopHeader({
   return (
     <>
       <header
-        className="sticky top-0 z-30 sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 pl-3 sm:pl-6 pr-[104px] py-2 select-none transition-colors duration-200"
-        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+        className="sticky top-0 z-30 sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 pl-3 sm:pl-5 pr-[104px] py-2 pt-[max(env(safe-area-inset-top,0px),8px)] min-h-[52px] flex items-center select-none transition-colors duration-200"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-          {/* Left: Drawer Trigger + Official SEDINCO Brand + Portal Title & Active Section */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+        <div className="w-full flex items-center justify-between gap-2">
+          {/* Left: Drawer Trigger + Official SEDINCO Brand + Active Section */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {typeof onOpenMobileMenu === "function" && (
               <button
                 type="button"
                 onClick={onOpenMobileMenu}
                 aria-label="Mở danh mục quản trị"
                 title="Danh mục điều hành"
-                className="lg:hidden min-w-[44px] min-h-[44px] p-2 rounded-xl bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-100 inline-flex items-center justify-center cursor-pointer transition-colors shrink-0"
+                className="lg:hidden min-w-[40px] min-h-[40px] w-10 h-10 p-1.5 rounded-xl bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-100 inline-flex items-center justify-center cursor-pointer transition-colors shrink-0"
               >
                 <Menu className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
               </button>
             )}
 
-            {isAdmin ? (
-              <div className="w-9 h-9 rounded-xl bg-[#B80035] flex items-center justify-center text-white font-extrabold text-base shadow-sm shrink-0">
-                S
-              </div>
-            ) : (
-              <CompanyLogo size="compact" theme={isDark ? "dark" : "light"} iconOnly />
-            )}
+            <div className="hidden sm:flex shrink-0">
+              {isAdmin ? (
+                <div className="w-8 h-8 rounded-xl bg-[#B80035] flex items-center justify-center text-white font-extrabold text-sm shadow-sm shrink-0">
+                  S
+                </div>
+              ) : (
+                <CompanyLogo size="compact" theme={isDark ? "dark" : "light"} iconOnly />
+              )}
+            </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-extrabold tracking-tight text-[#111C2D] dark:text-white leading-none truncate">
-                  SEDINCO
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-xs sm:text-sm font-extrabold tracking-tight text-[#111C2D] dark:text-white truncate">
+                  {getTabTitle()}
                 </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase shrink-0 whitespace-nowrap">
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase shrink-0 whitespace-nowrap">
                   {isAdmin ? "ADMIN" : ROLE_LABELS[effectiveRole] || "Kế toán"}
                 </span>
               </div>
-              <h2 className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 tracking-tight leading-snug truncate">
-                CÔNG TY SEDINCO • {getTabTitle()}
-              </h2>
             </div>
           </div>
 
           {/* Right: Notification Bell + Theme Toggle + Refresh + Profile Avatar + Logout */}
-          <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center justify-end gap-1 sm:gap-1.5 shrink-0">
             <button
               type="button"
               data-bell-button="true"
@@ -174,7 +172,7 @@ export default function DesktopHeader({
               onClick={handleTogglePanel}
               aria-label="Trung tâm cảnh báo và thông báo"
               title="Trung tâm Thông báo & Cảnh báo"
-              className={`relative min-w-[44px] min-h-[44px] px-2.5 py-1.5 rounded-full border inline-flex items-center justify-center gap-1.5 text-xs font-extrabold transition cursor-pointer ${
+              className={`relative min-w-[40px] min-h-[40px] px-2 py-1.5 rounded-full border inline-flex items-center justify-center gap-1 text-xs font-extrabold transition cursor-pointer ${
                 unreadCriticalCount > 0
                   ? "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/70 dark:hover:bg-rose-900/70 border-rose-300 dark:border-rose-500/60 text-[#B80035] dark:text-rose-200"
                   : totalBellCount > 0
@@ -194,7 +192,7 @@ export default function DesktopHeader({
               {totalBellCount > 0 && (
                 <span
                   data-testid="desktop-bell-badge"
-                  className={`min-w-[18px] h-[18px] px-1 rounded-full text-white text-xs font-extrabold flex items-center justify-center ${
+                  className={`min-w-[16px] h-[16px] px-1 rounded-full text-white text-[11px] font-extrabold flex items-center justify-center ${
                     unreadCriticalCount > 0 ? "bg-[#E11D48]" : "bg-amber-600"
                   }`}
                 >
@@ -214,7 +212,7 @@ export default function DesktopHeader({
                 }}
                 aria-label="Làm mới dữ liệu"
                 title="Tải lại dữ liệu mới nhất"
-                className="hidden sm:inline-flex min-w-[44px] min-h-[44px] p-2 rounded-full bg-[#F0F3FF] hover:bg-slate-200/70 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-200 items-center justify-center cursor-pointer transition-colors"
+                className="hidden sm:inline-flex min-w-[40px] min-h-[40px] p-2 rounded-full bg-[#F0F3FF] hover:bg-slate-200/70 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-200 items-center justify-center cursor-pointer transition-colors"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-[#E11D48] dark:text-rose-400" : ""}`} />
               </button>
@@ -225,7 +223,7 @@ export default function DesktopHeader({
                 type="button"
                 onClick={onChangePasswordRequest}
                 title="Đổi tài khoản đăng nhập (SĐT) & Mật khẩu"
-                className="hidden md:inline-flex min-w-[44px] min-h-[44px] px-3 py-1.5 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-200 items-center justify-center gap-1.5 text-xs font-bold cursor-pointer transition-colors"
+                className="hidden md:inline-flex min-w-[40px] min-h-[40px] px-3 py-1.5 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-200 items-center justify-center gap-1.5 text-xs font-bold cursor-pointer transition-colors"
               >
                 <KeyRound className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
                 <span className="hidden xl:inline">Mật khẩu</span>
@@ -238,7 +236,7 @@ export default function DesktopHeader({
                 onClick={() => handleSelectTab("profile")}
                 aria-label="Hồ sơ tài khoản"
                 title={`${currentUser?.ho_ten || "Tài khoản"} (${currentUser?.ma_nv || "ADMIN"})`}
-                className={`min-w-[44px] min-h-[44px] p-1.5 rounded-full border transition cursor-pointer inline-flex items-center justify-center ${
+                className={`min-w-[40px] min-h-[40px] p-1 rounded-full border transition cursor-pointer inline-flex items-center justify-center ${
                   effectiveTab === "profile"
                     ? "bg-[#FFE4E6] dark:bg-rose-950/80 border-[#E11D48] text-[#B80035] dark:text-rose-300"
                     : "bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200/80 dark:border-slate-700 text-[#111C2D] dark:text-slate-200"
@@ -256,7 +254,7 @@ export default function DesktopHeader({
                 onClick={onLogout}
                 title="Đăng xuất khỏi hệ thống"
                 aria-label="Đăng xuất"
-                className="min-w-[44px] min-h-[44px] px-2.5 py-2 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-slate-700 hover:text-[#E11D48] dark:text-slate-200 dark:hover:text-rose-300 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition cursor-pointer"
+                className="hidden sm:inline-flex min-w-[40px] min-h-[40px] px-2.5 py-1.5 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-slate-700 hover:text-[#E11D48] dark:text-slate-200 dark:hover:text-rose-300 text-xs font-bold items-center justify-center gap-1.5 transition cursor-pointer"
               >
                 <LogOut className="w-4 h-4 shrink-0" />
                 <span className="hidden md:inline">Đăng xuất</span>

@@ -6,7 +6,7 @@
   color-scheme: light;
   --zalo-safe-top: env(safe-area-inset-top, 0px);
   --zalo-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --zalo-capsule-width: 96px;
+  --zalo-capsule-width: 104px;
 
   --brand-primary: #e11d48;
   --brand-primary-hover: #be123c;
@@ -92,9 +92,9 @@ button:not(:disabled):active,
   overscroll-behavior: none !important;
 }
 
-/* Zalo Mini App Safe Area & Capsule Clearance (96px x 44px top-right) */
+/* Zalo Mini App Safe Area & Capsule Clearance (104px x 44px top-right) */
 .zmp-safe-top {
-  padding-top: calc(var(--zalo-safe-top) + 12px);
+  padding-top: max(var(--zalo-safe-top), 8px);
 }
 
 .zmp-capsule-clearance {
@@ -499,8 +499,8 @@ html.dark .sedinco-glass-header,
   color: #ffffff;
   border-bottom-left-radius: 28px;
   border-bottom-right-radius: 28px;
-  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
-  padding-right: 96px;
+  padding-top: max(env(safe-area-inset-top, 0px), 8px);
+  padding-right: 104px;
 }
 
 html.dark .sedinco-hero-header,

@@ -93,24 +93,46 @@ function normalizeOptionalTime(rawVal, label = 'Giờ làm việc riêng') {
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+let allowanceSchemaReady = false;
+async function ensureAllowanceSchema() {
+    if (allowanceSchemaReady) return;
+    allowanceSchemaReady = true;
+    await query("ALTER TABLE employees ADD COLUMN custom_allowances TEXT NULL").catch(() => {});
+    await query("ALTER TABLE company_settings ADD COLUMN allowance_presets TEXT NULL").catch(() => {});
+}
+
+function parseCleanIntegerAmount(rawVal) {
+    if (rawVal === undefined || rawVal === null || rawVal === '') return 0;
+    if (typeof rawVal === 'number') {
+        return Number.isFinite(rawVal) ? Math.max(0, Math.round(rawVal)) : 0;
+    }
+    const digits = String(rawVal).replace(/[^\d-]/g, '');
+    if (!digits) return 0;
+    const parsed = Number(digits);
+    return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+}
+
 function normalizeCustomAllowances(rawVal, empFallback = null) {
     if (rawVal !== undefined && rawVal !== null) {
         let arr = [];
         if (Array.isArray(rawVal)) {
             arr = rawVal;
-        } else if (typeof rawVal === 'string' && rawVal.trim()) {
-            try {
-                const parsed = JSON.parse(rawVal);
-                if (Array.isArray(parsed)) arr = parsed;
-            } catch {
-                arr = [];
+        } else if (typeof rawVal === 'string') {
+            const trimmed = rawVal.trim();
+            if (trimmed) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    if (Array.isArray(parsed)) arr = parsed;
+                } catch {
+                    arr = [];
+                }
             }
         }
         return arr
             .map((item, idx) => {
                 if (!item || typeof item !== 'object') return null;
                 const name = String(item.name || item.label || '').trim().slice(0, 100);
-                const amount = Math.max(0, Math.round(Number(item.amount) || 0));
+                const amount = parseCleanIntegerAmount(item.amount);
                 if (!name || amount <= 0) return null;
                 return {
                     id: String(item.id || `alw_${idx + 1}`).trim().slice(0, 40),
@@ -134,7 +156,7 @@ function normalizeCustomAllowances(rawVal, empFallback = null) {
             .map((d) => ({
                 id: d.id,
                 name: d.name,
-                amount: Math.max(0, Math.round(Number(d.val) || 0))
+                amount: parseCleanIntegerAmount(d.val)
             }))
             .filter((item) => item.amount > 0);
     }
@@ -213,6 +235,7 @@ const sanitizeEmployeeRecord = (emp) => {
 
 class EmployeeService {
     async getAllEmployees(pagination = {}) {
+        await ensureAllowanceSchema();
         const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 200));
         const page = Math.max(1, parseInt(pagination.page, 10) || 1);
         const offset = (page - 1) * limit;
@@ -223,12 +246,14 @@ class EmployeeService {
     }
 
     async getEmployeeById(ma_nv) {
+        await ensureAllowanceSchema();
         const sql = `SELECT ${SAFE_EMPLOYEE_FIELDS} FROM employees WHERE ma_nv = ? LIMIT 1`;
         const results = await query(sql, [ma_nv]);
         return results && results.length > 0 ? sanitizeEmployeeRecord(results[0]) : null;
     }
 
     async createEmployee(data, current_user = null) {
+        await ensureAllowanceSchema();
         const {
             ma_nv, ho_ten, ngay_sinh, dien_thoai, phone, login_username, email, chuc_danh, department, role,
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
@@ -351,6 +376,7 @@ class EmployeeService {
     }
 
     async updateEmployee(id, data, current_user = null) {
+        await ensureAllowanceSchema();
         const {
             ho_ten, ngay_sinh, dien_thoai, phone, login_username, email, chuc_danh, department, role,
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
@@ -358,7 +384,7 @@ class EmployeeService {
             thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, custom_allowances, has_insurance,
             status, is_locked, shift_type, annual_leave_quota, keep_logs, new_password,
             custom_start_time, custom_end_time
-        } = data;
+        } = data || {};
 
         const cleanPhone = phone !== undefined
             ? normalizePhone(phone)
@@ -380,7 +406,7 @@ class EmployeeService {
             values.push(val);
         };
 
-        if (ho_ten !== undefined) addField('ho_ten', ho_ten);
+        if (ho_ten !== undefined) addField('ho_ten', String(ho_ten || '').trim());
         if (ngay_sinh !== undefined) addField('ngay_sinh', ngay_sinh || null);
         if (cleanPhone !== undefined) {
             addField('phone', cleanPhone);
@@ -393,17 +419,20 @@ class EmployeeService {
         if (chuc_danh !== undefined) addField('chuc_danh', chuc_danh || '');
         if (ngay_bat_dau_lam !== undefined) addField('ngay_bat_dau_lam', ngay_bat_dau_lam || null);
         if (ngay_chinh_thuc !== undefined) addField('ngay_chinh_thuc', ngay_chinh_thuc || null);
-        if (luong_cb !== undefined) addField('luong_cb', luong_cb || 0);
-        if (phu_cap_an_trua !== undefined) addField('phu_cap_an_trua', phu_cap_an_trua || 0);
-        if (phu_cap_xang_xe !== undefined) addField('phu_cap_xang_xe', phu_cap_xang_xe || 0);
-        if (phu_cap_nha_o !== undefined) addField('phu_cap_nha_o', phu_cap_nha_o || 0);
-        if (thuong_htcv !== undefined) addField('thuong_htcv', thuong_htcv || 0);
-        if (phu_cap_trach_nhiem !== undefined) addField('phu_cap_trach_nhiem', phu_cap_trach_nhiem || 0);
-        if (phu_cap_tiep_khach !== undefined) addField('phu_cap_tiep_khach', phu_cap_tiep_khach || 0);
+        if (luong_cb !== undefined) addField('luong_cb', parseCleanIntegerAmount(luong_cb));
+        if (phu_cap_an_trua !== undefined) addField('phu_cap_an_trua', parseCleanIntegerAmount(phu_cap_an_trua));
+        if (phu_cap_xang_xe !== undefined) addField('phu_cap_xang_xe', parseCleanIntegerAmount(phu_cap_xang_xe));
+        if (phu_cap_nha_o !== undefined) addField('phu_cap_nha_o', parseCleanIntegerAmount(phu_cap_nha_o));
+        if (thuong_htcv !== undefined) addField('thuong_htcv', parseCleanIntegerAmount(thuong_htcv));
+        if (phu_cap_trach_nhiem !== undefined) addField('phu_cap_trach_nhiem', parseCleanIntegerAmount(phu_cap_trach_nhiem));
+        if (phu_cap_tiep_khach !== undefined) addField('phu_cap_tiep_khach', parseCleanIntegerAmount(phu_cap_tiep_khach));
         if (custom_allowances !== undefined) {
             const cleanAllowances = normalizeCustomAllowances(custom_allowances);
-            addField('custom_allowances', JSON.stringify(cleanAllowances));
-            await mergeAllowancePresetsIntoCompanySettings(cleanAllowances);
+            const serializedAllowances = JSON.stringify(Array.isArray(cleanAllowances) ? cleanAllowances : []);
+            addField('custom_allowances', serializedAllowances);
+            if (cleanAllowances.length > 0) {
+                await mergeAllowancePresetsIntoCompanySettings(cleanAllowances);
+            }
         }
         if (has_insurance !== undefined) addField('has_insurance', has_insurance ? 1 : 0);
 

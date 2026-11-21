@@ -94,7 +94,7 @@ export default function AppModal({
       className="fixed inset-0 flex items-end sm:items-center justify-center bg-slate-900/55 backdrop-blur-[3px] transition-opacity duration-200 p-0 sm:p-4 animate-fade-in"
       style={{
         zIndex: effectiveZIndex,
-        paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
+        paddingTop: "max(env(safe-area-inset-top, 0px), 8px)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)"
       }}
       onWheel={(e) => {
@@ -129,12 +129,11 @@ export default function AppModal({
 
         {/* Thanh tiêu đề cố định: luôn có "< Trở về" ở góc trên trái & chừa 104px góc trên phải cho Zalo Capsule */}
         <div
-          className={`pl-4 pr-[104px] sm:pr-4 py-3 border-b flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
+          className={`pl-3.5 pr-[104px] sm:pr-4 py-2 min-h-[52px] border-b flex items-center justify-between gap-2 shrink-0 ${
             isDark
               ? "bg-slate-900 border-slate-800"
               : "bg-white border-slate-100 dark:bg-slate-900 dark:border-slate-800"
           }`}
-          style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
           onWheel={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-2.5 min-w-[200px] flex-1">

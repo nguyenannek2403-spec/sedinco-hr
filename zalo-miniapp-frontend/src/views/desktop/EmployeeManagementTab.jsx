@@ -12,7 +12,6 @@ import {
   Building2,
   Eye,
   Smartphone,
-  ShieldCheck,
   CheckCircle2,
   XCircle,
   RotateCcw,
@@ -26,7 +25,7 @@ import { safeGet, safePost, safePut } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import { DEPARTMENT_OPTIONS, getShiftLabel } from "../../utils/viLabels";
 import { formatViCurrency, formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
-import { ROLES, ROLE_LABELS } from "../../constants/roles";
+import { ROLES } from "../../constants/roles";
 import {
   computeDeviceShortTag,
   formatEmployeeDeviceLabel,
@@ -40,7 +39,6 @@ import {
   AppButton,
   AppModal,
   FormRow,
-  StatusBadge,
   SkeletonList,
   EmptyState
 } from "../../components/ui";
@@ -174,7 +172,6 @@ export default function EmployeeManagementTab({
   currentUser,
   showToast,
   focusTarget = null,
-  alertsSummary = {},
   onRefreshAlerts,
   activeRole,
   dynamicPerms = {}
@@ -515,13 +512,37 @@ export default function EmployeeManagementTab({
     try {
       const cleanDetailPhone = String(detailForm.phone ?? detailForm.dien_thoai ?? "").trim();
       const cleanDetailUser = String(detailForm.login_username || "").trim();
-      const cleanAllowances = (detailForm.custom_allowances || [])
+      const baseAllowances = Array.isArray(detailForm.custom_allowances)
+        ? [...detailForm.custom_allowances]
+        : [];
+
+      // Nếu người dùng đang mở khung "+ Thêm phụ cấp" và đã nhập tên + số tiền rồi bấm thẳng "Lưu thay đổi"
+      if (isAddingAllowance) {
+        const pendingName = String(newAllowanceName || "").trim();
+        const pendingAmt = Math.max(0, Math.round(parseViNumberInput(newAllowanceAmount)));
+        if (pendingName && pendingAmt > 0) {
+          const existIdx = baseAllowances.findIndex(
+            (x) => String(x?.name || "").trim().toLowerCase() === pendingName.toLowerCase()
+          );
+          if (existIdx >= 0) {
+            baseAllowances[existIdx] = { ...baseAllowances[existIdx], amount: pendingAmt };
+          } else {
+            baseAllowances.push({
+              id: `alw_${Date.now()}`,
+              name: pendingName,
+              amount: pendingAmt
+            });
+          }
+        }
+      }
+
+      const cleanAllowances = baseAllowances
         .map((item, idx) => ({
-          id: String(item.id || `alw_${idx + 1}`),
-          name: String(item.name || "").trim(),
-          amount: Math.max(0, Math.round(Number(item.amount) || 0))
+          id: String(item?.id || `alw_${idx + 1}`).trim(),
+          name: String(item?.name || "").trim(),
+          amount: Math.max(0, Math.round(parseViNumberInput(item?.amount)))
         }))
-        .filter((item) => item.name && item.amount > 0);
+        .filter((item) => item.name && Number.isFinite(item.amount) && item.amount > 0);
 
       const payload = {
         ho_ten: String(detailForm.ho_ten || "").trim(),
@@ -533,7 +554,7 @@ export default function EmployeeManagementTab({
         email: detailForm.email,
         shift_type: detailForm.shift_type,
         annual_leave_quota: Number(detailForm.annual_leave_quota) || 12,
-        luong_cb: Number(detailForm.luong_cb) || 0,
+        luong_cb: Math.max(0, Math.round(parseViNumberInput(detailForm.luong_cb))),
         custom_allowances: cleanAllowances,
         phu_cap_an_trua: 0,
         phu_cap_xang_xe: 0,
@@ -653,23 +674,6 @@ export default function EmployeeManagementTab({
       ...employees.map((e) => e.department).filter(Boolean)
     ])
   );
-
-  const headcountToday = alertsSummary?.headcount_today || null;
-  const liveBoard = headcountToday?.live_board || {};
-  const presentSet = new Set((liveBoard.present_list || []).map((x) => x.ma_nv));
-  const lateSet = new Set((liveBoard.late_list || []).map((x) => x.ma_nv));
-  const fieldSet = new Set((liveBoard.field_work_list || []).map((x) => x.ma_nv));
-  const leaveSet = new Set((liveBoard.leave_list || []).map((x) => x.ma_nv));
-  const absentSet = new Set((liveBoard.absent_list || []).map((x) => x.ma_nv));
-
-  const getEmployeeTodayBadge = (maNv) => {
-    if (fieldSet.has(maNv)) return { label: "🚧 Công trình", cls: "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-500/40" };
-    if (lateSet.has(maNv)) return { label: "🟡 Đi muộn", cls: "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/40" };
-    if (presentSet.has(maNv)) return { label: "🟢 Có mặt", cls: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/40" };
-    if (leaveSet.has(maNv)) return { label: "🟣 Nghỉ phép", cls: "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/40" };
-    if (absentSet.has(maNv)) return { label: "⚪ Chưa chấm", cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600" };
-    return null;
-  };
 
   const filtered = employees.filter((e) => {
     const q = debouncedSearch.trim().toLowerCase();
@@ -1082,10 +1086,6 @@ export default function EmployeeManagementTab({
       >
         {detailEmp && detailForm && detailDevSummary && (() => {
           const isDetailLocked = Boolean(detailEmp.is_locked || detailEmp.status === "inactive");
-          const detailTodayBadge = getEmployeeTodayBadge(detailEmp.ma_nv) || {
-            label: "⚪ Chưa chấm công",
-            cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600"
-          };
           const detailDisplayPhone = detailForm.phone || detailEmp.phone || detailEmp.dien_thoai || "";
           const detailDisplayLogin = detailForm.login_username || detailDisplayPhone || detailEmp.ma_nv;
           const deviceHistoryList = detailDevSummary.sortedHistory || [];
@@ -1099,69 +1099,12 @@ export default function EmployeeManagementTab({
               onSubmit={handleSaveDetailModal}
               className="p-4 sm:p-5 space-y-4"
             >
-              {/* NHÓM 1 — TRẠNG THÁI HIỆN TẠI */}
-              <section className="space-y-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-xs font-black text-[#E11D48] dark:text-rose-300 uppercase tracking-wider flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 shrink-0" />
-                    <span>1. Trạng thái hiện tại</span>
-                  </h3>
-                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/35 text-indigo-700 dark:text-indigo-200 text-xs font-bold">
-                    {ROLE_LABELS[detailForm.role || detailEmp.role] || "Nhân viên"}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      Trạng thái tài khoản
-                    </span>
-                    <StatusBadge type="employee" status={isDetailLocked ? "locked" : "active"} />
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      Điểm danh hôm nay
-                    </span>
-                    <span className={`px-2.5 py-0.5 rounded-full border text-xs font-bold ${detailTodayBadge.cls}`}>
-                      {detailTodayBadge.label}
-                    </span>
-                  </div>
-                </div>
-
-                {isAdmin && detailEmp.role !== "admin" && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <label className="flex items-center gap-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(detailForm.keep_logs)}
-                        onChange={(e) => setDetailForm((p) => ({ ...p, keep_logs: e.target.checked }))}
-                        className="w-4 h-4 rounded accent-[#E11D48] text-[#E11D48]"
-                      />
-                      <span>Lưu giữ nhật ký hoạt động</span>
-                    </label>
-                    <AppButton
-                      variant="secondary"
-                      icon={isDetailLocked ? Unlock : Lock}
-                      onClick={() => handleToggleLock(detailEmp)}
-                      className={`text-xs px-3 py-1.5 ${
-                        isDetailLocked
-                          ? "!border-emerald-500/50 !text-emerald-700 dark:!text-emerald-300"
-                          : "!border-rose-500/50 !text-rose-700 dark:!text-rose-300"
-                      }`}
-                    >
-                      {isDetailLocked ? "Mở khóa tài khoản" : "Tạm khóa tài khoản"}
-                    </AppButton>
-                  </div>
-                )}
-              </section>
-
-              {/* NHÓM 2 — CÔNG VIỆC & CA LÀM */}
+              {/* NHÓM 1 — CÔNG VIỆC & CA LÀM */}
               <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-2">
                     <Building2 className="w-4 h-4 shrink-0" />
-                    <span>2. Công việc &amp; Ca làm</span>
+                    <span>1. Công việc &amp; Ca làm</span>
                   </h3>
                   {detailEmp.role !== "admin" && (
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -1278,12 +1221,12 @@ export default function EmployeeManagementTab({
                 )}
               </section>
 
-              {/* NHÓM 3 — TÀI KHOẢN & LIÊN HỆ */}
+              {/* NHÓM 2 — TÀI KHOẢN & LIÊN HỆ */}
               <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-xs font-black text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-2">
                     <Phone className="w-4 h-4 shrink-0" />
-                    <span>3. Tài khoản &amp; Liên hệ</span>
+                    <span>2. Tài khoản &amp; Liên hệ</span>
                   </h3>
                   <span className="px-2.5 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#E11D48] dark:text-rose-300">
                     Mã NV: {detailEmp.ma_nv} • TK {detailDisplayLogin}{detailDisplayPhone && detailDisplayPhone !== detailDisplayLogin ? ` (${detailDisplayPhone})` : ""}
@@ -1351,13 +1294,13 @@ export default function EmployeeManagementTab({
                 </div>
               </section>
 
-              {/* NHÓM 4 — THIẾT BỊ ĐĂNG NHẬP & LỊCH SỬ THIẾT BỊ ("XEM THÊM CHI TIẾT", KHÔNG ÉP KHÓA CỨNG) */}
+              {/* NHÓM 3 — THIẾT BỊ ĐĂNG NHẬP & LỊCH SỬ THIẾT BỊ ("XEM THÊM CHI TIẾT", KHÔNG ÉP KHÓA CỨNG) */}
               {detailEmp.role !== "admin" && (
                 <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-xs font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-2">
                       <Smartphone className="w-4 h-4 shrink-0" />
-                      <span>4. Thiết bị đăng nhập</span>
+                      <span>3. Thiết bị đăng nhập</span>
                     </h3>
                     {isAdmin && deviceHistoryList.length > 0 && (
                       <AppButton
@@ -1490,12 +1433,12 @@ export default function EmployeeManagementTab({
                 </section>
               )}
 
-              {/* NHÓM 5 — LƯƠNG & PHỤ CẤP ĐỘNG LINH HOẠT THEO TỪNG NHÂN VIÊN */}
+              {/* NHÓM 4 — LƯƠNG & PHỤ CẤP ĐỘNG LINH HOẠT THEO TỪNG NHÂN VIÊN */}
               <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-xs font-black text-[#E11D48] dark:text-rose-300 uppercase tracking-wider flex items-center gap-2">
                     <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                    <span>5. Lương &amp; Phụ cấp</span>
+                    <span>4. Lương &amp; Phụ cấp</span>
                   </h3>
                   {detailEmp.role !== "admin" && (
                     <span className="text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300">
@@ -1705,6 +1648,37 @@ export default function EmployeeManagementTab({
                   </>
                 )}
               </section>
+
+              {/* KHỐI DƯỚI CÙNG CỦA FORM: LƯU GIỮ NHẬT KÝ HOẠT ĐỘNG & TẠM KHÓA TÀI KHOẢN */}
+              {isAdmin && detailEmp.role !== "admin" && (
+                <section
+                  data-testid="employee-bottom-account-actions"
+                  className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3"
+                >
+                  <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(detailForm.keep_logs)}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, keep_logs: e.target.checked }))}
+                      className="w-4 h-4 rounded accent-[#E11D48] text-[#E11D48]"
+                    />
+                    <span>Lưu giữ nhật ký hoạt động</span>
+                  </label>
+
+                  <AppButton
+                    variant="secondary"
+                    icon={isDetailLocked ? Unlock : Lock}
+                    onClick={() => handleToggleLock(detailEmp)}
+                    className={`text-xs px-3.5 py-2 ${
+                      isDetailLocked
+                        ? "!border-emerald-500/50 !text-emerald-700 dark:!text-emerald-300"
+                        : "!border-rose-500/50 !text-rose-700 dark:!text-rose-300"
+                    }`}
+                  >
+                    {isDetailLocked ? "Mở khóa tài khoản" : "Tạm khóa tài khoản"}
+                  </AppButton>
+                </section>
+              )}
             </form>
           );
         })()}

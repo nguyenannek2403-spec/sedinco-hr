@@ -121,25 +121,19 @@ export default function WorkerDashboard({
     <div className="w-full h-[100dvh] bg-[#F9F9FF] dark:bg-[#090D16] text-[#111C2D] dark:text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden transition-colors duration-200">
       {/* STITCH SINGLE-ROW TOP GLASS HEADER (Screens 2–5) — Reserves 104px top-right Zalo Mini App capsule safe zone */}
       <header
-        className="shrink-0 z-30 w-full sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 px-3.5 py-2 pr-[104px] transition-colors duration-200"
-        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+        className="shrink-0 z-30 w-full sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 pl-3.5 pr-[104px] py-2 pt-[max(env(safe-area-inset-top,0px),8px)] min-h-[52px] flex items-center transition-colors duration-200"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-          {/* Left: Brand Mark + SEDINCO HR micro-header + Active Screen Title */}
-          <div className="flex items-center gap-2.5 shrink-0">
+        <div className="w-full flex items-center justify-between gap-2">
+          {/* Left: Brand Mark + Active Screen Title */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <CompanyLogo size="compact" theme={isDark ? "dark" : "light"} iconOnly />
-            <div>
-              <span className="block text-xs font-extrabold uppercase tracking-wider text-[#B80035] dark:text-rose-400 leading-none whitespace-nowrap">
-                SEDINCO HR
-              </span>
-              <h2 className="text-base font-extrabold text-[#111C2D] dark:text-white tracking-tight leading-snug whitespace-nowrap mt-0.5">
-                {TAB_TITLES[activeTab] || "Chấm Công"}
-              </h2>
-            </div>
+            <h2 className="text-sm sm:text-base font-extrabold text-[#111C2D] dark:text-white tracking-tight truncate">
+              {TAB_TITLES[activeTab] || "Chấm Công"}
+            </h2>
           </div>
 
           {/* Right: Theme Toggle + Notification Bell (Clean Stitch 2-Icon Header) */}
-          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          <div className="flex items-center gap-1.5 shrink-0">
             <ThemeToggleButton compact />
 
             <button
@@ -149,13 +143,13 @@ export default function WorkerDashboard({
               onClick={handleOpenBell}
               aria-label={`Thông báo (${unreadCount} chưa đọc)`}
               title="Thông báo & Bảng lương"
-              className="relative min-w-[44px] min-h-[44px] p-2 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#111C2D] dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer inline-flex items-center justify-center"
+              className="relative min-w-[40px] min-h-[40px] p-2 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#111C2D] dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer inline-flex items-center justify-center"
             >
               <Bell className="w-4 h-4 text-[#E11D48] dark:text-rose-400" />
               {unreadCount > 0 && (
                 <span
                   data-testid="worker-bell-badge"
-                  className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#E11D48] text-white text-xs font-extrabold flex items-center justify-center shadow-sm"
+                  className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#E11D48] text-white text-[11px] font-extrabold flex items-center justify-center shadow-sm"
                 >
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>

@@ -151,16 +151,15 @@ export default function NotificationCenterPanel({
         data-testid="notification-popover"
         onClick={(e) => e.stopPropagation()}
         style={{
-          paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
           paddingBottom: "env(safe-area-inset-bottom, 0px)"
         }}
-        className={`fixed left-3 right-3 bottom-3 sm:bottom-auto sm:top-[calc(env(safe-area-inset-top,0px)+64px)] sm:left-auto sm:right-4 sm:w-[420px] max-h-[82vh] sm:max-h-[75vh] z-10 flex flex-col rounded-[28px] sm:rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 overflow-hidden animate-sheet-up sm:animate-fade-in ${
+        className={`fixed left-3 right-3 bottom-3 sm:bottom-auto sm:top-[calc(env(safe-area-inset-top,0px)+58px)] sm:left-auto sm:right-4 sm:w-[420px] max-h-[82vh] sm:max-h-[75vh] z-10 flex flex-col rounded-[28px] sm:rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 overflow-hidden animate-sheet-up sm:animate-fade-in ${
           !isTopModal ? "pointer-events-none select-none" : ""
         }`}
       >
         <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-1.5 mb-1 shrink-0 sm:hidden" aria-hidden="true" />
 
-        <div className="pl-4 pr-[104px] sm:pr-4 py-3 border-b border-slate-200/80 dark:border-slate-800 bg-[#F9F9FF] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
+        <div className="pl-3.5 pr-[104px] sm:pr-4 py-2 min-h-[52px] border-b border-slate-200/80 dark:border-slate-800 bg-[#F9F9FF] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             {typeof onClose === "function" && (
               <button

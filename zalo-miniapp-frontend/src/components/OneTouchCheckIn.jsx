@@ -567,7 +567,7 @@ export default function OneTouchCheckIn({
   })();
 
   return (
-    <div className="w-full px-3.5 pt-3 flex flex-col space-y-3.5">
+    <div className="w-full px-3.5 pt-2 flex flex-col space-y-3">
       {/* STITCH SCREEN 2 — SECTION 1: COMPACT DIGITAL CLOCK & SUN/MOON GREETING BAR */}
       <div className="bg-[#F0F3FF] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
