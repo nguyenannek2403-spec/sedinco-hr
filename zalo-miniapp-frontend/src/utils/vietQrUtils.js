@@ -106,6 +106,61 @@ export function buildVietQrQuickLinkUrl({
 }
 
 /**
+ * Danh sách ứng dụng Ngân hàng hỗ trợ VietQR Deep Link (dl.vietqr.io/pay?app=...).
+ */
+export const SENDER_BANK_APPS = [
+  { appId: "vcb", bankCode: "VCB", label: "Vietcombank (VCB Digibank)" },
+  { appId: "mb", bankCode: "MB", label: "MB Bank" },
+  { appId: "tcb", bankCode: "TCB", label: "Techcombank Mobile" },
+  { appId: "bidv", bankCode: "BIDV", label: "BIDV SmartBanking" },
+  { appId: "icb", bankCode: "ICB", label: "VietinBank iPay" },
+  { appId: "vba", bankCode: "VBA", label: "Agribank Plus" },
+  { appId: "acb", bankCode: "ACB", label: "ACB ONE" },
+  { appId: "vpb", bankCode: "VPB", label: "VPBank NEO" },
+  { appId: "tpb", bankCode: "TPB", label: "TPBank Mobile" },
+  { appId: "stb", bankCode: "STB", label: "Sacombank Pay" },
+  { appId: "hdb", bankCode: "HDB", label: "HDBank" },
+  { appId: "vib", bankCode: "VIB", label: "MyVIB" },
+  { appId: "shb", bankCode: "SHB", label: "SHB Mobile" },
+  { appId: "ocb", bankCode: "OCB", label: "OCB OMNI" },
+  { appId: "msb", bankCode: "MSB", label: "MSB mBank" },
+  { appId: "timo", bankCode: "TIMO", label: "Timo Digital Bank" },
+  { appId: "cake", bankCode: "CAKE", label: "CAKE by VPBank" }
+];
+
+/**
+ * Sinh Deep Link chuẩn VietQR (https://dl.vietqr.io/pay?app=...&ba=...&am=...&tn=...&bn=...)
+ * để tự động mở ứng dụng Ngân hàng trên điện thoại và điền sẵn toàn bộ thông tin chuyển khoản.
+ */
+export function buildVietQrBankDeepLink({
+  appId = "vcb",
+  bankCodeOrBin,
+  accountNumber,
+  amount = 0,
+  description = "",
+  accountName = ""
+}) {
+  const bankInfo = findBankByCodeOrBin(bankCodeOrBin);
+  const bin = bankInfo ? bankInfo.bin : String(bankCodeOrBin || "").replace(/\D/g, "");
+  const cleanAcct = String(accountNumber || "").replace(/\s+/g, "").trim();
+  if (!bin || !cleanAcct) return "";
+
+  const cleanApp = String(appId || "vcb").trim().toLowerCase();
+  const cleanAmount = Math.max(0, Math.round(Number(amount) || 0));
+  const cleanNote = toUpperUnaccentedName(description).slice(0, 75);
+  const cleanHolder = toUpperUnaccentedName(accountName);
+
+  const pairs = [
+    `app=${encodeURIComponent(cleanApp)}`,
+    `ba=${encodeURIComponent(cleanAcct)}@${bin}`,
+    `am=${cleanAmount}`,
+    `tn=${encodeURIComponent(cleanNote)}`,
+    `bn=${encodeURIComponent(cleanHolder)}`
+  ];
+  return `https://dl.vietqr.io/pay?${pairs.join("&")}`;
+}
+
+/**
  * Sinh Data URL QR Code hoàn toàn offline bằng thư viện qrcode.
  */
 export async function generateVietQrDataUrl(params) {

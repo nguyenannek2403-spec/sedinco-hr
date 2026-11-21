@@ -106,12 +106,46 @@ export default function PayslipActionFooter({
     );
   }
 
-  const isPeriodPublished = Boolean(
+  const isEmployeePaid = Boolean(
     item &&
-      (item.period_locked ||
-        item.payroll_period_status === "APPROVED" ||
+      (item.payout_status === "PAID" ||
+        item.employee_payment_status === "PAID" ||
         item.payment_status === "PAID")
   );
+  const isPeriodPublished = Boolean(
+    item &&
+      (item.payout_status === "REPORT_SENT" ||
+        item.payout_status === "DISPUTED" ||
+        item.period_locked ||
+        item.payroll_period_status === "APPROVED" ||
+        isEmployeePaid)
+  );
+
+  if (isEmployeePaid) {
+    return (
+      <div
+        data-testid="payslip-worker-footer"
+        className="flex flex-wrap items-center justify-between gap-2 w-full"
+      >
+        <span
+          data-testid="payslip-worker-paid-badge"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs sm:text-sm font-semibold flex-1 min-w-[180px]"
+        >
+          <CheckCircle2 size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span>💸 Đã chuyển khoản lương</span>
+        </span>
+        <AppButton
+          data-testid="payslip-close-btn"
+          variant="secondary"
+          disabled={submitting}
+          onClick={onClose}
+          className="min-h-[44px] rounded-xl font-semibold flex-1 sm:flex-initial min-w-[96px]"
+        >
+          Đóng
+        </AppButton>
+      </div>
+    );
+  }
 
   if (confirmStatus === "CONFIRMED") {
     return (

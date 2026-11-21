@@ -58,10 +58,15 @@ export default function WorkerProfileTab({
   const handleOpenPayslipProp = onOpenPayslip || onOpenPeriodPayslip;
   const avatarFileRef = React.useRef(null);
   const [fallbackSlipOpen, setFallbackSlipOpen] = useState(false);
+  const [fallbackSlipPeriod, setFallbackSlipPeriod] = useState(() => ({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear()
+  }));
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [showDeviceHistory, setShowDeviceHistory] = useState(false);
   const [syncedUser, setSyncedUser] = useState(null);
+  const [salaryStatusMeta, setSalaryStatusMeta] = useState(null);
   const [attendanceSummary, setAttendanceSummary] = useState({
     total_work_days: 0,
     on_time_count: 0,
@@ -76,13 +81,23 @@ export default function WorkerProfileTab({
     if (currentUser?.role === "admin") return undefined;
     let active = true;
     const now = new Date();
+    const curM = now.getMonth() + 1;
+    const curY = now.getFullYear();
     Promise.all([
       safeGet("/attendance/me", {
-        month: now.getMonth() + 1,
-        year: now.getFullYear()
+        month: curM,
+        year: curY
       }).catch(() => null),
-      safeGet("/auth/me", {}, { cancelPrevious: false }).catch(() => null)
-    ]).then(([attRes, meRes]) => {
+      safeGet("/auth/me", {}, { cancelPrevious: false }).catch(() => null),
+      safeGet("/payroll/me", {
+        month: curM,
+        year: curY
+      }, { cancelPrevious: false }).catch(() => null),
+      safeGet("/notifications/my", {
+        filter: "unread",
+        limit: 10
+      }, { cancelPrevious: false }).catch(() => null)
+    ]).then(([attRes, meRes, payRes, notifRes]) => {
       if (!active) return;
       const rawAtt = attRes?.data;
       if (rawAtt && !Array.isArray(rawAtt) && rawAtt.summary) {
@@ -96,6 +111,37 @@ export default function WorkerProfileTab({
       }
       if (meRes?.success && meRes?.data) {
         setSyncedUser(meRes.data);
+      }
+
+      const unreadList = notifRes?.data?.notifications || notifRes?.notifications || [];
+      const reportNotif = Array.isArray(unreadList)
+        ? unreadList.find((n) => n?.type === "SALARY_REPORT_SENT" || n?.category === "salary_report")
+        : null;
+      const mySlip = payRes?.success && payRes?.data ? payRes.data : null;
+
+      if (mySlip && mySlip.payout_status === "REPORT_SENT") {
+        setSalaryStatusMeta({
+          payout_status: "REPORT_SENT",
+          month: Number(mySlip.thang || curM),
+          year: Number(mySlip.nam || curY),
+          netSalary: mySlip.netSalary
+        });
+      } else if (reportNotif && reportNotif.ref_month && reportNotif.ref_year) {
+        setSalaryStatusMeta({
+          payout_status: "REPORT_SENT",
+          month: Number(reportNotif.ref_month),
+          year: Number(reportNotif.ref_year),
+          netSalary: null
+        });
+      } else if (mySlip && mySlip.payout_status) {
+        setSalaryStatusMeta({
+          payout_status: mySlip.payout_status,
+          month: Number(mySlip.thang || curM),
+          year: Number(mySlip.nam || curY),
+          netSalary: mySlip.netSalary
+        });
+      } else {
+        setSalaryStatusMeta(null);
       }
     });
     return () => {
@@ -149,13 +195,14 @@ export default function WorkerProfileTab({
     }
   };
 
-  const handleOpenSalarySlip = () => {
+  const handleOpenSalarySlip = (overrideM = null, overrideY = null) => {
     const now = new Date();
-    const curM = now.getMonth() + 1;
-    const curY = now.getFullYear();
+    const targetM = Number(overrideM || now.getMonth() + 1);
+    const targetY = Number(overrideY || now.getFullYear());
     if (typeof handleOpenPayslipProp === "function") {
-      handleOpenPayslipProp(curM, curY);
+      handleOpenPayslipProp(targetM, targetY);
     } else {
+      setFallbackSlipPeriod({ month: targetM, year: targetY });
       setFallbackSlipOpen(true);
     }
   };
@@ -374,6 +421,37 @@ export default function WorkerProfileTab({
 
       {/* Phiếu lương tháng */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+        {salaryStatusMeta?.payout_status === "REPORT_SENT" && (
+          <button
+            type="button"
+            data-testid="pending-salary-report-banner"
+            onClick={() => handleOpenSalarySlip(salaryStatusMeta.month, salaryStatusMeta.year)}
+            className="w-full text-left p-3 rounded-xl bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 dark:from-rose-950/70 dark:via-amber-950/40 dark:to-rose-950/60 border border-rose-300 dark:border-rose-700/80 flex items-center justify-between gap-2.5 hover:shadow-sm transition cursor-pointer"
+          >
+            <div className="min-w-0">
+              <div className="text-xs sm:text-sm font-extrabold text-[#B80035] dark:text-rose-200">
+                📩 Báo cáo lương Tháng {salaryStatusMeta.month}/{salaryStatusMeta.year} đang chờ xác nhận
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                Bấm để kiểm tra chi tiết &amp; bấm Xác nhận lương ngay
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-[#E11D48] dark:text-rose-300 shrink-0" />
+          </button>
+        )}
+
+        {salaryStatusMeta?.payout_status === "CONFIRMED" && (
+          <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/70 text-xs font-bold text-emerald-800 dark:text-emerald-200">
+            ✓ Bạn đã xác nhận báo cáo lương Tháng {salaryStatusMeta.month}/{salaryStatusMeta.year}
+          </div>
+        )}
+
+        {salaryStatusMeta?.payout_status === "PAID" && (
+          <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/70 text-xs font-bold text-emerald-800 dark:text-emerald-200">
+            💸 Công ty SEDINCO đã chuyển khoản lương Tháng {salaryStatusMeta.month}/{salaryStatusMeta.year}
+          </div>
+        )}
+
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-[#E11D48] dark:text-rose-400 flex items-center justify-center shrink-0">
             <DollarSign className="w-4 h-4" />
@@ -387,7 +465,7 @@ export default function WorkerProfileTab({
           variant="primary"
           fullWidth
           icon={DollarSign}
-          onClick={handleOpenSalarySlip}
+          onClick={() => handleOpenSalarySlip(currentMonthNum, currentYearNum)}
           className="min-h-[46px] rounded-xl font-extrabold"
         >
           Xem phiếu lương tháng {currentMonthNum}/{currentYearNum}
@@ -552,10 +630,15 @@ export default function WorkerProfileTab({
       {/* Fallback SalarySlipModal nếu component được dùng độc lập */}
       {fallbackSlipOpen && (
         <SalarySlipModal
-          month={currentMonthNum}
-          year={currentYearNum}
+          month={fallbackSlipPeriod.month}
+          year={fallbackSlipPeriod.year}
           targetMaNv={currentUser?.ma_nv}
           showToast={showToast}
+          onStatusUpdated={(nextSt) => {
+            setSalaryStatusMeta((prev) =>
+              prev ? { ...prev, payout_status: nextSt } : prev
+            );
+          }}
           onClose={() => setFallbackSlipOpen(false)}
         />
       )}

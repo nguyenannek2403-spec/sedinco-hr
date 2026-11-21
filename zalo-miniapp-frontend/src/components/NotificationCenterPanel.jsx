@@ -20,6 +20,9 @@ const CATEGORY_META = {
   fraud: { Icon: ShieldAlert, iconColor: "text-rose-600 dark:text-rose-400", actionLabel: "Xem & Khóa" },
   device: { Icon: Smartphone, iconColor: "text-indigo-600 dark:text-indigo-300", actionLabel: "Mở 360°" },
   salary_dispute: { Icon: DollarSign, iconColor: "text-amber-600 dark:text-amber-300", actionLabel: "Xem phiếu" },
+  salary_report: { Icon: FileText, iconColor: "text-[#E11D48] dark:text-rose-400", actionLabel: "Xem & Xác nhận" },
+  salary_confirm: { Icon: CheckCircle2, iconColor: "text-emerald-600 dark:text-emerald-400", actionLabel: "Xem bảng lương" },
+  salary_paid: { Icon: DollarSign, iconColor: "text-emerald-600 dark:text-emerald-400", actionLabel: "Xem phiếu lương" },
   pending_request: { Icon: FileText, iconColor: "text-blue-600 dark:text-blue-300", actionLabel: "Duyệt đơn" },
   period_locked: { Icon: CheckCircle2, iconColor: "text-emerald-600 dark:text-emerald-400", actionLabel: "Xem phiếu lương" }
 };

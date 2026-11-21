@@ -19,7 +19,9 @@ export const zmpAdapter = {
   keepScreenOn: (...args) => realSdkAdapter.keepScreenOn(...args),
   saveFile: (...args) => realSdkAdapter.saveFile(...args),
   getStorage: (...args) => realSdkAdapter.getStorage(...args),
-  setStorage: (...args) => realSdkAdapter.setStorage(...args)
+  setStorage: (...args) => realSdkAdapter.setStorage(...args),
+  openShareSheet: (...args) => realSdkAdapter.openShareSheet(...args),
+  openOutApp: (...args) => realSdkAdapter.openOutApp(...args)
 };
 
 export default zmpAdapter;

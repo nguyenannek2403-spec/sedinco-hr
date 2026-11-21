@@ -13,10 +13,12 @@ import {
   RefreshCw,
   Lock,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FileSpreadsheet
 } from "lucide-react";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
+import { exportEmployeeSalaryExcel } from "../utils/salaryExcelExport";
 import { compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
 import { formatViCurrency, formatViWorkday, formatViNumber } from "../utils/viNumberFormat";
 import { AppButton, AppModal, StatusBadge, SkeletonList, UserAvatar } from "./ui";
@@ -25,8 +27,7 @@ import {
   formatDayWithWeekday,
   getPositiveAllowances,
   resolveLogNote,
-  getNoteBadgeClass,
-  buildSingleSlipCsv
+  getNoteBadgeClass
 } from "../utils/payslipHelpers";
 
 /**
@@ -372,12 +373,22 @@ export default function SalarySlipModal({
       const res = await safePost("/payroll/confirm", {
         month: thang,
         year: nam,
+        action: "CONFIRM",
         status: "CONFIRMED"
       }, {
         idempotencyKey: generateIdempotencyKey("pay_confirm")
       });
       if (res?.success) {
         setConfirmStatus("CONFIRMED");
+        setLoadedItem((prev) =>
+          prev
+            ? {
+                ...prev,
+                salary_confirm_status: "CONFIRMED",
+                payout_status: prev.payout_status === "PAID" ? "PAID" : "CONFIRMED"
+              }
+            : prev
+        );
         setShowDisputeForm(false);
         notify("Cảm ơn bạn đã xác nhận bảng lương chính xác!", "success");
         if (onStatusUpdated) onStatusUpdated("CONFIRMED");
@@ -417,7 +428,9 @@ export default function SalarySlipModal({
       const res = await safePost("/payroll/confirm", {
         month: thang,
         year: nam,
+        action: "DISPUTE",
         status: "DISPUTED",
+        note: disputeReason.trim(),
         dispute_reason: disputeReason.trim(),
         dispute_evidence_media: evidenceMedia || null
       }, {
@@ -425,6 +438,17 @@ export default function SalarySlipModal({
       });
       if (res?.success) {
         setConfirmStatus("DISPUTED");
+        setLoadedItem((prev) =>
+          prev
+            ? {
+                ...prev,
+                salary_confirm_status: "DISPUTED",
+                payout_status: prev.payout_status === "PAID" ? "PAID" : "DISPUTED",
+                dispute_reason: disputeReason.trim(),
+                dispute_note: disputeReason.trim()
+              }
+            : prev
+        );
         setShowDisputeForm(false);
         notify("Đã gửi báo cáo sai lương kèm minh chứng tới Admin & Kế toán!", "success");
         if (onStatusUpdated) onStatusUpdated("DISPUTED");
@@ -474,41 +498,34 @@ export default function SalarySlipModal({
 
   const handleExportSingleSlipExcel = async () => {
     if (!item) return;
-    const csvContent = buildSingleSlipCsv({
-      item,
-      maNv,
-      thang,
-      nam,
-      confirmStatus,
-      positiveAllowances,
-      totalPositiveAllowance,
-      showAllowancesBlock,
-      dailyRows: displayedDailyRows
-    });
-
     try {
-      await zmpAdapter.saveFile({
-        filename: `Phieu_Luong_${maNv}_T${thang}_${nam}.csv`,
-        content: csvContent,
-        mimeType: "text/csv;charset=utf-8;"
+      const { filename } = await exportEmployeeSalaryExcel(item, {
+        month: thang,
+        year: nam,
+        dailyRows: displayedDailyRows
       });
-      notify("Đã tải xuống Phiếu lương & Bảng công chi tiết!", "success");
+      notify(`Đã tải xuống file Excel phiếu lương ${filename}!`, "success");
     } catch (err) {
-      notify(err?.message || "Không thể tải xuống phiếu lương lúc này!", "error");
+      notify(err?.message || "Không thể xuất file Excel phiếu lương lúc này!", "error");
     }
   };
 
   const handleShareZalo = async () => {
     if (!item) return;
-    const shareText = `📄 PHIẾU LƯƠNG SEDINCO - THÁNG ${thang}/${nam}\n👤 NV: ${item.ho_ten} (${maNv})\n📅 Ngày công: ${formatViWorkday(item.totalWorkDays || 0)}/${formatViWorkday(item.standardWorkDays || item.standardDays || 26)}\n💰 Thực lĩnh (NET): ${formatCurrency(item.netSalary)}\n📌 Trạng thái: ${confirmStatus === "CONFIRMED" ? "Đã xác nhận" : confirmStatus === "DISPUTED" ? "Đang khiếu nại" : "Chờ xác nhận"}`;
+    const shareText = `📄 PHIẾU LƯƠNG SEDINCO - THÁNG ${thang}/${nam}\n👤 NV: ${item.ho_ten} (${maNv})\n📅 Ngày công: ${formatViWorkday(item.totalWorkDays || 0)}/${formatViWorkday(item.standardWorkDays || item.standardDays || 26)}\n💰 Thực lĩnh (NET): ${formatCurrency(item.netSalary)}\n📌 Trạng thái: ${confirmStatus === "CONFIRMED" ? "Đã xác nhận" : confirmStatus === "DISPUTED" ? "Đang khiếu nại" : item.payout_status === "PAID" ? "Đã chuyển khoản" : "Chờ xác nhận"}`;
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `Phiếu lương T${thang}/${nam} - ${item.ho_ten}`,
-          text: shareText
-        });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(shareText);
+      const res = await zmpAdapter.openShareSheet({
+        type: "text",
+        data: {
+          text: shareText,
+          description: `Phiếu lương T${thang}/${nam} - ${item.ho_ten || maNv}`
+        },
+        fallbackText: shareText
+      });
+      if (res?.cancelled) return;
+      if (res?.method === "zmp") {
+        notify("Đã mở chia sẻ Phiếu lương qua Zalo!", "success");
+      } else if (res?.method === "clipboard") {
         notify("Đã sao chép tóm tắt Phiếu lương để dán vào Zalo!", "success");
       }
     } catch (_e) {
@@ -516,14 +533,23 @@ export default function SalarySlipModal({
     }
   };
 
+  const isEmployeePaid = Boolean(
+    item &&
+      (item.payout_status === "PAID" ||
+        item.employee_payment_status === "PAID" ||
+        item.payment_status === "PAID")
+  );
   const isLockedOrPaid = Boolean(
-    item && (item.payment_status === "PAID" || item.payroll_period_status === "APPROVED" || item.period_locked)
+    item && (isEmployeePaid || item.payroll_period_status === "APPROVED" || item.period_locked)
   );
 
   const periodLockBadge = (() => {
     if (!item) return null;
-    if (item.payment_status === "PAID") {
-      return { label: "Đã chi trả", cls: "bg-emerald-800/85 border-emerald-300/40 text-white" };
+    if (isEmployeePaid) {
+      return { label: "💸 Đã chuyển khoản", cls: "bg-emerald-800/85 border-emerald-300/40 text-white" };
+    }
+    if (item.payout_status === "REPORT_SENT") {
+      return { label: "📩 Chờ xác nhận", cls: "bg-amber-700/85 border-amber-200/40 text-white" };
     }
     if (item.period_locked || item.payroll_period_status === "APPROVED") {
       return { label: "Đã chốt sổ", cls: "bg-blue-900/65 border-blue-200/40 text-white" };
@@ -722,6 +748,32 @@ export default function SalarySlipModal({
                   {formatCurrency(item.netSalary)}
                 </span>
               </div>
+            </div>
+
+            {/* Banner trạng thái báo cáo lương + Nút Tải file Excel phiếu lương 1 chạm */}
+            <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+              {item.payout_status === "REPORT_SENT" && !isEmployeePaid && confirmStatus !== "CONFIRMED" && (
+                <div
+                  data-testid="payslip-report-waiting-banner"
+                  className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-extrabold"
+                >
+                  📩 Báo cáo lương Tháng {thang}/{nam} đang chờ xác nhận
+                </div>
+              )}
+              {isEmployeePaid && (
+                <div className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs font-bold">
+                  💸 Đã chuyển khoản lương{item.employee_paid_at_vn ? ` lúc ${item.employee_paid_at_vn}` : ""}
+                </div>
+              )}
+              <AppButton
+                variant="success"
+                icon={FileSpreadsheet}
+                data-testid="payslip-download-excel-btn"
+                onClick={handleExportSingleSlipExcel}
+                className="min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold shrink-0"
+              >
+                📥 Tải file Excel phiếu lương
+              </AppButton>
             </div>
 
             {/* Thông tin nhân sự — Stitch #F0F3FF Tactical Pod */}

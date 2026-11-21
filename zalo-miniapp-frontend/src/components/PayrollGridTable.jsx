@@ -20,10 +20,13 @@ import {
   ChevronDown,
   ChevronUp,
   Calendar,
-  Send
+  Send,
+  Clock
 } from "lucide-react";
 import SalarySlipModal from "./SalarySlipModal";
 import BankTransferModal from "./BankTransferModal";
+import SalaryReportModal from "./SalaryReportModal";
+import ConfirmDialog from "./ConfirmDialog";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "./ui";
 import { safeGet, safePost, formatCsvCellRFC4180, generateIdempotencyKey } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
@@ -90,9 +93,190 @@ export default function PayrollGridTable({
   const [viewMode, setViewMode] = useState("overview"); // 'overview' | 'detailed'
   const [expandedDailyLogs, setExpandedDailyLogs] = useState({});
   const [transferItem, setTransferItem] = useState(null);
+  const [reportModalItem, setReportModalItem] = useState(null);
+  const [sendAllConfirmOpen, setSendAllConfirmOpen] = useState(false);
+  const [sendingAllReports, setSendingAllReports] = useState(false);
+  const [sendingReportId, setSendingReportId] = useState(null);
+  const [unconfirmedWarnItem, setUnconfirmedWarnItem] = useState(null);
 
   const toggleDailyLogsRow = (empId) => {
     setExpandedDailyLogs((prev) => ({ ...prev, [empId]: !prev[empId] }));
+  };
+
+  const getEffectivePayoutStatus = (row) => {
+    if (!row) return "DRAFT";
+    const rawPayout = String(row.payout_status || "").trim().toUpperCase();
+    const isPaidRow =
+      rawPayout === "PAID" ||
+      row.employee_payment_status === "PAID" ||
+      row.payment_status === "PAID";
+    if (isPaidRow) return "PAID";
+    if (rawPayout === "CONFIRMED" || row.salary_confirm_status === "CONFIRMED") return "CONFIRMED";
+    if (rawPayout === "DISPUTED" || row.salary_confirm_status === "DISPUTED") return "DISPUTED";
+    if (rawPayout === "REPORT_SENT") return "REPORT_SENT";
+    return "DRAFT";
+  };
+
+  const getUnconfirmedStatusLabel = (status) => {
+    switch (status) {
+      case "REPORT_SENT":
+        return "Đang chờ xác nhận";
+      case "DISPUTED":
+        return "Đang báo sai sót";
+      default:
+        return "Chưa gửi báo cáo";
+    }
+  };
+
+  const renderPayoutStatusBadge = (row) => {
+    const st = getEffectivePayoutStatus(row);
+    const empCode = row?.ma_nv || row?.id_nhan_vien || "";
+    if (st === "PAID") {
+      return (
+        <span
+          data-testid={`payroll-status-badge-${empCode}`}
+          data-payout-status="PAID"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-200 font-bold text-xs border border-emerald-300 dark:border-emerald-700 whitespace-nowrap"
+        >
+          💸 Đã chuyển khoản
+        </span>
+      );
+    }
+    if (st === "CONFIRMED") {
+      return (
+        <span
+          data-testid={`payroll-status-badge-${empCode}`}
+          data-payout-status="CONFIRMED"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-200 font-bold text-xs border border-teal-300 dark:border-teal-700 whitespace-nowrap"
+        >
+          ✓ Đã xác nhận lương
+        </span>
+      );
+    }
+    if (st === "DISPUTED") {
+      return (
+        <button
+          type="button"
+          data-testid={`payroll-status-badge-${empCode}`}
+          data-payout-status="DISPUTED"
+          onClick={() => setSelectedSlipItem(row)}
+          className="min-h-[36px] inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm cursor-pointer whitespace-nowrap"
+          title={row.dispute_note || row.dispute_reason || "Nhấn để xem báo cáo sai sót lương"}
+        >
+          ⚠️ Báo sai sót (Xem)
+        </button>
+      );
+    }
+    if (st === "REPORT_SENT") {
+      return (
+        <span
+          data-testid={`payroll-status-badge-${empCode}`}
+          data-payout-status="REPORT_SENT"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 font-bold text-xs border border-amber-300 dark:border-amber-700 whitespace-nowrap"
+        >
+          <Clock size={12} className="shrink-0" />
+          <span>Chờ xác nhận</span>
+        </span>
+      );
+    }
+    return (
+      <span
+        data-testid={`payroll-status-badge-${empCode}`}
+        data-payout-status="DRAFT"
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-xs border border-slate-300 dark:border-slate-700 whitespace-nowrap"
+      >
+        Bản nháp
+      </span>
+    );
+  };
+
+  const handleSendAllReports = async () => {
+    if (sendingAllReports) return;
+    setSendingAllReports(true);
+    try {
+      const res = await safePost("/payroll/send-report", {
+        month,
+        year,
+        send_all: true
+      });
+      if (res?.success) {
+        setInternalPayroll((prev) =>
+          prev.map((row) => {
+            const curPayout = getEffectivePayoutStatus(row);
+            if (curPayout === "PAID") return row;
+            return {
+              ...row,
+              payout_status: "REPORT_SENT",
+              salary_confirm_status: "PENDING"
+            };
+          })
+        );
+        setSendAllConfirmOpen(false);
+        if (notify) {
+          notify(
+            res.message || `Đã gửi báo cáo xác nhận lương Tháng ${month}/${year} tới tất cả nhân sự!`,
+            "success"
+          );
+        }
+        await fetchPayrollFromApi();
+        if (onRefresh) onRefresh();
+      } else if (notify) {
+        notify(res?.message || "Không thể gửi báo cáo lương hàng loạt.", "error");
+      }
+    } catch (err) {
+      if (notify) notify(err?.message || "Lỗi kết nối khi gửi báo cáo lương.", "error");
+    } finally {
+      setSendingAllReports(false);
+    }
+  };
+
+  const handleSendSingleReport = async (row) => {
+    const empCode = row?.ma_nv || row?.id_nhan_vien;
+    if (!empCode || sendingReportId) return;
+    setSendingReportId(empCode);
+    try {
+      const res = await safePost("/payroll/send-report", {
+        month,
+        year,
+        ma_nv: empCode
+      });
+      if (res?.success) {
+        const curPaid = getEffectivePayoutStatus(row) === "PAID";
+        const updatedRow = {
+          ...row,
+          payout_status: curPaid ? "PAID" : "REPORT_SENT",
+          salary_confirm_status: curPaid ? row.salary_confirm_status : "PENDING"
+        };
+        setInternalPayroll((prev) =>
+          prev.map((r) => ((r.ma_nv || r.id_nhan_vien) === empCode ? updatedRow : r))
+        );
+        setSelectedSlipItem((prev) =>
+          prev && (prev.ma_nv || prev.id_nhan_vien) === empCode ? updatedRow : prev
+        );
+        setReportModalItem(updatedRow);
+        if (notify) {
+          notify(res.message || `Đã gửi báo cáo lương cho ${row.ho_ten || empCode}!`, "success");
+        }
+        fetchPayrollFromApi();
+        if (onRefresh) onRefresh();
+      } else if (notify) {
+        notify(res?.message || "Không thể gửi báo cáo lương.", "error");
+      }
+    } catch (err) {
+      if (notify) notify(err?.message || "Lỗi kết nối khi gửi báo cáo lương.", "error");
+    } finally {
+      setSendingReportId(null);
+    }
+  };
+
+  const handleRequestTransfer = (row) => {
+    if (!row) return;
+    const status = getEffectivePayoutStatus(row);
+    if (status !== "CONFIRMED" && status !== "PAID") {
+      setUnconfirmedWarnItem(row);
+      return;
+    }
+    setTransferItem(row);
   };
 
   const fetchPeriodStatus = useCallback(async () => {
@@ -602,6 +786,21 @@ export default function PayrollGridTable({
               </AppButton>
             )}
 
+            {/* Nút Gửi Báo Cáo Lương Hàng Loạt (Chỉ Admin - V45) */}
+            {isAdmin && totalEmployeesCount > 0 && (
+              <AppButton
+                variant="zalo"
+                icon={Send}
+                loading={sendingAllReports}
+                disabled={isLoading}
+                data-testid="payroll-send-all-reports-btn"
+                onClick={() => setSendAllConfirmOpen(true)}
+                className="text-xs sm:text-sm px-3.5 py-2"
+              >
+                📨 Gửi báo cáo tất cả
+              </AppButton>
+            )}
+
             {/* Nút Duyệt & Phát Hành Phiếu Lương */}
             {canApprovePayroll && (
               <AppButton
@@ -928,14 +1127,28 @@ export default function PayrollGridTable({
                       </button>
 
                       <div className="flex flex-wrap items-center gap-2">
+                        {renderPayoutStatusBadge(item)}
+                        {isAdmin && (
+                          <AppButton
+                            variant="zalo"
+                            icon={Send}
+                            loading={sendingReportId === empId}
+                            disabled={Boolean(sendingReportId)}
+                            data-testid={`payroll-send-report-btn-${empId}`}
+                            onClick={() => handleSendSingleReport(item)}
+                            className="text-xs"
+                          >
+                            Gửi báo cáo
+                          </AppButton>
+                        )}
                         {canManagePayment && (() => {
-                          const empPaid = item.employee_payment_status === "PAID" || item.payment_status === "PAID";
+                          const empPaid = getEffectivePayoutStatus(item) === "PAID";
                           return (
                             <AppButton
                               variant={empPaid ? "success" : "primary"}
                               icon={empPaid ? CheckCircle2 : Send}
                               data-testid={`payroll-transfer-btn-${empId}`}
-                              onClick={() => setTransferItem(item)}
+                              onClick={() => handleRequestTransfer(item)}
                               className={`text-xs ${empPaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"}`}
                             >
                               {empPaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}
@@ -1068,9 +1281,12 @@ export default function PayrollGridTable({
                         </div>
                       </div>
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-extrabold shrink-0 whitespace-nowrap">
-                      {formatViWorkday(item.totalWorkDays)} Công
-                    </span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-extrabold whitespace-nowrap">
+                        {formatViWorkday(item.totalWorkDays)} Công
+                      </span>
+                      {renderPayoutStatusBadge(item)}
+                    </div>
                   </div>
 
                   {/* STITCH ADMIN SCREEN 4 — NET PAY TRANSFER POD */}
@@ -1115,14 +1331,27 @@ export default function PayrollGridTable({
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-1">
+                    {isAdmin && (
+                      <AppButton
+                        variant="zalo"
+                        icon={Send}
+                        loading={sendingReportId === empId}
+                        disabled={Boolean(sendingReportId)}
+                        data-testid={`payroll-send-report-mobile-btn-${empId}`}
+                        onClick={() => handleSendSingleReport(item)}
+                        className="flex-1 min-w-[130px] text-xs"
+                      >
+                        Gửi báo cáo
+                      </AppButton>
+                    )}
                     {canManagePayment && (() => {
-                      const empPaid = item.employee_payment_status === "PAID" || item.payment_status === "PAID";
+                      const empPaid = getEffectivePayoutStatus(item) === "PAID";
                       return (
                         <AppButton
                           variant={empPaid ? "success" : "primary"}
                           icon={empPaid ? CheckCircle2 : Send}
                           data-testid={`payroll-transfer-mobile-btn-${empId}`}
-                          onClick={() => setTransferItem(item)}
+                          onClick={() => handleRequestTransfer(item)}
                           className={`flex-1 min-w-[130px] text-xs ${empPaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"}`}
                         >
                           {empPaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}
@@ -1272,34 +1501,30 @@ export default function PayrollGridTable({
                         </span>
                       </td>
                       <td className="p-3.5 text-center whitespace-nowrap">
-                        {confirmStatus === "CONFIRMED" ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-300 font-semibold text-xs border border-emerald-300 dark:border-emerald-800/70">
-                            Đã xác nhận
-                          </span>
-                        ) : confirmStatus === "DISPUTED" ? (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedSlipItem(item)}
-                            className="min-h-[44px] inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-600 text-white font-semibold text-xs shadow-sm cursor-pointer"
-                            title={item.dispute_reason || "Nhấn để xem minh chứng khiếu nại lương"}
-                          >
-                            Khiếu nại (Xem)
-                          </button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium text-xs border border-slate-300 dark:border-slate-700">
-                            Chờ xác nhận
-                          </span>
-                        )}
+                        {renderPayoutStatusBadge(item)}
                       </td>
                       <td className="p-3.5 text-center pr-5 whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              disabled={Boolean(sendingReportId)}
+                              data-testid={`payroll-send-report-btn-${empId}`}
+                              onClick={() => handleSendSingleReport(item)}
+                              className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-[#0051CA] dark:text-sky-200 border border-sky-300 dark:border-sky-700 text-xs font-bold transition-all cursor-pointer whitespace-nowrap disabled:opacity-60"
+                              title="Gửi báo cáo xác nhận lương, chia sẻ Zalo & xuất Excel"
+                            >
+                              <Send size={14} />
+                              <span>Gửi báo cáo</span>
+                            </button>
+                          )}
                           {canManagePayment && (() => {
-                            const empPaid = item.employee_payment_status === "PAID" || item.payment_status === "PAID";
+                            const empPaid = getEffectivePayoutStatus(item) === "PAID";
                             return (
                               <button
                                 type="button"
                                 data-testid={`payroll-transfer-btn-${empId}`}
-                                onClick={() => setTransferItem(item)}
+                                onClick={() => handleRequestTransfer(item)}
                                 className={`inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer whitespace-nowrap ${
                                   empPaid
                                     ? "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700"
@@ -1398,7 +1623,7 @@ export default function PayrollGridTable({
           canAdjust={isAdmin || canCalculatePayroll}
           canManagePayment={canManagePayment}
           onOpenAdjustment={(slip) => handleOpenAdjustmentModal(slip)}
-          onOpenTransfer={(slip) => setTransferItem(slip)}
+          onOpenTransfer={(slip) => handleRequestTransfer(slip)}
           refreshKey={slipRefreshTick}
           showToast={notify}
           onStatusUpdated={() => {
@@ -1415,6 +1640,7 @@ export default function PayrollGridTable({
         item={transferItem}
         month={month}
         year={year}
+        isAdminUser={isAdmin}
         canEditEmployeeBank={isAdmin || dynamicPerms?.employee_edit === true}
         showToast={notify}
         onClose={() => setTransferItem(null)}
@@ -1442,6 +1668,8 @@ export default function PayrollGridTable({
           if (targetMaNv) {
             const patch = {
               employee_payment_status: "PAID",
+              payout_status: "PAID",
+              transfer_note: payoutData?.transfer_note || null,
               employee_paid_at: payoutData?.employee_paid_at || new Date().toISOString(),
               employee_paid_at_vn: payoutData?.employee_paid_at_vn || null,
               employee_paid_by: payoutData?.employee_paid_by || null
@@ -1612,6 +1840,100 @@ export default function PayrollGridTable({
           </div>
         </form>
       </AppModal>
+
+      {/* Modal Tiện Ích Chia Sẻ Báo Cáo Lương Qua Zalo & Xuất Excel (.xlsx) */}
+      <SalaryReportModal
+        open={Boolean(reportModalItem)}
+        item={reportModalItem}
+        month={month}
+        year={year}
+        showToast={notify}
+        onClose={() => setReportModalItem(null)}
+      />
+
+      {/* Hộp thoại Xác nhận Gửi Báo Cáo Hàng Loạt */}
+      <ConfirmDialog
+        open={sendAllConfirmOpen}
+        variant="primary"
+        title="Gửi báo cáo xác nhận lương"
+        message={`Gửi báo cáo xác nhận lương Tháng ${month}/${year} tới tất cả ${formatViNumber(totalEmployeesCount, 0)} nhân viên & kế toán?`}
+        confirmLabel="📨 Gửi tất cả ngay"
+        cancelLabel="Đóng"
+        loading={sendingAllReports}
+        onConfirm={handleSendAllReports}
+        onCancel={() => !sendingAllReports && setSendAllConfirmOpen(false)}
+      />
+
+      {/* Modal Cảnh Báo Linh Hoạt Khi Nhân Viên Chưa Xác Nhận Lương Trước Lúc Chuyển Khoản */}
+      {unconfirmedWarnItem && (
+        <AppModal
+          open={Boolean(unconfirmedWarnItem)}
+          onClose={() => setUnconfirmedWarnItem(null)}
+          zIndexClass="z-[120]"
+          maxWidthClass="sm:max-w-md"
+          icon={
+            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          }
+          title="⚠️ Nhân viên chưa xác nhận báo cáo lương"
+          subtitle={`${unconfirmedWarnItem.ho_ten || unconfirmedWarnItem.ma_nv} • Tháng ${month}/${year}`}
+          footer={
+            <div className="space-y-2 w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <AppButton
+                  variant="zalo"
+                  icon={Send}
+                  loading={sendingReportId === (unconfirmedWarnItem.ma_nv || unconfirmedWarnItem.id_nhan_vien)}
+                  data-testid="warn-send-report-first-btn"
+                  onClick={async () => {
+                    const targetRow = unconfirmedWarnItem;
+                    setUnconfirmedWarnItem(null);
+                    await handleSendSingleReport(targetRow);
+                  }}
+                  className="w-full text-xs font-bold"
+                >
+                  📨 Gửi báo cáo trước
+                </AppButton>
+                <AppButton
+                  variant="warning"
+                  data-testid="warn-continue-transfer-btn"
+                  onClick={() => {
+                    const targetRow = unconfirmedWarnItem;
+                    setUnconfirmedWarnItem(null);
+                    setTransferItem(targetRow);
+                  }}
+                  className="w-full text-xs font-extrabold"
+                >
+                  Vẫn tiếp tục chuyển khoản
+                </AppButton>
+              </div>
+              <AppButton
+                variant="secondary"
+                fullWidth
+                onClick={() => setUnconfirmedWarnItem(null)}
+                className="text-xs"
+              >
+                Đóng / Quay lại
+              </AppButton>
+            </div>
+          }
+        >
+          <div data-testid="unconfirmed-transfer-warning-modal" className="p-4 sm:p-5 text-sm text-slate-700 dark:text-slate-200 leading-relaxed space-y-2.5">
+            <p>
+              Nhân viên <strong className="text-[#111C2D] dark:text-white">{unconfirmedWarnItem.ho_ten}</strong> hiện chưa bấm xác nhận báo cáo lương Tháng {month}/{year}{" "}
+              (Trạng thái:{" "}
+              <strong className="text-amber-700 dark:text-amber-300">
+                {getUnconfirmedStatusLabel(getEffectivePayoutStatus(unconfirmedWarnItem))}
+              </strong>
+              ).
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Bạn có muốn gửi báo cáo xác nhận trước, hoặc chủ động tiếp tục mở chuyển khoản ngay bây giờ?
+            </p>
+          </div>
+        </AppModal>
+      )}
 
     </div>
   );

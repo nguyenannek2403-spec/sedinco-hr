@@ -11,6 +11,8 @@ import {
   getNetworkType as zmpGetNetworkType,
   keepScreen as zmpKeepScreen,
   downloadFile as zmpDownloadFile,
+  openShareSheet as zmpOpenShareSheet,
+  openOutApp as zmpOpenOutApp,
   getStorage as zmpGetStorage,
   setStorage as zmpSetStorage,
   nativeStorage as zmpNativeStorage
@@ -27,16 +29,27 @@ function isInsideZaloRuntime() {
   );
 }
 
+function bytesToBase64(bytes) {
+  if (!bytes || typeof btoa !== "function") return "";
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 function encodeUtf8ToDataUrl(content, mimeType = "text/plain;charset=utf-8") {
   const cleanMime = String(mimeType || "application/octet-stream").split(";")[0].trim();
+  if (content instanceof Uint8Array) {
+    return `data:${cleanMime};base64,${bytesToBase64(content)}`;
+  }
+  if (content instanceof ArrayBuffer) {
+    return `data:${cleanMime};base64,${bytesToBase64(new Uint8Array(content))}`;
+  }
   if (typeof TextEncoder !== "undefined" && typeof btoa === "function") {
     const bytes = new TextEncoder().encode(String(content ?? ""));
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    return `data:${cleanMime};base64,${btoa(binary)}`;
+    return `data:${cleanMime};base64,${bytesToBase64(bytes)}`;
   }
   return "";
 }
@@ -460,5 +473,89 @@ export const realSdkAdapter = {
       // Da luu localStorage lam fallback
     }
     return true;
+  },
+
+  async openShareSheet({ type = "text", data = {}, fallbackText = "" } = {}) {
+    if (isInsideZaloRuntime() && typeof zmpOpenShareSheet === "function") {
+      try {
+        const res = await zmpOpenShareSheet({ type, data });
+        return { success: true, method: "zmp", data: res };
+      } catch (err) {
+        console.warn("[RealSDK] openShareSheet error, falling back:", err);
+      }
+    }
+
+    const textToShare =
+      String(fallbackText || data?.text || data?.link || data?.imageUrl || (Array.isArray(data?.imageUrls) ? data.imageUrls[0] : "") || "").trim();
+
+    let copied = false;
+    if (textToShare) {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(textToShare);
+          copied = true;
+        } catch {}
+      }
+      if (!copied && typeof document !== "undefined") {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = textToShare;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          copied = Boolean(document.execCommand("copy"));
+          document.body.removeChild(ta);
+        } catch {}
+      }
+    }
+
+    // Trên trình duyệt mobile (không phải desktop headless), ưu tiên thử Web Share API nếu có
+    const isMobileUa =
+      typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+    if (isMobileUa && typeof navigator !== "undefined" && typeof navigator.share === "function" && textToShare) {
+      try {
+        await navigator.share({
+          title: "Sedinco HR",
+          text: textToShare,
+          ...(data?.link ? { url: data.link } : {})
+        });
+        return { success: true, method: "web_share", copiedText: textToShare };
+      } catch (shareErr) {
+        if (shareErr?.name === "AbortError") {
+          return { success: false, cancelled: true, method: "web_share" };
+        }
+      }
+    }
+
+    if (copied) {
+      return { success: true, method: "clipboard", copiedText: textToShare };
+    }
+
+    return { success: Boolean(textToShare), method: "fallback", copiedText: textToShare };
+  },
+
+  async openOutApp({ url } = {}) {
+    const cleanUrl = String(url || "").trim();
+    if (!cleanUrl) {
+      throw new Error("Thiếu đường dẫn ứng dụng cần mở.");
+    }
+
+    if (isInsideZaloRuntime() && typeof zmpOpenOutApp === "function") {
+      try {
+        await zmpOpenOutApp({ url: cleanUrl });
+        return { success: true, method: "zmp", url: cleanUrl };
+      } catch (err) {
+        console.warn("[RealSDK] openOutApp error, falling back to browser:", err);
+      }
+    }
+
+    if (typeof window !== "undefined" && typeof window.open === "function") {
+      window.open(cleanUrl, "_blank", "noopener,noreferrer");
+      return { success: true, method: "browser", url: cleanUrl };
+    }
+
+    return { success: false, method: "unsupported", url: cleanUrl };
   }
 };

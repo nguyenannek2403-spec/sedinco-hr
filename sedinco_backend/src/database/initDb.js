@@ -473,6 +473,12 @@ async function initDatabase() {
         await query("ALTER TABLE attendance ADD COLUMN paid_at DATETIME NULL").catch(() => {});
         await query("ALTER TABLE attendance ADD COLUMN paid_by VARCHAR(50) NULL").catch(() => {});
 
+        // V45: Vòng đời Báo cáo Xác nhận Lương 4 bước (DRAFT -> REPORT_SENT -> CONFIRMED/DISPUTED -> PAID)
+        await query("ALTER TABLE attendance ADD COLUMN payout_status VARCHAR(32) DEFAULT 'DRAFT'").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN report_sent_at DATETIME NULL").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN dispute_note TEXT NULL").catch(() => {});
+        await query("ALTER TABLE attendance ADD COLUMN transfer_note VARCHAR(255) NULL").catch(() => {});
+
         // V18: Account Phone/Custom Username & Persistent Theme Preference + Cleanup Legacy Multi-Model Device Names
         await query("ALTER TABLE employees ADD COLUMN phone VARCHAR(30) NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN login_username VARCHAR(100) NULL").catch(() => {});

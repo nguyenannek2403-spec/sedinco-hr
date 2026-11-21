@@ -6,6 +6,7 @@ import EmployeeManagementTab from "./EmployeeManagementTab";
 import CompanySettingsTab from "./CompanySettingsTab";
 import HolidaysTab from "./HolidaysTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
+import SalarySlipModal from "../../components/SalarySlipModal";
 import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from "../../constants/roles";
 import { safeGet, safePut } from "../../utils/api";
 import { compressAvatarImage } from "../../utils/imageCompressor";
@@ -51,6 +52,11 @@ export default function DesktopDashboard({
   const [refreshTick, setRefreshTick] = useState(0);
   const adminAvatarInputRef = useRef(null);
   const [adminAvatarSaving, setAdminAvatarSaving] = useState(false);
+  const [personalPayslipModal, setPersonalPayslipModal] = useState({
+    open: false,
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear()
+  });
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsSummary, setAlertsSummary] = useState({
     fraud_count: 0,
@@ -169,6 +175,15 @@ export default function DesktopDashboard({
     }
     const resolvedTab = alert.target_tab || "management";
     const resolvedSub = alert.target_subtab || null;
+    if (resolvedTab === "payslip" && resolvedRole !== ROLES.ADMIN) {
+      setPersonalPayslipModal({
+        open: true,
+        month: Number(alert.month || selectedMonth || new Date().getMonth() + 1),
+        year: Number(alert.year || selectedYear || new Date().getFullYear())
+      });
+      setIsMobileMenuOpen(false);
+      return;
+    }
     navigateToTarget(resolvedTab, resolvedSub);
     setFocusTarget({
       tab: resolvedTab,
@@ -539,6 +554,21 @@ export default function DesktopDashboard({
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
       </div>
+
+      {personalPayslipModal.open && resolvedRole !== ROLES.ADMIN && (
+        <SalarySlipModal
+          month={personalPayslipModal.month}
+          year={personalPayslipModal.year}
+          targetMaNv={currentUser?.ma_nv}
+          isAdminOrAccountant={false}
+          showToast={showToast}
+          onStatusUpdated={() => {
+            fetchAlertsSummary();
+            setRefreshTick((t) => t + 1);
+          }}
+          onClose={() => setPersonalPayslipModal((p) => ({ ...p, open: false }))}
+        />
+      )}
     </div>
   );
 }

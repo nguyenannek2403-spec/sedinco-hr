@@ -286,6 +286,9 @@ export default function WorkerDashboard({
           targetMaNv={currentUser?.ma_nv}
           isAdminOrAccountant={false}
           showToast={showToast}
+          onStatusUpdated={() => {
+            fetchNotifications({ filterOverride: notifFilter, offset: 0, append: false });
+          }}
           onClose={() => setPayslipModal((p) => ({ ...p, open: false }))}
         />
       )}

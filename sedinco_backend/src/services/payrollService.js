@@ -26,6 +26,24 @@ function getMonthDateBounds(month, year) {
     return { startDateStr, endDateStr };
 }
 
+function formatViCurrencyServer(amount) {
+    const rounded = Math.round(Number(amount) || 0);
+    const sign = rounded < 0 ? '-' : '';
+    const digits = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${sign}${digits} đ`;
+}
+
+function resolveEffectivePayoutStatus(row = {}, periodRow = null) {
+    const payoutRaw = String(row.payout_status || '').trim().toUpperCase();
+    const payRaw = String(row.employee_payment_status || row.payment_status || '').trim().toUpperCase();
+    const confirmRaw = String(row.salary_confirm_status || '').trim().toUpperCase();
+    if (payoutRaw === 'PAID' || payRaw === 'PAID' || periodRow?.payment_status === 'PAID') return 'PAID';
+    if (payoutRaw === 'CONFIRMED' || confirmRaw === 'CONFIRMED') return 'CONFIRMED';
+    if (payoutRaw === 'DISPUTED' || confirmRaw === 'DISPUTED') return 'DISPUTED';
+    if (payoutRaw === 'REPORT_SENT') return 'REPORT_SENT';
+    return 'DRAFT';
+}
+
 class PayrollService {
     async calculateMonthlyPayroll(month, year, pagination = {}) {
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
@@ -42,6 +60,8 @@ class PayrollService {
         const sql = `
             SELECT e.*, IFNULL(a.cong_chuan, ?) as cong_chuan,
                    COALESCE(a.salary_confirm_status, 'PENDING') as salary_confirm_status,
+                   COALESCE(a.payout_status, 'DRAFT') as payout_status,
+                   a.report_sent_at, a.dispute_note, a.transfer_note,
                    a.dispute_reason, a.dispute_evidence_media, a.admin_response, a.confirmed_at,
                    COALESCE(a.bonus_amount, 0) as bonus_amount,
                    COALESCE(a.penalty_amount, 0) as penalty_amount,
@@ -182,10 +202,16 @@ class PayrollService {
                 freeLateExemptsHalfday: calc.freeLateExemptsHalfday,
                 negativeSalaryPolicy: calc.negativeSalaryPolicy,
                 salary_confirm_status: emp.salary_confirm_status || 'PENDING',
-                dispute_reason: emp.dispute_reason || null,
+                payout_status: resolveEffectivePayoutStatus(emp, periodRow),
+                report_sent_at: emp.report_sent_at || null,
+                report_sent_at_vn: formatVietnamDateTime(emp.report_sent_at),
+                dispute_reason: emp.dispute_reason || emp.dispute_note || null,
+                dispute_note: emp.dispute_note || emp.dispute_reason || null,
                 dispute_evidence_media: emp.dispute_evidence_media || null,
                 admin_response: emp.admin_response || null,
                 confirmed_at: emp.confirmed_at || null,
+                confirmed_at_vn: formatVietnamDateTime(emp.confirmed_at),
+                transfer_note: emp.transfer_note || null,
                 bank_code: emp.bank_code || null,
                 bank_name: emp.bank_name || null,
                 bank_account_number: emp.bank_account_number || null,
@@ -215,6 +241,8 @@ class PayrollService {
         const sql = `
             SELECT e.*, IFNULL(a.cong_chuan, ?) as cong_chuan,
                    COALESCE(a.salary_confirm_status, 'PENDING') as salary_confirm_status,
+                   COALESCE(a.payout_status, 'DRAFT') as payout_status,
+                   a.report_sent_at, a.dispute_note, a.transfer_note,
                    a.dispute_reason, a.dispute_evidence_media, a.admin_response, a.confirmed_at,
                    COALESCE(a.bonus_amount, 0) as bonus_amount,
                    COALESCE(a.penalty_amount, 0) as penalty_amount,
@@ -352,10 +380,16 @@ class PayrollService {
             freeLateExemptsHalfday: calc.freeLateExemptsHalfday,
             negativeSalaryPolicy: calc.negativeSalaryPolicy,
             salary_confirm_status: emp.salary_confirm_status || 'PENDING',
-            dispute_reason: emp.dispute_reason || null,
+            payout_status: resolveEffectivePayoutStatus(emp, periodRow),
+            report_sent_at: emp.report_sent_at || null,
+            report_sent_at_vn: formatVietnamDateTime(emp.report_sent_at),
+            dispute_reason: emp.dispute_reason || emp.dispute_note || null,
+            dispute_note: emp.dispute_note || emp.dispute_reason || null,
             dispute_evidence_media: emp.dispute_evidence_media || null,
             admin_response: emp.admin_response || null,
             confirmed_at: emp.confirmed_at || null,
+            confirmed_at_vn: formatVietnamDateTime(emp.confirmed_at),
+            transfer_note: emp.transfer_note || null,
             bank_code: emp.bank_code || null,
             bank_name: emp.bank_name || null,
             bank_account_number: emp.bank_account_number || null,
@@ -393,24 +427,36 @@ class PayrollService {
         return this.getMyPayroll(cleanMaNv, month, year);
     }
 
-    async confirmOrDisputeSalary({ ma_nv, month, year, status, dispute_reason, dispute_evidence_media, current_user = null }) {
+    async confirmOrDisputeSalary({ ma_nv, month, year, status, action, note, dispute_reason, dispute_evidence_media, current_user = null }) {
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
         const y = parseInt(year, 10) || new Date().getFullYear();
 
-        const targetEmpRows = await query('SELECT ma_nv, role FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+        const targetEmpRows = await query('SELECT ma_nv, ho_ten, role FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
         if (targetEmpRows && targetEmpRows[0] && targetEmpRows[0].role === 'admin') {
             const err = new Error('Tài khoản Quản trị viên không tham gia bảng lương cá nhân!');
             err.statusCode = 403;
             throw err;
         }
-        const normalizedStatus = String(status || 'CONFIRMED').toUpperCase();
+        const empName = (targetEmpRows && targetEmpRows[0] && targetEmpRows[0].ho_ten) || ma_nv;
+
+        const rawAction = String(action || status || 'CONFIRM').trim().toUpperCase();
+        const normalizedStatus = (rawAction === 'CONFIRM' || rawAction === 'CONFIRMED')
+            ? 'CONFIRMED'
+            : (rawAction === 'DISPUTE' || rawAction === 'DISPUTED')
+                ? 'DISPUTED'
+                : rawAction;
+
         if (!['CONFIRMED', 'DISPUTED'].includes(normalizedStatus)) {
             const err = new Error('Trạng thái xác nhận lương không hợp lệ!');
             err.statusCode = 400;
             throw err;
         }
 
-        if (normalizedStatus === 'DISPUTED' && (!dispute_reason || !String(dispute_reason).trim())) {
+        const rawNoteText = (note !== undefined && note !== null && String(note).trim())
+            ? String(note).trim()
+            : (dispute_reason ? String(dispute_reason).trim() : '');
+
+        if (normalizedStatus === 'DISPUTED' && !rawNoteText) {
             const err = new Error('Vui lòng nhập lý do khiếu nại sai lương!');
             err.statusCode = 400;
             throw err;
@@ -425,35 +471,93 @@ class PayrollService {
             }
         }
 
+        const csRows = await query('SELECT standard_work_days FROM company_settings LIMIT 1').catch(() => []);
+        const stdDays = (csRows && csRows[0] && Number(csRows[0].standard_work_days)) || 26;
+
+        let finalPayoutStatus = normalizedStatus;
         await withTransaction(async (txQuery) => {
             const existingRows = await txQuery(
-                'SELECT salary_confirm_status FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? FOR UPDATE',
+                'SELECT salary_confirm_status, payout_status, payment_status FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? FOR UPDATE',
                 [ma_nv, m, y]
             );
-            const currentStatus = existingRows && existingRows.length > 0 ? existingRows[0].salary_confirm_status : null;
+            const existing = existingRows && existingRows[0] ? existingRows[0] : null;
+            const currentStatus = existing ? existing.salary_confirm_status : null;
+            const currentPayout = existing ? existing.payout_status : null;
+            const alreadyPaid = existing && (existing.payout_status === 'PAID' || existing.payment_status === 'PAID');
 
-            if (normalizedStatus === 'DISPUTED' && currentStatus === 'DISPUTED') {
+            if (normalizedStatus === 'DISPUTED' && currentStatus === 'DISPUTED' && currentPayout === 'DISPUTED') {
                 const err = new Error(`Bạn đã gửi khiếu nại bảng lương Tháng ${m}/${y} trước đó và đang chờ giải quyết. Vui lòng không gửi trùng!`);
                 err.statusCode = 409;
                 err.code = 'DUPLICATE_SALARY_DISPUTE';
                 throw err;
             }
 
+            finalPayoutStatus = alreadyPaid ? 'PAID' : normalizedStatus;
+            const cleanDisputeNote = normalizedStatus === 'DISPUTED' ? rawNoteText : null;
+
             await txQuery(`
-                INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, salary_confirm_status, dispute_reason, dispute_evidence_media, confirmed_at)
-                VALUES (?, ?, ?, 26, ?, ?, ?, NOW())
+                INSERT INTO attendance (
+                    ma_nv, thang, nam, cong_chuan,
+                    salary_confirm_status, payout_status,
+                    dispute_reason, dispute_note, dispute_evidence_media, confirmed_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                 ON DUPLICATE KEY UPDATE
                     salary_confirm_status = VALUES(salary_confirm_status),
+                    payout_status = CASE WHEN payout_status = 'PAID' OR payment_status = 'PAID' THEN 'PAID' ELSE VALUES(payout_status) END,
                     dispute_reason = VALUES(dispute_reason),
+                    dispute_note = VALUES(dispute_note),
                     dispute_evidence_media = COALESCE(VALUES(dispute_evidence_media), dispute_evidence_media),
                     confirmed_at = NOW()
             `, [
                 ma_nv,
                 m,
                 y,
+                stdDays,
                 normalizedStatus,
-                normalizedStatus === 'DISPUTED' ? String(dispute_reason).trim() : null,
+                finalPayoutStatus,
+                cleanDisputeNote,
+                cleanDisputeNote,
                 normalizedStatus === 'DISPUTED' ? (dispute_evidence_media || null) : null
+            ]);
+
+            const notifTitle = normalizedStatus === 'CONFIRMED'
+                ? `✓ ${empName} (${ma_nv}) đã xác nhận lương T${m}/${y}`
+                : `⚠️ ${empName} (${ma_nv}) báo sai sót lương T${m}/${y}`;
+            const notifMessage = normalizedStatus === 'CONFIRMED'
+                ? `${empName} (${ma_nv}) đã xác nhận đúng báo cáo lương Tháng ${m}/${y}. Sẵn sàng chuyển khoản.`
+                : `${empName} (${ma_nv}) báo sai sót lương Tháng ${m}/${y}: "${cleanDisputeNote}"`;
+
+            await txQuery(`
+                INSERT INTO user_notifications (
+                    recipient_ma_nv, alert_key, type, category, severity,
+                    title, message, ref_month, ref_year,
+                    target_ma_nv, target_tab, target_subtab, target_id, is_read, read_at, created_at
+                )
+                VALUES ('ADMIN', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'management', 'payroll', ?, 0, NULL, NOW())
+                ON DUPLICATE KEY UPDATE
+                    type = VALUES(type),
+                    category = VALUES(category),
+                    severity = VALUES(severity),
+                    title = VALUES(title),
+                    message = VALUES(message),
+                    target_tab = VALUES(target_tab),
+                    target_subtab = VALUES(target_subtab),
+                    target_id = VALUES(target_id),
+                    is_read = 0,
+                    read_at = NULL,
+                    created_at = NOW()
+            `, [
+                `salary_confirm_admin_${m}_${y}_${ma_nv}`,
+                normalizedStatus === 'CONFIRMED' ? 'SALARY_CONFIRMED' : 'SALARY_DISPUTED',
+                normalizedStatus === 'CONFIRMED' ? 'salary_confirm' : 'salary_dispute',
+                normalizedStatus === 'CONFIRMED' ? 'info' : 'high',
+                notifTitle.slice(0, 255),
+                notifMessage.slice(0, 1000),
+                m,
+                y,
+                ma_nv,
+                `${m}-${y}`
             ]);
         });
 
@@ -467,7 +571,8 @@ class PayrollService {
                 month: m,
                 year: y,
                 status: normalizedStatus,
-                dispute_reason: normalizedStatus === 'DISPUTED' ? String(dispute_reason).trim() : undefined,
+                payout_status: finalPayoutStatus,
+                dispute_reason: normalizedStatus === 'DISPUTED' ? rawNoteText : undefined,
                 has_evidence_media: Boolean(dispute_evidence_media)
             }
         });
@@ -475,6 +580,7 @@ class PayrollService {
         return {
             success: true,
             salary_confirm_status: normalizedStatus,
+            payout_status: finalPayoutStatus,
             message: normalizedStatus === 'CONFIRMED'
                 ? `Đã xác nhận đúng bảng lương Tháng ${m}/${y}!`
                 : `Đã gửi báo cáo sai lương Tháng ${m}/${y} kèm minh chứng tới Phòng Kế Toán & Ban Giám Đốc!`
@@ -509,13 +615,15 @@ class PayrollService {
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
         const y = parseInt(year, 10) || new Date().getFullYear();
 
+        const mappedPayout = cleanStatus === 'PENDING' ? 'REPORT_SENT' : cleanStatus;
         await query(`
-            INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, salary_confirm_status, admin_response)
-            VALUES (?, ?, ?, 26, ?, ?)
+            INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, salary_confirm_status, payout_status, admin_response)
+            VALUES (?, ?, ?, 26, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 salary_confirm_status = VALUES(salary_confirm_status),
+                payout_status = CASE WHEN payout_status = 'PAID' OR payment_status = 'PAID' THEN 'PAID' ELSE VALUES(payout_status) END,
                 admin_response = VALUES(admin_response)
-        `, [ma_nv, m, y, cleanStatus, admin_response || 'Đã kiểm tra và xử lý điều chỉnh lương.']);
+        `, [ma_nv, m, y, cleanStatus, mappedPayout, admin_response || 'Đã kiểm tra và xử lý điều chỉnh lương.']);
 
         await logAuditEvent({
             actor_id: current_user ? (current_user.ma_nv || current_user.username) : 'admin',
@@ -749,7 +857,153 @@ class PayrollService {
         };
     }
 
-    async updateEmployeePaymentStatus({ ma_nv, month, year, status = 'PAID', current_user = null }) {
+    async sendSalaryReport({ month, year, ma_nv = null, send_all = false, current_user = null } = {}) {
+        if (current_user && current_user.role !== 'admin') {
+            const err = new Error('Chỉ Quản trị viên mới có quyền gửi báo cáo xác nhận lương!');
+            err.statusCode = 403;
+            throw err;
+        }
+        const m = parseInt(month, 10) || (new Date().getMonth() + 1);
+        const y = parseInt(year, 10) || new Date().getFullYear();
+        if (!Number.isInteger(m) || m < 1 || m > 12 || !Number.isInteger(y) || y < 2000 || y > 2200) {
+            const err = new Error('Tháng hoặc năm kỳ lương không hợp lệ!');
+            err.statusCode = 400;
+            throw err;
+        }
+
+        const isBatch = Boolean(send_all);
+        const cleanMaNv = String(ma_nv || '').trim();
+        if (!isBatch && !cleanMaNv) {
+            const err = new Error('Vui lòng chọn nhân viên nhận báo cáo hoặc chọn gửi tất cả!');
+            err.statusCode = 400;
+            throw err;
+        }
+
+        const allPayrollRows = await this.calculateMonthlyPayroll(m, y, { exportAll: true });
+        let targets = [];
+
+        if (isBatch) {
+            targets = (allPayrollRows || []).filter((r) => r && r.role !== 'admin');
+        } else {
+            const empRows = await query('SELECT ma_nv, ho_ten, role FROM employees WHERE ma_nv = ? LIMIT 1', [cleanMaNv]);
+            if (!empRows || empRows.length === 0) {
+                const err = new Error(`Không tìm thấy nhân viên ${cleanMaNv}!`);
+                err.statusCode = 404;
+                throw err;
+            }
+            if (empRows[0].role === 'admin') {
+                const err = new Error('Tài khoản Quản trị viên không tham gia nhận báo cáo lương!');
+                err.statusCode = 400;
+                throw err;
+            }
+            const found = (allPayrollRows || []).find((r) => (r.ma_nv || r.id_nhan_vien) === cleanMaNv);
+            if (found) {
+                targets = [found];
+            } else {
+                const single = await this.getMyPayroll(cleanMaNv, m, y);
+                if (single) targets = [single];
+            }
+        }
+
+        if (targets.length === 0) {
+            const err = new Error(`Chưa có dữ liệu nhân viên trong bảng lương Tháng ${m}/${y}!`);
+            err.statusCode = 404;
+            throw err;
+        }
+
+        const csRows = await query('SELECT standard_work_days FROM company_settings LIMIT 1').catch(() => []);
+        const stdDays = (csRows && csRows[0] && Number(csRows[0].standard_work_days)) || 26;
+        const actorId = current_user ? (current_user.ma_nv || current_user.username || 'admin') : 'admin';
+
+        await withTransaction(async (txQuery) => {
+            for (const row of targets) {
+                const targetId = row.ma_nv || row.id_nhan_vien;
+                await txQuery(`
+                    INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payout_status, salary_confirm_status, report_sent_at)
+                    VALUES (?, ?, ?, ?, 'REPORT_SENT', 'PENDING', NOW())
+                    ON DUPLICATE KEY UPDATE
+                        payout_status = CASE
+                            WHEN payout_status = 'PAID' OR payment_status = 'PAID' THEN 'PAID'
+                            ELSE 'REPORT_SENT'
+                        END,
+                        salary_confirm_status = CASE
+                            WHEN payout_status = 'PAID' OR payment_status = 'PAID' THEN salary_confirm_status
+                            ELSE 'PENDING'
+                        END,
+                        report_sent_at = NOW()
+                `, [targetId, m, y, stdDays]);
+
+                const netStr = formatViCurrencyServer(row.netSalary || 0);
+                const notifTitle = `📩 Báo cáo lương Tháng ${m}/${y} đang chờ xác nhận`;
+                const notifMessage = `Báo cáo lương Tháng ${m}/${y} đã sẵn sàng (Thực lĩnh: ${netStr}). Vui lòng kiểm tra và xác nhận.`;
+
+                await txQuery(`
+                    INSERT INTO user_notifications (
+                        recipient_ma_nv, alert_key, type, category, severity,
+                        title, message, ref_month, ref_year,
+                        target_ma_nv, target_tab, target_subtab, target_id, is_read, read_at, created_at
+                    )
+                    VALUES (?, ?, 'SALARY_REPORT_SENT', 'salary_report', 'info', ?, ?, ?, ?, ?, 'payslip', NULL, ?, 0, NULL, NOW())
+                    ON DUPLICATE KEY UPDATE
+                        type = VALUES(type),
+                        category = VALUES(category),
+                        severity = VALUES(severity),
+                        title = VALUES(title),
+                        message = VALUES(message),
+                        target_tab = VALUES(target_tab),
+                        target_id = VALUES(target_id),
+                        is_read = 0,
+                        read_at = NULL,
+                        created_at = NOW()
+                `, [
+                    targetId,
+                    `salary_report_${m}_${y}_${targetId}`,
+                    notifTitle.slice(0, 255),
+                    notifMessage.slice(0, 1000),
+                    m,
+                    y,
+                    targetId,
+                    `${m}-${y}`
+                ]);
+            }
+        });
+
+        await logAuditEvent({
+            actor_id: actorId,
+            actor_role: current_user ? current_user.role : 'admin',
+            action: 'SEND_SALARY_REPORT',
+            resource: 'payroll',
+            details: {
+                month: m,
+                year: y,
+                send_all: isBatch,
+                ma_nv: isBatch ? null : cleanMaNv,
+                sent_count: targets.length
+            }
+        });
+
+        const sentNowVn = formatVietnamDateTime(new Date());
+        return {
+            success: true,
+            message: isBatch
+                ? `Đã gửi báo cáo xác nhận lương Tháng ${m}/${y} tới tất cả ${targets.length} nhân viên & kế toán!`
+                : `Đã gửi báo cáo xác nhận lương Tháng ${m}/${y} cho ${targets[0].ho_ten || cleanMaNv}!`,
+            data: {
+                month: m,
+                year: y,
+                send_all: isBatch,
+                sent_count: targets.length,
+                report_sent_at_vn: sentNowVn,
+                recipients: targets.map((t) => ({
+                    ma_nv: t.ma_nv || t.id_nhan_vien,
+                    ho_ten: t.ho_ten,
+                    payout_status: t.employee_payment_status === 'PAID' || t.payout_status === 'PAID' ? 'PAID' : 'REPORT_SENT'
+                }))
+            }
+        };
+    }
+
+    async updateEmployeePaymentStatus({ ma_nv, month, year, status = 'PAID', transfer_note = null, current_user = null }) {
         const cleanMaNv = String(ma_nv || '').trim();
         if (!cleanMaNv) {
             const err = new Error('Thiếu mã nhân viên cần xác nhận chuyển khoản lương!');
@@ -770,6 +1024,15 @@ class PayrollService {
             throw err;
         }
         const actorId = current_user ? (current_user.ma_nv || current_user.username || 'admin') : 'admin';
+        const defaultTransferNote = `SEDINCO TRA LUONG T${String(m).padStart(2, '0')} ${y} ${cleanMaNv}`;
+        const cleanTransferNote = (transfer_note && String(transfer_note).trim())
+            ? String(transfer_note).trim().slice(0, 255)
+            : defaultTransferNote;
+
+        const slipSnapshot = cleanStatus === 'PAID'
+            ? await this.getMyPayroll(cleanMaNv, m, y).catch(() => null)
+            : null;
+        const paidAmountNum = slipSnapshot ? Math.max(0, Math.round(Number(slipSnapshot.netSalary) || 0)) : 0;
 
         const payoutRow = await withTransaction(async (txQuery) => {
             const empRows = await txQuery('SELECT ma_nv, ho_ten, role FROM employees WHERE ma_nv = ? FOR UPDATE', [cleanMaNv]);
@@ -787,7 +1050,7 @@ class PayrollService {
             const stdDays = (csRows && csRows[0] && Number(csRows[0].standard_work_days)) || 26;
 
             const existingAtt = await txQuery(
-                'SELECT id, payment_status, paid_at, paid_by FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1 FOR UPDATE',
+                'SELECT id, payment_status, payout_status, paid_at, paid_by, transfer_note, salary_confirm_status FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1 FOR UPDATE',
                 [cleanMaNv, m, y]
             );
             const existingRow = existingAtt && existingAtt[0] ? existingAtt[0] : null;
@@ -798,6 +1061,8 @@ class PayrollService {
                     month: m,
                     year: y,
                     employee_payment_status: 'PAID',
+                    payout_status: 'PAID',
+                    transfer_note: existingRow.transfer_note || cleanTransferNote,
                     employee_paid_at: existingRow.paid_at || null,
                     employee_paid_at_vn: formatVietnamDateTime(existingRow.paid_at),
                     employee_paid_by: existingRow.paid_by || actorId,
@@ -807,26 +1072,64 @@ class PayrollService {
 
             if (cleanStatus === 'PAID') {
                 await txQuery(`
-                    INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payment_status, paid_at, paid_by)
-                    VALUES (?, ?, ?, ?, 'PAID', NOW(), ?)
+                    INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payment_status, payout_status, paid_at, paid_by, transfer_note)
+                    VALUES (?, ?, ?, ?, 'PAID', 'PAID', NOW(), ?, ?)
                     ON DUPLICATE KEY UPDATE
                         payment_status = 'PAID',
+                        payout_status = 'PAID',
                         paid_at = NOW(),
-                        paid_by = VALUES(paid_by)
-                `, [cleanMaNv, m, y, stdDays, actorId]);
-            } else {
+                        paid_by = VALUES(paid_by),
+                        transfer_note = VALUES(transfer_note)
+                `, [cleanMaNv, m, y, stdDays, actorId, cleanTransferNote]);
+
+                const paidAmtStr = formatViCurrencyServer(paidAmountNum);
                 await txQuery(`
-                    INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payment_status, paid_at, paid_by)
-                    VALUES (?, ?, ?, ?, 'UNPAID', NULL, NULL)
+                    INSERT INTO user_notifications (
+                        recipient_ma_nv, alert_key, type, category, severity,
+                        title, message, ref_month, ref_year,
+                        target_ma_nv, target_tab, target_subtab, target_id, is_read, read_at, created_at
+                    )
+                    VALUES (?, ?, 'SALARY_PAID', 'salary_paid', 'info', ?, ?, ?, ?, ?, 'payslip', NULL, ?, 0, NULL, NOW())
+                    ON DUPLICATE KEY UPDATE
+                        title = VALUES(title),
+                        message = VALUES(message),
+                        target_tab = VALUES(target_tab),
+                        target_id = VALUES(target_id),
+                        is_read = 0,
+                        read_at = NULL,
+                        created_at = NOW()
+                `, [
+                    cleanMaNv,
+                    `salary_paid_${m}_${y}_${cleanMaNv}`,
+                    `💸 Đã chuyển khoản lương Tháng ${m}/${y}`,
+                    `Công ty SEDINCO đã chuyển khoản lương Tháng ${m}/${y} (Số tiền: ${paidAmtStr}).`,
+                    m,
+                    y,
+                    cleanMaNv,
+                    `${m}-${y}`
+                ]);
+            } else {
+                const fallbackPayout = existingRow?.salary_confirm_status === 'CONFIRMED'
+                    ? 'CONFIRMED'
+                    : existingRow?.salary_confirm_status === 'DISPUTED'
+                        ? 'DISPUTED'
+                        : existingRow?.report_sent_at
+                            ? 'REPORT_SENT'
+                            : 'DRAFT';
+                await txQuery(`
+                    INSERT INTO attendance (ma_nv, thang, nam, cong_chuan, payment_status, payout_status, paid_at, paid_by, transfer_note)
+                    VALUES (?, ?, ?, ?, 'UNPAID', ?, NULL, NULL, NULL)
                     ON DUPLICATE KEY UPDATE
                         payment_status = 'UNPAID',
+                        payout_status = ?,
                         paid_at = NULL,
-                        paid_by = NULL
-                `, [cleanMaNv, m, y, stdDays]);
+                        paid_by = NULL,
+                        transfer_note = NULL
+                `, [cleanMaNv, m, y, stdDays, fallbackPayout, fallbackPayout]);
             }
 
             const refreshed = await txQuery(
-                'SELECT payment_status, paid_at, paid_by FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1',
+                'SELECT payment_status, payout_status, paid_at, paid_by, transfer_note FROM attendance WHERE ma_nv = ? AND thang = ? AND nam = ? LIMIT 1',
                 [cleanMaNv, m, y]
             );
             const saved = refreshed && refreshed[0] ? refreshed[0] : {};
@@ -836,6 +1139,8 @@ class PayrollService {
                 month: m,
                 year: y,
                 employee_payment_status: saved.payment_status || cleanStatus,
+                payout_status: saved.payout_status || (cleanStatus === 'PAID' ? 'PAID' : 'DRAFT'),
+                transfer_note: saved.transfer_note || null,
                 employee_paid_at: saved.paid_at || null,
                 employee_paid_at_vn: formatVietnamDateTime(saved.paid_at),
                 employee_paid_by: saved.paid_by || null,
@@ -849,7 +1154,13 @@ class PayrollService {
                 actor_role: current_user ? current_user.role : 'admin',
                 action: cleanStatus === 'PAID' ? 'MARK_EMPLOYEE_SALARY_PAID' : 'MARK_EMPLOYEE_SALARY_UNPAID',
                 resource: 'payroll',
-                details: { target_ma_nv: cleanMaNv, month: m, year: y, status: cleanStatus }
+                details: {
+                    target_ma_nv: cleanMaNv,
+                    month: m,
+                    year: y,
+                    status: cleanStatus,
+                    transfer_note: cleanStatus === 'PAID' ? cleanTransferNote : null
+                }
             });
         }
 

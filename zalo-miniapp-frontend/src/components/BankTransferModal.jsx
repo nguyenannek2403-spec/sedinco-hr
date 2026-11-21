@@ -5,24 +5,33 @@ import {
   AlertTriangle,
   Landmark,
   Save,
-  QrCode
+  QrCode,
+  ExternalLink,
+  Share2,
+  Smartphone
 } from "lucide-react";
 import { AppButton, AppModal, UserAvatar } from "./ui";
 import { safePost, safePut, generateIdempotencyKey } from "../utils/api";
+import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { formatViCurrency } from "../utils/viNumberFormat";
 import BankPickerDropdown, { BankBrandLogo } from "./BankPickerDropdown";
 import { findBankByCodeOrBin } from "../utils/vietnamBanks";
 import { toUpperUnaccentedName } from "../utils/vietqrParser";
 import {
   generateVietQrDataUrl,
-  buildVietQrQuickLinkUrl
+  buildVietQrQuickLinkUrl,
+  SENDER_BANK_APPS,
+  buildVietQrBankDeepLink
 } from "../utils/vietQrUtils";
 
+const ADMIN_BANK_APP_STORAGE_KEY = "sedinco_admin_sender_bank_app";
+
 /**
- * BankTransferModal V41
+ * BankTransferModal V45
  * - Sinh mã VietQR chuyển lương (hỗ trợ cả STK số & Nickname chữ + số, encodeURIComponent an toàn)
- * - Hiển thị Logo thương hiệu ngân hàng thụ hưởng + [Copy STK], [Copy tiền], [Copy nội dung CK]
- * - Nếu nhân viên chưa cập nhật thẻ ngân hàng: hiển thị thông báo rõ ràng + form nhập nhanh cho Admin
+ * - Cho phép Quản trị viên chọn App Ngân hàng của mình (tự động ghi nhớ) + mở thẳng App Ngân hàng qua VietQR Deep Link (zmp-sdk openOutApp)
+ * - Nút gửi mã QR trực tiếp sang Zalo (zmp-sdk openShareSheet) để dùng nút "Chuyển tiền" trong Zalo Chat
+ * - Chốt chuyển khoản gọi POST /api/payroll/mark-paid kèm transfer_note
  */
 export default function BankTransferModal({
   open,
@@ -30,6 +39,7 @@ export default function BankTransferModal({
   item,
   month,
   year,
+  isAdminUser = true,
   canEditEmployeeBank = false,
   onBankSaved,
   onConfirmedPaid,
@@ -39,6 +49,10 @@ export default function BankTransferModal({
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrLoading, setQrLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [selectedSenderApp, setSelectedSenderApp] = useState("vcb");
+  const [transferNoteInput, setTransferNoteInput] = useState("");
+  const [openingBankApp, setOpeningBankApp] = useState(false);
+  const [sharingQr, setSharingQr] = useState(false);
 
   // Quick-add bank state when employee has no bank info (hoàn toàn độc lập với tên HR)
   const [quickBankCode, setQuickBankCode] = useState("");
@@ -51,6 +65,21 @@ export default function BankTransferModal({
   const thang = Number(item?.thang || month || new Date().getMonth() + 1);
   const nam = Number(item?.nam || year || new Date().getFullYear());
   const netSalary = Math.max(0, Math.round(Number(item?.netSalary) || 0));
+  const defaultTransferNote = `SEDINCO TRA LUONG T${String(thang).padStart(2, "0")} ${nam} ${maNv}`.trim();
+
+  useEffect(() => {
+    let active = true;
+    zmpAdapter.getStorage(ADMIN_BANK_APP_STORAGE_KEY).then((savedApp) => {
+      if (!active || !savedApp) return;
+      const clean = String(savedApp).trim().toLowerCase();
+      if (SENDER_BANK_APPS.some((b) => b.appId === clean)) {
+        setSelectedSenderApp(clean);
+      }
+    }).catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!open || !item) return;
@@ -59,7 +88,8 @@ export default function BankTransferModal({
     setQuickAcctNum("");
     setQuickAcctName("");
     setQuickError("");
-  }, [open, maNv]);
+    setTransferNoteInput(item.transfer_note || defaultTransferNote);
+  }, [open, maNv, thang, nam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const effectiveBank = useMemo(() => {
     if (overrideBank?.bank_account_number && overrideBank?.bank_code) {
@@ -98,9 +128,11 @@ export default function BankTransferModal({
     cleanQuickName.length >= 2;
 
   const isPaid =
-    item?.employee_payment_status === "PAID" || item?.payment_status === "PAID";
+    item?.payout_status === "PAID" ||
+    item?.employee_payment_status === "PAID" ||
+    item?.payment_status === "PAID";
 
-  const transferNote = `SEDINCO LUONG T${thang} ${nam} ${maNv}`.trim();
+  const transferNote = String(transferNoteInput || defaultTransferNote).trim().slice(0, 200);
 
   const vietQrQuickLink = useMemo(() => {
     if (!effectiveBank) return "";
@@ -112,6 +144,77 @@ export default function BankTransferModal({
       description: transferNote
     });
   }, [effectiveBank, netSalary, transferNote]);
+
+  const bankDeepLink = useMemo(() => {
+    if (!effectiveBank) return "";
+    return buildVietQrBankDeepLink({
+      appId: selectedSenderApp,
+      bankCodeOrBin: effectiveBank.bank_code || effectiveBank.bank_name,
+      accountNumber: effectiveBank.bank_account_number,
+      accountName: effectiveBank.bank_account_name,
+      amount: netSalary,
+      description: transferNote
+    });
+  }, [effectiveBank, selectedSenderApp, netSalary, transferNote]);
+
+  const selectedSenderMeta = useMemo(() => {
+    const appRow = SENDER_BANK_APPS.find((b) => b.appId === selectedSenderApp);
+    return appRow ? findBankByCodeOrBin(appRow.bankCode) : null;
+  }, [selectedSenderApp]);
+
+  const handleSelectSenderApp = (nextAppId) => {
+    const clean = String(nextAppId || "vcb").trim().toLowerCase();
+    setSelectedSenderApp(clean);
+    zmpAdapter.setStorage(ADMIN_BANK_APP_STORAGE_KEY, clean).catch(() => {});
+  };
+
+  const handleOpenBankApp = async () => {
+    if (!bankDeepLink || openingBankApp) return;
+    setOpeningBankApp(true);
+    try {
+      await zmpAdapter.openOutApp({ url: bankDeepLink });
+      showToast?.("Đang mở App Ngân hàng với đầy đủ STK, số tiền & nội dung chuyển khoản!", "success");
+    } catch (err) {
+      showToast?.(err?.message || "Không thể tự mở App Ngân hàng trên thiết bị này.", "error");
+    } finally {
+      setOpeningBankApp(false);
+    }
+  };
+
+  const handleShareQrZalo = async () => {
+    if (!effectiveBank || sharingQr) return;
+    setSharingQr(true);
+    const bankLabel = effectiveBank.bank_name || resolvedBankMeta?.shortName || effectiveBank.bank_code;
+    const fallbackSummary = [
+      `💸 MÃ VIETQR TRẢ LƯƠNG THÁNG ${thang}/${nam} — SEDINCO`,
+      `👤 Người nhận: ${item?.ho_ten || maNv} (${maNv})`,
+      `🏦 Ngân hàng: ${bankLabel}`,
+      `💳 STK/Nickname: ${effectiveBank.bank_account_number} (${effectiveBank.bank_account_name || ""})`,
+      `💰 Số tiền: ${formatViCurrency(netSalary)}`,
+      `📝 Nội dung CK: ${transferNote}`,
+      `🔗 Link QR: ${vietQrQuickLink}`
+    ].join("\n");
+    try {
+      const res = await zmpAdapter.openShareSheet({
+        type: "image",
+        data: {
+          imageUrl: vietQrQuickLink,
+          imageUrls: [vietQrQuickLink]
+        },
+        fallbackText: fallbackSummary
+      });
+      if (res?.cancelled) return;
+      if (res?.method === "zmp") {
+        showToast?.("Đã mở chia sẻ mã QR VietQR sang Zalo!", "success");
+      } else {
+        showToast?.("Đã sao chép thông tin & link mã QR để gửi sang Zalo!", "success");
+      }
+    } catch (err) {
+      showToast?.(err?.message || "Không thể chia sẻ mã QR sang Zalo lúc này.", "error");
+    } finally {
+      setSharingQr(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -164,13 +267,15 @@ export default function BankTransferModal({
     if (!maNv || confirming) return;
     setConfirming(true);
     try {
+      const endpoint = isAdminUser ? "/payroll/mark-paid" : "/payroll/employee-payment-status";
       const res = await safePost(
-        "/payroll/employee-payment-status",
+        endpoint,
         {
           ma_nv: maNv,
           month: thang,
           year: nam,
-          status: "PAID"
+          ...(isAdminUser ? {} : { status: "PAID" }),
+          transfer_note: transferNote
         },
         {
           idempotencyKey: generateIdempotencyKey(`emp_paid_${maNv}_${thang}_${nam}`)
@@ -182,7 +287,14 @@ export default function BankTransferModal({
           "success"
         );
         onConfirmedPaid?.(
-          res.data || { ma_nv: maNv, month: thang, year: nam, employee_payment_status: "PAID" }
+          res.data || {
+            ma_nv: maNv,
+            month: thang,
+            year: nam,
+            employee_payment_status: "PAID",
+            payout_status: "PAID",
+            transfer_note: transferNote
+          }
         );
         onClose();
       } else {
@@ -393,24 +505,103 @@ export default function BankTransferModal({
                 </button>
               </div>
 
-              <div className="p-3 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <span className="text-slate-500 dark:text-slate-400 font-medium block">Nội dung CK</span>
-                  <span
-                    data-testid="transfer-description-text"
-                    className="font-mono font-bold text-[#111C2D] dark:text-slate-100 break-all"
+              <div className="p-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="transfer-note-input"
+                    className="text-slate-500 dark:text-slate-400 font-medium text-xs"
                   >
-                    {transferNote}
-                  </span>
+                    Nội dung chuyển khoản (có thể chỉnh nhẹ)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(transferNote, "nội dung chuyển khoản")}
+                    className="min-h-[34px] px-2.5 py-1 rounded-lg bg-[#F4F6FA] dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-[#111C2D] dark:text-slate-100 inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Copy</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(transferNote, "nội dung chuyển khoản")}
-                  className="min-h-[40px] px-3 py-1.5 rounded-xl bg-[#F4F6FA] dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-[#111C2D] dark:text-slate-100 inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+                <input
+                  id="transfer-note-input"
+                  type="text"
+                  data-testid="transfer-note-input"
+                  value={transferNoteInput}
+                  maxLength={75}
+                  onChange={(e) => setTransferNoteInput(e.target.value)}
+                  placeholder={defaultTransferNote}
+                  className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-[#F4F6FA] dark:bg-slate-900 border border-slate-200 dark:border-slate-600 font-mono text-xs sm:text-sm font-bold text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#0051CA]"
+                />
+                <span data-testid="transfer-description-text" className="sr-only">
+                  {transferNote}
+                </span>
+              </div>
+            </div>
+
+            {/* V45: Chuyển tiền thực tế qua App Ngân hàng (VietQR Deep Link) & Gửi QR sang Zalo */}
+            <div
+              data-testid="real-bank-transfer-panel"
+              className="rounded-2xl border border-blue-200/90 dark:border-blue-800/70 bg-blue-50/70 dark:bg-blue-950/30 p-3.5 space-y-3"
+            >
+              <div className="flex items-center gap-2 text-xs font-extrabold text-[#0051CA] dark:text-blue-300">
+                <Smartphone className="w-4 h-4 shrink-0" />
+                <span>Chuyển tiền thực tế từ điện thoại của bạn</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="admin-sender-bank-select"
+                  className="block text-xs font-bold text-slate-700 dark:text-slate-200"
                 >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copy</span>
-                </button>
+                  Chọn App Ngân hàng bạn đang dùng (tự động ghi nhớ)
+                </label>
+                <div className="flex items-center gap-2">
+                  {selectedSenderMeta && (
+                    <BankBrandLogo bank={selectedSenderMeta} sizeClass="w-8 h-8" />
+                  )}
+                  <select
+                    id="admin-sender-bank-select"
+                    data-testid="admin-sender-bank-select"
+                    value={selectedSenderApp}
+                    onChange={(e) => handleSelectSenderApp(e.target.value)}
+                    className="flex-1 min-w-0 min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-xs sm:text-sm font-bold text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#0051CA] cursor-pointer"
+                  >
+                    {SENDER_BANK_APPS.map((b) => (
+                      <option key={b.appId} value={b.appId}>
+                        {b.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                <AppButton
+                  variant="primary"
+                  fullWidth
+                  icon={ExternalLink}
+                  loading={openingBankApp}
+                  loadingText="Đang mở app..."
+                  data-testid="open-bank-app-btn"
+                  data-deeplink={bankDeepLink}
+                  onClick={handleOpenBankApp}
+                  className="min-h-[46px] rounded-xl font-extrabold bg-[#0051CA] hover:bg-blue-700 border-[#0051CA] text-xs sm:text-sm"
+                >
+                  📲 Mở App Ngân hàng chuyển tiền
+                </AppButton>
+
+                <AppButton
+                  variant="zalo"
+                  fullWidth
+                  icon={Share2}
+                  loading={sharingQr}
+                  loadingText="Đang chia sẻ..."
+                  data-testid="share-qr-zalo-btn"
+                  onClick={handleShareQrZalo}
+                  className="min-h-[44px] rounded-xl font-bold text-xs sm:text-sm"
+                >
+                  📤 Gửi mã QR sang Zalo để chuyển
+                </AppButton>
               </div>
             </div>
           </div>

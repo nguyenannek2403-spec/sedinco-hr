@@ -152,12 +152,14 @@ class PayrollController {
             if (!ma_nv) {
                 return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
             }
-            const { month, year, status, dispute_reason, dispute_evidence_media } = req.body;
+            const { month, year, status, action, note, dispute_reason, dispute_evidence_media } = req.body || {};
             const result = await payrollService.confirmOrDisputeSalary({
                 ma_nv,
                 month,
                 year,
                 status,
+                action,
+                note,
                 dispute_reason,
                 dispute_evidence_media,
                 current_user: req.user
@@ -223,15 +225,50 @@ class PayrollController {
         }
     }
 
+    async sendSalaryReport(req, res, next) {
+        try {
+            const { month, year, ma_nv, send_all } = req.body || {};
+            const result = await payrollService.sendSalaryReport({
+                month,
+                year,
+                ma_nv,
+                send_all: Boolean(send_all),
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async markPaid(req, res, next) {
+        try {
+            const ma_nv = req.body?.ma_nv || req.params?.ma_nv;
+            const { month, year, transfer_note } = req.body || {};
+            const result = await payrollService.updateEmployeePaymentStatus({
+                ma_nv,
+                month,
+                year,
+                status: 'PAID',
+                transfer_note,
+                current_user: req.user
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async updateEmployeePaymentStatus(req, res, next) {
         try {
             const ma_nv = req.body.ma_nv || req.params.ma_nv;
-            const { month, year, status } = req.body || {};
+            const { month, year, status, transfer_note } = req.body || {};
             const result = await payrollService.updateEmployeePaymentStatus({
                 ma_nv,
                 month,
                 year,
                 status: status || 'PAID',
+                transfer_note,
                 current_user: req.user
             });
             return res.json(result);
