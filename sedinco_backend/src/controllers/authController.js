@@ -1,6 +1,27 @@
 const authService = require('../services/authService');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 
+const bankLookupRateWindow = new Map();
+function checkBankLookupRateLimit(actorKey, maxPerMinute = 25) {
+    const now = Date.now();
+    const windowStart = now - 60000;
+    if (bankLookupRateWindow.size > 500) {
+        for (const [k, stamps] of bankLookupRateWindow.entries()) {
+            const active = stamps.filter((t) => t > windowStart);
+            if (active.length === 0) bankLookupRateWindow.delete(k);
+            else bankLookupRateWindow.set(k, active);
+        }
+    }
+    const existing = (bankLookupRateWindow.get(actorKey) || []).filter((t) => t > windowStart);
+    if (existing.length >= maxPerMinute) {
+        bankLookupRateWindow.set(actorKey, existing);
+        return false;
+    }
+    existing.push(now);
+    bankLookupRateWindow.set(actorKey, existing);
+    return true;
+}
+
 class AuthController {
     async login(req, res, next) {
         try {
@@ -162,6 +183,26 @@ class AuthController {
                 message: result.message,
                 data: result.data
             });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async lookupBankAccount(req, res, next) {
+        try {
+            const actorKey = String(req.user?.ma_nv || req.user?.username || req.ip || 'anon');
+            if (!checkBankLookupRateLimit(actorKey)) {
+                res.setHeader('Retry-After', '60');
+                return res.status(429).json({
+                    success: false,
+                    code: '429',
+                    message: 'Bạn tra cứu quá nhanh! Vui lòng đợi ít phút hoặc nhập họ tên chủ thẻ bằng tay.'
+                });
+            }
+            const { bin, accountNumber } = req.body || {};
+            const bankLookupService = require('../services/bankLookupService');
+            const result = await bankLookupService.lookupBankAccount({ bin, accountNumber });
+            return res.json(result);
         } catch (err) {
             next(err);
         }

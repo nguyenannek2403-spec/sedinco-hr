@@ -19,6 +19,7 @@ router.put('/account/credentials', authenticateToken, requireAuth, (req, res, ne
 router.put('/account/theme', authenticateToken, requireAuth, (req, res, next) => authController.updateTheme(req, res, next));
 router.put('/account/preferences', authenticateToken, requireAuth, (req, res, next) => authController.updatePreferences(req, res, next));
 router.put('/account/bank-card', authenticateToken, requireAuth, (req, res, next) => authController.updateBankCard(req, res, next));
+router.post('/account/lookup-bank', authenticateToken, requireAuth, (req, res, next) => authController.lookupBankAccount(req, res, next));
 router.post('/update-avatar', authenticateToken, requireAuth, (req, res, next) => authController.updateAvatar(req, res, next));
 
 module.exports = router;

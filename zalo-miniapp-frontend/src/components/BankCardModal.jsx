@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   CreditCard,
   QrCode,
@@ -7,10 +7,11 @@ import {
   CheckCircle2,
   Upload,
   Loader2,
-  Info
+  Info,
+  Search
 } from "lucide-react";
 import { AppButton, AppModal } from "./ui";
-import { safePut } from "../utils/api";
+import { safePut, safePost } from "../utils/api";
 import BankPickerDropdown from "./BankPickerDropdown";
 import { findBankByCodeOrBin } from "../utils/vietnamBanks";
 import {
@@ -19,11 +20,12 @@ import {
 } from "../utils/vietqrParser";
 
 /**
- * BankCardModal V41
- * - Quét QR chuẩn EMVCo/VietQR hoàn toàn trên browser (2 lượt: trực tiếp + tăng tương phản),
- *   hỗ trợ cả Số tài khoản lẫn Nickname chữ + số, đọc Tag 59 độc lập với tên nhân viên & XÓA SẠCH ảnh ngay lập tức
- * - Bộ chọn Ngân hàng kèm logo thương hiệu (BankPickerDropdown)
- * - Khóa nút "Lưu thẻ ngân hàng" cho tới khi cả 3 trường (Ngân hàng, STK/Nickname, Chủ thẻ) đều đầy đủ & hợp lệ
+ * BankCardModal V42
+ * - Quét QR chuẩn EMVCo/VietQR hoàn toàn trên browser (2 lượt: trực tiếp + grayscale boost),
+ *   hỗ trợ STK & Nickname chữ + số, XÓA SẠCH ảnh ngay lập tức
+ * - Tự động tra cứu tên chủ tài khoản qua Backend Proxy Casso Open Platform (/api/account/lookup-bank)
+ *   sau khi quét QR (nếu QR không có Tag 59) hoặc qua nút [🔍 Tra cứu tên] / khi nhập xong STK
+ * - Luôn giữ quyền chỉnh sửa bằng tay (Manual Fallback) & khóa nút Lưu khi chưa đủ 3 trường
  */
 export default function BankCardModal({
   open,
@@ -33,21 +35,37 @@ export default function BankCardModal({
   showToast
 }) {
   const fileInputRef = useRef(null);
+  const lookupSeqRef = useRef(0);
+  const holderEditedManuallyRef = useRef(false);
+  const lastLookupKeyRef = useRef("");
+
   const [bankCode, setBankCode] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [bankAccountName, setBankAccountName] = useState("");
   const [decodingQr, setDecodingQr] = useState(false);
   const [qrStatus, setQrStatus] = useState(null); // { type: 'success'|'hint'|'error', message: string }
+  const [lookingUpBank, setLookingUpBank] = useState(false);
+  const [lookupFeedback, setLookupFeedback] = useState(null); // { type: 'success'|'warning', message: string }
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    lookupSeqRef.current += 1;
+    holderEditedManuallyRef.current = Boolean(currentUser?.bank_account_name);
+    const initialBank = findBankByCodeOrBin(currentUser?.bank_code || "");
+    lastLookupKeyRef.current =
+      initialBank?.bin && currentUser?.bank_account_number
+        ? `${initialBank.bin}:${currentUser.bank_account_number}`
+        : "";
+
     setBankCode(currentUser?.bank_code || "");
     setBankAccountNumber(currentUser?.bank_account_number || "");
-    // Tuyệt đối KHÔNG tự lấy tên nhân viên (currentUser.ho_ten) đè vào tên chủ thẻ
+    // Tuyệt đối KHÔNG tự lấy tên nhân viên HR (currentUser.ho_ten) đè vào tên chủ thẻ
     setBankAccountName(currentUser?.bank_account_name || "");
     setQrStatus(null);
+    setLookingUpBank(false);
+    setLookupFeedback(null);
     setFormError("");
   }, [
     open,
@@ -75,12 +93,105 @@ export default function BankCardModal({
     /^[A-Za-z0-9._-]+$/.test(cleanAccountNum);
   const isHolderValid = normalizedHolderName.length >= 2;
   const isFormComplete = isBankValid && isAccountValid && isHolderValid;
+  const canLookup =
+    Boolean(selectedBank?.bin) &&
+    cleanAccountNum.length >= 6 &&
+    /^[A-Za-z0-9._-]+$/.test(cleanAccountNum) &&
+    !lookingUpBank &&
+    !saving &&
+    !decodingQr;
+
+  const triggerBankLookup = useCallback(
+    async ({ bin, accountNumber, force = false }) => {
+      const cleanBin = String(bin || "").trim();
+      const cleanAcct = String(accountNumber || "").replace(/\s+/g, "").trim();
+      if (!/^\d{6}$/.test(cleanBin) || !/^[A-Za-z0-9._-]{3,35}$/.test(cleanAcct)) {
+        return;
+      }
+      const pairKey = `${cleanBin}:${cleanAcct}`;
+      if (!force && (lastLookupKeyRef.current === pairKey || holderEditedManuallyRef.current)) {
+        return;
+      }
+      if (force) {
+        holderEditedManuallyRef.current = false;
+      }
+      lastLookupKeyRef.current = pairKey;
+
+      const seq = ++lookupSeqRef.current;
+      setLookingUpBank(true);
+      setLookupFeedback(null);
+
+      try {
+        const res = await safePost("/account/lookup-bank", {
+          bin: cleanBin,
+          accountNumber: cleanAcct
+        });
+        if (seq !== lookupSeqRef.current) return;
+
+        if (res?.success && res?.accountName) {
+          if (!holderEditedManuallyRef.current || force) {
+            setBankAccountName(toUpperUnaccentedName(res.accountName));
+            setLookupFeedback({
+              type: "success",
+              message: "Đã tự động tra cứu tên chủ thẻ — kiểm tra hoặc chỉnh sửa bằng tay nếu cần."
+            });
+          }
+        } else {
+          setLookupFeedback({
+            type: "warning",
+            message:
+              res?.message ||
+              "Không tìm thấy thông tin tài khoản, vui lòng nhập họ tên chủ thẻ bằng tay."
+          });
+        }
+      } catch (err) {
+        if (seq !== lookupSeqRef.current) return;
+        setLookupFeedback({
+          type: "warning",
+          message:
+            err?.message ||
+            "Không thể kết nối tra cứu tự động, vui lòng nhập họ tên chủ thẻ bằng tay."
+        });
+      } finally {
+        if (seq === lookupSeqRef.current) {
+          setLookingUpBank(false);
+        }
+      }
+    },
+    []
+  );
+
+  // Tự động tra cứu sau 700ms khi nhập tay đủ Ngân hàng + STK (>= 6 ký tự) mà ô tên chủ thẻ còn trống
+  useEffect(() => {
+    if (!open || decodingQr || saving) return undefined;
+    if (!selectedBank?.bin || cleanAccountNum.length < 6) return undefined;
+    if (!/^[A-Za-z0-9._-]+$/.test(cleanAccountNum)) return undefined;
+    if (normalizedHolderName || holderEditedManuallyRef.current) return undefined;
+
+    const timer = setTimeout(() => {
+      triggerBankLookup({
+        bin: selectedBank.bin,
+        accountNumber: cleanAccountNum,
+        force: false
+      });
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [
+    open,
+    decodingQr,
+    saving,
+    selectedBank?.bin,
+    cleanAccountNum,
+    normalizedHolderName,
+    triggerBankLookup
+  ]);
 
   const handleSelectQrImage = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setDecodingQr(true);
     setQrStatus(null);
+    setLookupFeedback(null);
     setFormError("");
     try {
       const parsed = await decodeBankQrFromImageFile(file);
@@ -89,11 +200,14 @@ export default function BankCardModal({
         if (matchedBank) {
           setBankCode(matchedBank.code);
         }
-        if (parsed.bank_account_number) {
-          // Giữ nguyên cả chữ cái lẫn chữ số (hỗ trợ Nickname ngân hàng)
-          setBankAccountNumber(String(parsed.bank_account_number).replace(/\s+/g, "").trim());
+        const resolvedAcct = parsed.bank_account_number
+          ? String(parsed.bank_account_number).replace(/\s+/g, "").trim()
+          : "";
+        if (resolvedAcct) {
+          setBankAccountNumber(resolvedAcct);
         }
         if (parsed.has_holder_name && parsed.bank_account_name) {
+          holderEditedManuallyRef.current = true;
           setBankAccountName(toUpperUnaccentedName(parsed.bank_account_name));
           setQrStatus({
             type: "success",
@@ -101,12 +215,21 @@ export default function BankCardModal({
               "Đã nhận diện xong Ngân hàng, Số TK và Tên chủ thẻ — đã tự động xóa ảnh QR để bảo mật."
           });
         } else {
-          // Không có Tag 59 hoặc chỉ là NA/VIETQR -> KHÔNG lấy tên nhân viên đè vào, giữ nguyên/trống
+          holderEditedManuallyRef.current = false;
+          setBankAccountName("");
           setQrStatus({
             type: "hint",
             message:
-              "Đã nhận diện Ngân hàng & Số tài khoản — vui lòng nhập đúng tên chủ thẻ ngân hàng (đã tự động xóa ảnh QR để bảo mật)."
+              "Đã nhận diện Ngân hàng & Số tài khoản (đã xóa ảnh QR). Đang tra cứu tên chủ thẻ..."
           });
+          const targetBin = matchedBank?.bin || parsed.bank_bin;
+          if (targetBin && resolvedAcct) {
+            triggerBankLookup({
+              bin: targetBin,
+              accountNumber: resolvedAcct,
+              force: true
+            });
+          }
         }
       } else {
         setQrStatus({
@@ -279,7 +402,7 @@ export default function BankCardModal({
           )}
         </div>
 
-        {/* CÁCH 2: NHẬP HOẶC KIỂM TRA THÔNG TIN */}
+        {/* CÁCH 2: NHẬP HOẶC TRA CỨU TỰ ĐỘNG */}
         <div className="space-y-3 pt-1">
           <div className="flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
@@ -305,7 +428,10 @@ export default function BankCardModal({
               value={bankCode}
               disabled={saving || decodingQr}
               testId="bank-picker-dropdown"
-              onChange={(bank) => setBankCode(bank?.code || "")}
+              onChange={(bank) => {
+                setBankCode(bank?.code || "");
+                setLookupFeedback(null);
+              }}
             />
           </div>
 
@@ -316,20 +442,49 @@ export default function BankCardModal({
             >
               Số tài khoản hoặc Nickname <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
-            <input
-              id="bank-account-number-input"
-              data-testid="bank-account-number-input"
-              type="text"
-              autoComplete="off"
-              value={bankAccountNumber}
-              onChange={(e) =>
-                setBankAccountNumber(
-                  e.target.value.replace(/\s+/g, "").replace(/[^A-Za-z0-9._-]/g, "")
-                )
-              }
-              placeholder="VD: 1012345678 hoặc ANNGUYEN88"
-              className="w-full min-h-[46px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-sm font-mono font-bold text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#0051CA]"
-            />
+            <div className="flex items-stretch gap-2">
+              <input
+                id="bank-account-number-input"
+                data-testid="bank-account-number-input"
+                type="text"
+                autoComplete="off"
+                value={bankAccountNumber}
+                onChange={(e) => {
+                  setBankAccountNumber(
+                    e.target.value.replace(/\s+/g, "").replace(/[^A-Za-z0-9._-]/g, "")
+                  );
+                  setLookupFeedback(null);
+                }}
+                placeholder="VD: 1012345678 hoặc ANNGUYEN88"
+                className="flex-1 min-w-0 min-h-[46px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-sm font-mono font-bold text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#0051CA]"
+              />
+              <button
+                type="button"
+                data-testid="bank-lookup-btn"
+                disabled={!canLookup}
+                onClick={() =>
+                  selectedBank?.bin &&
+                  triggerBankLookup({
+                    bin: selectedBank.bin,
+                    accountNumber: cleanAccountNum,
+                    force: true
+                  })
+                }
+                title="Tra cứu tự động tên chủ thẻ theo Ngân hàng & STK"
+                className={`min-h-[46px] px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shrink-0 border transition-colors ${
+                  canLookup
+                    ? "bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-[#0051CA] dark:text-blue-200 border-blue-300 dark:border-blue-700 cursor-pointer"
+                    : "bg-slate-100 dark:bg-slate-800/70 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-70"
+                }`}
+              >
+                {lookingUpBank ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Search className="w-3.5 h-3.5" />
+                )}
+                <span className="whitespace-nowrap">Tra cứu tên</span>
+              </button>
+            </div>
             {bankAccountNumber && !isAccountValid && (
               <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300 font-semibold">
                 Nhập tối thiểu 3 ký tự chữ cái hoặc chữ số (không chứa khoảng trắng).
@@ -351,12 +506,48 @@ export default function BankCardModal({
               type="text"
               autoComplete="off"
               value={bankAccountName}
-              onChange={(e) => setBankAccountName(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                holderEditedManuallyRef.current = e.target.value.trim().length > 0;
+                setBankAccountName(e.target.value.toUpperCase());
+              }}
               onBlur={() => setBankAccountName((prev) => toUpperUnaccentedName(prev))}
-              placeholder="VD: NGUYEN VAN AN"
+              placeholder={
+                lookingUpBank ? "Đang tự động lấy tên chủ thẻ..." : "VD: NGUYEN VAN AN"
+              }
               className="w-full min-h-[46px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-sm font-bold uppercase text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#0051CA]"
             />
-            {!isFormComplete && (
+
+            {lookingUpBank && (
+              <div
+                data-testid="bank-lookup-loading"
+                className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-[#0051CA] dark:text-blue-300"
+              >
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                <span>Đang tự động lấy tên chủ thẻ...</span>
+              </div>
+            )}
+
+            {!lookingUpBank && lookupFeedback?.type === "success" && (
+              <div
+                data-testid="bank-lookup-success"
+                className="mt-1.5 flex items-start gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>{lookupFeedback.message}</span>
+              </div>
+            )}
+
+            {!lookingUpBank && lookupFeedback?.type === "warning" && (
+              <div
+                data-testid="bank-lookup-warning"
+                className="mt-1.5 flex items-start gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>{lookupFeedback.message}</span>
+              </div>
+            )}
+
+            {!isFormComplete && !lookingUpBank && (
               <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                 Vui lòng chọn Ngân hàng, nhập STK/Nickname và đúng Tên chủ tài khoản để mở khóa nút Lưu.
               </p>
