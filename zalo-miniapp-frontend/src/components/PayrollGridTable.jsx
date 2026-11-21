@@ -428,148 +428,75 @@ export default function PayrollGridTable({
   };
 
   return (
-    <div className="space-y-5 pb-28">
-      {/* STITCH ADMIN SCREEN 4 — SEDINCO PAYROLL EXECUTIVE WORKFLOW BANNER & ADMIN EXCLUDED NOTICE */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase tracking-wider">
-              <span>{isAdmin ? "● SEDINCO PAYROLL EXECUTIVE" : "● NGHIỆP VỤ TIỀN LƯƠNG • KẾ TOÁN"}</span>
-            </span>
-            <h2 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white tracking-tight mt-1">
-              Bảng lương Doanh nghiệp Tháng {month} / {year}
-            </h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 text-xs font-extrabold">
-            <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300">
-              1. Kế toán lập
-            </span>
-            <span className="text-slate-400">→</span>
-            <span className="px-2.5 py-1 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-[#B80035] dark:text-rose-300">
-              2. Giám đốc duyệt
-            </span>
-            <span className="text-slate-400">→</span>
-            <span className="px-2.5 py-1 rounded-full bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#0051CA] dark:text-blue-300">
-              3. Chi trả NH
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-[#F0F3FF] dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200/70 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
-          🛡️ Tài khoản <strong className="text-[#111C2D] dark:text-white">Quản trị (Admin)</strong> được thiết lập phân quyền điều hành cao cấp, độc lập hoàn toàn khỏi hạn mức quỹ chi trả và bảng tính công nhân viên.
-        </div>
-      </div>
-
-      {/* 4 Card KPI Tổng Quan Tài Chính — ZaUI Squircle KPI Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        
-        {/* KPI 1: Tổng Quỹ Lương Net (Sedinco Pulse Hero + Breakdown Progress Bar) */}
-        <div className="bg-[#E11D48] bg-gradient-to-br from-[#E11D48] via-[#B80035] to-[#263143] dark:bg-slate-900 dark:from-[#9F1239] dark:via-rose-950 dark:to-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-md border border-rose-500/40 relative overflow-hidden space-y-2.5">
+    <div className="space-y-4 pb-28">
+      {/* 4 Card KPI Tổng Quan Tài Chính */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* KPI 1: Tổng Quỹ Lương Net */}
+        <div className="bg-[#E11D48] bg-gradient-to-br from-[#E11D48] via-[#B80035] to-[#263143] dark:bg-slate-900 dark:from-[#9F1239] dark:via-rose-950 dark:to-slate-900 text-white rounded-2xl p-4 shadow-md border border-rose-500/40 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-rose-100 font-semibold">Tổng ngân sách chi trả (Net Pay)</span>
+            <span className="text-xs text-rose-100 font-semibold">Tổng thực lĩnh (Net)</span>
             <span className="px-2 py-0.5 rounded-full bg-white/15 text-white text-xs font-extrabold shrink-0">
-              {formatViNumber(totalEmployees, 0)} Nhân sự
+              {formatViNumber(totalEmployees, 0)} NV
             </span>
           </div>
-          <div>
-            <span className="text-xl sm:text-2xl font-extrabold text-white font-mono">
-              {formatViCurrency(totalNetSalary)}
-            </span>
-            <div className="h-1.5 w-full rounded-full bg-white/20 overflow-hidden flex mt-2">
-              <div className="h-full bg-white w-[82%]" />
-              <div className="h-full bg-emerald-400 w-[18%]" />
-            </div>
-            <span className="text-xs text-rose-100 block mt-1.5 font-medium">
-              Lương cơ bản + OT &amp; Phụ cấp • Kỳ tháng {month}/{year}
-            </span>
-          </div>
+          <span className="text-xl sm:text-2xl font-extrabold text-white font-mono block">
+            {formatViCurrency(totalNetSalary)}
+          </span>
         </div>
 
         {/* KPI 2: Tổng Số Nhân Sự */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-100/90 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)]">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100/90 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Tổng số nhân sự</span>
-            <div className="p-2 bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 rounded-xl border border-rose-200/80 dark:border-rose-800/70 shrink-0">
-              <Users size={20} />
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Nhân sự</span>
+            <div className="p-2 bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 rounded-xl shrink-0">
+              <Users size={18} />
             </div>
           </div>
-          <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-              {formatViNumber(totalEmployees, 0)} nhân sự
-            </span>
-            <span className="text-xs text-emerald-700 dark:text-emerald-300 block mt-1 font-medium">100% hồ sơ hoàn tất</span>
-          </div>
+          <span className="text-xl font-extrabold text-slate-900 dark:text-white block mt-1.5">
+            {formatViNumber(totalEmployees, 0)} nhân sự
+          </span>
         </div>
 
         {/* KPI 3: Tổng Ngày Công Thực Tế */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-100/90 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)]">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100/90 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Tổng ngày công thực tế</span>
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-xl border border-indigo-200/80 dark:border-indigo-800/70 shrink-0">
-              <TrendingUp size={20} />
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Tổng ngày công</span>
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-xl shrink-0">
+              <TrendingUp size={18} />
             </div>
           </div>
-          <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-              {formatViWorkday(totalWorkDays)} công
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block mt-1">
-              Định mức chuẩn {formatViWorkday(filteredList[0]?.standardWorkDays || 26)} ngày
-            </span>
-          </div>
+          <span className="text-xl font-extrabold text-slate-900 dark:text-white block mt-1.5">
+            {formatViWorkday(totalWorkDays)} công
+          </span>
         </div>
 
         {/* KPI 4: Bình Quân Thu Nhập */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-100/90 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)]">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100/90 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">Thu nhập bình quân</span>
-            <div className="p-2 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-xl border border-amber-200/80 dark:border-amber-800/70 shrink-0">
-              <Award size={20} />
+            <div className="p-2 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-xl shrink-0">
+              <Award size={18} />
             </div>
           </div>
-          <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-              {formatViCurrency(averageIncome)}
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-300 font-medium block mt-1">Bình quân thực nhận / người</span>
-          </div>
+          <span className="text-xl font-extrabold text-slate-900 dark:text-white block mt-1.5">
+            {formatViCurrency(averageIncome)}
+          </span>
         </div>
-
       </div>
 
       {/* Bảng Chi Tiết Toàn Bộ Nhân Sự */}
       <div className="md:bg-white md:dark:bg-slate-900 md:rounded-2xl md:border md:border-slate-100/90 md:dark:border-slate-800 md:shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
-        
-        {/* Header Tác Vụ */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-none mb-3 md:mb-0 p-4 sm:p-5 border border-slate-100/90 dark:border-slate-800 md:border-0 md:border-b flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <DollarSign className="text-emerald-600 dark:text-emerald-400 shrink-0" size={22} />
-              <h3 className="font-bold text-lg leading-snug text-slate-900 dark:text-white">
-                Bảng thanh toán tiền lương &amp; phụ cấp
-              </h3>
-              {periodStatus && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <StatusBadge type="payroll_period" status={periodStatus.status || "DRAFT"} />
-                  {(periodStatus.status === "APPROVED" || periodStatus.payment_status === "PAID") && (
-                    <StatusBadge type="payment" status={periodStatus.payment_status || "UNPAID"} />
-                  )}
-                </div>
-              )}
+        {/* Header Tác Vụ Tinh Gọn */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-none mb-3 md:mb-0 p-3.5 sm:p-4 border border-slate-100/90 dark:border-slate-800 md:border-0 md:border-b space-y-2.5">
+          {periodStatus?.status === "REJECTED" && periodStatus?.rejected_reason && (
+            <div className="inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70 text-rose-800 dark:text-rose-200 text-xs font-semibold">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-300" />
+              <span>Lý do trả lại chỉnh sửa: {periodStatus.rejected_reason}</span>
             </div>
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Tự động tính công chuẩn, tăng ca, thưởng/phạt/tạm ứng và BHXH
-            </p>
-            {periodStatus?.status === "REJECTED" && periodStatus?.rejected_reason && (
-              <div className="inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70 text-rose-800 dark:text-rose-200 text-xs font-semibold">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-300" />
-                <span>Lý do trả lại chỉnh sửa: {periodStatus.rejected_reason}</span>
-              </div>
-            )}
-          </div>
+          )}
 
           <div className="w-full min-w-0 flex flex-wrap items-center gap-2">
-            {/* Thanh chuyển đổi Bảng lương Tổng quan / Bảng lương Chi tiết */}
+            {/* Thanh chuyển đổi Tổng quan / Chi tiết */}
             <div
               data-filter-group="payroll-view-mode"
               className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex items-center p-1 rounded-xl bg-[#F0F3FF] dark:bg-slate-950 border border-slate-200 dark:border-slate-700 gap-1"
@@ -579,30 +506,39 @@ export default function PayrollGridTable({
                 data-testid="payroll-mode-overview"
                 data-active={viewMode === "overview" ? "true" : "false"}
                 onClick={() => setViewMode("overview")}
-                className={`min-h-[44px] px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer leading-tight text-center ${
+                className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
                   viewMode === "overview"
                     ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600"
                     : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                <LayoutGrid size={14} className="shrink-0 hidden sm:block" />
-                <span>📊 Bảng lương tổng quan</span>
+                <LayoutGrid size={14} className="shrink-0" />
+                <span>Tổng quan</span>
               </button>
               <button
                 type="button"
                 data-testid="payroll-mode-detailed"
                 data-active={viewMode === "detailed" ? "true" : "false"}
                 onClick={() => setViewMode("detailed")}
-                className={`min-h-[44px] px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer leading-tight text-center ${
+                className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
                   viewMode === "detailed"
                     ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600"
                     : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                <List size={14} className="shrink-0 hidden sm:block" />
-                <span>📑 Bảng lương chi tiết</span>
+                <List size={14} className="shrink-0" />
+                <span>Chi tiết</span>
               </button>
             </div>
+
+            {periodStatus && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <StatusBadge type="payroll_period" status={periodStatus.status || "DRAFT"} />
+                {(periodStatus.status === "APPROVED" || periodStatus.payment_status === "PAID") && (
+                  <StatusBadge type="payment" status={periodStatus.payment_status || "UNPAID"} />
+                )}
+              </div>
+            )}
 
             {/* Bộ chọn tháng/năm */}
             <div className="flex items-center bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-1.5 py-0.5 shadow-sm">
@@ -668,12 +604,6 @@ export default function PayrollGridTable({
               >
                 Tính lương
               </AppButton>
-            )}
-
-            {isAdmin && (
-              <span className="inline-flex items-center px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 text-xs font-bold whitespace-nowrap">
-                Chế độ Giám sát (Giám đốc)
-              </span>
             )}
 
             {/* Nút Duyệt & Phát Hành Phiếu Lương */}

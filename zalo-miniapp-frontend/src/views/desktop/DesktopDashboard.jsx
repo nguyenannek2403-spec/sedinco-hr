@@ -6,7 +6,6 @@ import EmployeeManagementTab from "./EmployeeManagementTab";
 import CompanySettingsTab from "./CompanySettingsTab";
 import HolidaysTab from "./HolidaysTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
-import LiveAttendanceBoardModal from "../../components/LiveAttendanceBoardModal";
 import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from "../../constants/roles";
 import { safeGet, safePut } from "../../utils/api";
 import { AppButton } from "../../components/ui";
@@ -46,7 +45,6 @@ export default function DesktopDashboard({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
   const [alertsLoading, setAlertsLoading] = useState(false);
-  const [liveBoardModal, setLiveBoardModal] = useState({ open: false, initialTab: "present" });
   const [alertsSummary, setAlertsSummary] = useState({
     fraud_count: 0,
     fraud_alerts: [],
@@ -241,7 +239,7 @@ export default function DesktopDashboard({
               </div>
             }
           >
-            {/* 1. Nhân sự & Thiết bị (Hồ sơ 360° & Quân số 6 KPI) */}
+            {/* 1. Nhân sự */}
             {effectiveTab === "employees" && (
               <EmployeeManagementTab
                 key={`employees-${refreshTick}`}
@@ -252,7 +250,6 @@ export default function DesktopDashboard({
                 initialFilter={resolvedRole === ROLES.ADMIN ? mgmtInitialFilter : "all"}
                 focusTarget={focusTarget}
                 alertsSummary={alertsSummary}
-                onOpenLiveBoard={(initialTab = "present") => setLiveBoardModal({ open: true, initialTab })}
                 pendingDeviceCount={alertsSummary?.pending_device_count || 0}
                 onRefreshAlerts={fetchAlertsSummary}
               />
@@ -305,29 +302,10 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 5. Cài Đặt & Nhật Ký (Công ty & GPS, Phân quyền Kế toán, Lịch nghỉ lễ, Nhật ký An ninh — Stitch Admin Screen 5) */}
+            {/* 5. Cài Đặt Hệ Thống */}
             {effectiveTab === "settings" && resolvedRole === ROLES.ADMIN && (
               <div className="space-y-4">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase tracking-wider">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#B80035] dark:bg-rose-400 animate-pulse" />
-                      <span>SEDINCO ENTERPRISE ADMIN</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-xs font-bold text-[#16A34A] dark:text-emerald-300">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#16A34A] dark:text-emerald-400 shrink-0" />
-                      <span>Bảo vệ SSL 256-bit • Knox 24/7</span>
-                    </span>
-                  </div>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white tracking-tight">
-                      Cài đặt Hệ thống &amp; Bảo mật
-                    </h2>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                      Quản trị phân quyền và kiểm soát dữ liệu thiết bị thực địa
-                    </p>
-                  </div>
-
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm">
                   <div
                     data-filter-group="settings-subtabs"
                     className="bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5"
@@ -372,7 +350,7 @@ export default function DesktopDashboard({
                       }`}
                     >
                       <Gift size={16} className="shrink-0" />
-                      <span>Lịch nghỉ lễ (x3)</span>
+                      <span>Lịch nghỉ lễ</span>
                     </button>
                   </div>
                 </div>
@@ -481,22 +459,6 @@ export default function DesktopDashboard({
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
       </div>
-
-      {/* Modal Bảng Sĩ Số Trực Tiếp (Live Attendance Board) */}
-      <LiveAttendanceBoardModal
-        open={liveBoardModal.open}
-        initialTab={liveBoardModal.initialTab}
-        headcount={alertsSummary?.headcount_today}
-        loading={alertsLoading}
-        currentUser={currentUser}
-        dynamicPerms={effectiveDynamicPerms}
-        showToast={showToast}
-        onRefresh={() => {
-          setRefreshTick((t) => t + 1);
-          fetchAlertsSummary();
-        }}
-        onClose={() => setLiveBoardModal({ open: false, initialTab: "present" })}
-      />
     </div>
   );
 }

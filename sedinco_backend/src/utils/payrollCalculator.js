@@ -27,6 +27,7 @@ function calculateEmployeeSalary({
     logs = [],
     holidays = [],
     allowances = {},
+    custom_allowances = null,
     has_insurance = true,
     otRegistrations = null,
     companySettings = {},
@@ -233,36 +234,71 @@ function calculateEmployeeSalary({
         });
     });
 
-    const tongPhuCapCoDinh = (Number(allowances.an_trua) || 0) +
-                             (Number(allowances.xang_xe) || 0) +
-                             (Number(allowances.nha_o) || 0) +
-                             (Number(allowances.thuong_htcv) || 0) +
-                             (Number(allowances.trach_nhiem) || 0) +
-                             (Number(allowances.tiep_khach) || 0);
-
     const actualWorkDays = congThuViec + congChinhThuc;
     const effectiveDays = (congThuViec * probationRatio) + congChinhThuc;
     const allowanceWorkDays = probationAllowanceFull ? actualWorkDays : effectiveDays;
+    const workRatio = congChuan > 0 ? (allowanceWorkDays / congChuan) : 0;
+
+    let tongPhuCapCoDinh = 0;
+    let allowances_breakdown = {};
+    let activeAllowances = [];
+
+    if (Array.isArray(custom_allowances)) {
+        const validDynamic = custom_allowances
+            .map((item, idx) => {
+                if (!item || typeof item !== 'object') return null;
+                const name = String(item.name || item.label || '').trim();
+                const baseAmt = Math.max(0, Math.round(Number(item.amount) || 0));
+                if (!name || baseAmt <= 0) return null;
+                const key = String(item.id || item.key || `alw_${idx + 1}`).trim();
+                return { id: key, key, name, label: name, base_amount: baseAmt };
+            })
+            .filter(Boolean);
+
+        tongPhuCapCoDinh = validDynamic.reduce((sum, item) => sum + item.base_amount, 0);
+        activeAllowances = validDynamic
+            .map((item) => {
+                const earnedAmt = Math.round(item.base_amount * workRatio);
+                allowances_breakdown[item.key] = earnedAmt;
+                return {
+                    id: item.id,
+                    key: item.key,
+                    name: item.name,
+                    label: item.label,
+                    base_amount: item.base_amount,
+                    amount: earnedAmt
+                };
+            })
+            .filter((item) => item.amount > 0);
+    } else {
+        tongPhuCapCoDinh = (Number(allowances.an_trua) || 0) +
+                           (Number(allowances.xang_xe) || 0) +
+                           (Number(allowances.nha_o) || 0) +
+                           (Number(allowances.thuong_htcv) || 0) +
+                           (Number(allowances.trach_nhiem) || 0) +
+                           (Number(allowances.tiep_khach) || 0);
+
+        allowances_breakdown = {
+            an_trua: Math.round((Number(allowances.an_trua) || 0) * workRatio),
+            xang_xe: Math.round((Number(allowances.xang_xe) || 0) * workRatio),
+            nha_o: Math.round((Number(allowances.nha_o) || 0) * workRatio),
+            thuong_htcv: Math.round((Number(allowances.thuong_htcv) || 0) * workRatio),
+            trach_nhiem: Math.round((Number(allowances.trach_nhiem) || 0) * workRatio),
+            tiep_khach: Math.round((Number(allowances.tiep_khach) || 0) * workRatio)
+        };
+        activeAllowances = ALLOWANCE_DEFINITIONS
+            .map((def) => ({
+                id: def.key,
+                key: def.key,
+                name: def.label,
+                label: def.label,
+                amount: Number(allowances_breakdown[def.key]) || 0
+            }))
+            .filter((item) => item.amount > 0);
+    }
+
     const salaryByWork = (luongCb / congChuan) * effectiveDays;
     const allowanceByWork = (tongPhuCapCoDinh / congChuan) * allowanceWorkDays;
-
-    // Chi tiết từng khoản phụ cấp thực nhận theo tỷ lệ ngày công
-    const workRatio = congChuan > 0 ? (allowanceWorkDays / congChuan) : 0;
-    const allowances_breakdown = {
-        an_trua: Math.round((Number(allowances.an_trua) || 0) * workRatio),
-        xang_xe: Math.round((Number(allowances.xang_xe) || 0) * workRatio),
-        nha_o: Math.round((Number(allowances.nha_o) || 0) * workRatio),
-        thuong_htcv: Math.round((Number(allowances.thuong_htcv) || 0) * workRatio),
-        trach_nhiem: Math.round((Number(allowances.trach_nhiem) || 0) * workRatio),
-        tiep_khach: Math.round((Number(allowances.tiep_khach) || 0) * workRatio)
-    };
-    const activeAllowances = ALLOWANCE_DEFINITIONS
-        .map((def) => ({
-            key: def.key,
-            label: def.label,
-            amount: Number(allowances_breakdown[def.key]) || 0
-        }))
-        .filter((item) => item.amount > 0);
     const totalAllowance = activeAllowances.length === 0 ? 0 : Math.round(allowanceByWork);
 
     const grossSalary = salaryByWork + allowanceByWork + tienOt;

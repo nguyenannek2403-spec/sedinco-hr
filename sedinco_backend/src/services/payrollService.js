@@ -2,6 +2,20 @@ const { query, withTransaction } = require('../config/db');
 const { calculateEmployeeSalary } = require('../utils/payrollCalculator');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
 
+function parseEmployeeCustomAllowances(emp) {
+    if (!emp || emp.custom_allowances === undefined || emp.custom_allowances === null) return null;
+    if (Array.isArray(emp.custom_allowances)) return emp.custom_allowances;
+    if (typeof emp.custom_allowances === 'string' && emp.custom_allowances.trim()) {
+        try {
+            const parsed = JSON.parse(emp.custom_allowances);
+            return Array.isArray(parsed) ? parsed : null;
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
 function getMonthDateBounds(month, year) {
     const mm = String(month).padStart(2, '0');
     const startDateStr = `${year}-${mm}-01`;
@@ -89,6 +103,7 @@ class PayrollService {
                 logs: empLogs,
                 holidays: safeHolidays,
                 allowances: allowances,
+                custom_allowances: parseEmployeeCustomAllowances(emp),
                 has_insurance: emp.has_insurance,
                 otRegistrations: safeOtRegs.filter(r => r.employee_id === emp.ma_nv),
                 companySettings,
@@ -240,6 +255,7 @@ class PayrollService {
             logs: safeLogs,
             holidays: safeHolidays,
             allowances: allowances,
+            custom_allowances: parseEmployeeCustomAllowances(emp),
             has_insurance: emp.has_insurance,
             otRegistrations: safeOtRegs,
             companySettings,

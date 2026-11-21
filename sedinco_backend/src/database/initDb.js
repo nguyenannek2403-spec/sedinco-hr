@@ -503,8 +503,13 @@ async function initDatabase() {
             }
         } catch {}
 
-        // Khởi tạo Điểm 1 mặc định trong allowed_locations từ latitude/longitude hiện tại nếu chưa có
-        const csRows = await query("SELECT id, latitude, longitude, radius_meters, allowed_locations FROM company_settings LIMIT 1").catch(() => []);
+        // V36: Phụ cấp động linh hoạt theo từng nhân viên (custom_allowances) & Danh mục gợi ý phụ cấp (allowance_presets)
+        await query("ALTER TABLE employees ADD COLUMN custom_allowances TEXT NULL").catch(() => {});
+        await query("ALTER TABLE company_settings ADD COLUMN allowance_presets TEXT NULL").catch(() => {});
+        await query("UPDATE employees SET device_binding_mode = 'recording' WHERE device_binding_mode = 'enforced'").catch(() => {});
+
+        // Khởi tạo Điểm 1 mặc định trong allowed_locations và allowance_presets mặc định nếu chưa có
+        const csRows = await query("SELECT id, latitude, longitude, radius_meters, allowed_locations, allowance_presets FROM company_settings LIMIT 1").catch(() => []);
         if (csRows && csRows.length > 0) {
             const cs = csRows[0];
             if (!cs.allowed_locations || String(cs.allowed_locations).trim() === '') {
@@ -518,6 +523,17 @@ async function initDatabase() {
                     }
                 ]);
                 await query("UPDATE company_settings SET allowed_locations = ? WHERE id = ?", [defaultLocations, cs.id]).catch(() => {});
+            }
+            if (!cs.allowance_presets || String(cs.allowance_presets).trim() === '') {
+                const defaultPresets = JSON.stringify([
+                    'Phụ cấp ăn trưa',
+                    'Phụ cấp xăng xe',
+                    'Phụ cấp nhà ở',
+                    'Phụ cấp điện thoại',
+                    'Phụ cấp công trình',
+                    'Phụ cấp trách nhiệm'
+                ]);
+                await query("UPDATE company_settings SET allowance_presets = ? WHERE id = ?", [defaultPresets, cs.id]).catch(() => {});
             }
         }
 

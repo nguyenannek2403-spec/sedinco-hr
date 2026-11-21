@@ -29,9 +29,10 @@ export function getPositiveAllowances(slip) {
   if (!slip) return [];
   if (Array.isArray(slip.allowances)) {
     return slip.allowances
-      .map((a) => ({
-        key: a.key,
-        label: a.label,
+      .map((a, idx) => ({
+        key: a.key || a.id || `alw_${idx + 1}`,
+        label: a.label || a.name || `Phụ cấp ${idx + 1}`,
+        name: a.name || a.label || `Phụ cấp ${idx + 1}`,
         amount: Number(a.amount) || 0
       }))
       .filter((a) => a.amount > 0);
@@ -40,6 +41,7 @@ export function getPositiveAllowances(slip) {
   return ALLOWANCE_DEFS.map((def) => ({
     key: def.key,
     label: def.label,
+    name: def.label,
     amount: Number(b[def.key] ?? (def.alt ? b[def.alt] : 0)) || 0
   })).filter((a) => a.amount > 0);
 }

@@ -93,17 +93,108 @@ function normalizeOptionalTime(rawVal, label = 'Giờ làm việc riêng') {
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+function normalizeCustomAllowances(rawVal, empFallback = null) {
+    if (rawVal !== undefined && rawVal !== null) {
+        let arr = [];
+        if (Array.isArray(rawVal)) {
+            arr = rawVal;
+        } else if (typeof rawVal === 'string' && rawVal.trim()) {
+            try {
+                const parsed = JSON.parse(rawVal);
+                if (Array.isArray(parsed)) arr = parsed;
+            } catch {
+                arr = [];
+            }
+        }
+        return arr
+            .map((item, idx) => {
+                if (!item || typeof item !== 'object') return null;
+                const name = String(item.name || item.label || '').trim().slice(0, 100);
+                const amount = Math.max(0, Math.round(Number(item.amount) || 0));
+                if (!name || amount <= 0) return null;
+                return {
+                    id: String(item.id || `alw_${idx + 1}`).trim().slice(0, 40),
+                    name,
+                    amount
+                };
+            })
+            .filter(Boolean);
+    }
+
+    if (empFallback && typeof empFallback === 'object') {
+        const legacyDefs = [
+            { id: 'alw_an_trua', name: 'Phụ cấp ăn trưa', val: empFallback.phu_cap_an_trua },
+            { id: 'alw_xang_xe', name: 'Phụ cấp xăng xe', val: empFallback.phu_cap_xang_xe },
+            { id: 'alw_nha_o', name: 'Phụ cấp nhà ở', val: empFallback.phu_cap_nha_o },
+            { id: 'alw_thuong_htcv', name: 'Thưởng hoàn thành công việc', val: empFallback.thuong_htcv },
+            { id: 'alw_trach_nhiem', name: 'Phụ cấp trách nhiệm', val: empFallback.phu_cap_trach_nhiem },
+            { id: 'alw_tiep_khach', name: 'Phụ cấp điện thoại / tiếp khách', val: empFallback.phu_cap_tiep_khach }
+        ];
+        return legacyDefs
+            .map((d) => ({
+                id: d.id,
+                name: d.name,
+                amount: Math.max(0, Math.round(Number(d.val) || 0))
+            }))
+            .filter((item) => item.amount > 0);
+    }
+    return [];
+}
+
+async function mergeAllowancePresetsIntoCompanySettings(customAllowances = []) {
+    if (!Array.isArray(customAllowances) || customAllowances.length === 0) return;
+    try {
+        const csRows = await query('SELECT id, allowance_presets FROM company_settings LIMIT 1').catch(() => []);
+        if (!csRows || csRows.length === 0) return;
+        const cs = csRows[0];
+        let currentPresets = [
+            'Phụ cấp ăn trưa',
+            'Phụ cấp xăng xe',
+            'Phụ cấp nhà ở',
+            'Phụ cấp điện thoại',
+            'Phụ cấp công trình',
+            'Phụ cấp trách nhiệm'
+        ];
+        if (cs.allowance_presets) {
+            try {
+                const parsed = JSON.parse(cs.allowance_presets);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    currentPresets = parsed.map((x) => String(x || '').trim()).filter(Boolean);
+                }
+            } catch {}
+        }
+        const existingLower = new Set(currentPresets.map((p) => p.toLowerCase()));
+        let added = false;
+        for (const item of customAllowances) {
+            const name = String(item?.name || '').trim();
+            if (name && !existingLower.has(name.toLowerCase())) {
+                currentPresets.push(name);
+                existingLower.add(name.toLowerCase());
+                added = true;
+            }
+        }
+        if (added) {
+            await query('UPDATE company_settings SET allowance_presets = ? WHERE id = ?', [
+                JSON.stringify(currentPresets.slice(0, 30)),
+                cs.id
+            ]).catch(() => {});
+        }
+    } catch {}
+}
+
 const sanitizeEmployeeRecord = (emp) => {
     if (!emp) return emp;
     const base = {
         ...emp,
         phone: emp.phone || emp.dien_thoai || null,
         login_username: emp.login_username || emp.phone || emp.ma_nv,
-        theme_preference: emp.theme_preference === 'dark' ? 'dark' : 'light'
+        theme_preference: emp.theme_preference === 'dark' ? 'dark' : 'light',
+        custom_allowances: normalizeCustomAllowances(emp.custom_allowances, emp)
     };
     if (base.role === 'admin') {
         return {
             ...base,
+            custom_allowances: [],
             bound_device_id: null,
             bound_device_name: null,
             pending_device_id: null,
@@ -142,7 +233,7 @@ class EmployeeService {
             ma_nv, ho_ten, ngay_sinh, dien_thoai, phone, login_username, email, chuc_danh, department, role,
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
-            thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
+            thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, custom_allowances, has_insurance,
             status, is_locked, custom_start_time, custom_end_time
         } = data;
 
@@ -193,14 +284,25 @@ class EmployeeService {
 
         const hashedPassword = hashPassword(rawPassword);
 
+        const cleanCustomAllowances = custom_allowances !== undefined
+            ? normalizeCustomAllowances(custom_allowances)
+            : normalizeCustomAllowances(null, {
+                phu_cap_an_trua,
+                phu_cap_xang_xe,
+                phu_cap_nha_o,
+                thuong_htcv,
+                phu_cap_trach_nhiem,
+                phu_cap_tiep_khach
+            });
+
         const sql = `
             INSERT INTO employees (
                 ma_nv, ho_ten, ngay_sinh, dien_thoai, phone, login_username, email, chuc_danh, department, role,
                 ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb, 
                 phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o, 
-                thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
+                thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, custom_allowances, has_insurance,
                 status, is_locked, password, must_change_password, custom_start_time, custom_end_time
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         const cleanDepartment = (department && String(department).trim()) ? String(department).trim().slice(0, 100) : 'Khối Công trình';
         const values = [
@@ -208,6 +310,7 @@ class EmployeeService {
             ngay_bat_dau_lam || null, ngay_chinh_thuc || null, luong_cb || 0,
             phu_cap_an_trua || 0, phu_cap_xang_xe || 0, phu_cap_nha_o || 0,
             thuong_htcv || 0, phu_cap_trach_nhiem || 0, phu_cap_tiep_khach || 0,
+            JSON.stringify(cleanCustomAllowances),
             has_insurance ? 1 : 0,
             status || 'active',
             is_locked ? 1 : 0,
@@ -252,7 +355,7 @@ class EmployeeService {
             ho_ten, ngay_sinh, dien_thoai, phone, login_username, email, chuc_danh, department, role,
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
             phu_cap_an_trua, phu_cap_xang_xe, phu_cap_nha_o,
-            thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, has_insurance,
+            thuong_htcv, phu_cap_trach_nhiem, phu_cap_tiep_khach, custom_allowances, has_insurance,
             status, is_locked, shift_type, annual_leave_quota, keep_logs, new_password,
             custom_start_time, custom_end_time
         } = data;
@@ -297,6 +400,11 @@ class EmployeeService {
         if (thuong_htcv !== undefined) addField('thuong_htcv', thuong_htcv || 0);
         if (phu_cap_trach_nhiem !== undefined) addField('phu_cap_trach_nhiem', phu_cap_trach_nhiem || 0);
         if (phu_cap_tiep_khach !== undefined) addField('phu_cap_tiep_khach', phu_cap_tiep_khach || 0);
+        if (custom_allowances !== undefined) {
+            const cleanAllowances = normalizeCustomAllowances(custom_allowances);
+            addField('custom_allowances', JSON.stringify(cleanAllowances));
+            await mergeAllowancePresetsIntoCompanySettings(cleanAllowances);
+        }
         if (has_insurance !== undefined) addField('has_insurance', has_insurance ? 1 : 0);
 
         if (department !== undefined) {

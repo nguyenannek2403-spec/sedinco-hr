@@ -1059,33 +1059,15 @@ class AttendanceService {
             }
         }
 
-        if (current_user.role === 'worker') {
-            const bindingMode = emp.device_binding_mode || 'recording';
-            const prevBoundDeviceId = emp.bound_device_id;
-            if (bindingMode === 'enforced' && prevBoundDeviceId && !deviceStr) {
-                await triggerCriticalFraud(
-                    'UNREGISTERED_DEVICE',
-                    `Thiếu định danh thiết bị ở chế độ bắt buộc khớp với thiết bị đã đăng ký (${prevBoundDeviceId})`
-                );
-            } else if (deviceStr) {
-                const deviceTrack = await recordEmployeeDeviceActivity(emp, {
-                    device_id: deviceStr,
-                    device_name: deviceIdentity.deviceName,
-                    device_info,
-                    user_agent,
-                    ip_address: cleanClientIp,
-                    source: 'check_in'
-                });
-                if (deviceTrack.blocked) {
-                    await triggerCriticalFraud(
-                        'UNREGISTERED_DEVICE',
-                        `Thiết bị lạ chưa được cấp phép (${emp.ho_ten || ma_nv} : ${deviceIdentity.deviceName} #${deviceIdentity.shortTag}) khác với thiết bị đã đăng ký (${prevBoundDeviceId})`
-                    );
-                } else if (prevBoundDeviceId && prevBoundDeviceId !== deviceStr) {
-                    is_suspicious = true;
-                    suspicious_reason = `Phát hiện chấm công từ thiết bị lạ (${emp.ho_ten || ma_nv} : ${deviceIdentity.deviceName} #${deviceIdentity.shortTag}) khác với thiết bị đã đăng ký (${prevBoundDeviceId})`;
-                }
-            }
+        if (current_user.role === 'worker' && deviceStr) {
+            await recordEmployeeDeviceActivity(emp, {
+                device_id: deviceStr,
+                device_name: deviceIdentity.deviceName,
+                device_info,
+                user_agent,
+                ip_address: cleanClientIp,
+                source: 'check_in'
+            });
         }
 
         // 4. Đối soát Geofence Đa chi nhánh (allowed_locations) + IP Wi-Fi Nội bộ + Chế độ Đi Công Trình

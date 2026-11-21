@@ -119,12 +119,12 @@ export default function WorkerDashboard({
 
   return (
     <div className="w-full h-[100dvh] bg-[#F9F9FF] dark:bg-[#090D16] text-[#111C2D] dark:text-slate-100 flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden transition-colors duration-200">
-      {/* STITCH SINGLE-ROW TOP GLASS HEADER (Screens 2–5) — Reserves 88x44px top-right Zalo Mini App capsule safe zone */}
+      {/* STITCH SINGLE-ROW TOP GLASS HEADER (Screens 2–5) — Reserves 104px top-right Zalo Mini App capsule safe zone */}
       <header
-        className="shrink-0 z-30 w-full sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 px-3.5 py-2 transition-colors duration-200"
-        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}
+        className="shrink-0 z-30 w-full sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 px-3.5 py-2 pr-[104px] transition-colors duration-200"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 pr-[88px] sm:pr-0 min-h-[48px]">
+        <div className="flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
           {/* Left: Brand Mark + SEDINCO HR micro-header + Active Screen Title */}
           <div className="flex items-center gap-2.5 shrink-0">
             <CompanyLogo size="compact" theme={isDark ? "dark" : "light"} iconOnly />

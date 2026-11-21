@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Users,
   Plus,
@@ -6,7 +6,6 @@ import {
   RefreshCw,
   Lock,
   Unlock,
-  Key,
   AlertCircle,
   AlertTriangle,
   Copy,
@@ -18,8 +17,10 @@ import {
   XCircle,
   RotateCcw,
   Phone,
-  ExternalLink,
-  FileSpreadsheet
+  FileSpreadsheet,
+  X,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { safeGet, safePost, safePut } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
@@ -51,6 +52,30 @@ const SHIFT_OPTIONS = [
   { value: "NIGHT_SHIFT", label: "Ca tối (18:00–22:00)" }
 ];
 
+const DEFAULT_ALLOWANCE_PRESETS = [
+  "Phụ cấp ăn trưa",
+  "Phụ cấp xăng xe",
+  "Phụ cấp nhà ở",
+  "Phụ cấp điện thoại",
+  "Phụ cấp công trình",
+  "Phụ cấp trách nhiệm"
+];
+
+function formatViDateTime(isoVal) {
+  if (!isoVal) return "";
+  try {
+    return new Date(isoVal).toLocaleString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+  } catch {
+    return String(isoVal);
+  }
+}
+
 function getShiftWindowText(emp) {
   if (emp.custom_start_time && emp.custom_end_time) {
     return `${String(emp.custom_start_time).slice(0, 5)}–${String(emp.custom_end_time).slice(0, 5)} (Giờ riêng)`;
@@ -58,49 +83,98 @@ function getShiftWindowText(emp) {
   return getShiftLabel(emp.shift_type || "FULL_DAY");
 }
 
+function extractInitialAllowances(emp) {
+  if (!emp) return [];
+  if (Array.isArray(emp.custom_allowances)) {
+    return emp.custom_allowances
+      .map((item, idx) => ({
+        id: String(item?.id || `alw_${idx + 1}`),
+        name: String(item?.name || item?.label || "").trim(),
+        amount: Math.max(0, Math.round(Number(item?.amount) || 0))
+      }))
+      .filter((item) => item.name && item.amount > 0);
+  }
+  if (typeof emp.custom_allowances === "string" && emp.custom_allowances.trim()) {
+    try {
+      const parsed = JSON.parse(emp.custom_allowances);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item, idx) => ({
+            id: String(item?.id || `alw_${idx + 1}`),
+            name: String(item?.name || item?.label || "").trim(),
+            amount: Math.max(0, Math.round(Number(item?.amount) || 0))
+          }))
+          .filter((item) => item.name && item.amount > 0);
+      }
+    } catch {
+      // fallback below
+    }
+  }
+  const legacy = [
+    { id: "alw_an_trua", name: "Phụ cấp ăn trưa", amount: Number(emp.phu_cap_an_trua) || 0 },
+    { id: "alw_xang_xe", name: "Phụ cấp xăng xe", amount: Number(emp.phu_cap_xang_xe) || 0 },
+    { id: "alw_nha_o", name: "Phụ cấp nhà ở", amount: Number(emp.phu_cap_nha_o) || 0 },
+    { id: "alw_thuong_htcv", name: "Thưởng hoàn thành công việc", amount: Number(emp.thuong_htcv) || 0 },
+    { id: "alw_trach_nhiem", name: "Phụ cấp trách nhiệm", amount: Number(emp.phu_cap_trach_nhiem) || 0 },
+    { id: "alw_tiep_khach", name: "Phụ cấp điện thoại", amount: Number(emp.phu_cap_tiep_khach) || 0 }
+  ];
+  return legacy
+    .map((x) => ({ ...x, amount: Math.max(0, Math.round(x.amount)) }))
+    .filter((x) => x.amount > 0);
+}
+
 function getEmployeeDeviceSummary(emp) {
   if (emp?.role === "admin") {
     return {
       known: [],
+      sortedHistory: [],
       hasMultiAlert: false,
       hasPendingChange: false,
       hasAnyAlert: false,
       primaryId: "",
       primaryName: "",
       primaryTag: "",
+      latestSeenAt: "",
       primaryLabel: "Không áp dụng thiết bị cá nhân"
     };
   }
-  const known = parseKnownDevices(emp.known_devices_json);
-  const hasMultiAlert = Boolean(emp.multi_device_alert) || known.length >= 2;
-  const hasPendingChange = Boolean(emp.pending_device_id);
-  const primaryId = emp.bound_device_id || (known[0] && known[0].device_id) || "";
-  const primaryMatch = known.find((d) => d.device_id === primaryId) || known[0] || null;
-  const rawPrimaryName = emp.bound_device_name || primaryMatch?.device_name || (primaryId ? UNKNOWN_DEVICE_LABEL : "");
+  const known = parseKnownDevices(emp?.known_devices_json);
+  const sortedHistory = [...known].sort((a, b) => {
+    const ta = new Date(a?.last_seen || a?.first_seen || 0).getTime() || 0;
+    const tb = new Date(b?.last_seen || b?.first_seen || 0).getTime() || 0;
+    return tb - ta;
+  });
+  const latestItem = sortedHistory[0] || null;
+  const distinctDevices = new Set(known.map((d) => d.device_id || d.device_name).filter(Boolean));
+  const hasMultiAlert = Boolean(emp?.multi_device_alert) || distinctDevices.size >= 2;
+  const hasPendingChange = Boolean(emp?.pending_device_id);
+  const primaryId = latestItem?.device_id || emp?.bound_device_id || "";
+  const rawPrimaryName = latestItem?.device_name || emp?.bound_device_name || (primaryId ? UNKNOWN_DEVICE_LABEL : "");
   const primaryName = rawPrimaryName ? sanitizeSingleDeviceModelName(rawPrimaryName) : "";
-  const primaryTag = primaryMatch?.short_tag || (primaryId ? computeDeviceShortTag(primaryId) : "");
+  const primaryTag = latestItem?.short_tag || (primaryId ? computeDeviceShortTag(primaryId) : "");
+  const latestSeenAt = latestItem?.last_seen || latestItem?.first_seen || "";
 
   return {
     known,
+    sortedHistory,
     hasMultiAlert,
     hasPendingChange,
     hasAnyAlert: hasMultiAlert || hasPendingChange,
     primaryId,
     primaryName,
     primaryTag,
+    latestSeenAt,
     primaryLabel: primaryName
       ? formatEmployeeDeviceLabel(emp.ho_ten || emp.ma_nv, primaryName, primaryTag, hasMultiAlert)
-      : `${emp.ho_ten || emp.ma_nv} : Chưa liên kết máy`
+      : `${emp.ho_ten || emp.ma_nv} : Chưa ghi nhận thiết bị`
   };
 }
 
 export default function EmployeeManagementTab({
   currentUser,
   showToast,
-  initialFilter = "all",
   focusTarget = null,
   alertsSummary = {},
-  onOpenLiveBoard,
   onRefreshAlerts,
   activeRole,
   dynamicPerms = {}
@@ -114,11 +188,8 @@ export default function EmployeeManagementTab({
   const [payslipEmp, setPayslipEmp] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [quickFilter, setQuickFilter] = useState(initialFilter || "all"); // 'all' | 'active' | 'alerts' | 'locked'
-  const [todayFilter, setTodayFilter] = useState("all"); // 'all' | 'present' | 'late' | 'field_work' | 'leave' | 'absent'
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
-  const [selectedDepartment, setSelectedDepartment] = useState("ALL");
 
   // Modal thêm nhân viên
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -144,11 +215,17 @@ export default function EmployeeManagementTab({
   const submittingRef = useRef(false);
   const [createdCreds, setCreatedCreds] = useState(null);
 
-  // Modal Hồ sơ Kiểm soát Nhân sự 360° (1 cửa sổ duy nhất)
+  // Modal Chi tiết Nhân viên (mở khi bấm icon Con Mắt 👁️)
   const [detailEmp, setDetailEmp] = useState(null);
   const [detailForm, setDetailForm] = useState(null);
   const [savingDetail, setSavingDetail] = useState(false);
   const [resolvingDevice, setResolvingDevice] = useState(false);
+  const [showAllDevices, setShowAllDevices] = useState(false);
+
+  // Trạng thái thêm phụ cấp động trong Modal
+  const [isAddingAllowance, setIsAddingAllowance] = useState(false);
+  const [newAllowanceName, setNewAllowanceName] = useState("");
+  const [newAllowanceAmount, setNewAllowanceAmount] = useState(500000);
 
   // Confirm Dialog
   const [confirmAction, setConfirmAction] = useState({
@@ -162,10 +239,6 @@ export default function EmployeeManagementTab({
   const [confirmLoading, setConfirmLoading] = useState(false);
   const actionInFlightRef = useRef(false);
   const lastFocusTsRef = useRef(0);
-
-  useEffect(() => {
-    setQuickFilter(initialFilter || "all");
-  }, [initialFilter]);
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
@@ -192,6 +265,21 @@ export default function EmployeeManagementTab({
     fetchEmployees();
   }, [fetchEmployees]);
 
+  const allowancePresetOptions = useMemo(() => {
+    const names = new Set(DEFAULT_ALLOWANCE_PRESETS);
+    employees.forEach((emp) => {
+      extractInitialAllowances(emp).forEach((item) => {
+        if (item.name) names.add(item.name);
+      });
+    });
+    if (Array.isArray(detailForm?.custom_allowances)) {
+      detailForm.custom_allowances.forEach((item) => {
+        if (item?.name) names.add(item.name);
+      });
+    }
+    return Array.from(names);
+  }, [employees, detailForm?.custom_allowances]);
+
   const executeConfirmedAction = async () => {
     if (actionInFlightRef.current || typeof confirmAction.onExecute !== "function") return;
     actionInFlightRef.current = true;
@@ -214,6 +302,10 @@ export default function EmployeeManagementTab({
 
   const handleOpen360Modal = (emp) => {
     setDetailEmp(emp);
+    setShowAllDevices(false);
+    setIsAddingAllowance(false);
+    setNewAllowanceName("");
+    setNewAllowanceAmount(500000);
     setDetailForm({
       ho_ten: emp.ho_ten || "",
       chuc_danh: emp.chuc_danh || "",
@@ -226,9 +318,7 @@ export default function EmployeeManagementTab({
       shift_type: emp.shift_type || "FULL_DAY",
       annual_leave_quota: Number(emp.annual_leave_quota ?? 12),
       luong_cb: Number(emp.luong_cb) || 0,
-      phu_cap_an_trua: Number(emp.phu_cap_an_trua) || 0,
-      phu_cap_xang_xe: Number(emp.phu_cap_xang_xe) || 0,
-      phu_cap_nha_o: Number(emp.phu_cap_nha_o) || 0,
+      custom_allowances: extractInitialAllowances(emp),
       has_insurance: Boolean(emp.has_insurance),
       custom_start_time: emp.custom_start_time || "",
       custom_end_time: emp.custom_end_time || "",
@@ -240,9 +330,6 @@ export default function EmployeeManagementTab({
   useEffect(() => {
     if (!focusTarget?.ts || focusTarget.ts === lastFocusTsRef.current) return;
     if (focusTarget.subTab !== "employees" && focusTarget.category !== "device") return;
-    if (focusTarget.category === "device") {
-      setQuickFilter("alerts");
-    }
     if (focusTarget.ma_nv) {
       setSearchQuery(focusTarget.ma_nv);
       const matched = employees.find((e) => e.ma_nv === focusTarget.ma_nv);
@@ -286,6 +373,7 @@ export default function EmployeeManagementTab({
       const res = await safePost("/employees", {
         ...form,
         luong_cb: isTargetAdmin ? 0 : form.luong_cb,
+        custom_allowances: [],
         has_insurance: isTargetAdmin ? false : form.has_insurance,
         ma_nv: targetMaNv,
         phone: cleanPhone || null,
@@ -308,7 +396,7 @@ export default function EmployeeManagementTab({
         }
         if (showToast) {
           showToast(
-            `Thêm nhân viên ${cleanName} (${finalId}) thành công! Tài khoản đăng nhập: ${res.login_username || cleanLoginUser}`,
+            `Thêm nhân viên ${cleanName} (${finalId}) thành công!`,
             "success"
           );
         }
@@ -354,6 +442,68 @@ export default function EmployeeManagementTab({
     }
   };
 
+  const handleConfirmAddAllowance = () => {
+    const cleanName = String(newAllowanceName || "").trim();
+    const cleanAmt = Math.max(0, Math.round(Number(newAllowanceAmount) || 0));
+    if (!cleanName) {
+      if (showToast) showToast("Vui lòng chọn hoặc nhập tên phụ cấp!", "warning");
+      return;
+    }
+    if (cleanAmt <= 0) {
+      if (showToast) showToast("Vui lòng nhập số tiền phụ cấp lớn hơn 0!", "warning");
+      return;
+    }
+    setDetailForm((prev) => {
+      if (!prev) return prev;
+      const list = Array.isArray(prev.custom_allowances) ? [...prev.custom_allowances] : [];
+      const existingIdx = list.findIndex((x) => x.name.toLowerCase() === cleanName.toLowerCase());
+      if (existingIdx >= 0) {
+        list[existingIdx] = { ...list[existingIdx], amount: cleanAmt };
+      } else {
+        list.push({
+          id: `alw_${Date.now()}_${list.length + 1}`,
+          name: cleanName,
+          amount: cleanAmt
+        });
+      }
+      return { ...prev, custom_allowances: list };
+    });
+    setNewAllowanceName("");
+    setNewAllowanceAmount(500000);
+    setIsAddingAllowance(false);
+  };
+
+  const handleUpdateAllowanceAmount = (id, rawVal) => {
+    const nextAmt = Math.max(0, Math.round(parseViNumberInput(rawVal)));
+    setDetailForm((prev) => {
+      if (!prev) return prev;
+      const list = (prev.custom_allowances || []).map((item) =>
+        item.id === id ? { ...item, amount: nextAmt } : item
+      );
+      return { ...prev, custom_allowances: list };
+    });
+  };
+
+  const handleUpdateAllowanceName = (id, rawName) => {
+    setDetailForm((prev) => {
+      if (!prev) return prev;
+      const list = (prev.custom_allowances || []).map((item) =>
+        item.id === id ? { ...item, name: rawName } : item
+      );
+      return { ...prev, custom_allowances: list };
+    });
+  };
+
+  const handleRemoveAllowance = (id) => {
+    setDetailForm((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        custom_allowances: (prev.custom_allowances || []).filter((item) => item.id !== id)
+      };
+    });
+  };
+
   const handleSaveDetailModal = async (e) => {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
     if (!detailEmp || !detailForm || savingDetail) return;
@@ -365,6 +515,14 @@ export default function EmployeeManagementTab({
     try {
       const cleanDetailPhone = String(detailForm.phone ?? detailForm.dien_thoai ?? "").trim();
       const cleanDetailUser = String(detailForm.login_username || "").trim();
+      const cleanAllowances = (detailForm.custom_allowances || [])
+        .map((item, idx) => ({
+          id: String(item.id || `alw_${idx + 1}`),
+          name: String(item.name || "").trim(),
+          amount: Math.max(0, Math.round(Number(item.amount) || 0))
+        }))
+        .filter((item) => item.name && item.amount > 0);
+
       const payload = {
         ho_ten: String(detailForm.ho_ten || "").trim(),
         chuc_danh: detailForm.chuc_danh,
@@ -376,9 +534,13 @@ export default function EmployeeManagementTab({
         shift_type: detailForm.shift_type,
         annual_leave_quota: Number(detailForm.annual_leave_quota) || 12,
         luong_cb: Number(detailForm.luong_cb) || 0,
-        phu_cap_an_trua: Number(detailForm.phu_cap_an_trua) || 0,
-        phu_cap_xang_xe: Number(detailForm.phu_cap_xang_xe) || 0,
-        phu_cap_nha_o: Number(detailForm.phu_cap_nha_o) || 0,
+        custom_allowances: cleanAllowances,
+        phu_cap_an_trua: 0,
+        phu_cap_xang_xe: 0,
+        phu_cap_nha_o: 0,
+        thuong_htcv: 0,
+        phu_cap_trach_nhiem: 0,
+        phu_cap_tiep_khach: 0,
         has_insurance: Boolean(detailForm.has_insurance),
         custom_start_time: detailForm.custom_start_time || null,
         custom_end_time: detailForm.custom_end_time || null
@@ -395,7 +557,7 @@ export default function EmployeeManagementTab({
 
       const res = await safePut(`/employees/${detailEmp.ma_nv}`, payload);
       if (res?.success) {
-        if (showToast) showToast(`Đã cập nhật hồ sơ 360° cho ${detailForm.ho_ten}!`, "success");
+        if (showToast) showToast(`Đã lưu thông tin nhân viên ${detailForm.ho_ten}!`, "success");
         setDetailEmp(null);
         setDetailForm(null);
         fetchEmployees();
@@ -450,7 +612,7 @@ export default function EmployeeManagementTab({
         target_device_name: targetDevice?.device_name || emp.bound_device_name || undefined
       });
       if (res?.success) {
-        if (showToast) showToast(res.message || "Đã cập nhật khóa thiết bị thành công!", "success");
+        if (showToast) showToast(res.message || "Đã cập nhật thiết bị thành công!", "success");
         await fetchEmployees();
         if (onRefreshAlerts) onRefreshAlerts();
       } else {
@@ -485,42 +647,12 @@ export default function EmployeeManagementTab({
     }
   };
 
-  const handleBatchForcePassword = () => {
-    setConfirmAction({
-      open: true,
-      title: "Yêu cầu đổi mật khẩu hàng loạt",
-      message: "Kích hoạt cờ yêu cầu đổi mật khẩu ở lần đăng nhập tiếp theo cho toàn bộ nhân viên?",
-      confirmLabel: "Kích hoạt",
-      danger: true,
-      onExecute: async () => {
-        try {
-          const res = await safePost("/employees/staged-force-password", { stage: "all", limit: 500 });
-          if (res?.success) {
-            if (showToast) showToast("Đã kích hoạt đổi mật khẩu cho toàn bộ nhân viên!", "success");
-            fetchEmployees();
-          } else {
-            if (showToast) showToast(res?.message || "Lỗi kích hoạt đổi mật khẩu.", "error");
-          }
-        } catch (err) {
-          if (showToast) showToast(err.message || "Lỗi máy chủ.", "error");
-        }
-      }
-    });
-  };
-
   const availableDepartments = Array.from(
     new Set([
       ...DEPARTMENT_OPTIONS,
       ...employees.map((e) => e.department).filter(Boolean)
     ])
   );
-
-  // Thống kê nhanh 4 nhóm + Trạng thái Điểm Danh Hôm Nay (Độc quyền tại Khu vực 1 Trung tâm Nhân sự)
-  const totalCount = employees.length;
-  const activeCount = employees.filter((e) => !e.is_locked && e.status !== "inactive").length;
-  const lockedCount = employees.filter((e) => Boolean(e.is_locked || e.status === "inactive")).length;
-  const alertEmployees = employees.filter((e) => getEmployeeDeviceSummary(e).hasAnyAlert);
-  const alertCount = alertEmployees.length;
 
   const headcountToday = alertsSummary?.headcount_today || null;
   const liveBoard = headcountToday?.live_board || {};
@@ -540,21 +672,6 @@ export default function EmployeeManagementTab({
   };
 
   const filtered = employees.filter((e) => {
-    const isLocked = Boolean(e.is_locked || e.status === "inactive");
-    const devSummary = getEmployeeDeviceSummary(e);
-    if (quickFilter === "active" && isLocked) return false;
-    if (quickFilter === "locked" && !isLocked) return false;
-    if (quickFilter === "alerts" && !devSummary.hasAnyAlert) return false;
-
-    if (todayFilter === "present" && !presentSet.has(e.ma_nv)) return false;
-    if (todayFilter === "late" && !lateSet.has(e.ma_nv)) return false;
-    if (todayFilter === "field_work" && !fieldSet.has(e.ma_nv)) return false;
-    if (todayFilter === "leave" && !leaveSet.has(e.ma_nv)) return false;
-    if (todayFilter === "absent" && !absentSet.has(e.ma_nv)) return false;
-
-    const empDept = e.department || "Khối Công trình";
-    if (selectedDepartment !== "ALL" && empDept !== selectedDepartment) return false;
-
     const q = debouncedSearch.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -571,279 +688,46 @@ export default function EmployeeManagementTab({
   const detailDevSummary = detailEmp ? getEmployeeDeviceSummary(detailEmp) : null;
 
   return (
-    <div className="space-y-4 pb-8">
-      {/* STITCH ADMIN SCREEN 1 — SECTION 1: EXECUTIVE HEADER & 6-TILE HEADCOUNT KPI GRID */}
-      <div
-        data-testid="employee-hub-headcount-bar"
-        className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white tracking-tight">
-                Nhân sự &amp; Thiết bị 360° {headcountToday?.date ? `(${headcountToday.date})` : ""}
-              </h2>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-extrabold">
-                <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
-                <span>Trực tiếp</span>
-              </span>
-            </div>
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">
-              Hệ thống giám sát định danh ca trực công xưởng • Knox 1:1
-            </p>
-          </div>
-          {typeof onOpenLiveBoard === "function" && (
-            <button
-              type="button"
-              onClick={() => onOpenLiveBoard(todayFilter === "all" ? "present" : todayFilter)}
-              className="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#F0F3FF] hover:bg-rose-50 dark:bg-rose-500/20 dark:hover:bg-rose-500/30 border border-slate-200 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-200 text-xs font-extrabold cursor-pointer transition"
-            >
-              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-              <span>Xem bảng live chi tiết</span>
-            </button>
-          )}
+    <div className="space-y-3.5 pb-8">
+      {/* 1. Thanh Tìm Kiếm & Nút [+ Thêm nhân viên] Siêu Gọn */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-sm flex flex-wrap items-center gap-2.5">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm họ tên, mã NV, SĐT..."
+            className="w-full min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
+          />
         </div>
 
-        <div className="px-3 py-2 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="font-extrabold text-[#111C2D] dark:text-white">
-            ⚡ Sĩ số trực tiếp ca sản xuất hôm nay
-          </span>
-          <span className="px-2.5 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[#B80035] dark:text-rose-300 font-extrabold">
-            {headcountToday?.total_employees ?? totalCount} nhân sự
-          </span>
-        </div>
-
-        {/* 6-Tile Headcount KPI Grid (Stitch Screen 9) */}
-        {headcountToday && (
-          <div
-            data-filter-group="headcount-today-filter"
-            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs font-semibold"
-          >
-            <button
-              type="button"
-              data-active={todayFilter === "all" ? "true" : "false"}
-              onClick={() => setTodayFilter("all")}
-              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
-                todayFilter === "all"
-                  ? "bg-[#E11D48] text-white border-[#BE123C] dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-sm"
-                  : "bg-[#F0F3FF] hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-[#111C2D] dark:text-slate-200"
-              }`}
-            >
-              <span className="text-xs font-bold opacity-90">👥 Quân số:</span>
-              <strong className="text-base font-black font-mono">{headcountToday.total_employees}</strong>
-            </button>
-            <button
-              type="button"
-              data-active={todayFilter === "present" ? "true" : "false"}
-              onClick={() => setTodayFilter((p) => (p === "present" ? "all" : "present"))}
-              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
-                todayFilter === "present"
-                  ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 shadow-sm"
-                  : "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/80 border-emerald-200 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-              }`}
-            >
-              <span className="text-xs font-bold">🟢 Có mặt:</span>
-              <strong className="text-base font-black font-mono">{headcountToday.present}</strong>
-            </button>
-            <button
-              type="button"
-              data-active={todayFilter === "field_work" ? "true" : "false"}
-              onClick={() => setTodayFilter((p) => (p === "field_work" ? "all" : "field_work"))}
-              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
-                todayFilter === "field_work"
-                  ? "bg-orange-600 text-white border-orange-500 dark:bg-orange-600 dark:text-white dark:border-orange-400 shadow-sm"
-                  : "bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/70 dark:hover:bg-orange-900/80 border-orange-200 dark:border-orange-500/40 text-orange-800 dark:text-orange-300"
-              }`}
-            >
-              <span className="text-xs font-bold">🚧 Công trình:</span>
-              <strong className="text-base font-black font-mono">{headcountToday.field_work}</strong>
-            </button>
-            <button
-              type="button"
-              data-active={todayFilter === "late" ? "true" : "false"}
-              onClick={() => setTodayFilter((p) => (p === "late" ? "all" : "late"))}
-              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
-                todayFilter === "late"
-                  ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 shadow-sm"
-                  : "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-300"
-              }`}
-            >
-              <span className="text-xs font-bold">🟡 Đi muộn:</span>
-              <strong className="text-base font-black font-mono">{headcountToday.late}</strong>
-            </button>
-            <button
-              type="button"
-              data-active={todayFilter === "leave" ? "true" : "false"}
-              onClick={() => setTodayFilter((p) => (p === "leave" ? "all" : "leave"))}
-              className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
-                todayFilter === "leave"
-                  ? "bg-purple-600 text-white border-purple-500 dark:bg-purple-600 dark:text-white dark:border-purple-400 shadow-sm"
-                  : "bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/70 dark:hover:bg-purple-900/80 border-purple-200 dark:border-purple-500/40 text-purple-800 dark:text-purple-300"
-              }`}
-            >
-              <span className="text-xs font-bold">🟣 Nghỉ phép:</span>
-              <strong className="text-base font-black font-mono">{headcountToday.leave}</strong>
-            </button>
-            {Array.isArray(liveBoard?.absent_list) && (
-              <button
-                type="button"
-                data-active={todayFilter === "absent" ? "true" : "false"}
-                onClick={() => setTodayFilter((p) => (p === "absent" ? "all" : "absent"))}
-                className={`min-h-[56px] p-2.5 rounded-xl border text-left flex flex-col justify-between cursor-pointer transition ${
-                  todayFilter === "absent"
-                    ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-sm"
-                    : "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/70 dark:hover:bg-rose-900/80 border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300"
-                }`}
-              >
-                <span className="text-xs font-bold">⚪ Chưa chấm:</span>
-                <strong className="text-base font-black font-mono">{liveBoard.absent_list.length}</strong>
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 4 Thẻ Lọc Nhanh Trạng Thái Tài Khoản & Thiết Bị — ZaUI Squircle KPI Tiles */}
-      <div
-        data-filter-group="employee-quick-filter"
-        className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
-      >
-        <button
-          type="button"
-          data-active={quickFilter === "all" ? "true" : "false"}
-          onClick={() => setQuickFilter("all")}
-          className={`min-h-[64px] p-3.5 rounded-2xl border text-left transition cursor-pointer shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)] ${
-            quickFilter === "all"
-              ? "bg-[#E11D48] text-white border-[#BE123C] dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-md"
-              : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-          }`}
-        >
-          <div className="text-xs font-semibold opacity-95">👥 Tất cả nhân sự</div>
-          <div className="text-xl font-black mt-0.5">{totalCount}</div>
-        </button>
-
-        <button
-          type="button"
-          data-active={quickFilter === "active" ? "true" : "false"}
-          onClick={() => setQuickFilter("active")}
-          className={`min-h-[64px] p-3.5 rounded-2xl border text-left transition cursor-pointer shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)] ${
-            quickFilter === "active"
-              ? "bg-emerald-600 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-400 shadow-md"
-              : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-          }`}
-        >
-          <div className={`text-xs font-semibold ${quickFilter === "active" ? "text-emerald-50" : "text-emerald-700 dark:text-emerald-300"}`}>🟢 Đang làm việc</div>
-          <div className="text-xl font-black mt-0.5">{activeCount}</div>
-        </button>
-
-        <button
-          type="button"
-          data-active={quickFilter === "alerts" ? "true" : "false"}
-          onClick={() => setQuickFilter("alerts")}
-          className={`min-h-[64px] p-3.5 rounded-2xl border text-left transition cursor-pointer shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)] ${
-            quickFilter === "alerts"
-              ? "bg-rose-600 text-white border-rose-500 dark:bg-rose-600 dark:text-white dark:border-rose-400 shadow-md"
-              : alertCount > 0
-              ? "bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-500/50 text-rose-800 dark:text-rose-100 hover:bg-rose-100 dark:hover:bg-rose-950/80"
-              : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-          }`}
-        >
-          <div className={`text-xs font-semibold ${quickFilter === "alerts" ? "text-rose-50" : "text-rose-700 dark:text-rose-300"}`}>🚨 Đa thiết bị / Đổi máy</div>
-          <div className="text-xl font-black mt-0.5">{alertCount}</div>
-        </button>
-
-        <button
-          type="button"
-          data-active={quickFilter === "locked" ? "true" : "false"}
-          onClick={() => setQuickFilter("locked")}
-          className={`min-h-[64px] p-3.5 rounded-2xl border text-left transition cursor-pointer shadow-[0_4px_16px_-2px_rgba(15,23,42,0.05)] ${
-            quickFilter === "locked"
-              ? "bg-amber-500 text-slate-950 border-amber-400 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-300 shadow-md"
-              : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-          }`}
-        >
-          <div className={`text-xs font-semibold ${quickFilter === "locked" ? "text-slate-950" : "text-amber-700 dark:text-amber-300"}`}>🔒 Đang khóa</div>
-          <div className="text-xl font-black mt-0.5">{lockedCount}</div>
-        </button>
-      </div>
-
-      {/* 2. Thanh Công Cụ Tìm Kiếm, Lọc Bộ Phận & Thao Tác */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm dark:shadow-xl space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />
-              <span>Trung tâm Nhân sự &amp; Thiết bị 360°</span>
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
-              Đang hiển thị <strong className="text-slate-900 dark:text-white">{filtered.length}</strong> / {totalCount} nhân sự
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {isAdmin && (
-              <AppButton
-                variant="ghost"
-                icon={Key}
-                onClick={handleBatchForcePassword}
-                className="bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 border border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-200 text-xs px-3 py-2"
-              >
-                Yêu cầu đổi MK
-              </AppButton>
-            )}
-            {canEditEmployees && (
-              <AppButton
-                variant="primary"
-                icon={Plus}
-                onClick={() => {
-                  setFormError("");
-                  setIsAddModalOpen(true);
-                }}
-                className="text-xs px-3.5 py-2 shadow-lg shadow-rose-600/25"
-              >
-                Thêm nhân viên
-              </AppButton>
-            )}
+        <div className="flex items-center gap-2 shrink-0">
+          {canEditEmployees && (
             <AppButton
-              variant="secondary"
-              icon={RefreshCw}
-              loading={loading}
-              onClick={fetchEmployees}
-              aria-label="Làm mới"
-              className="min-w-[44px] px-3 py-2"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm SĐT, tài khoản, tên, mã NV, bộ phận, tên máy..."
-              className="w-full min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
-            />
-          </div>
-
-          <select
-            aria-label="Lọc theo bộ phận"
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[44px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
-          >
-            <option value="ALL">🏢 Tất cả bộ phận</option>
-            {availableDepartments.map((dept) => (
-              <option key={dept} value={dept}>
-                {dept}
-              </option>
-            ))}
-          </select>
+              variant="primary"
+              icon={Plus}
+              onClick={() => {
+                setFormError("");
+                setIsAddModalOpen(true);
+              }}
+              className="text-xs sm:text-sm px-3.5 py-2 shadow-md shadow-rose-600/20"
+            >
+              Thêm nhân viên
+            </AppButton>
+          )}
+          <AppButton
+            variant="secondary"
+            icon={RefreshCw}
+            loading={loading}
+            onClick={fetchEmployees}
+            aria-label="Làm mới"
+            className="min-w-[44px] px-3 py-2"
+          />
         </div>
       </div>
 
-      {/* 3. Danh Sách Nhân Viên Tối Giản (V35 Minimalist Directory) */}
+      {/* 2. Danh Sách Nhân Viên Siêu Sạch (Avatar + Họ tên + Mã NV bên trái, icon Con Mắt 👁️ bên phải) */}
       {loading ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
           <SkeletonList rows={4} label="Đang tải danh sách nhân sự..." />
@@ -855,7 +739,7 @@ export default function EmployeeManagementTab({
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-          <EmptyState icon={Users} title="Không tìm thấy nhân viên nào khớp với bộ lọc." />
+          <EmptyState icon={Users} title="Không tìm thấy nhân viên nào." />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -905,27 +789,6 @@ export default function EmployeeManagementTab({
         </div>
       )}
 
-      {/* STITCH ADMIN SCREEN 1 — SEDINCO KNOX SECURITY GUARD V2.4.12 FOOTER CARD */}
-      <div className="bg-[#F0F3FF] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-[#B80035] dark:text-rose-400 shadow-xs shrink-0">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="font-extrabold text-[#111C2D] dark:text-white text-sm">
-              Sedinco Knox Security Guard v2.4.12
-            </p>
-            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-              Khóa cứng IMEI phần cứng • Chống giả lập GPS • Mã hóa định danh thiết bị 1:1
-            </p>
-          </div>
-        </div>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 font-extrabold text-[#16A34A] dark:text-emerald-300 shrink-0 whitespace-nowrap">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
-          <span>Cụm máy chủ Sedinco: Sẵn sàng ({totalCount} hồ sơ)</span>
-        </span>
-      </div>
-
       <ConfirmDialog
         open={confirmAction.open}
         title={confirmAction.title}
@@ -959,7 +822,7 @@ export default function EmployeeManagementTab({
         {createdCreds && (
           <div className="p-5 space-y-4">
             <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
-              Đã tạo tài khoản cho <strong>{createdCreds.ho_ten}</strong> (TK: <strong>{createdCreds.login_username || createdCreds.ma_nv}</strong> • Mã: {createdCreds.ma_nv}). Vui lòng gửi mật khẩu tạm thời bên dưới cho nhân viên:
+              Đã tạo tài khoản cho <strong>{createdCreds.ho_ten}</strong> (TK: <strong>{createdCreds.login_username || createdCreds.ma_nv}</strong> • Mã: {createdCreds.ma_nv}). Mật khẩu tạm thời:
             </p>
             <div className="p-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl flex items-center justify-between gap-2">
               <code className="text-base font-mono font-bold text-emerald-700 dark:text-emerald-400 break-all">{createdCreds.password}</code>
@@ -975,9 +838,6 @@ export default function EmployeeManagementTab({
                 Sao chép
               </AppButton>
             </div>
-            <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-              Nhân viên sẽ được yêu cầu đổi mật khẩu mới ngay khi đăng nhập lần đầu.
-            </p>
           </div>
         )}
       </AppModal>
@@ -1022,12 +882,12 @@ export default function EmployeeManagementTab({
 
           <div className="p-3 rounded-2xl bg-[#F0F3FF] dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 space-y-3">
             <div className="text-xs font-black uppercase tracking-wide text-[#E11D48] dark:text-rose-300">
-              Tài khoản đăng nhập mặc định (Số điện thoại)
+              Tài khoản đăng nhập
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
-                  Số điện thoại (Tài khoản mặc định)
+                  Số điện thoại
                 </label>
                 <input
                   type="tel"
@@ -1041,32 +901,32 @@ export default function EmployeeManagementTab({
                     }));
                   }}
                   placeholder="VD: 0905123456"
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
                 />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
-                  Tài khoản tùy chỉnh (nếu khác SĐT)
+                  Tài khoản tùy chỉnh
                 </label>
                 <input
                   type="text"
                   value={form.login_username}
                   onChange={(e) => setForm({ ...form, login_username: e.target.value })}
-                  placeholder={form.phone ? form.phone : "Mặc định lấy SĐT hoặc Mã NV"}
-                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
+                  placeholder={form.phone ? form.phone : "SĐT hoặc Mã NV"}
+                  className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
                 />
               </div>
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
-                Mật khẩu khởi tạo (Mặc định: 123456)
+                Mật khẩu khởi tạo
               </label>
               <input
                 type="text"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="123456 (bỏ trống để tự sinh ngẫu nhiên)"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
+                placeholder="123456"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               />
             </div>
           </div>
@@ -1079,7 +939,7 @@ export default function EmployeeManagementTab({
                 value={form.ma_nv}
                 onChange={(e) => setForm({ ...form, ma_nv: e.target.value.toUpperCase() })}
                 placeholder="VD: NV025"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 uppercase focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white uppercase focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               />
             </div>
             <div>
@@ -1090,7 +950,7 @@ export default function EmployeeManagementTab({
                 value={form.ho_ten}
                 onChange={(e) => setForm({ ...form, ho_ten: e.target.value })}
                 placeholder="Nguyễn Văn A"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               />
             </div>
           </div>
@@ -1104,7 +964,7 @@ export default function EmployeeManagementTab({
                 value={form.chuc_danh}
                 onChange={(e) => setForm({ ...form, chuc_danh: e.target.value })}
                 placeholder="Kỹ thuật / Nhân viên kho"
-                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
+                className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               />
             </div>
             <div>
@@ -1177,7 +1037,7 @@ export default function EmployeeManagementTab({
         </form>
       </AppModal>
 
-      {/* 4. MODAL CHI TIẾT NHÂN VIÊN (KHI BẤM ICON CON MẮT 👁️) */}
+      {/* 3. MODAL CHI TIẾT NHÂN VIÊN (KHI BẤM ICON CON MẮT 👁️) */}
       <AppModal
         open={Boolean(detailEmp && detailForm)}
         onClose={() => {
@@ -1228,6 +1088,10 @@ export default function EmployeeManagementTab({
           };
           const detailDisplayPhone = detailForm.phone || detailEmp.phone || detailEmp.dien_thoai || "";
           const detailDisplayLogin = detailForm.login_username || detailDisplayPhone || detailEmp.ma_nv;
+          const deviceHistoryList = detailDevSummary.sortedHistory || [];
+          const visibleDeviceHistory = showAllDevices ? deviceHistoryList : deviceHistoryList.slice(0, 3);
+          const customAllowancesList = Array.isArray(detailForm.custom_allowances) ? detailForm.custom_allowances : [];
+          const totalCustomAllowance = customAllowancesList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
 
           return (
             <form
@@ -1274,7 +1138,7 @@ export default function EmployeeManagementTab({
                         onChange={(e) => setDetailForm((p) => ({ ...p, keep_logs: e.target.checked }))}
                         className="w-4 h-4 rounded accent-[#E11D48] text-[#E11D48]"
                       />
-                      <span>Lưu giữ nhật ký hoạt động của nhân viên</span>
+                      <span>Lưu giữ nhật ký hoạt động</span>
                     </label>
                     <AppButton
                       variant="secondary"
@@ -1487,7 +1351,7 @@ export default function EmployeeManagementTab({
                 </div>
               </section>
 
-              {/* NHÓM 4 — THIẾT BỊ ĐĂNG NHẬP */}
+              {/* NHÓM 4 — THIẾT BỊ ĐĂNG NHẬP & LỊCH SỬ THIẾT BỊ ("XEM THÊM CHI TIẾT", KHÔNG ÉP KHÓA CỨNG) */}
               {detailEmp.role !== "admin" && (
                 <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1495,30 +1359,38 @@ export default function EmployeeManagementTab({
                       <Smartphone className="w-4 h-4 shrink-0" />
                       <span>4. Thiết bị đăng nhập</span>
                     </h3>
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-                        detailEmp.device_binding_mode === "enforced"
-                          ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40"
-                          : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
-                      }`}
-                    >
-                      {detailEmp.device_binding_mode === "enforced" ? "🔒 Đang khóa cứng 1 máy" : "Chế độ ghi nhận cảnh báo"}
-                    </span>
+                    {isAdmin && deviceHistoryList.length > 0 && (
+                      <AppButton
+                        variant="secondary"
+                        icon={RotateCcw}
+                        loading={resolvingDevice}
+                        onClick={() => handleResolveDevices(detailEmp, "reset_devices")}
+                        className="text-xs px-2.5 py-1.5"
+                      >
+                        Làm mới lịch sử
+                      </AppButton>
+                    )}
                   </div>
 
+                  {/* Thiết bị gần nhất */}
                   <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm space-y-1">
-                    <div className="text-slate-500 dark:text-slate-400 font-semibold">Thiết bị định danh:</div>
+                    <div className="text-slate-500 dark:text-slate-400 font-semibold">Thiết bị gần nhất:</div>
                     <div className="font-bold text-emerald-700 dark:text-emerald-300 break-words">
                       📱 {detailDevSummary.primaryLabel}
                     </div>
+                    {detailDevSummary.latestSeenAt && (
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        Hoạt động gần nhất: {formatViDateTime(detailDevSummary.latestSeenAt)}
+                      </div>
+                    )}
                   </div>
 
                   {detailDevSummary.hasMultiAlert && (
-                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-500/70 text-xs text-rose-800 dark:text-rose-100">
-                      <div className="flex items-start gap-2 font-bold text-rose-900 dark:text-rose-200 leading-snug">
-                        <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-500/60 text-xs text-amber-900 dark:text-amber-100">
+                      <div className="flex items-start gap-2 font-bold leading-snug">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                         <span>
-                          Cảnh báo đa thiết bị: Phát hiện {Math.max(2, detailDevSummary.known.length)} thiết bị dùng chung tài khoản!
+                          Ghi nhận tài khoản đã đăng nhập trên {deviceHistoryList.length} lượt thiết bị khác nhau.
                         </span>
                       </div>
                     </div>
@@ -1527,7 +1399,7 @@ export default function EmployeeManagementTab({
                   {detailDevSummary.hasPendingChange && (
                     <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-500/60 space-y-2.5 text-xs">
                       <div className="font-bold text-amber-900 dark:text-amber-200">
-                        📱 Nhân viên yêu cầu đổi sang máy mới: {sanitizeSingleDeviceModelName(detailEmp.pending_device_name || detailEmp.pending_device_id)}
+                        📱 Đề xuất đổi thiết bị: {sanitizeSingleDeviceModelName(detailEmp.pending_device_name || detailEmp.pending_device_id)}
                       </div>
                       {detailEmp.device_change_reason && (
                         <div className="text-amber-800 dark:text-amber-100">Lý do: {detailEmp.device_change_reason}</div>
@@ -1541,7 +1413,7 @@ export default function EmployeeManagementTab({
                             onClick={() => handlePendingDeviceDecision(detailEmp, "approve")}
                             className="flex-1 text-xs"
                           >
-                            ✅ Duyệt đổi sang máy mới
+                            Duyệt thiết bị
                           </AppButton>
                           <AppButton
                             variant="secondary"
@@ -1557,80 +1429,68 @@ export default function EmployeeManagementTab({
                     </div>
                   )}
 
-                  {detailDevSummary.known.length > 0 && (
+                  {/* Lịch sử thiết bị đã dùng (Mặc định hiện tối đa 3 dòng gần nhất + nút Xem thêm chi tiết) */}
+                  {deviceHistoryList.length > 0 && (
                     <div className="space-y-2">
                       <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                        Lịch sử thiết bị đăng nhập ({detailDevSummary.known.length} máy):
+                        Lịch sử thiết bị đã dùng ({deviceHistoryList.length}):
                       </div>
-                      {detailDevSummary.known.map((dev, idx) => {
+                      {visibleDeviceHistory.map((dev, idx) => {
                         const tag = dev.short_tag || computeDeviceShortTag(dev.device_id);
-                        const isPrimary = dev.device_id === detailEmp.bound_device_id;
+                        const isLatest = idx === 0;
                         return (
                           <div
-                            key={dev.device_id || idx}
+                            key={`${dev.device_id || "dev"}-${dev.last_seen || idx}`}
                             className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 text-xs ${
-                              isPrimary
-                                ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/50 text-emerald-900 dark:text-emerald-100"
-                                : "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-500/50 text-rose-900 dark:text-rose-100"
+                              isLatest
+                                ? "bg-emerald-50/70 dark:bg-emerald-950/35 border-emerald-300 dark:border-emerald-500/50 text-emerald-900 dark:text-emerald-100"
+                                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
                             }`}
                           >
                             <div className="min-w-0 flex-1 space-y-0.5">
                               <div className="font-bold break-words">
-                                {formatEmployeeDeviceLabel(detailEmp.ho_ten, dev.device_name || UNKNOWN_DEVICE_LABEL, tag, true)}
-                                {isPrimary && (
+                                📱 {formatEmployeeDeviceLabel(detailEmp.ho_ten, dev.device_name || UNKNOWN_DEVICE_LABEL, tag, true)}
+                                {isLatest && (
                                   <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-200 dark:bg-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs">
-                                    Máy chính
+                                    Gần nhất
                                   </span>
                                 )}
                               </div>
-                              <div className="text-slate-600 dark:text-slate-300">
-                                Đăng nhập {dev.login_count || 1} lần {dev.ip ? `• IP: ${dev.ip}` : ""}
+                              <div className="text-slate-500 dark:text-slate-400">
+                                {dev.last_seen ? `${formatViDateTime(dev.last_seen)} • ` : ""}
+                                {dev.login_count || 1} lượt {dev.ip ? `• IP: ${dev.ip}` : ""}
                               </div>
                             </div>
-                            {isAdmin && (
-                              <AppButton
-                                variant={isPrimary ? "primary" : "secondary"}
-                                loading={resolvingDevice}
-                                onClick={() => handleResolveDevices(detailEmp, "lock_primary", dev)}
-                                className="text-xs px-3 py-1.5 shrink-0"
-                              >
-                                Khóa chọn máy này
-                              </AppButton>
-                            )}
                           </div>
                         );
                       })}
-                    </div>
-                  )}
 
-                  {isAdmin && (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {detailDevSummary.primaryId && (
-                        <AppButton
-                          variant="danger"
-                          icon={Lock}
-                          loading={resolvingDevice}
-                          onClick={() => handleResolveDevices(detailEmp, "lock_primary")}
-                          className="flex-1 min-w-[200px] text-xs"
+                      {deviceHistoryList.length > 3 && (
+                        <button
+                          type="button"
+                          data-testid="device-history-toggle-btn"
+                          onClick={() => setShowAllDevices((prev) => !prev)}
+                          className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-[#E11D48] dark:text-rose-300 flex items-center justify-center gap-1.5 transition cursor-pointer"
                         >
-                          🔒 Khóa cố định vào máy này &amp; Đăng xuất máy khác
-                        </AppButton>
+                          {showAllDevices ? (
+                            <>
+                              <ChevronUp className="w-4 h-4" />
+                              <span>Thu gọn</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-4 h-4" />
+                              <span>Xem thêm chi tiết ({deviceHistoryList.length})</span>
+                            </>
+                          )}
+                        </button>
                       )}
-                      <AppButton
-                        variant="secondary"
-                        icon={RotateCcw}
-                        loading={resolvingDevice}
-                        onClick={() => handleResolveDevices(detailEmp, "reset_devices")}
-                        className="text-xs"
-                      >
-                        🔄 Làm mới liên kết thiết bị
-                      </AppButton>
                     </div>
                   )}
                 </section>
               )}
 
-              {/* NHÓM 5 — LƯƠNG & PHỤ CẤP */}
+              {/* NHÓM 5 — LƯƠNG & PHỤ CẤP ĐỘNG LINH HOẠT THEO TỪNG NHÂN VIÊN */}
               <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-xs font-black text-[#E11D48] dark:text-rose-300 uppercase tracking-wider flex items-center gap-2">
@@ -1676,40 +1536,146 @@ export default function EmployeeManagementTab({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp ăn trưa (đ)</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          disabled={!canEditEmployees}
-                          value={formatViNumber(detailForm.phu_cap_an_trua || 0, 0)}
-                          onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_an_trua: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
-                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
-                        />
+                    {/* Danh sách phụ cấp động của riêng nhân viên này */}
+                    <div className="space-y-2.5 pt-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                          Các khoản phụ cấp{" "}
+                          {totalCustomAllowance > 0 && (
+                            <span className="text-xs font-mono font-extrabold text-blue-700 dark:text-blue-300">
+                              (+{formatViCurrency(totalCustomAllowance)})
+                            </span>
+                          )}
+                        </div>
+                        {canEditEmployees && !isAddingAllowance && (
+                          <button
+                            type="button"
+                            data-testid="add-allowance-btn"
+                            onClick={() => {
+                              setNewAllowanceName(allowancePresetOptions[0] || "Phụ cấp ăn trưa");
+                              setNewAllowanceAmount(500000);
+                              setIsAddingAllowance(true);
+                            }}
+                            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 dark:bg-slate-900 dark:hover:bg-rose-500/20 border border-rose-300 dark:border-rose-500/40 text-xs font-extrabold text-[#E11D48] dark:text-rose-300 inline-flex items-center gap-1.5 transition cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Thêm phụ cấp</span>
+                          </button>
+                        )}
                       </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp xăng xe (đ)</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          disabled={!canEditEmployees}
-                          value={formatViNumber(detailForm.phu_cap_xang_xe || 0, 0)}
-                          onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_xang_xe: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
-                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Phụ cấp nhà ở (đ)</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          disabled={!canEditEmployees}
-                          value={formatViNumber(detailForm.phu_cap_nha_o || 0, 0)}
-                          onChange={(e) => setDetailForm((p) => ({ ...p, phu_cap_nha_o: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
-                          className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
-                        />
-                      </div>
+
+                      {customAllowancesList.length === 0 && !isAddingAllowance ? (
+                        <div
+                          data-testid="no-allowances-empty"
+                          className="px-3.5 py-2.5 rounded-xl bg-white/80 dark:bg-slate-900/70 border border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 font-medium"
+                        >
+                          Chưa áp dụng phụ cấp
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {customAllowancesList.map((item) => (
+                            <div
+                              key={item.id}
+                              data-testid={`allowance-item-${item.id}`}
+                              className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex flex-wrap sm:flex-nowrap items-center gap-2"
+                            >
+                              <input
+                                type="text"
+                                disabled={!canEditEmployees}
+                                value={item.name}
+                                onChange={(e) => handleUpdateAllowanceName(item.id, e.target.value)}
+                                placeholder="Tên phụ cấp"
+                                className="flex-1 min-w-[140px] min-h-[40px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-900 dark:text-white"
+                              />
+                              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  disabled={!canEditEmployees}
+                                  value={formatViNumber(item.amount || 0, 0)}
+                                  onChange={(e) => handleUpdateAllowanceAmount(item.id, e.target.value)}
+                                  className="w-full sm:w-36 min-h-[40px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono font-bold text-emerald-700 dark:text-emerald-300 text-right"
+                                />
+                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">đ</span>
+                                {canEditEmployees && (
+                                  <button
+                                    type="button"
+                                    aria-label={`Xóa ${item.name}`}
+                                    title="Xóa khoản phụ cấp này"
+                                    onClick={() => handleRemoveAllowance(item.id)}
+                                    className="min-w-[40px] min-h-[40px] rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 border border-rose-200 dark:border-rose-500/40 text-rose-600 dark:text-rose-300 flex items-center justify-center shrink-0 cursor-pointer"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Khung tạo / chọn nhanh phụ cấp mới */}
+                      {canEditEmployees && isAddingAllowance && (
+                        <div
+                          data-testid="add-allowance-panel"
+                          className="p-3 rounded-xl bg-white dark:bg-slate-900 border-2 border-rose-300 dark:border-rose-500/50 space-y-2.5"
+                        >
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                            Chọn nhanh hoặc tự gõ tên phụ cấp mới:
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {allowancePresetOptions.map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setNewAllowanceName(preset)}
+                                className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition cursor-pointer ${
+                                  newAllowanceName === preset
+                                    ? "bg-[#E11D48] text-white border-[#BE123C]"
+                                    : "bg-[#F0F3FF] dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-rose-300"
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={newAllowanceName}
+                              onChange={(e) => setNewAllowanceName(e.target.value)}
+                              placeholder="Nhập tên phụ cấp (VD: Phụ cấp xăng xe...)"
+                              className="w-full min-h-[42px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white"
+                            />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={formatViNumber(newAllowanceAmount || 0, 0)}
+                              onChange={(e) => setNewAllowanceAmount(Math.max(0, Math.round(parseViNumberInput(e.target.value))))}
+                              placeholder="Số tiền (đ)"
+                              className="w-full min-h-[42px] bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-mono font-bold text-emerald-700 dark:text-emerald-300"
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingAllowance(false)}
+                              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
+                            >
+                              Hủy
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleConfirmAddAllowance}
+                              className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[#E11D48] hover:bg-[#BE123C] text-xs font-extrabold text-white cursor-pointer"
+                            >
+                              Gán phụ cấp
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-1">

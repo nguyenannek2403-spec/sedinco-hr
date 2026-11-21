@@ -311,117 +311,50 @@ export default function AttendanceMatrixTable({
 
   return (
     <div className="space-y-4 mb-24">
-      {/* STITCH ADMIN SCREEN 2 — TWO-CARD EXECUTIVE PERIOD LOCK HEADER */}
-      {(canLockPeriod || canUnlockPeriod) && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
-          {/* Card 1: Perforated Review Status Ticket Card */}
-          <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <span className="block text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  ● SEDINCO FACTORY OPERATIONS • T{month}/{year}
-                </span>
-                <h3 className="text-sm sm:text-base font-extrabold text-[#111C2D] dark:text-white tracking-tight mt-0.5">
-                  {isLocked ? "ĐÃ KHÓA SỔ KỲ CÔNG & PHÁT HÀNH PHIẾU LƯƠNG" : "ĐANG RÀ SOÁT DỮ LIỆU ĐỂ CHỐT"}
-                </h3>
-              </div>
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold border shrink-0 whitespace-nowrap ${
-                  isLocked
-                    ? "bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300"
-                    : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300"
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${isLocked ? "bg-amber-500" : "bg-[#16A34A] animate-pulse"}`} />
-                <span>{isLocked ? "Đã chốt" : "Chờ duyệt"}</span>
-              </span>
-            </div>
-
-            <div className="sedinco-ticket-cutout">
-              <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-              <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:items-start gap-2">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">Nhân sự đủ 100%</span>
-                <strong className="text-[#111C2D] dark:text-white font-mono">{filteredData.length} hồ sơ</strong>
-              </div>
-              <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:items-start gap-2">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">Giải trình hợp lệ</span>
-                <strong className="text-[#16A34A] dark:text-emerald-300 font-mono">Chuẩn 8h (Sáng/Chiều)</strong>
-              </div>
-              <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:items-start gap-2">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">Máy quét &amp; GPS</span>
-                <strong className="text-[#0051CA] dark:text-blue-300 font-mono">100% Đồng bộ</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Crimson Executive Master Action Card */}
-          <div className="lg:col-span-5 bg-gradient-to-br from-[#B80035] to-[#E11D48] dark:from-[#9F1239] dark:to-rose-950 text-white rounded-2xl p-4 shadow-md border border-rose-500/40 flex flex-col justify-between gap-3">
-            <div>
-              <span className="text-xs font-extrabold uppercase tracking-wider text-rose-100 block">
-                THAO TÁC THẨM QUYỀN
-              </span>
-              <h4 className="text-base font-extrabold text-white mt-0.5">
-                Khóa &amp; Ký chốt bảng công
-              </h4>
-              <p className="text-xs text-rose-100/95 leading-relaxed mt-1">
-                🔔 Sau khi chốt, hệ thống sẽ khóa chỉnh sửa công và tự động gửi thông báo xác nhận Phiếu lương qua Zalo Mini App đến toàn bộ công nhân.
-              </p>
-            </div>
-            <div className="pt-1">
-              {canLockPeriod && !isLocked && (
-                <AppButton
-                  variant="danger"
-                  icon={Lock}
-                  onClick={() => setShowLockModal(true)}
-                  className="w-full !bg-white !text-[#B80035] hover:!bg-rose-50 !border-white text-xs sm:text-sm py-2.5 font-extrabold shadow-sm"
-                >
-                  Chốt kỳ công
-                </AppButton>
-              )}
-              {canUnlockPeriod && isLocked && (
-                <AppButton
-                  variant="warning"
-                  icon={Unlock}
-                  onClick={() => setShowLockModal(true)}
-                  className="w-full text-xs sm:text-sm py-2.5 font-extrabold shadow-sm"
-                >
-                  Mở lại kỳ đã chốt
-                </AppButton>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
-      {/* Header Điều Khiển & Tìm Kiếm */}
-      <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-50/60 dark:bg-slate-900/90">
-        <div>
-          <span className="block text-xs font-extrabold uppercase tracking-wider text-[#B80035] dark:text-rose-400">
-            MA TRẬN ĐIỂM DANH &amp; CHẤM CÔNG HỘ
-          </span>
-          <div className="flex items-center gap-2 mt-0.5">
-            <Calendar className="text-[#E11D48] dark:text-rose-400 shrink-0" size={20} />
-            <h3 className="font-extrabold text-lg leading-snug text-slate-900 dark:text-white">
-              Bảng chấm công ma trận
-            </h3>
-          </div>
-          <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 mt-0.5">
-            Tổng hợp dữ liệu điểm danh thực tế của toàn bộ cán bộ công nhân viên ({filteredData.length} nhân sự)
-          </p>
+      {/* Header Điều Khiển & Tìm Kiếm Tinh Gọn */}
+      <div className="p-3.5 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/60 dark:bg-slate-900/90">
+        {/* Thanh chuyển chế độ xem Thẻ / Bảng 31 ngày */}
+        <div
+          data-filter-group="matrix-view-mode"
+          className="inline-flex p-1 bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-xl gap-1"
+        >
+          <button
+            type="button"
+            data-active={viewMode === "cards" ? "true" : "false"}
+            onClick={() => setViewMode("cards")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
+              viewMode === "cards"
+                ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            }`}
+          >
+            <List size={15} />
+            <span>Thẻ</span>
+          </button>
+          <button
+            type="button"
+            data-active={viewMode === "matrix" ? "true" : "false"}
+            onClick={() => setViewMode("matrix")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
+              viewMode === "matrix"
+                ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            }`}
+          >
+            <LayoutGrid size={15} />
+            <span>Bảng 31 ngày</span>
+          </button>
         </div>
 
         {/* Thanh tác vụ: Tháng/Năm, Tìm kiếm & Nút hành động */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Bộ chọn tháng/năm */}
-          <div className="flex items-center bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-1.5 py-0.5 shadow-sm">
+          <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-1.5 py-0.5 shadow-sm">
             <button
               type="button"
               onClick={() => onMonthChange(month > 1 ? month - 1 : 12, month > 1 ? year : year - 1)}
-              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer border border-transparent hover:border-slate-300 dark:hover:border-slate-600 flex items-center justify-center"
+              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer flex items-center justify-center"
               title="Tháng trước"
               aria-label="Tháng trước"
             >
@@ -433,7 +366,7 @@ export default function AttendanceMatrixTable({
             <button
               type="button"
               onClick={() => onMonthChange(month < 12 ? month + 1 : 1, month < 12 ? year : year + 1)}
-              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer border border-transparent hover:border-slate-300 dark:hover:border-slate-600 flex items-center justify-center"
+              className="min-w-[44px] min-h-[44px] p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 cursor-pointer flex items-center justify-center"
               title="Tháng sau"
               aria-label="Tháng sau"
             >
@@ -445,7 +378,7 @@ export default function AttendanceMatrixTable({
           <select
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] dark:focus:border-rose-400 shadow-sm text-slate-800 dark:text-slate-100"
+            className="min-h-[44px] px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] shadow-sm text-slate-800 dark:text-slate-100"
           >
             <option value="ALL">🏢 Tất cả bộ phận</option>
             {availableDepartments.map((dept) => (
@@ -456,24 +389,24 @@ export default function AttendanceMatrixTable({
           </select>
 
           {/* Ô tìm kiếm */}
-          <div className="relative min-w-[200px]">
+          <div className="relative min-w-[180px]">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Tìm theo tên hoặc mã NV..."
+              placeholder="Tìm tên, mã NV..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border-2 border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] dark:focus:border-rose-400 shadow-sm"
+              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 border border-slate-300 dark:border-slate-600 rounded-xl outline-none focus:border-[#E11D48] shadow-sm"
             />
           </div>
 
-          {/* Nút Chấm công hộ / Điểm danh nhanh */}
+          {/* Nút Chấm công hộ */}
           {canEdit && (
             <AppButton
               variant="primary"
               icon={UserCheck}
               onClick={handleOpenProxyModal}
-              className="text-sm px-3.5 py-2"
+              className="text-xs sm:text-sm px-3.5 py-2"
             >
               Chấm công hộ
             </AppButton>
@@ -484,7 +417,7 @@ export default function AttendanceMatrixTable({
             variant="success"
             icon={Download}
             onClick={handleExportCSV}
-            className="text-sm px-4 py-2"
+            className="text-xs sm:text-sm px-3.5 py-2"
           >
             Xuất CSV
           </AppButton>
@@ -503,104 +436,35 @@ export default function AttendanceMatrixTable({
             className="min-w-[44px] px-3 py-2"
           />
 
-          {/* Nút Chốt Công Kỳ Lương (Kế toán được phân quyền & Quản trị) */}
+          {/* Nút Chốt kỳ công */}
           {canLockPeriod && !isLocked && (
             <AppButton
               variant="danger"
               icon={Lock}
               onClick={() => setShowLockModal(true)}
-              className="text-sm px-4 py-2"
+              className="text-xs sm:text-sm px-3.5 py-2"
             >
               Chốt kỳ công
             </AppButton>
           )}
 
-          {/* Nút Mở Lại Kỳ Công Đã Chốt (Chỉ Quản Trị) */}
           {canUnlockPeriod && isLocked && (
             <AppButton
               variant="warning"
               icon={Unlock}
               onClick={() => setShowLockModal(true)}
-              className="text-sm px-4 py-2"
+              className="text-xs sm:text-sm px-3.5 py-2"
             >
               Mở lại kỳ đã chốt
             </AppButton>
           )}
 
           {isLocked && !canUnlockPeriod && (
-            <div className="min-h-[44px] flex items-center gap-2 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-400 dark:border-slate-600 whitespace-nowrap">
-              <Lock size={16} className="text-slate-600 dark:text-slate-300 shrink-0" />
+            <div className="min-h-[44px] flex items-center gap-1.5 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-400 dark:border-slate-600 whitespace-nowrap">
+              <Lock size={14} className="shrink-0" />
               <span>Đã khóa sổ</span>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Banner Cảnh Báo Nếu Kỳ Đã Chốt */}
-      {isLocked && (
-        <div className="px-5 py-3 bg-amber-100/80 dark:bg-amber-950/60 border-b-2 border-amber-300 dark:border-amber-800/70 flex items-center justify-between text-sm text-amber-950 dark:text-amber-200 font-bold">
-          <div className="flex items-center gap-2.5">
-            <Lock size={18} className="text-amber-700 dark:text-amber-300 shrink-0" />
-            <span>Kỳ công Tháng {month}/{year} đã được Kế toán chốt sổ. Toàn bộ bảng công ở chế độ CHỈ ĐỌC.</span>
-          </div>
-          {canUnlockPeriod && (
-            <span className="text-xs text-amber-800 dark:text-amber-300 italic underline">Quản trị viên có thể mở khóa khi cần thiết</span>
-          )}
-        </div>
-      )}
-
-      {/* Thanh chuyển chế độ xem Mobile-First & Chú giải */}
-      <div className="px-4 sm:px-5 py-3 bg-slate-50 dark:bg-slate-900/90 border-b-2 border-slate-200 dark:border-slate-800 space-y-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div
-            data-filter-group="matrix-view-mode"
-            className="inline-flex p-1 bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-xl gap-1"
-          >
-            <button
-              type="button"
-              data-active={viewMode === "cards" ? "true" : "false"}
-              onClick={() => setViewMode("cards")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
-                viewMode === "cards"
-                  ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white ring-1 ring-rose-500/50"
-                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-              }`}
-            >
-              <List size={15} />
-              <span>Dạng thẻ (Dễ xem)</span>
-            </button>
-            <button
-              type="button"
-              data-active={viewMode === "matrix" ? "true" : "false"}
-              onClick={() => setViewMode("matrix")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold transition min-h-[44px] cursor-pointer ${
-                viewMode === "matrix"
-                  ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white ring-1 ring-rose-500/50"
-                  : "bg-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-              }`}
-            >
-              <LayoutGrid size={15} />
-              <span>Bảng 31 ngày</span>
-            </button>
-          </div>
-          {canEdit && (
-            <span className="text-xs text-[#E11D48] dark:text-rose-300 font-extrabold">
-              {viewMode === "cards"
-                ? "💡 Chạm vào nhân viên để xem & sửa lịch 31 ngày"
-                : "💡 Chạm trực tiếp vào ô ngày để sửa công"}
-            </span>
-          )}
-          {isLocked && <span className="text-xs text-rose-700 dark:text-rose-300 font-black">🔒 Bảng công đã bị khóa sổ</span>}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
-          <span className="font-black text-slate-900 dark:text-white">Ký hiệu:</span>
-          <StatusBadge type="attendance" status="1" />
-          <StatusBadge type="attendance" status="0.5" />
-          <StatusBadge type="attendance" status="P" />
-          <StatusBadge type="attendance" status="OT" />
-          <StatusBadge type="attendance" status="L" />
-          <StatusBadge type="attendance" status="KP" />
         </div>
       </div>
 

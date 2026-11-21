@@ -29,8 +29,8 @@ export default function AuthView({
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)"
       }}
     >
-      {/* Nút chuyển Sáng/Tối gọn ở góc trên bên trái (tránh vùng nút Zalo góc phải) */}
-      <div className="w-full max-w-sm mx-auto flex items-center justify-start pr-[96px] sm:pr-0 shrink-0 mb-4 relative z-10">
+      {/* Nút chuyển Sáng/Tối gọn ở góc trên bên trái (chừa 104px vùng nút Zalo góc phải) */}
+      <div className="w-full max-w-sm mx-auto flex items-center justify-start pr-[104px] shrink-0 mb-4 relative z-10">
         <ThemeToggleButton compact />
       </div>
 

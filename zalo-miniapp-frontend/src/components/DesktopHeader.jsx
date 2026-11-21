@@ -124,12 +124,12 @@ export default function DesktopHeader({
   return (
     <>
       <header
-        className="sticky top-0 z-30 sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 px-3 sm:px-6 py-2 select-none transition-colors duration-200"
-        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}
+        className="sticky top-0 z-30 sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 pl-3 sm:pl-6 pr-[104px] py-2 select-none transition-colors duration-200"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 min-h-[48px]">
-          {/* Left: Drawer Trigger + Official SEDINCO Brand + Portal Title & Active Section (reserves 92px top-right for Zalo capsule on mobile) */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 pr-[92px] sm:pr-0 sm:flex-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
+          {/* Left: Drawer Trigger + Official SEDINCO Brand + Portal Title & Active Section */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             {typeof onOpenMobileMenu === "function" && (
               <button
                 type="button"

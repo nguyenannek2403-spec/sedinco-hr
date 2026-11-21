@@ -127,13 +127,14 @@ export default function AppModal({
           aria-hidden="true"
         />
 
-        {/* Thanh tiêu đề cố định: luôn có "< Trở về" ở góc trên trái */}
+        {/* Thanh tiêu đề cố định: luôn có "< Trở về" ở góc trên trái & chừa 104px góc trên phải cho Zalo Capsule */}
         <div
-          className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
+          className={`pl-4 pr-[104px] sm:pr-4 py-3 border-b flex flex-wrap items-center justify-between gap-2.5 shrink-0 ${
             isDark
               ? "bg-slate-900 border-slate-800"
               : "bg-white border-slate-100 dark:bg-slate-900 dark:border-slate-800"
           }`}
+          style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
           onWheel={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-2.5 min-w-[200px] flex-1">

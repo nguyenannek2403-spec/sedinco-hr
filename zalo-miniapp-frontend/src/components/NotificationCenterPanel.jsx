@@ -150,15 +150,28 @@ export default function NotificationCenterPanel({
         ref={cardRef}
         data-testid="notification-popover"
         onClick={(e) => e.stopPropagation()}
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        style={{
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)"
+        }}
         className={`fixed left-3 right-3 bottom-3 sm:bottom-auto sm:top-[calc(env(safe-area-inset-top,0px)+64px)] sm:left-auto sm:right-4 sm:w-[420px] max-h-[82vh] sm:max-h-[75vh] z-10 flex flex-col rounded-[28px] sm:rounded-2xl shadow-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700 overflow-hidden animate-sheet-up sm:animate-fade-in ${
           !isTopModal ? "pointer-events-none select-none" : ""
         }`}
       >
-        <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-2.5 mb-1 shrink-0 sm:hidden" aria-hidden="true" />
+        <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-1.5 mb-1 shrink-0 sm:hidden" aria-hidden="true" />
 
-        <div className="px-4 py-3 border-b border-slate-200/80 dark:border-slate-800 bg-[#F9F9FF] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
+        <div className="pl-4 pr-[104px] sm:pr-4 py-3 border-b border-slate-200/80 dark:border-slate-800 bg-[#F9F9FF] dark:bg-slate-800/90 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
+            {typeof onClose === "function" && (
+              <button
+                type="button"
+                onClick={handleClose}
+                aria-label="Đóng"
+                className="min-w-[44px] min-h-[44px] p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/80 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+              >
+                <X size={18} />
+              </button>
+            )}
             <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
               <Bell className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
             </div>
@@ -171,16 +184,6 @@ export default function NotificationCenterPanel({
               </p>
             </div>
           </div>
-          {typeof onClose === "function" && (
-            <button
-              type="button"
-              onClick={handleClose}
-              aria-label="Đóng"
-              className="min-w-[44px] min-h-[44px] p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/80 dark:hover:bg-slate-700 text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-            >
-              <X size={18} />
-            </button>
-          )}
         </div>
 
         <div

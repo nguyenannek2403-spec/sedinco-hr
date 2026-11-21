@@ -271,8 +271,8 @@ async function recordEmployeeDeviceActivity(emp, {
     const nowIso = new Date().toISOString();
     const knownDevices = safeParseKnownDevices(emp?.known_devices_json);
 
-    // Đảm bảo thiết bị gốc (bound_device_id) luôn nằm trong danh sách known_devices
-    if (emp?.bound_device_id && !knownDevices.some((d) => d.device_id === emp.bound_device_id)) {
+    // Đảm bảo thiết bị gốc (bound_device_id) luôn nằm trong danh sách known_devices nếu danh sách đang rỗng
+    if (knownDevices.length === 0 && emp?.bound_device_id) {
         const baseName = emp.bound_device_name || resolveFriendlyDeviceName({ device_name: emp.bound_device_id });
         knownDevices.push({
             device_id: emp.bound_device_id,
@@ -281,21 +281,29 @@ async function recordEmployeeDeviceActivity(emp, {
             first_seen: nowIso,
             last_seen: nowIso,
             ip: '',
+            source: 'init',
             login_count: 1
         });
     }
 
-    const existingIdx = knownDevices.findIndex((d) => d.device_id === parsed.deviceId);
-    const isFirstTimeForDevice = existingIdx === -1;
+    // V36: Ghi nhận lịch sử các thiết bị đăng nhập / chấm công (tối đa 20 lượt gần nhất, tránh trùng lặp liên tiếp cùng 1 thiết bị)
+    const lastEntry = knownDevices.length > 0 ? knownDevices[knownDevices.length - 1] : null;
+    const isSameAsLastConsecutive = Boolean(
+        lastEntry &&
+        (lastEntry.device_id === parsed.deviceId ||
+            (lastEntry.device_name === parsed.deviceName && (!lastEntry.device_id || !parsed.deviceId)))
+    );
 
-    if (existingIdx >= 0) {
-        knownDevices[existingIdx] = {
-            ...knownDevices[existingIdx],
-            device_name: parsed.deviceName || knownDevices[existingIdx].device_name,
-            short_tag: parsed.shortTag || knownDevices[existingIdx].short_tag || computeDeviceShortTag(parsed.deviceId),
+    if (isSameAsLastConsecutive) {
+        knownDevices[knownDevices.length - 1] = {
+            ...lastEntry,
+            device_id: parsed.deviceId || lastEntry.device_id,
+            device_name: parsed.deviceName || lastEntry.device_name,
+            short_tag: parsed.shortTag || lastEntry.short_tag || computeDeviceShortTag(parsed.deviceId),
             last_seen: nowIso,
-            ip: ip_address || knownDevices[existingIdx].ip || '',
-            login_count: (Number(knownDevices[existingIdx].login_count) || 1) + 1
+            ip: ip_address || lastEntry.ip || '',
+            source,
+            login_count: (Number(lastEntry.login_count) || 1) + 1
         };
     } else {
         knownDevices.push({
@@ -305,75 +313,52 @@ async function recordEmployeeDeviceActivity(emp, {
             first_seen: nowIso,
             last_seen: nowIso,
             ip: ip_address || '',
+            source,
             login_count: 1
         });
     }
 
-    // Giữ tối đa 10 bản ghi thiết bị gần nhất
-    const trimmedDevices = knownDevices.slice(-10);
-    const primaryDeviceId = emp?.bound_device_id || parsed.deviceId;
-    const primaryDeviceName = emp?.bound_device_id
-        ? (emp.bound_device_name || resolveFriendlyDeviceName({ device_name: emp.bound_device_id }))
-        : parsed.deviceName;
-    const primaryTag = computeDeviceShortTag(primaryDeviceId);
+    // Giữ tối đa 20 lượt thiết bị gần nhất để nhẹ Database
+    const trimmedDevices = knownDevices.slice(-20);
+    const distinctDeviceIds = new Set(trimmedDevices.map((d) => d.device_id || d.device_name).filter(Boolean));
+    const hasDistinctSecondDevice = distinctDeviceIds.size >= 2;
+    const nextMultiAlert = hasDistinctSecondDevice ? 1 : 0;
 
-    const hasDistinctSecondDevice = trimmedDevices.length >= 2 || (Boolean(emp?.bound_device_id) && emp.bound_device_id !== parsed.deviceId);
-    const wasMultiAlert = Boolean(emp?.multi_device_alert);
-    const nextMultiAlert = hasDistinctSecondDevice ? 1 : (wasMultiAlert ? 1 : 0);
-
-    const isEnforcedMismatch = emp?.device_binding_mode === 'enforced'
-        && Boolean(emp?.bound_device_id)
-        && emp.bound_device_id !== parsed.deviceId;
+    // V36: Không tự động khóa cứng thiết bị khi đổi máy; luôn cập nhật thiết bị gần nhất để hiển thị minh bạch
+    const latestDeviceId = parsed.deviceId || emp?.bound_device_id || '';
+    const latestDeviceName = parsed.deviceName || emp?.bound_device_name || UNKNOWN_DEVICE_LABEL;
+    const latestTag = parsed.shortTag || computeDeviceShortTag(latestDeviceId);
 
     await query(
         `UPDATE employees
-         SET bound_device_id = COALESCE(NULLIF(bound_device_id, ''), ?),
-             bound_device_name = CASE WHEN bound_device_id IS NULL OR bound_device_id = '' THEN ? ELSE COALESCE(bound_device_name, ?) END,
+         SET bound_device_id = ?,
+             bound_device_name = ?,
              known_devices_json = ?,
              multi_device_alert = ?
          WHERE ma_nv = ?`,
         [
-            parsed.deviceId,
-            parsed.deviceName,
-            primaryDeviceName,
+            latestDeviceId,
+            latestDeviceName,
             JSON.stringify(trimmedDevices),
             nextMultiAlert,
             emp.ma_nv
         ]
     ).catch(() => {});
 
-    emp.bound_device_id = primaryDeviceId;
-    emp.bound_device_name = primaryDeviceName;
+    emp.bound_device_id = latestDeviceId;
+    emp.bound_device_name = latestDeviceName;
     emp.known_devices_json = JSON.stringify(trimmedDevices);
     emp.multi_device_alert = nextMultiAlert;
     invalidateUserCache(emp.ma_nv);
 
-    if (hasDistinctSecondDevice && (isFirstTimeForDevice || !wasMultiAlert || isEnforcedMismatch)) {
-        const empName = emp.ho_ten || emp.ma_nv;
-        await logAuditEvent({
-            actor_id: emp.ma_nv,
-            actor_role: emp.role || 'worker',
-            action: 'MULTI_DEVICE_DETECTED',
-            resource: 'employee_device',
-            details: {
-                message: `🚨 Cảnh báo đa thiết bị: Tài khoản ${empName} vừa ${source === 'check_in' ? 'chấm công' : 'đăng nhập'} trên thiết bị thứ 2 (${empName} : ${parsed.deviceName} #${parsed.shortTag}), khác với thiết bị gốc (${empName} : ${primaryDeviceName} #${primaryTag})`,
-                primary_device: { device_id: primaryDeviceId, device_name: primaryDeviceName, short_tag: primaryTag },
-                secondary_device: { device_id: parsed.deviceId, device_name: parsed.deviceName, short_tag: parsed.shortTag },
-                blocked: isEnforcedMismatch,
-                total_known_devices: trimmedDevices.length
-            },
-            ip_address
-        });
-    }
-
     return {
         tracked: true,
-        blocked: isEnforcedMismatch,
+        blocked: false,
         isMultiDevice: Boolean(nextMultiAlert),
         parsed,
-        primaryDeviceId,
-        primaryDeviceName,
-        primaryTag,
+        primaryDeviceId: latestDeviceId,
+        primaryDeviceName: latestDeviceName,
+        primaryTag: latestTag,
         knownDevices: trimmedDevices
     };
 }
