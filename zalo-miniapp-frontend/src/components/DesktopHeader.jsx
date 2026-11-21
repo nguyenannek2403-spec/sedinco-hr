@@ -99,7 +99,7 @@ export default function DesktopHeader({
       case "employees":
         return "Nhân Sự & Thiết Bị 360°";
       case "matrix":
-        return effectiveRole === ROLES.ACCOUNTANT ? "Bảng Công Ma Trận" : "Bảng Công & Chốt Kỳ";
+        return "Bảng Chấm Công";
       case "requests":
         return "Duyệt Đơn Từ & OT";
       case "payroll":

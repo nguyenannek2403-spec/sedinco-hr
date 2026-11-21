@@ -239,13 +239,13 @@ export const ACCOUNTANT_PERMISSION_GROUPS = [
       {
         key: 'attendance_view_all',
         name: 'Xem bảng chấm công toàn công ty',
-        desc: 'Xem bảng công ma trận 31 ngày, nhật ký nghi vấn và thống kê đi làm toàn bộ nhân viên',
+        desc: 'Xem bảng công dạng thẻ nhân sự, nhật ký nghi vấn và thống kê đi làm toàn bộ nhân viên',
         defaultEnabled: true
       },
       {
         key: 'attendance_edit',
         name: 'Điều chỉnh ngày công',
-        desc: 'Chỉnh sửa ngày công trực tiếp trên ma trận chấm công',
+        desc: 'Chỉnh sửa ngày công trực tiếp trên lịch công của từng nhân viên',
         defaultEnabled: false
       },
       {

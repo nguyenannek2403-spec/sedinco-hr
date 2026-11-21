@@ -52,7 +52,7 @@ export const ROLE_PERMISSIONS = {
     defaultTab: "matrix",
     canCheckIn: false,
     canViewOwnAttendance: false,
-    canViewAllAttendance: true, // Xem bảng công 31 ngày toàn công ty
+    canViewAllAttendance: true, // Xem bảng công toàn công ty
     canEditAttendance: false, // Phụ thuộc dynamic permission
     canLockPeriod: false, // Phụ thuộc dynamic permission
     canUnlockPeriod: false, // Chỉ Admin mở khóa
