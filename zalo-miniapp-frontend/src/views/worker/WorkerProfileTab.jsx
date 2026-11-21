@@ -20,6 +20,8 @@ import {
 import { safeGet } from "../../utils/api";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import BankCardModal from "../../components/BankCardModal";
+import { BankBrandLogo } from "../../components/BankPickerDropdown";
+import { findBankByCodeOrBin } from "../../utils/vietnamBanks";
 import { getShiftLabel } from "../../utils/viLabels";
 import { formatViWorkday, formatViNumber } from "../../utils/viNumberFormat";
 import {
@@ -350,21 +352,27 @@ export default function WorkerProfileTab({
           </div>
 
           {profileUser?.bank_account_number && profileUser?.bank_code ? (
-            <div className="rounded-xl bg-[#F4F6F9] dark:bg-slate-800/85 border border-slate-200/80 dark:border-slate-700 p-3 space-y-1.5 text-xs">
+            <div className="rounded-xl bg-[#F4F6F9] dark:bg-slate-800/85 border border-slate-200/80 dark:border-slate-700 p-3 space-y-2 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-slate-500 dark:text-slate-400 font-semibold">Ngân hàng:</span>
-                <span
-                  data-testid="profile-bank-name"
-                  className="font-extrabold text-[#111C2D] dark:text-white text-right"
-                >
-                  {profileUser.bank_name || profileUser.bank_code}
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {(() => {
+                    const bankMeta = findBankByCodeOrBin(profileUser.bank_code || profileUser.bank_name);
+                    return bankMeta ? <BankBrandLogo bank={bankMeta} sizeClass="w-7 h-7" /> : null;
+                  })()}
+                  <span
+                    data-testid="profile-bank-name"
+                    className="font-extrabold text-[#111C2D] dark:text-white text-right truncate"
+                  >
+                    {profileUser.bank_name || profileUser.bank_code}
+                  </span>
+                </div>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">Số tài khoản:</span>
+                <span className="text-slate-500 dark:text-slate-400 font-semibold">Số TK / Nickname:</span>
                 <span
                   data-testid="profile-bank-acct"
-                  className="font-mono font-black text-sm text-[#0051CA] dark:text-blue-300"
+                  className="font-mono font-black text-sm text-[#0051CA] dark:text-blue-300 break-all text-right"
                 >
                   {profileUser.bank_account_number}
                 </span>
@@ -375,7 +383,7 @@ export default function WorkerProfileTab({
                   data-testid="profile-bank-holder"
                   className="font-bold uppercase text-[#111C2D] dark:text-slate-100 text-right"
                 >
-                  {profileUser.bank_account_name || profileUser.ho_ten}
+                  {profileUser.bank_account_name || "Chưa cập nhật"}
                 </span>
               </div>
             </div>

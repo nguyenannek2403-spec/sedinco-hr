@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   CreditCard,
   QrCode,
@@ -6,21 +6,24 @@ import {
   AlertTriangle,
   CheckCircle2,
   Upload,
-  Loader2
+  Loader2,
+  Info
 } from "lucide-react";
 import { AppButton, AppModal } from "./ui";
 import { safePut } from "../utils/api";
+import BankPickerDropdown from "./BankPickerDropdown";
+import { findBankByCodeOrBin } from "../utils/vietnamBanks";
 import {
-  VIETNAM_BANKS,
-  findBankByCodeOrBin,
   toUpperUnaccentedName,
   decodeBankQrFromImageFile
-} from "../utils/vietQrUtils";
+} from "../utils/vietqrParser";
 
 /**
- * BankCardModal V40
- * - Cách 1: Chọn ảnh QR ngân hàng -> đọc hoàn toàn trên Browser bằng jsQR + Canvas, điền tự động & XÓA SẠCH ảnh ngay lập tức
- * - Cách 2: Chọn ngân hàng từ danh sách chuẩn NAPAS + nhập Số tài khoản (chỉ số) + Tên chủ TK IN HOA KHÔNG DẤU
+ * BankCardModal V41
+ * - Quét QR chuẩn EMVCo/VietQR hoàn toàn trên browser (2 lượt: trực tiếp + tăng tương phản),
+ *   hỗ trợ cả Số tài khoản lẫn Nickname chữ + số, đọc Tag 59 độc lập với tên nhân viên & XÓA SẠCH ảnh ngay lập tức
+ * - Bộ chọn Ngân hàng kèm logo thương hiệu (BankPickerDropdown)
+ * - Khóa nút "Lưu thẻ ngân hàng" cho tới khi cả 3 trường (Ngân hàng, STK/Nickname, Chủ thẻ) đều đầy đủ & hợp lệ
  */
 export default function BankCardModal({
   open,
@@ -34,7 +37,7 @@ export default function BankCardModal({
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [bankAccountName, setBankAccountName] = useState("");
   const [decodingQr, setDecodingQr] = useState(false);
-  const [qrStatus, setQrStatus] = useState(null); // { type: 'success'|'error', message: string }
+  const [qrStatus, setQrStatus] = useState(null); // { type: 'success'|'hint'|'error', message: string }
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -42,18 +45,36 @@ export default function BankCardModal({
     if (!open) return;
     setBankCode(currentUser?.bank_code || "");
     setBankAccountNumber(currentUser?.bank_account_number || "");
-    setBankAccountName(
-      currentUser?.bank_account_name || toUpperUnaccentedName(currentUser?.ho_ten || "")
-    );
+    // Tuyệt đối KHÔNG tự lấy tên nhân viên (currentUser.ho_ten) đè vào tên chủ thẻ
+    setBankAccountName(currentUser?.bank_account_name || "");
     setQrStatus(null);
     setFormError("");
   }, [
     open,
     currentUser?.bank_code,
     currentUser?.bank_account_number,
-    currentUser?.bank_account_name,
-    currentUser?.ho_ten
+    currentUser?.bank_account_name
   ]);
+
+  const selectedBank = useMemo(() => findBankByCodeOrBin(bankCode), [bankCode]);
+
+  const cleanAccountNum = useMemo(
+    () => String(bankAccountNumber || "").replace(/\s+/g, "").trim(),
+    [bankAccountNumber]
+  );
+
+  const normalizedHolderName = useMemo(
+    () => toUpperUnaccentedName(bankAccountName),
+    [bankAccountName]
+  );
+
+  const isBankValid = Boolean(selectedBank?.bin && selectedBank?.shortName);
+  const isAccountValid =
+    cleanAccountNum.length >= 3 &&
+    cleanAccountNum.length <= 35 &&
+    /^[A-Za-z0-9._-]+$/.test(cleanAccountNum);
+  const isHolderValid = normalizedHolderName.length >= 2;
+  const isFormComplete = isBankValid && isAccountValid && isHolderValid;
 
   const handleSelectQrImage = async (e) => {
     const file = e.target.files?.[0];
@@ -64,26 +85,35 @@ export default function BankCardModal({
     try {
       const parsed = await decodeBankQrFromImageFile(file);
       if (parsed && parsed.recognized) {
-        const matchedBank = findBankByCodeOrBin(parsed.bank_code || parsed.bank_bin);
+        const matchedBank = findBankByCodeOrBin(parsed.bank_bin || parsed.bank_code);
         if (matchedBank) {
           setBankCode(matchedBank.code);
         }
         if (parsed.bank_account_number) {
-          setBankAccountNumber(String(parsed.bank_account_number).replace(/\D/g, ""));
+          // Giữ nguyên cả chữ cái lẫn chữ số (hỗ trợ Nickname ngân hàng)
+          setBankAccountNumber(String(parsed.bank_account_number).replace(/\s+/g, "").trim());
         }
-        if (parsed.bank_account_name) {
+        if (parsed.has_holder_name && parsed.bank_account_name) {
           setBankAccountName(toUpperUnaccentedName(parsed.bank_account_name));
+          setQrStatus({
+            type: "success",
+            message:
+              "Đã nhận diện xong Ngân hàng, Số TK và Tên chủ thẻ — đã tự động xóa ảnh QR để bảo mật."
+          });
+        } else {
+          // Không có Tag 59 hoặc chỉ là NA/VIETQR -> KHÔNG lấy tên nhân viên đè vào, giữ nguyên/trống
+          setQrStatus({
+            type: "hint",
+            message:
+              "Đã nhận diện Ngân hàng & Số tài khoản — vui lòng nhập đúng tên chủ thẻ ngân hàng (đã tự động xóa ảnh QR để bảo mật)."
+          });
         }
-        setQrStatus({
-          type: "success",
-          message: "Đã nhận diện xong và tự động xóa ảnh QR để bảo mật."
-        });
       } else {
         setQrStatus({
           type: "error",
           message:
             parsed?.reason ||
-            "Không nhận diện được mã QR ngân hàng. Vui lòng thử ảnh khác hoặc nhập thủ công bên dưới."
+            "Không nhận diện được mã QR ngân hàng. Vui lòng thử ảnh rõ hơn hoặc nhập thủ công bên dưới."
         });
       }
     } catch (err) {
@@ -95,7 +125,6 @@ export default function BankCardModal({
       });
     } finally {
       setDecodingQr(false);
-      // Luôn reset input file để tránh giữ reference tệp trong DOM
       try {
         e.target.value = "";
       } catch {}
@@ -105,19 +134,7 @@ export default function BankCardModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError("");
-    const selectedBank = findBankByCodeOrBin(bankCode);
-    if (!selectedBank) {
-      setFormError("Vui lòng chọn Ngân hàng nhận lương.");
-      return;
-    }
-    const cleanAcct = String(bankAccountNumber || "").replace(/\D/g, "");
-    if (cleanAcct.length < 5 || cleanAcct.length > 25) {
-      setFormError("Số tài khoản chỉ gồm chữ số (từ 5 đến 25 chữ số).");
-      return;
-    }
-    const cleanName = toUpperUnaccentedName(bankAccountName);
-    if (!cleanName || cleanName.length < 2) {
-      setFormError("Vui lòng nhập Tên chủ tài khoản (chữ IN HOA không dấu).");
+    if (!isFormComplete || saving || decodingQr) {
       return;
     }
 
@@ -126,8 +143,8 @@ export default function BankCardModal({
       const payload = {
         bank_code: selectedBank.code,
         bank_name: selectedBank.shortName,
-        bank_account_number: cleanAcct,
-        bank_account_name: cleanName
+        bank_account_number: cleanAccountNum,
+        bank_account_name: normalizedHolderName
       };
       const res = await safePut("/account/bank-card", payload);
       if (res?.success) {
@@ -168,13 +185,17 @@ export default function BankCardModal({
           <AppButton
             type="submit"
             form="bank-card-modal-form"
-            variant="primary"
+            variant={isFormComplete ? "zalo" : "ghost"}
             icon={CheckCircle2}
             loading={saving}
             loadingText="Đang lưu..."
-            disabled={decodingQr}
+            disabled={!isFormComplete || saving || decodingQr}
             data-testid="save-bank-card-btn"
-            className="flex-[1.5]"
+            className={`flex-[1.5] ${
+              !isFormComplete
+                ? "opacity-50 cursor-not-allowed bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700 shadow-none"
+                : ""
+            }`}
           >
             Lưu thẻ ngân hàng
           </AppButton>
@@ -184,19 +205,17 @@ export default function BankCardModal({
       <form id="bank-card-modal-form" onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
         {/* CÁCH 1: ĐỌC ẢNH QR TẠI TRÌNH DUYỆT & TỰ ĐỘNG XÓA */}
         <div className="rounded-2xl border border-blue-200/80 dark:border-blue-800/70 bg-blue-50/70 dark:bg-blue-950/35 p-3.5 space-y-2.5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-600/10 dark:bg-blue-500/20 text-[#0051CA] dark:text-blue-300 flex items-center justify-center shrink-0">
-                <QrCode className="w-4 h-4" />
-              </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-slate-100">
-                  Cách 1: Chọn ảnh QR ngân hàng để điền nhanh
-                </h4>
-                <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                  Hệ thống chỉ trích xuất chữ, <strong>không lưu ảnh QR</strong> lên máy chủ.
-                </p>
-              </div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-blue-600/10 dark:bg-blue-500/20 text-[#0051CA] dark:text-blue-300 flex items-center justify-center shrink-0">
+              <QrCode className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-slate-100">
+                Cách 1: Chọn ảnh QR ngân hàng để điền nhanh
+              </h4>
+              <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                Hỗ trợ cả STK &amp; Nickname chữ cái. Hệ thống <strong>không lưu ảnh QR</strong>.
+              </p>
             </div>
           </div>
 
@@ -239,6 +258,16 @@ export default function BankCardModal({
             </div>
           )}
 
+          {qrStatus?.type === "hint" && (
+            <div
+              data-testid="bank-qr-holder-hint"
+              className="p-2.5 rounded-xl bg-blue-100/80 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-700 text-[#0051CA] dark:text-blue-200 text-xs font-semibold flex items-start gap-2"
+            >
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{qrStatus.message}</span>
+            </div>
+          )}
+
           {qrStatus?.type === "error" && (
             <div
               data-testid="bank-qr-error-notice"
@@ -269,26 +298,15 @@ export default function BankCardModal({
           )}
 
           <div>
-            <label
-              htmlFor="bank-code-select"
-              className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1"
-            >
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
               Ngân hàng <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
-            <select
-              id="bank-code-select"
-              data-testid="bank-code-select"
+            <BankPickerDropdown
               value={bankCode}
-              onChange={(e) => setBankCode(e.target.value)}
-              className="w-full min-h-[46px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-sm font-semibold text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#E11D48]"
-            >
-              <option value="">-- Chọn ngân hàng --</option>
-              {VIETNAM_BANKS.map((b) => (
-                <option key={b.code} value={b.code}>
-                  {b.shortName} — {b.name}
-                </option>
-              ))}
-            </select>
+              disabled={saving || decodingQr}
+              testId="bank-picker-dropdown"
+              onChange={(bank) => setBankCode(bank?.code || "")}
+            />
           </div>
 
           <div>
@@ -296,18 +314,27 @@ export default function BankCardModal({
               htmlFor="bank-account-number-input"
               className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1"
             >
-              Số tài khoản <span className="text-rose-600 dark:text-rose-400">*</span>
+              Số tài khoản hoặc Nickname <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <input
               id="bank-account-number-input"
               data-testid="bank-account-number-input"
               type="text"
-              inputMode="numeric"
+              autoComplete="off"
               value={bankAccountNumber}
-              onChange={(e) => setBankAccountNumber(e.target.value.replace(/\D/g, ""))}
-              placeholder="Ví dụ: 1029384756"
-              className="w-full min-h-[46px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-sm font-mono font-bold text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#E11D48]"
+              onChange={(e) =>
+                setBankAccountNumber(
+                  e.target.value.replace(/\s+/g, "").replace(/[^A-Za-z0-9._-]/g, "")
+                )
+              }
+              placeholder="VD: 1012345678 hoặc ANNGUYEN88"
+              className="w-full min-h-[46px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-sm font-mono font-bold text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#0051CA]"
             />
+            {bankAccountNumber && !isAccountValid && (
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300 font-semibold">
+                Nhập tối thiểu 3 ký tự chữ cái hoặc chữ số (không chứa khoảng trắng).
+              </p>
+            )}
           </div>
 
           <div>
@@ -315,18 +342,25 @@ export default function BankCardModal({
               htmlFor="bank-account-name-input"
               className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1"
             >
-              Tên chủ tài khoản (IN HOA KHÔNG DẤU) <span className="text-rose-600 dark:text-rose-400">*</span>
+              Họ và tên chủ tài khoản (IN HOA KHÔNG DẤU){" "}
+              <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <input
               id="bank-account-name-input"
               data-testid="bank-account-name-input"
               type="text"
+              autoComplete="off"
               value={bankAccountName}
               onChange={(e) => setBankAccountName(e.target.value.toUpperCase())}
               onBlur={() => setBankAccountName((prev) => toUpperUnaccentedName(prev))}
-              placeholder="Ví dụ: NGUYEN VAN AN"
-              className="w-full min-h-[46px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-sm font-bold uppercase text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#E11D48]"
+              placeholder="VD: NGUYEN VAN AN"
+              className="w-full min-h-[46px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-sm font-bold uppercase text-[#111C2D] dark:text-slate-100 focus:outline-none focus:border-[#0051CA]"
             />
+            {!isFormComplete && (
+              <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                Vui lòng chọn Ngân hàng, nhập STK/Nickname và đúng Tên chủ tài khoản để mở khóa nút Lưu.
+              </p>
+            )}
           </div>
         </div>
       </form>

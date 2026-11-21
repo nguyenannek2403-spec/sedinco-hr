@@ -1,5 +1,6 @@
 /**
  * Chuẩn hóa & kiểm tra thông tin Thẻ ngân hàng nhận lương (chỉ lưu 4 trường text, tuyệt đối không lưu ảnh QR).
+ * V41: Hỗ trợ cả Số tài khoản truyền thống và Nickname chữ + số (3–35 ký tự).
  */
 
 function toUpperUnaccentedName(raw) {
@@ -49,8 +50,8 @@ function sanitizeBankCardInput(payload = {}) {
         err.statusCode = 400;
         throw err;
     }
-    if (!/^[0-9]{5,25}$/.test(bank_account_number)) {
-        const err = new Error('Số tài khoản ngân hàng chỉ được chứa chữ số (từ 5 đến 25 chữ số)!');
+    if (!/^[A-Za-z0-9._-]{3,35}$/.test(bank_account_number)) {
+        const err = new Error('Số tài khoản hoặc Nickname phải dài 3–35 ký tự (chỉ gồm chữ cái, chữ số, dấu chấm, gạch dưới hoặc gạch ngang)!');
         err.statusCode = 400;
         throw err;
     }

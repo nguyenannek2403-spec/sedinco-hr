@@ -10,19 +10,19 @@ import {
 import { AppButton, AppModal } from "./ui";
 import { safePost, safePut, generateIdempotencyKey } from "../utils/api";
 import { formatViCurrency } from "../utils/viNumberFormat";
+import BankPickerDropdown, { BankBrandLogo } from "./BankPickerDropdown";
+import { findBankByCodeOrBin } from "../utils/vietnamBanks";
+import { toUpperUnaccentedName } from "../utils/vietqrParser";
 import {
-  VIETNAM_BANKS,
-  findBankByCodeOrBin,
-  toUpperUnaccentedName,
-  generateVietQrDataUrl
+  generateVietQrDataUrl,
+  buildVietQrQuickLinkUrl
 } from "../utils/vietQrUtils";
 
 /**
- * BankTransferModal V40
- * - Hiển thị mã VietQR chuyển lương (sinh offline từ 4 trường bank text + số tiền thực nhận + nội dung CK)
- * - Nút [Copy STK], [Copy tiền], [Copy nội dung CK]
- * - Nút [✓ Xác nhận đã chuyển khoản] đánh dấu trạng thái PAID cho nhân viên trong kỳ lương
- * - Nếu nhân viên chưa có thẻ ngân hàng: hiển thị thông báo + form nhập nhanh cho Admin ngay trong modal
+ * BankTransferModal V41
+ * - Sinh mã VietQR chuyển lương (hỗ trợ cả STK số & Nickname chữ + số, encodeURIComponent an toàn)
+ * - Hiển thị Logo thương hiệu ngân hàng thụ hưởng + [Copy STK], [Copy tiền], [Copy nội dung CK]
+ * - Nếu nhân viên chưa cập nhật thẻ ngân hàng: hiển thị thông báo rõ ràng + form nhập nhanh cho Admin
  */
 export default function BankTransferModal({
   open,
@@ -40,7 +40,7 @@ export default function BankTransferModal({
   const [qrLoading, setQrLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  // Quick-add bank state when employee has no bank info
+  // Quick-add bank state when employee has no bank info (hoàn toàn độc lập với tên HR)
   const [quickBankCode, setQuickBankCode] = useState("");
   const [quickAcctNum, setQuickAcctNum] = useState("");
   const [quickAcctName, setQuickAcctName] = useState("");
@@ -57,7 +57,7 @@ export default function BankTransferModal({
     setOverrideBank(null);
     setQuickBankCode("");
     setQuickAcctNum("");
-    setQuickAcctName(toUpperUnaccentedName(item.ho_ten || ""));
+    setQuickAcctName("");
     setQuickError("");
   }, [open, maNv]);
 
@@ -70,16 +70,48 @@ export default function BankTransferModal({
         bank_code: item.bank_code || "",
         bank_name: item.bank_name || "",
         bank_account_number: item.bank_account_number,
-        bank_account_name: item.bank_account_name || toUpperUnaccentedName(item.ho_ten || "")
+        bank_account_name: item.bank_account_name || ""
       };
     }
     return null;
   }, [overrideBank, item]);
 
+  const resolvedBankMeta = useMemo(
+    () =>
+      effectiveBank
+        ? findBankByCodeOrBin(effectiveBank.bank_code || effectiveBank.bank_name)
+        : null,
+    [effectiveBank]
+  );
+
+  const quickSelectedBank = useMemo(
+    () => findBankByCodeOrBin(quickBankCode),
+    [quickBankCode]
+  );
+  const cleanQuickAcct = String(quickAcctNum || "").replace(/\s+/g, "").trim();
+  const cleanQuickName = toUpperUnaccentedName(quickAcctName);
+  const isQuickFormComplete =
+    Boolean(quickSelectedBank?.bin && quickSelectedBank?.shortName) &&
+    cleanQuickAcct.length >= 3 &&
+    cleanQuickAcct.length <= 35 &&
+    /^[A-Za-z0-9._-]+$/.test(cleanQuickAcct) &&
+    cleanQuickName.length >= 2;
+
   const isPaid =
     item?.employee_payment_status === "PAID" || item?.payment_status === "PAID";
 
   const transferNote = `SEDINCO LUONG T${thang} ${nam} ${maNv}`.trim();
+
+  const vietQrQuickLink = useMemo(() => {
+    if (!effectiveBank) return "";
+    return buildVietQrQuickLinkUrl({
+      bankCodeOrBin: effectiveBank.bank_code || effectiveBank.bank_name,
+      accountNumber: effectiveBank.bank_account_number,
+      accountName: effectiveBank.bank_account_name,
+      amount: netSalary,
+      description: transferNote
+    });
+  }, [effectiveBank, netSalary, transferNote]);
 
   useEffect(() => {
     let active = true;
@@ -149,7 +181,9 @@ export default function BankTransferModal({
           res.message || `Đã xác nhận chuyển khoản lương cho ${item?.ho_ten || maNv}!`,
           "success"
         );
-        onConfirmedPaid?.(res.data || { ma_nv: maNv, month: thang, year: nam, employee_payment_status: "PAID" });
+        onConfirmedPaid?.(
+          res.data || { ma_nv: maNv, month: thang, year: nam, employee_payment_status: "PAID" }
+        );
         onClose();
       } else {
         showToast?.(res?.message || "Không thể xác nhận đã chuyển khoản.", "error");
@@ -164,29 +198,15 @@ export default function BankTransferModal({
   const handleQuickSaveBank = async (e) => {
     e.preventDefault();
     setQuickError("");
-    const bankInfo = findBankByCodeOrBin(quickBankCode);
-    if (!bankInfo) {
-      setQuickError("Vui lòng chọn ngân hàng của nhân viên.");
-      return;
-    }
-    const cleanAcct = String(quickAcctNum || "").replace(/\D/g, "");
-    if (cleanAcct.length < 5 || cleanAcct.length > 25) {
-      setQuickError("Số tài khoản chỉ gồm chữ số (5 đến 25 chữ số).");
-      return;
-    }
-    const cleanName = toUpperUnaccentedName(quickAcctName);
-    if (!cleanName || cleanName.length < 2) {
-      setQuickError("Vui lòng nhập tên chủ tài khoản IN HOA không dấu.");
-      return;
-    }
+    if (!isQuickFormComplete || quickSaving) return;
 
     setQuickSaving(true);
     try {
       const payload = {
-        bank_code: bankInfo.code,
-        bank_name: bankInfo.shortName,
-        bank_account_number: cleanAcct,
-        bank_account_name: cleanName
+        bank_code: quickSelectedBank.code,
+        bank_name: quickSelectedBank.shortName,
+        bank_account_number: cleanQuickAcct,
+        bank_account_name: cleanQuickName
       };
       const res = await safePut(`/employees/${encodeURIComponent(maNv)}`, payload);
       if (res?.success) {
@@ -289,7 +309,7 @@ export default function BankTransferModal({
 
         {effectiveBank ? (
           <div className="space-y-3.5">
-            {/* Mã VietQR offline-ready trong khung nền trắng sạch để app ngân hàng quét chuẩn */}
+            {/* Mã VietQR offline-ready hỗ trợ STK số & Nickname chữ + số */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/70 p-4 flex flex-col items-center text-center space-y-2.5">
               <div className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#0051CA] dark:text-blue-300">
                 <QrCode className="w-4 h-4" />
@@ -306,17 +326,18 @@ export default function BankTransferModal({
                     src={qrDataUrl}
                     alt={`VietQR chuyển lương ${maNv}`}
                     data-testid="vietqr-image"
+                    data-quicklink={vietQrQuickLink}
                     className="w-48 h-48 object-contain"
                   />
                 </div>
               ) : (
                 <div className="w-full p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200">
-                  Không tạo được QR cho mã ngân hàng "{effectiveBank.bank_code}". Vui lòng chuyển theo thông tin STK bên dưới.
+                  Không tạo được QR cho mã ngân hàng "{effectiveBank.bank_code}". Vui lòng chuyển theo thông tin STK/Nickname bên dưới.
                 </div>
               )}
 
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Quét bằng ứng dụng Ngân hàng / ZaloPay / MoMo để điền sẵn STK, số tiền &amp; nội dung
+                Quét bằng ứng dụng Ngân hàng / ZaloPay / MoMo để điền sẵn STK/Nickname, số tiền &amp; nội dung
               </p>
             </div>
 
@@ -324,24 +345,32 @@ export default function BankTransferModal({
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/70 divide-y divide-slate-100 dark:divide-slate-700/80 text-xs sm:text-sm">
               <div className="p-3 flex items-center justify-between gap-2">
                 <span className="text-slate-500 dark:text-slate-400 font-medium">Ngân hàng</span>
-                <span className="font-extrabold text-[#111C2D] dark:text-white text-right">
-                  {effectiveBank.bank_name || effectiveBank.bank_code}
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {resolvedBankMeta && <BankBrandLogo bank={resolvedBankMeta} sizeClass="w-7 h-7" />}
+                  <span className="font-extrabold text-[#111C2D] dark:text-white text-right truncate">
+                    {effectiveBank.bank_name || resolvedBankMeta?.shortName || effectiveBank.bank_code}
+                  </span>
+                </div>
               </div>
 
               <div className="p-3 flex items-center justify-between gap-2">
                 <span className="text-slate-500 dark:text-slate-400 font-medium">Chủ tài khoản</span>
-                <span className="font-extrabold uppercase text-[#111C2D] dark:text-white text-right">
-                  {effectiveBank.bank_account_name || toUpperUnaccentedName(item.ho_ten || "")}
+                <span
+                  data-testid="transfer-bank-holder"
+                  className="font-extrabold uppercase text-[#111C2D] dark:text-white text-right"
+                >
+                  {effectiveBank.bank_account_name || "Chưa cập nhật"}
                 </span>
               </div>
 
               <div className="p-3 flex items-center justify-between gap-2">
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400 font-medium block">Số tài khoản</span>
+                  <span className="text-slate-500 dark:text-slate-400 font-medium block">
+                    Số tài khoản / Nickname
+                  </span>
                   <span
                     data-testid="transfer-bank-acct"
-                    className="text-base font-mono font-black text-[#0051CA] dark:text-blue-300"
+                    className="text-base font-mono font-black text-[#0051CA] dark:text-blue-300 break-all"
                   >
                     {effectiveBank.bank_account_number}
                   </span>
@@ -390,7 +419,9 @@ export default function BankTransferModal({
               </div>
               <p className="text-xs leading-relaxed">
                 Nhân viên có thể tự thêm thẻ hoặc quét QR trong mục Tài khoản cá nhân
-                {canEditEmployeeBank ? ", hoặc Quản trị viên có thể nhập nhanh thông tin ngân hàng ngay bên dưới." : "."}
+                {canEditEmployeeBank
+                  ? ", hoặc Quản trị viên có thể nhập nhanh thông tin ngân hàng ngay bên dưới."
+                  : "."}
               </p>
             </div>
 
@@ -415,39 +446,36 @@ export default function BankTransferModal({
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
                     Ngân hàng <span className="text-rose-600 dark:text-rose-400">*</span>
                   </label>
-                  <select
-                    data-testid="quick-bank-code-select"
+                  <BankPickerDropdown
                     value={quickBankCode}
-                    onChange={(e) => setQuickBankCode(e.target.value)}
-                    className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-xs sm:text-sm font-semibold text-[#111C2D] dark:text-slate-100"
-                  >
-                    <option value="">-- Chọn ngân hàng --</option>
-                    {VIETNAM_BANKS.map((b) => (
-                      <option key={b.code} value={b.code}>
-                        {b.shortName} — {b.name}
-                      </option>
-                    ))}
-                  </select>
+                    disabled={quickSaving}
+                    testId="quick-bank-picker-dropdown"
+                    onChange={(bank) => setQuickBankCode(bank?.code || "")}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
-                    Số tài khoản <span className="text-rose-600 dark:text-rose-400">*</span>
+                    Số tài khoản / Nickname <span className="text-rose-600 dark:text-rose-400">*</span>
                   </label>
                   <input
                     type="text"
-                    inputMode="numeric"
                     data-testid="quick-bank-acct-input"
                     value={quickAcctNum}
-                    onChange={(e) => setQuickAcctNum(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Nhập số tài khoản..."
+                    onChange={(e) =>
+                      setQuickAcctNum(
+                        e.target.value.replace(/\s+/g, "").replace(/[^A-Za-z0-9._-]/g, "")
+                      )
+                    }
+                    placeholder="VD: 3141000998877 hoặc ANNGUYEN88"
                     className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-sm font-mono font-bold text-[#111C2D] dark:text-slate-100"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
-                    Chủ tài khoản (IN HOA KHÔNG DẤU) <span className="text-rose-600 dark:text-rose-400">*</span>
+                    Chủ tài khoản (IN HOA KHÔNG DẤU){" "}
+                    <span className="text-rose-600 dark:text-rose-400">*</span>
                   </label>
                   <input
                     type="text"
@@ -455,19 +483,25 @@ export default function BankTransferModal({
                     value={quickAcctName}
                     onChange={(e) => setQuickAcctName(e.target.value.toUpperCase())}
                     onBlur={() => setQuickAcctName((prev) => toUpperUnaccentedName(prev))}
-                    placeholder="NGUYEN VAN A"
+                    placeholder="VD: NGUYEN VAN A"
                     className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-sm font-bold uppercase text-[#111C2D] dark:text-slate-100"
                   />
                 </div>
 
                 <AppButton
                   type="submit"
-                  variant="primary"
+                  variant={isQuickFormComplete ? "zalo" : "ghost"}
                   fullWidth
                   icon={Save}
                   loading={quickSaving}
                   loadingText="Đang lưu..."
+                  disabled={!isQuickFormComplete || quickSaving}
                   data-testid="quick-save-bank-btn"
+                  className={
+                    !isQuickFormComplete
+                      ? "opacity-50 cursor-not-allowed bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700 shadow-none"
+                      : ""
+                  }
                 >
                   Lưu thẻ &amp; Tạo mã VietQR
                 </AppButton>
