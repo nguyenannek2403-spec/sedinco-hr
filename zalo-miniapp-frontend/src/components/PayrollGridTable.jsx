@@ -2,21 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Search,
   FileText,
-  Users,
   X,
   RefreshCw,
   Eye,
   AlertTriangle,
-  Calculator,
   CheckCircle2,
   SlidersHorizontal,
-  LayoutGrid,
-  List,
-  ChevronDown,
-  ChevronUp,
-  Calendar,
   Send,
-  Clock,
   Lock,
   Unlock
 } from "lucide-react";
@@ -25,7 +17,7 @@ import BankTransferModal from "./BankTransferModal";
 import SalaryReportModal from "./SalaryReportModal";
 import PeriodLockModal from "./PeriodLockModal";
 import ConfirmDialog from "./ConfirmDialog";
-import { AppButton, AppModal, FormRow, MonthYearPicker, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "./ui";
+import { AppButton, AppModal, FormRow, MonthYearPicker, SkeletonList, EmptyState, UserAvatar } from "./ui";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { ROLES, hasPermission } from "../constants/roles";
 import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
@@ -70,7 +62,6 @@ export default function PayrollGridTable({
   const [isPeriodLocked, setIsPeriodLocked] = useState(false);
   const [showLockModal, setShowLockModal] = useState(false);
   const [loadingPayroll, setLoadingPayroll] = useState(false);
-  const [calculating, setCalculating] = useState(false);
   const adjInFlightRef = useRef(false);
   const lastFocusTsRef = useRef(0);
 
@@ -85,8 +76,6 @@ export default function PayrollGridTable({
   const [adjSaving, setAdjSaving] = useState(false);
   const [adjError, setAdjError] = useState("");
   const [payrollError, setPayrollError] = useState("");
-  const [viewMode, setViewMode] = useState("overview"); // 'overview' | 'detailed'
-  const [expandedDailyLogs, setExpandedDailyLogs] = useState({});
   const [transferItem, setTransferItem] = useState(null);
   const [reportModalItem, setReportModalItem] = useState(null);
   const [sendAllConfirmOpen, setSendAllConfirmOpen] = useState(false);
@@ -143,10 +132,6 @@ export default function PayrollGridTable({
     } finally {
       setResolvingDisputeId(null);
     }
-  };
-
-  const toggleDailyLogsRow = (empId) => {
-    setExpandedDailyLogs((prev) => ({ ...prev, [empId]: !prev[empId] }));
   };
 
   const getEffectivePayoutStatus = (row) => {
@@ -354,20 +339,12 @@ export default function PayrollGridTable({
     setPayrollError("");
     try {
       const res = await safeGet("/payroll", { month, year }, { cancelPrevious: true });
-      if (Array.isArray(res?.data) && res.data.length > 0) {
+      if (Array.isArray(res?.data)) {
         setInternalPayroll(res.data);
         return res.data;
-      } else {
-        // Nếu chưa có bản lưu, tự động gọi /payroll/calculate để hiển thị bảng tính lương tạm tính
-        const calcRes = await safeGet("/payroll/calculate", { month, year }, { cancelPrevious: true });
-        if (Array.isArray(calcRes?.data)) {
-          setInternalPayroll(calcRes.data);
-          return calcRes.data;
-        } else {
-          setInternalPayroll([]);
-          return [];
-        }
       }
+      setInternalPayroll([]);
+      return [];
     } catch (e) {
       console.warn("Lỗi tải bảng lương:", e);
       setPayrollError(e?.message || "Không thể tải bảng lương. Vui lòng thử lại.");
@@ -380,25 +357,6 @@ export default function PayrollGridTable({
   useEffect(() => {
     fetchPayrollFromApi();
   }, [fetchPayrollFromApi]);
-
-  const handleCalculatePayroll = async () => {
-    setCalculating(true);
-    try {
-      const res = await safePost("/payroll/calculate", { month, year }, {
-        idempotencyKey: generateIdempotencyKey("pay_calc")
-      });
-      if (res?.success && Array.isArray(res.data)) {
-        setInternalPayroll(res.data);
-        if (notify) notify(`Đã tính toán xong bảng lương tháng ${month}/${year}!`, "success");
-      } else {
-        await fetchPayrollFromApi();
-      }
-    } catch (err) {
-      if (notify) notify(err.message || "Lỗi tính toán bảng lương.", "error");
-    } finally {
-      setCalculating(false);
-    }
-  };
 
   const handleOpenAdjustmentModal = (item) => {
     const targetMonth = Number(item?.thang || month);
@@ -488,7 +446,6 @@ export default function PayrollGridTable({
   );
   const totalEmployeesCount = payrollEmployees.length;
   const normalizedSearchQuery = normalizeSearchText(searchQuery);
-  const isFiltering = Boolean(normalizedSearchQuery) || selectedDepartment !== "ALL";
 
   // Lọc tức thì (real-time, hỗ trợ tiếng Việt có dấu / không dấu) theo họ tên, mã NV, chức danh, bộ phận
   const filteredList = payrollEmployees.filter((item) => {
@@ -525,99 +482,43 @@ export default function PayrollGridTable({
     }
   }, [focusTarget, payrollData, internalPayroll, loadingPayroll]);
 
-  // Tổng hợp số liệu footer bảng đối soát
+  // Tổng hợp số liệu cuối danh sách bảng lương
   const totalNetSalary = filteredList.reduce((acc, cur) => acc + (Number(cur.netSalary) || 0), 0);
-  const totalWorkDays = filteredList.reduce((acc, cur) => acc + (Number(cur.totalWorkDays) || 0), 0);
 
   return (
     <div className="space-y-4 pb-28">
-      {/* Thanh Công Cụ Tinh Gọn: Đếm Nhân Sự & Tìm Kiếm Nhanh */}
-      <div
-        data-testid="payroll-summary-header"
-        className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-      >
-        <div
-          data-testid="payroll-employee-count"
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 text-xs sm:text-sm font-bold text-[#111C2D] dark:text-slate-100 shrink-0 self-start sm:self-auto"
-        >
-          <Users size={16} className="text-[#E11D48] dark:text-rose-400 shrink-0" />
-          <span>
-            {isLoading && totalEmployeesCount === 0
-              ? "Đang tải nhân sự..."
-              : isFiltering
-                ? `Hiển thị ${formatViNumber(filteredList.length, 0)} / ${formatViNumber(totalEmployeesCount, 0)} nhân viên`
-                : `Số lượng nhân viên: ${formatViNumber(totalEmployeesCount, 0)} nhân viên`}
-          </span>
-        </div>
+      {/* Khung Bảng Lương Tinh Gọn: Tìm kiếm, Kỳ lương, Chốt kỳ & Hành động */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
+        {/* Header Tìm Kiếm & Tác Vụ Siêu Gọn */}
+        <div className="p-3.5 sm:p-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
+          <div className="relative w-full sm:max-w-md min-w-0">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              data-testid="payroll-search-input"
+              placeholder="Tìm theo họ tên hoặc mã NV..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Tìm kiếm nhân viên theo họ tên hoặc mã nhân viên"
+              className={`w-full min-h-[44px] pl-10 py-2 text-sm bg-slate-50/70 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-[#E11D48] dark:focus:border-rose-400 transition ${
+                searchQuery ? "pr-10" : "pr-3.5"
+              }`}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                data-testid="payroll-search-clear-btn"
+                onClick={() => setSearchQuery("")}
+                aria-label="Xóa từ khóa tìm kiếm"
+                title="Xóa tìm kiếm"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
 
-        <div className="relative w-full sm:flex-1 sm:max-w-md min-w-0">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            data-testid="payroll-search-input"
-            placeholder="Tìm theo họ tên hoặc mã NV..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Tìm kiếm nhân viên theo họ tên hoặc mã nhân viên"
-            className={`w-full min-h-[44px] pl-10 py-2 text-sm bg-slate-50/70 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-[#E11D48] dark:focus:border-rose-400 transition ${
-              searchQuery ? "pr-10" : "pr-3.5"
-            }`}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              data-testid="payroll-search-clear-btn"
-              onClick={() => setSearchQuery("")}
-              aria-label="Xóa từ khóa tìm kiếm"
-              title="Xóa tìm kiếm"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
-            >
-              <X size={15} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Bảng Chi Tiết Toàn Bộ Nhân Sự */}
-      <div className="md:bg-white md:dark:bg-slate-900 md:rounded-2xl md:border md:border-slate-100/90 md:dark:border-slate-800 md:shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
-        {/* Header Tác Vụ Tinh Gọn */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-none mb-3 md:mb-0 p-3.5 sm:p-4 border border-slate-100/90 dark:border-slate-800 md:border-0 md:border-b space-y-2.5">
           <div className="w-full min-w-0 flex flex-wrap items-center gap-2">
-            {/* Thanh chuyển đổi Tổng quan / Chi tiết */}
-            <div
-              data-filter-group="payroll-view-mode"
-              className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex items-center p-1 rounded-xl bg-[#F0F3FF] dark:bg-slate-950 border border-slate-200 dark:border-slate-700 gap-1"
-            >
-              <button
-                type="button"
-                data-testid="payroll-mode-overview"
-                data-active={viewMode === "overview" ? "true" : "false"}
-                onClick={() => setViewMode("overview")}
-                className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
-                  viewMode === "overview"
-                    ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                <LayoutGrid size={14} className="shrink-0" />
-                <span>Tổng quan</span>
-              </button>
-              <button
-                type="button"
-                data-testid="payroll-mode-detailed"
-                data-active={viewMode === "detailed" ? "true" : "false"}
-                onClick={() => setViewMode("detailed")}
-                className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
-                  viewMode === "detailed"
-                    ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                <List size={14} className="shrink-0" />
-                <span>Chi tiết</span>
-              </button>
-            </div>
-
             {/* Bộ chọn kỳ lương Tháng/Năm hiện đại */}
             <MonthYearPicker
               month={month}
@@ -641,7 +542,7 @@ export default function PayrollGridTable({
               ))}
             </select>
 
-            {/* Nút Chốt kỳ công theo kỳ (month, year) — Chuyển từ Bảng công sang Bảng lương (V48) */}
+            {/* Nút Chốt kỳ công theo kỳ (month, year) */}
             {!isPeriodLocked && canLockPeriod && (
               <AppButton
                 variant="danger"
@@ -682,23 +583,7 @@ export default function PayrollGridTable({
               </span>
             )}
 
-            {/* Nút Tính Lương Tự Động */}
-            {(isAdmin || canCalculatePayroll) && (
-              <AppButton
-                variant="primary"
-                icon={Calculator}
-                loading={calculating}
-                disabled={isLoading}
-                loadingText="Đang tính..."
-                data-testid="payroll-calculate-btn"
-                onClick={handleCalculatePayroll}
-                className="text-xs sm:text-sm px-3.5 py-2"
-              >
-                🧮 Tính lương
-              </AppButton>
-            )}
-
-            {/* Nút Gửi Báo Cáo Lương Hàng Loạt (Chỉ Admin - V45) */}
+            {/* Nút Gửi Báo Cáo Lương Hàng Loạt (Chỉ Admin) */}
             {isAdmin && totalEmployeesCount > 0 && (
               <AppButton
                 variant="zalo"
@@ -815,541 +700,56 @@ export default function PayrollGridTable({
           </div>
         )}
 
-        {viewMode === "detailed" ? (
-          <div className="p-3 sm:p-5 space-y-4">
-            {isLoading ? (
-              <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
-                <SkeletonList rows={3} label="Đang tải bảng lương chi tiết..." />
-              </div>
-            ) : filteredList.length === 0 ? (
-              <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
-                <EmptyState
-                  icon={FileText}
-                  title={
-                    payrollEmployees.length > 0
-                      ? "Không tìm thấy nhân viên phù hợp"
-                      : `Không có dữ liệu tiền lương tháng ${month}/${year}.`
-                  }
-                />
-              </div>
-            ) : (
-              filteredList.map((item, idx) => {
+        {/* Danh sách Thẻ Bảng Lương Nhân Sự (Responsive Unified Cards — Ẩn Mọi Giá Trị 0) */}
+        <div className="p-3 sm:p-4">
+          {isLoading ? (
+            <SkeletonList rows={4} label="Đang tải và đồng bộ bảng lương..." />
+          ) : filteredList.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title={
+                payrollEmployees.length > 0
+                  ? "Không tìm thấy nhân viên phù hợp"
+                  : `Không có dữ liệu tiền lương tháng ${month}/${year}.`
+              }
+            />
+          ) : (
+            <div data-testid="payroll-cards-grid" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+              {filteredList.map((item, idx) => {
                 const empId = item.ma_nv || item.id_nhan_vien;
                 const confirmStatus = item.salary_confirm_status || "PENDING";
-                const isRowDisputed = item.dispute_status === "OPEN" || (item.dispute_status !== "RESOLVED" && confirmStatus === "DISPUTED");
-                const b = item.allowances_breakdown || {};
-                const detailedAllowanceDefs = [
-                  { key: "an_trua", alt: "an_ca", label: "Ăn trưa" },
-                  { key: "xang_xe", alt: "xang", label: "Xăng xe" },
-                  { key: "nha_o", alt: "doc_hai", label: "Nhà ở" },
-                  { key: "thuong_htcv", label: "Thưởng HTCV" },
-                  { key: "trach_nhiem", label: "Trách nhiệm" },
-                  { key: "tiep_khach", alt: "dien_thoai", label: "ĐT / Tiếp khách" }
-                ];
-                const positiveAllowances = Array.isArray(item.allowances)
-                  ? item.allowances.filter((a) => Number(a.amount) > 0)
-                  : detailedAllowanceDefs
-                      .map((def) => ({
-                        key: def.key,
-                        label: def.label,
-                        amount: Number(b[def.key] ?? (def.alt ? b[def.alt] : 0)) || 0
-                      }))
-                      .filter((a) => a.amount > 0);
-                const totalPositiveAllowance = Number(item.totalAllowance ?? item.total_allowance ?? 0);
-                const showAllowanceCard = positiveAllowances.length > 0 && totalPositiveAllowance > 0;
+                const isRowDisputed =
+                  item.dispute_status === "OPEN" ||
+                  (item.dispute_status !== "RESOLVED" && confirmStatus === "DISPUTED");
+                const stdDays =
+                  item.standardWorkDays ||
+                  item.standardDays ||
+                  getMonthlyStandardWorkdays(item.thang || month, item.nam || year);
+                const salaryByWork = Number(item.salaryByWork) || 0;
+                const otHours = Number(item.totalOtHours) || 0;
+                const otPay = Number(item.otAmount ?? item.ot_pay) || 0;
+                const totalAllowance = Number(item.totalAllowance ?? item.total_allowance) || 0;
                 const bonusAmt = Number(item.bonusAmount) || 0;
                 const penaltyAmt = Number(item.penaltyAmount) || 0;
                 const latePenaltyAmt = Number(item.latePenaltyAmount) || 0;
                 const advAmt = Number(item.advanceDeduction) || 0;
-                const debtAmt = Number(item.carryOverDebt || item.carry_over_debt) || 0;
-                const dailyLogs = Array.isArray(item.daily_logs) ? item.daily_logs : [];
-                const isExpanded = Boolean(expandedDailyLogs[empId]);
-                const unitWage = item.unitDailyWage || Math.round((Number(item.baseSalary) || 0) / (Number(item.standardWorkDays) || getMonthlyStandardWorkdays(item.thang || month, item.nam || year)));
+                const insAmt = Number(item.insuranceDeduction || item.totalInsurance) || 0;
+                const effStatus = getEffectivePayoutStatus(item);
+                const empPaid = ["PAID", "RECEIVED"].includes(effStatus);
 
                 return (
                   <div
                     key={empId || idx}
-                    data-testid={`detailed-payroll-card-${empId}`}
-                    className={`rounded-2xl border p-4 sm:p-5 space-y-4 shadow-sm ${
+                    data-testid={`payroll-card-${empId}`}
+                    className={`perf-list-item rounded-2xl border p-4 flex flex-col justify-between gap-3 shadow-xs transition-colors ${
                       isRowDisputed
-                        ? "bg-rose-50/70 dark:bg-rose-950/35 border-rose-300 dark:border-rose-700"
-                        : "bg-slate-50/60 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+                        ? "bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700"
+                        : "bg-white dark:bg-slate-900 border-slate-200/85 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                     }`}
                   >
-                    {/* Header Nhân viên + Thực lĩnh NET */}
-                    <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <UserAvatar
-                          name={item.ho_ten || empId}
-                          avatarUrl={item.avatar_url}
-                          size="md"
-                        />
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-200 border border-rose-200 dark:border-rose-800">
-                              {empId}
-                            </span>
-                            <h4 className="font-extrabold text-base text-slate-900 dark:text-white break-words">
-                              {item.ho_ten}
-                            </h4>
-                            {Number(item.probationPercent || 100) < 100 && (
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
-                                Thử việc {item.probationPercent}%
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-slate-600 dark:text-slate-300">
-                            {item.chuc_danh || "Nhân viên"} • {item.department || "Khối Công trình"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
-                          Thực lĩnh (NET)
-                        </div>
-                        <div className="text-lg sm:text-xl font-black text-emerald-700 dark:text-emerald-300 font-mono">
-                          {formatViCurrency(item.netSalary)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Lưới Bóc Tách Chi Tiết (Ẩn hoàn toàn khối Phụ cấp nếu = 0) */}
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${showAllowanceCard ? "lg:grid-cols-4" : "lg:grid-cols-3"} gap-3 text-xs`}>
-                      {/* 1. Lương cơ bản & Công */}
-                      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1.5">
-                        <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
-                          1. Lương &amp; Ngày công
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Lương CB (HĐ):</span>
-                          <span className="font-mono font-bold text-slate-900 dark:text-white">{formatViCurrency(item.baseSalary)}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Công chuẩn / Đơn giá:</span>
-                          <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                            {formatViWorkday(item.standardWorkDays || getMonthlyStandardWorkdays(item.thang || month, item.nam || year))} / {formatViCurrency(unitWage)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Làm TT / Phép / Lễ:</span>
-                          <span className="font-mono font-semibold text-blue-700 dark:text-blue-300">
-                            {formatViWorkday(item.workedDays ?? item.totalWorkDays)} / {formatViWorkday(item.paidLeaveDays || 0)} / {formatViWorkday(item.holidayDays || 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-700 font-bold">
-                          <span className="text-slate-800 dark:text-slate-100">Lương ngày công ({formatViWorkday(item.totalWorkDays)}):</span>
-                          <span className="font-mono text-emerald-700 dark:text-emerald-300">{formatViCurrency(item.salaryByWork)}</span>
-                        </div>
-                      </div>
-
-                      {/* 2. Phụ cấp phát sinh > 0 */}
-                      {showAllowanceCard && (
-                        <div
-                          data-testid={`detailed-allowances-card-${empId}`}
-                          className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1"
-                        >
-                          <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
-                            2. Chi tiết Phụ cấp
-                          </div>
-                          {positiveAllowances.map((a) => (
-                            <div key={a.key || a.label} className="flex justify-between gap-2">
-                              <span className="text-slate-600 dark:text-slate-300">{a.label}:</span>
-                              <span className="font-mono text-slate-800 dark:text-slate-200">
-                                {formatViCurrency(a.amount)}
-                              </span>
-                            </div>
-                          ))}
-                          <div className="flex justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-700 font-bold">
-                            <span className="text-slate-800 dark:text-slate-100">Tổng phụ cấp:</span>
-                            <span className="font-mono text-blue-700 dark:text-blue-300">+{formatViCurrency(totalPositiveAllowance)}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Tăng ca OT & Thưởng */}
-                      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1.5">
-                        <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
-                          {showAllowanceCard ? 3 : 2}. Tăng ca &amp; Thưởng
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Tăng ca ({formatViNumber(item.totalOtHours || 0)}h OT):</span>
-                          <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">+{formatViCurrency(item.otAmount)}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Thưởng nóng thêm:</span>
-                          <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">+{formatViCurrency(bonusAmt)}</span>
-                        </div>
-                        {item.adjustment_note && (
-                          <div className="text-slate-500 dark:text-slate-400 italic break-words pt-1">
-                            Ghi chú: {item.adjustment_note}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Khấu trừ chi tiết */}
-                      <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
-                        <div className="font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
-                          {showAllowanceCard ? 4 : 3}. Các khoản Khấu trừ
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">
-                            Đi trễ ({formatViNumber(item.lateOccurrences || 0, 0)} lần / {formatViNumber(item.totalLateMinutes || 0, 0)}p):
-                          </span>
-                          <span className="font-mono text-rose-700 dark:text-rose-300">-{formatViCurrency(latePenaltyAmt)}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Trích BHXH ({formatViNumber(item.insuranceRatePercent ?? 10.5)}%):</span>
-                          <span className="font-mono text-rose-700 dark:text-rose-300">-{formatViCurrency(item.insuranceDeduction || item.totalInsurance)}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-600 dark:text-slate-300">Phạt khác / Tạm ứng:</span>
-                          <span className="font-mono text-amber-700 dark:text-amber-300">
-                            -{formatViCurrency(penaltyAmt, false)} / -{formatViCurrency(advAmt, false)}
-                          </span>
-                        </div>
-                        {debtAmt > 0 && (
-                          <div className="flex justify-between gap-2 font-bold text-amber-800 dark:text-amber-300">
-                            <span>Nợ chuyển kỳ sau:</span>
-                            <span className="font-mono">{formatViCurrency(debtAmt)}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Thanh nút hành động + Đối chiếu Nhật ký từng ngày */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                      <button
-                        type="button"
-                        data-testid={`toggle-daily-logs-${empId}`}
-                        onClick={() => toggleDailyLogsRow(empId)}
-                        className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 inline-flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Calendar size={14} className="text-[#E11D48] dark:text-rose-400" />
-                        <span>Đối chiếu nhật ký công ({formatViNumber(dailyLogs.length, 0)} ngày)</span>
-                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      </button>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        {renderPayoutStatusBadge(item)}
-                        {isAdmin && (
-                          <AppButton
-                            variant="zalo"
-                            icon={Send}
-                            loading={sendingReportId === empId}
-                            disabled={Boolean(sendingReportId)}
-                            data-testid={`payroll-send-report-btn-${empId}`}
-                            onClick={() => handleSendSingleReport(item)}
-                            className="text-xs"
-                          >
-                            Gửi báo cáo
-                          </AppButton>
-                        )}
-                        {canManagePayment && (() => {
-                          const empPaid = getEffectivePayoutStatus(item) === "PAID";
-                          return (
-                            <AppButton
-                              variant={empPaid ? "success" : "primary"}
-                              icon={empPaid ? CheckCircle2 : Send}
-                              data-testid={`payroll-transfer-btn-${empId}`}
-                              onClick={() => handleRequestTransfer(item)}
-                              className={`text-xs ${empPaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"}`}
-                            >
-                              {empPaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}
-                            </AppButton>
-                          );
-                        })()}
-                        {canCalculatePayroll && (
-                          <AppButton
-                            variant="ghost"
-                            icon={SlidersHorizontal}
-                            onClick={() => handleOpenAdjustmentModal(item)}
-                            className="bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 text-xs"
-                          >
-                            Điều chỉnh
-                          </AppButton>
-                        )}
-                        <AppButton
-                          variant="secondary"
-                          icon={Eye}
-                          data-testid={`payroll-view-detail-btn-${empId}`}
-                          onClick={() => setSelectedSlipItem(item)}
-                          className="text-xs"
-                        >
-                          Xem Lương &amp; Công chi tiết
-                        </AppButton>
-                      </div>
-                    </div>
-
-                    {isExpanded && (
-                      <div className="bg-white dark:bg-slate-950/70 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                        {dailyLogs.length === 0 ? (
-                          <div className="p-3 text-xs text-slate-500 dark:text-slate-400 text-center">
-                            Chưa có dữ liệu chấm công trong tháng {month}/{year}.
-                          </div>
-                        ) : (
-                          <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                            {dailyLogs.map((log, lIdx) => {
-                              const dateIso = log.record_date_iso || String(log.record_date || "").slice(0, 10);
-                              const noteText = log.attendance_note || "";
-                              const isWarnNote = /vào muộn|ra sớm|quên check-out|quá ngắn/i.test(noteText);
-                              return (
-                                <div key={`${dateIso}-${lIdx}`} className="px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
-                                  <div className="min-w-0 space-y-1">
-                                    <div className="font-mono font-bold text-slate-900 dark:text-white">
-                                      {log.date_label || dateIso}
-                                    </div>
-                                    <div className="text-slate-600 dark:text-slate-300">
-                                      Vào {log.check_in_time ? String(log.check_in_time).slice(0, 5) : "--:--"} • Ra{" "}
-                                      {log.check_out_time ? String(log.check_out_time).slice(0, 5) : "--:--"}
-                                      {(Number(log.morning_worked_minutes) > 0 || Number(log.afternoon_worked_minutes) > 0) && (
-                                        <span className="ml-1.5 text-slate-500 dark:text-slate-400">
-                                          (Sáng {formatViNumber(log.morning_worked_minutes || 0, 0)}p / Chiều {formatViNumber(log.afternoon_worked_minutes || 0, 0)}p)
-                                        </span>
-                                      )}
-                                    </div>
-                                    {noteText && (
-                                      <span
-                                        className={`inline-flex items-center px-2 py-0.5 rounded-lg border text-xs font-semibold ${
-                                          isWarnNote
-                                            ? "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70"
-                                            : "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60"
-                                        }`}
-                                      >
-                                        {noteText}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <div className="text-right font-mono">
-                                      <div className="font-bold text-[#E11D48] dark:text-rose-300">
-                                        {formatViWorkday(log.work_credit ?? 0)} công
-                                      </div>
-                                      <div className="font-semibold text-emerald-700 dark:text-emerald-300">
-                                        {formatViCurrency(log.daily_earned_amount || 0)}
-                                      </div>
-                                    </div>
-                                    <StatusBadge type="attendance" status={log.status} />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        ) : (
-          <>
-            {/* Mobile ZaUI Ticket Cards View */}
-            <div className="md:hidden space-y-3">
-          {isLoading ? (
-            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
-              <SkeletonList rows={3} label="Đang tải bảng lương..." />
-            </div>
-          ) : filteredList.length === 0 ? (
-            <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl">
-              <EmptyState icon={FileText} title={`Không có dữ liệu tiền lương tháng ${month}/${year}.`} />
-            </div>
-          ) : (
-            filteredList.map((item, idx) => {
-              const empId = item.ma_nv || item.id_nhan_vien;
-              const confirmStatus = item.salary_confirm_status || "PENDING";
-              const isRowDisputed = item.dispute_status === "OPEN" || (item.dispute_status !== "RESOLVED" && confirmStatus === "DISPUTED");
-              const bonusAmt = Number(item.bonusAmount) || 0;
-              const penaltyAmt = Number(item.penaltyAmount) || 0;
-              const advAmt = Number(item.advanceDeduction) || 0;
-              return (
-                <div
-                  key={empId || idx}
-                  className={`perf-list-item rounded-2xl border p-4 space-y-2.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] ${
-                    isRowDisputed
-                      ? "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700"
-                      : "bg-white dark:bg-slate-900 border-slate-100/90 dark:border-slate-800"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2.5">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <UserAvatar
-                        name={item.ho_ten || empId}
-                        avatarUrl={item.avatar_url}
-                        size="sm"
-                      />
-                      <div className="min-w-0">
-                        <div className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.ho_ten}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-300 font-mono">
-                          {empId} • {item.chuc_danh || "Nhân viên"}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-extrabold whitespace-nowrap">
-                        {formatViWorkday(item.totalWorkDays)} Công
-                      </span>
-                      {renderPayoutStatusBadge(item)}
-                    </div>
-                  </div>
-
-                  {/* STITCH ADMIN SCREEN 4 — NET PAY TRANSFER POD */}
-                  <div className="bg-[#F0F3FF] dark:bg-slate-800/80 rounded-xl p-2.5 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Thực nhận chuyển khoản (Net)</span>
-                    <span className="font-extrabold text-base text-[#B80035] dark:text-rose-300 font-mono whitespace-nowrap">
-                      {formatViCurrency(item.netSalary || 0)}
-                    </span>
-                  </div>
-
-                  {/* Perforated Ticket Cutout Divider */}
-                  <div className="sedinco-ticket-cutout">
-                    <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
-                  </div>
-
-                  {/* 5-Item Ledger Breakdown */}
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-600 dark:text-slate-300">1. Lương cơ bản chuẩn ({formatViWorkday(item.totalWorkDays)} công)</span>
-                      <span className="font-bold text-[#111C2D] dark:text-white font-mono whitespace-nowrap">{formatViCurrency(item.salaryByWork || 0)}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-600 dark:text-slate-300">2. Tăng ca OT ({formatViNumber(item.totalOtHours || 0)}h)</span>
-                      <span className="font-bold text-[#16A34A] dark:text-emerald-300 font-mono whitespace-nowrap">+{formatViCurrency(item.otAmount || 0)}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-600 dark:text-slate-300">3. Phụ cấp định mức</span>
-                      <span className="font-bold text-[#111C2D] dark:text-white font-mono whitespace-nowrap">+{formatViCurrency(item.totalAllowance || 0)}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-600 dark:text-slate-300">4. Khấu trừ BHXH (10,5%)</span>
-                      <span className="font-bold text-[#DC2626] dark:text-rose-400 font-mono whitespace-nowrap">-{formatViCurrency(item.insuranceDeduction || item.totalInsurance || 0)}</span>
-                    </div>
-                    {(bonusAmt > 0 || penaltyAmt > 0 || advAmt > 0) && (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-600 dark:text-slate-300">5. Thưởng / Phạt / Tạm ứng</span>
-                        <span className="font-bold text-[#0051CA] dark:text-blue-300 font-mono whitespace-nowrap">
-                          {formatViCurrency(bonusAmt - penaltyAmt - advAmt)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {isAdmin && (
-                      <AppButton
-                        variant="zalo"
-                        icon={Send}
-                        loading={sendingReportId === empId}
-                        disabled={Boolean(sendingReportId)}
-                        data-testid={`payroll-send-report-mobile-btn-${empId}`}
-                        onClick={() => handleSendSingleReport(item)}
-                        className="flex-1 min-w-[130px] text-xs"
-                      >
-                        Gửi báo cáo
-                      </AppButton>
-                    )}
-                    {canManagePayment && (() => {
-                      const empPaid = ["PAID", "RECEIVED"].includes(getEffectivePayoutStatus(item));
-                      return (
-                        <AppButton
-                          variant={empPaid ? "success" : "primary"}
-                          icon={empPaid ? CheckCircle2 : Send}
-                          data-testid={`payroll-transfer-mobile-btn-${empId}`}
-                          onClick={() => handleRequestTransfer(item)}
-                          className={`flex-1 min-w-[130px] text-xs ${empPaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"}`}
-                        >
-                          {empPaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}
-                        </AppButton>
-                      );
-                    })()}
-                    {canCalculatePayroll && (
-                      <AppButton
-                        variant="ghost"
-                        icon={SlidersHorizontal}
-                        onClick={() => handleOpenAdjustmentModal(item)}
-                        className="flex-1 min-w-[130px] bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 text-xs"
-                      >
-                        Thưởng / Phạt / Ứng
-                      </AppButton>
-                    )}
-                    <AppButton
-                      variant="secondary"
-                      icon={Eye}
-                      onClick={() => setSelectedSlipItem(item)}
-                      className="flex-1 min-w-[110px] text-xs"
-                    >
-                      {isRowDisputed ? "Xem khiếu nại" : "Chi tiết"}
-                    </AppButton>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Bảng Dữ Liệu Grid (Desktop >= 768px) */}
-        <div className="hidden md:block overflow-x-auto touch-scroll-x">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-[#F0F3FF] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold border-b-2 border-slate-300 dark:border-slate-700 text-xs">
-                <th className="p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 bg-[#F0F3FF] dark:bg-slate-800 z-10 min-w-[160px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)] whitespace-nowrap">Cán bộ nhân sự</th>
-                <th className="p-3.5 text-right whitespace-nowrap">Lương CB (HĐ)</th>
-                <th className="p-3.5 text-center whitespace-nowrap">Công TT</th>
-                <th className="p-3.5 text-right whitespace-nowrap">Lương công</th>
-                <th className="p-3.5 text-right whitespace-nowrap">Phụ cấp</th>
-                <th className="p-3.5 text-right whitespace-nowrap">Tăng ca (OT)</th>
-                <th className="p-3.5 text-right whitespace-nowrap">Thưởng / Phạt / Ứng</th>
-                <th className="p-3.5 text-right text-rose-700 dark:text-rose-300 whitespace-nowrap">Trích BHXH</th>
-                <th className="p-3.5 text-right text-emerald-900 dark:text-emerald-300 font-bold whitespace-nowrap">Thực lĩnh (Net)</th>
-                <th className="p-3.5 text-center whitespace-nowrap">Xác nhận</th>
-                <th className="p-3.5 text-center pr-5 whitespace-nowrap">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={11} className="py-16 text-center text-slate-500 dark:text-slate-300">
-                    <RefreshCw size={28} className="mx-auto mb-2 animate-spin text-emerald-600 dark:text-emerald-400" />
-                    <p className="text-sm font-semibold">Đang tải và tính toán dữ liệu bảng lương...</p>
-                  </td>
-                </tr>
-              ) : filteredList.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="py-16 text-center text-slate-500 dark:text-slate-300">
-                    <FileText size={36} className="mx-auto mb-2 text-slate-400" />
-                    <p className="text-sm font-semibold">
-                      {payrollEmployees.length > 0
-                        ? "Không tìm thấy nhân viên phù hợp"
-                        : `Không có dữ liệu tiền lương trong kỳ tháng ${month}/${year}.`}
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                filteredList.map((item, idx) => {
-                  const empId = item.ma_nv || item.id_nhan_vien;
-                  const confirmStatus = item.salary_confirm_status || "PENDING";
-                  const isRowDisputed = item.dispute_status === "OPEN" || (item.dispute_status !== "RESOLVED" && confirmStatus === "DISPUTED");
-                  const bonusAmt = Number(item.bonusAmount) || 0;
-                  const penaltyAmt = Number(item.penaltyAmount) || 0;
-                  const advAmt = Number(item.advanceDeduction) || 0;
-                  const netAdj = bonusAmt - penaltyAmt - advAmt;
-                  return (
-                    <tr
-                      key={empId || idx}
-                      className={`group transition-colors ${
-                        isRowDisputed
-                          ? "bg-rose-50 hover:bg-rose-100 dark:bg-[#2a1219] dark:hover:bg-[#381822]"
-                          : "bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800"
-                      }`}
-                    >
-                      <td
-                        className={`p-3 sm:p-3.5 pl-3 sm:pl-5 sticky left-0 z-10 min-w-[160px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)] ${
-                          isRowDisputed
-                            ? "bg-rose-50 group-hover:bg-rose-100 dark:bg-[#2a1219] dark:group-hover:bg-[#381822]"
-                            : "bg-white group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800"
-                        }`}
-                      >
+                    <div className="space-y-3">
+                      {/* Header thẻ nhân viên: Avatar, Họ tên, Bộ phận & Số công */}
+                      <div className="flex items-start justify-between gap-2.5">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <UserAvatar
                             name={item.ho_ten || empId}
@@ -1357,162 +757,213 @@ export default function PayrollGridTable({
                             size="sm"
                           />
                           <div className="min-w-0">
-                            <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm truncate">{item.ho_ten}</div>
-                            <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-1 mt-0.5">
-                              <span className="font-mono text-[#E11D48] dark:text-rose-300 font-semibold">{empId}</span>
-                              <span>• {item.department || "Khối Công trình"}</span>
+                            <div className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                              {item.ho_ten}
+                            </div>
+                            <div className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5">
+                              <span className="font-mono font-semibold text-[#E11D48] dark:text-rose-300">
+                                {empId}
+                              </span>
+                              <span> • {item.department || "Khối Công trình"}</span>
                             </div>
                           </div>
                         </div>
-                      </td>
-                      <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">
-                        {formatViCurrency(item.baseSalary || 0)}
-                      </td>
-                      <td className="p-3.5 text-center whitespace-nowrap">
-                        <span className="inline-block px-2.5 py-1 rounded-xl bg-[#F0F3FF] dark:bg-rose-950/60 text-[#111C2D] dark:text-rose-200 font-bold text-xs border border-slate-200 dark:border-rose-800/70">
-                          {formatViWorkday(item.totalWorkDays)} công
+
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-extrabold whitespace-nowrap">
+                            {formatViWorkday(item.totalWorkDays || 0)} / {formatViWorkday(stdDays)} công
+                          </span>
+                          {renderPayoutStatusBadge(item)}
+                        </div>
+                      </div>
+
+                      {/* Chỉ hiển thị các khoản phát sinh thực tế > 0; ẩn hoàn toàn giá trị 0 / trống */}
+                      {(salaryByWork > 0 ||
+                        otHours > 0 ||
+                        otPay > 0 ||
+                        totalAllowance > 0 ||
+                        bonusAmt > 0 ||
+                        latePenaltyAmt > 0 ||
+                        penaltyAmt > 0 ||
+                        advAmt > 0 ||
+                        insAmt > 0) && (
+                        <div className="space-y-1.5 text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
+                          {salaryByWork > 0 && (
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-slate-600 dark:text-slate-300">
+                                Lương ngày công ({formatViWorkday(item.totalWorkDays || 0)} công)
+                              </span>
+                              <span className="font-mono font-bold text-[#111C2D] dark:text-white whitespace-nowrap">
+                                {formatViCurrency(salaryByWork)}
+                              </span>
+                            </div>
+                          )}
+                          {(otHours > 0 || otPay > 0) && (
+                            <div
+                              data-testid={`payroll-card-ot-${empId}`}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <span className="text-slate-600 dark:text-slate-300">
+                                Tăng ca OT ({formatViNumber(otHours)} giờ)
+                              </span>
+                              <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 whitespace-nowrap">
+                                +{formatViCurrency(otPay)}
+                              </span>
+                            </div>
+                          )}
+                          {totalAllowance > 0 && (
+                            <div
+                              data-testid={`payroll-card-allowance-${empId}`}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <span className="text-slate-600 dark:text-slate-300">Phụ cấp</span>
+                              <span className="font-mono font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">
+                                +{formatViCurrency(totalAllowance)}
+                              </span>
+                            </div>
+                          )}
+                          {bonusAmt > 0 && (
+                            <div
+                              data-testid={`payroll-card-bonus-${empId}`}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <span className="text-slate-600 dark:text-slate-300">Thưởng</span>
+                              <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
+                                +{formatViCurrency(bonusAmt)}
+                              </span>
+                            </div>
+                          )}
+                          {latePenaltyAmt > 0 && (
+                            <div
+                              data-testid={`payroll-card-late-penalty-${empId}`}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <span className="text-slate-600 dark:text-slate-300">
+                                Phạt đi muộn ({formatViNumber(item.totalLateMinutes || 0, 0)} phút)
+                              </span>
+                              <span className="font-mono font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                                -{formatViCurrency(latePenaltyAmt)}
+                              </span>
+                            </div>
+                          )}
+                          {penaltyAmt > 0 && (
+                            <div
+                              data-testid={`payroll-card-penalty-${empId}`}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <span className="text-slate-600 dark:text-slate-300">Phạt / Khấu trừ</span>
+                              <span className="font-mono font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                                -{formatViCurrency(penaltyAmt)}
+                              </span>
+                            </div>
+                          )}
+                          {advAmt > 0 && (
+                            <div
+                              data-testid={`payroll-card-advance-${empId}`}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <span className="text-slate-600 dark:text-slate-300">Tạm ứng</span>
+                              <span className="font-mono font-bold text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                                -{formatViCurrency(advAmt)}
+                              </span>
+                            </div>
+                          )}
+                          {insAmt > 0 && (
+                            <div
+                              data-testid={`payroll-card-insurance-${empId}`}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <span className="text-slate-600 dark:text-slate-300">
+                                Khấu trừ BHXH ({formatViNumber(item.insuranceRatePercent ?? 10.5)}%)
+                              </span>
+                              <span className="font-mono font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                                -{formatViCurrency(insAmt)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Thực lĩnh (Net Pay Pod) */}
+                      <div className="bg-[#F0F3FF] dark:bg-slate-800/80 rounded-xl px-3 py-2.5 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                          Thực lĩnh
                         </span>
-                      </td>
-                      <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">
-                        {formatViCurrency(item.salaryByWork || 0)}
-                      </td>
-                      <td className="p-3.5 text-right font-semibold text-slate-800 dark:text-slate-100 text-sm whitespace-nowrap">
-                        {formatViCurrency(item.totalAllowance || 0)}
-                      </td>
-                      <td className="p-3.5 text-right font-semibold text-indigo-800 dark:text-indigo-300 text-sm whitespace-nowrap">
-                        <div>+{formatViCurrency(item.otAmount || 0)}</div>
-                        {Number(item.totalOtHours || 0) > 0 && (
-                          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                            {formatViNumber(item.totalOtHours)}h tăng ca
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3.5 text-right text-xs whitespace-nowrap">
-                        {netAdj === 0 && bonusAmt === 0 && penaltyAmt === 0 && advAmt === 0 ? (
-                          <span className="text-slate-400 dark:text-slate-400">0 đ</span>
-                        ) : (
-                          <div className="space-y-0.5">
-                            {bonusAmt > 0 && <div className="text-emerald-700 dark:text-emerald-300 font-semibold">+{formatViCurrency(bonusAmt, false)} Thưởng</div>}
-                            {penaltyAmt > 0 && <div className="text-rose-700 dark:text-rose-300 font-semibold">-{formatViCurrency(penaltyAmt, false)} Phạt</div>}
-                            {advAmt > 0 && <div className="text-amber-700 dark:text-amber-300 font-semibold">-{formatViCurrency(advAmt, false)} Ứng</div>}
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3.5 text-right font-semibold text-rose-700 dark:text-rose-300 text-sm whitespace-nowrap">
-                        -{formatViCurrency(item.insuranceDeduction || item.totalInsurance || 0)}
-                      </td>
-                      <td className="p-3.5 text-right font-bold text-base whitespace-nowrap">
-                        <span className="text-emerald-800 dark:text-emerald-300">
+                        <span className="font-extrabold text-base text-[#B80035] dark:text-rose-300 font-mono whitespace-nowrap">
                           {formatViCurrency(item.netSalary || 0)}
                         </span>
-                      </td>
-                      <td className="p-3.5 text-center whitespace-nowrap">
-                        {renderPayoutStatusBadge(item)}
-                      </td>
-                      <td className="p-3.5 text-center pr-5 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5">
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              disabled={Boolean(sendingReportId)}
-                              data-testid={`payroll-send-report-btn-${empId}`}
-                              onClick={() => handleSendSingleReport(item)}
-                              className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-[#0051CA] dark:text-sky-200 border border-sky-300 dark:border-sky-700 text-xs font-bold transition-all cursor-pointer whitespace-nowrap disabled:opacity-60"
-                              title="Gửi báo cáo xác nhận lương, chia sẻ Zalo & xuất Excel"
-                            >
-                              <Send size={14} />
-                              <span>Gửi báo cáo</span>
-                            </button>
-                          )}
-                          {canManagePayment && (() => {
-                            const empPaid = ["PAID", "RECEIVED"].includes(getEffectivePayoutStatus(item));
-                            return (
-                              <button
-                                type="button"
-                                data-testid={`payroll-transfer-btn-${empId}`}
-                                onClick={() => handleRequestTransfer(item)}
-                                className={`inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer whitespace-nowrap ${
-                                  empPaid
-                                    ? "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700"
-                                    : "bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-[#0051CA] dark:text-blue-200 border-blue-300 dark:border-blue-700"
-                                }`}
-                                title={empPaid ? "Đã chuyển khoản lương kỳ này" : "Mở mã VietQR chuyển khoản lương"}
-                              >
-                                {empPaid ? <CheckCircle2 size={14} /> : <Send size={14} />}
-                                <span>{empPaid ? "✓ Đã chuyển khoản" : "Chuyển khoản"}</span>
-                              </button>
-                            );
-                          })()}
-                          {canCalculatePayroll && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenAdjustmentModal(item)}
-                              className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 text-xs font-semibold border border-amber-300 dark:border-amber-700 transition-all cursor-pointer whitespace-nowrap"
-                              title="Thưởng / Phạt / Tạm ứng"
-                            >
-                              <SlidersHorizontal size={14} />
-                              <span>Điều chỉnh</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            data-testid={`payroll-view-detail-btn-${empId}`}
-                            onClick={() => setSelectedSlipItem(item)}
-                            className="inline-flex items-center gap-1 min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-emerald-100 dark:bg-slate-800 dark:hover:bg-emerald-950/60 text-slate-800 dark:text-slate-100 hover:text-emerald-900 dark:hover:text-emerald-300 text-xs font-semibold border border-slate-300 dark:border-slate-600 hover:border-emerald-600 transition-all cursor-pointer whitespace-nowrap"
-                          >
-                            <Eye size={14} />
-                            <span>Xem Lương &amp; Công chi tiết</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-            {filteredList.length > 0 && (
-              <tfoot>
-                <tr className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-t-2 border-slate-300 dark:border-slate-700 font-bold">
-                  <td className="p-4 pl-5 text-xs whitespace-nowrap sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] dark:shadow-[2px_0_8px_-2px_rgba(0,0,0,0.5)]">Tổng cộng ({formatViNumber(filteredList.length, 0)} NV):</td>
-                  <td className="p-4 text-right text-sm whitespace-nowrap">
-                    {formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.baseSalary) || 0), 0))}
-                  </td>
-                  <td className="p-4 text-center text-blue-800 dark:text-blue-300 text-sm whitespace-nowrap">
-                    {formatViWorkday(totalWorkDays)} công
-                  </td>
-                  <td className="p-4 text-right text-sm whitespace-nowrap">
-                    {formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.salaryByWork) || 0), 0))}
-                  </td>
-                  <td className="p-4 text-right text-sm whitespace-nowrap">
-                    {formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.totalAllowance) || 0), 0))}
-                  </td>
-                  <td className="p-4 text-right text-indigo-800 dark:text-indigo-300 text-sm whitespace-nowrap">
-                    +{formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.otAmount) || 0), 0))}
-                  </td>
-                  <td className="p-4 text-right text-slate-800 dark:text-slate-200 text-xs whitespace-nowrap">
-                    {formatViCurrency(
-                      filteredList.reduce(
-                        (acc, c) =>
-                          acc + (Number(c.bonusAmount) || 0) - (Number(c.penaltyAmount) || 0) - (Number(c.advanceDeduction) || 0),
-                        0
-                      )
-                    )}
-                  </td>
-                  <td className="p-4 text-right text-rose-700 dark:text-rose-300 text-sm whitespace-nowrap">
-                    -{formatViCurrency(filteredList.reduce((acc, c) => acc + (Number(c.insuranceDeduction || c.totalInsurance) || 0), 0))}
-                  </td>
-                  <td className="p-4 text-right text-emerald-800 dark:text-emerald-300 text-base whitespace-nowrap">
-                    {formatViCurrency(totalNetSalary)}
-                  </td>
-                  <td className="p-4 text-center"></td>
-                  <td className="p-4 text-center pr-5"></td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
+                      </div>
+                    </div>
+
+                    {/* Nút hành động chính */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <AppButton
+                        variant="secondary"
+                        icon={Eye}
+                        data-testid={`payroll-view-detail-btn-${empId}`}
+                        onClick={() => setSelectedSlipItem(item)}
+                        className="flex-1 min-w-[100px] text-xs font-bold"
+                      >
+                        {isRowDisputed ? "Xem khiếu nại" : "Chi tiết"}
+                      </AppButton>
+
+                      {isAdmin && (
+                        <AppButton
+                          variant="zalo"
+                          icon={Send}
+                          loading={sendingReportId === empId}
+                          disabled={Boolean(sendingReportId)}
+                          data-testid={`payroll-send-report-btn-${empId}`}
+                          onClick={() => handleSendSingleReport(item)}
+                          className="flex-1 min-w-[125px] text-xs font-bold"
+                        >
+                          📨 Gửi báo cáo
+                        </AppButton>
+                      )}
+
+                      {canManagePayment && (
+                        <AppButton
+                          variant={empPaid ? "success" : "primary"}
+                          icon={empPaid ? CheckCircle2 : Send}
+                          data-testid={`payroll-transfer-btn-${empId}`}
+                          onClick={() => handleRequestTransfer(item)}
+                          className={`flex-1 min-w-[130px] text-xs font-bold ${
+                            empPaid ? "" : "bg-[#0051CA] hover:bg-blue-700 border-[#0051CA]"
+                          }`}
+                        >
+                          {empPaid ? "✓ Đã chuyển khoản" : "💸 Chuyển khoản"}
+                        </AppButton>
+                      )}
+
+                      {canCalculatePayroll && !empPaid && !isPeriodLocked && (
+                        <AppButton
+                          variant="ghost"
+                          icon={SlidersHorizontal}
+                          data-testid={`payroll-adjust-btn-${empId}`}
+                          onClick={() => handleOpenAdjustmentModal(item)}
+                          className="flex-1 min-w-[110px] bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 text-xs font-semibold"
+                        >
+                          Điều chỉnh
+                        </AppButton>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {filteredList.length > 0 && (
+            <div className="mt-4 px-4 py-3 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
+              <span className="font-bold text-slate-700 dark:text-slate-200">
+                Tổng quỹ lương Thực lĩnh kỳ Tháng {month}/{year}
+              </span>
+              <span className="font-mono font-extrabold text-base text-emerald-700 dark:text-emerald-300">
+                {formatViCurrency(totalNetSalary)}
+              </span>
+            </div>
+          )}
         </div>
-          </>
-        )}
 
       </div>
 
@@ -1732,7 +1183,7 @@ export default function PayrollGridTable({
         open={sendAllConfirmOpen}
         variant="primary"
         title="Gửi báo cáo xác nhận lương"
-        message={`Gửi báo cáo xác nhận lương Tháng ${month}/${year} tới tất cả ${formatViNumber(totalEmployeesCount, 0)} nhân viên & kế toán?`}
+        message={`Gửi báo cáo xác nhận lương Tháng ${month}/${year} tới tất cả nhân sự & kế toán?`}
         confirmLabel="📨 Gửi tất cả ngay"
         cancelLabel="Đóng"
         loading={sendingAllReports}

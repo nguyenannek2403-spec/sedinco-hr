@@ -14,7 +14,9 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileText,
+  ArrowLeft
 } from "lucide-react";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
@@ -31,6 +33,8 @@ import { AppButton, AppModal, StatusBadge, SkeletonList, UserAvatar } from "./ui
 import PayslipActionFooter from "./PayslipActionFooter";
 import {
   formatDayWithWeekday,
+  formatFullDateWithWeekday,
+  resolveDailyStatusLabelVi,
   getPositiveAllowances,
   resolveLogNote,
   getNoteBadgeClass
@@ -74,6 +78,7 @@ export default function SalarySlipModal({
   const [loadingPeriod, setLoadingPeriod] = useState(!initialItem);
   const [loadError, setLoadError] = useState("");
   const [selectedHeatmapIso, setSelectedHeatmapIso] = useState(null);
+  const [showFullPayslip, setShowFullPayslip] = useState(false);
 
   const [confirmStatus, setConfirmStatus] = useState(initialItem?.salary_confirm_status || "PENDING");
   const [disputeStatus, setDisputeStatus] = useState(
@@ -163,6 +168,7 @@ export default function SalarySlipModal({
 
   useEffect(() => {
     setSelectedHeatmapIso(null);
+    setShowFullPayslip(false);
   }, [selectedMonth, selectedYear, activeMaNv]);
 
   useEffect(() => {
@@ -203,6 +209,8 @@ export default function SalarySlipModal({
   const positiveAllowances = useMemo(() => getPositiveAllowances(item), [item]);
   const totalPositiveAllowance = Number(item?.totalAllowance ?? item?.total_allowance ?? 0);
   const showAllowancesBlock = positiveAllowances.length > 0 && totalPositiveAllowance > 0;
+  const stdDays = Number(item?.standardWorkDays || item?.standardDays || getMonthlyStandardWorkdays(thang, nam));
+  const unitDailyWage = Number(item?.unitDailyWage) || (stdDays > 0 ? Math.round((Number(item?.baseSalary) || 0) / stdDays) : 0);
 
   const yearOptions = useMemo(() => {
     const curY = new Date().getFullYear();
@@ -231,11 +239,33 @@ export default function SalarySlipModal({
       const iso = `${nam}-${String(thang).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const log = byDate[iso] || null;
       const isSunday = new Date(Date.UTC(nam, thang - 1, d)).getUTCDay() === 0;
+      const isFutureOrTodayEmpty = !log && !isSunday && Boolean(todayIso && iso >= todayIso);
       const meta = resolveHeatmapCellMeta({ log, isoDate: iso, todayIso, isSunday });
-      const note = log
-        ? resolveLogNote(log)
-        : meta.badgeText;
+      const note = log ? resolveLogNote(log) : meta.badgeText;
       const otHours = Number(log?.ot_hours_applied ?? log?.ot_hours) || 0;
+      const { ddmmyyyy, weekdayFull } = formatFullDateWithWeekday(iso);
+      const statusLabelVi = resolveDailyStatusLabelVi({
+        log,
+        credit: meta.credit,
+        isSunday,
+        isFutureOrTodayEmpty
+      });
+
+      const hasBackendBase = log && log.daily_base_amount !== undefined && log.daily_base_amount !== null;
+      const dailyBaseAmount = hasBackendBase
+        ? Number(log.daily_base_amount) || 0
+        : meta.credit > 0
+          ? Math.round(unitDailyWage * meta.credit)
+          : 0;
+      const hasBackendOt = log && log.daily_ot_amount !== undefined && log.daily_ot_amount !== null;
+      const dailyOtAmount = hasBackendOt ? Number(log.daily_ot_amount) || 0 : 0;
+      const dailyPenaltyAmount = Number(log?.daily_penalty_amount) || 0;
+      const dailyPenaltyReason = log?.daily_penalty_reason || null;
+      const dailyEarnedAmount =
+        log && log.daily_earned_amount !== undefined && log.daily_earned_amount !== null
+          ? Number(log.daily_earned_amount) || 0
+          : dailyBaseAmount + dailyOtAmount - dailyPenaltyAmount;
+
       const hasLateOrEarly = Boolean(
         meta.hasLateOrEarly ||
           (log &&
@@ -248,12 +278,22 @@ export default function SalarySlipModal({
         iso,
         day: d,
         shortDate: `${String(d).padStart(2, "0")}/${String(thang).padStart(2, "0")}`,
+        fullDate: ddmmyyyy,
+        weekdayFull,
         dateLabel: formatDayWithWeekday(iso, log?.date_label),
         log,
         note,
         credit: meta.credit,
         otHours,
-        status: log ? (log.status || "0") : isSunday ? "CN" : "V",
+        status: log ? (log.status || "0") : isSunday ? "CN" : isFutureOrTodayEmpty ? "" : "KL",
+        statusLabelVi,
+        dailyBaseAmount,
+        dailyOtAmount,
+        dailyPenaltyAmount,
+        dailyPenaltyReason,
+        dailyEarnedAmount,
+        isSunday,
+        isFutureOrTodayEmpty,
         shortCode: meta.shortCode,
         cellClass: meta.cellClass,
         colorName: meta.colorName,
@@ -261,7 +301,21 @@ export default function SalarySlipModal({
       });
     }
     return rows;
-  }, [item, thang, nam]);
+  }, [item, thang, nam, unitDailyWage]);
+
+  const dailyLedgerTotals = useMemo(
+    () =>
+      displayedDailyRows.reduce(
+        (acc, row) => ({
+          base: acc.base + (row.dailyBaseAmount || 0),
+          ot: acc.ot + (row.dailyOtAmount || 0),
+          penalty: acc.penalty + (row.dailyPenaltyAmount || 0),
+          earned: acc.earned + (row.dailyEarnedAmount || 0)
+        }),
+        { base: 0, ot: 0, penalty: 0, earned: 0 }
+      ),
+    [displayedDailyRows]
+  );
 
   const selectedHeatmapDay = useMemo(() => {
     if (!selectedHeatmapIso) return null;
@@ -606,18 +660,15 @@ export default function SalarySlipModal({
     return { label: "Bản nháp / Tạm tính", cls: "bg-slate-800/75 border-white/25 text-white" };
   })();
 
-  const otRowNumber = showAllowancesBlock ? 4 : 3;
-  const bonusRowNumber = otRowNumber + 1;
-
   return (
     <AppModal
       open={Boolean(item || propMaNv || loadingPeriod)}
       onClose={onClose}
       disableClose={submitting || resolving}
       showCloseX={true}
-      maxWidthClass="sm:max-w-2xl"
+      maxWidthClass={showFullPayslip ? "sm:max-w-4xl" : "sm:max-w-2xl"}
       maxHeightClass="max-h-[92vh]"
-      title={`Lương & Công T${thang}/${nam} — ${maNv}`}
+      title={showFullPayslip ? `Phiếu lương Chi tiết T${thang}/${nam} — ${maNv}` : `Lương & Công T${thang}/${nam} — ${maNv}`}
       icon={
         item ? (
           <UserAvatar
@@ -832,17 +883,403 @@ export default function SalarySlipModal({
                   📩 Báo cáo lương Tháng {thang}/{nam} đang chờ xác nhận đã đọc
                 </div>
               ) : null}
-              <AppButton
-                variant="success"
-                icon={FileSpreadsheet}
-                data-testid="payslip-download-excel-btn"
-                onClick={handleExportSingleSlipExcel}
-                className="min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold shrink-0"
-              >
-                📥 Tải file Excel phiếu lương
-              </AppButton>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <AppButton
+                  variant={showFullPayslip ? "secondary" : "primary"}
+                  icon={showFullPayslip ? ArrowLeft : FileText}
+                  data-testid="payslip-view-full-btn"
+                  onClick={() => setShowFullPayslip((prev) => !prev)}
+                  className="min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold shrink-0"
+                >
+                  {showFullPayslip ? "← Quay lại tóm tắt" : "📄 Xem phiếu lương"}
+                </AppButton>
+                <AppButton
+                  variant="success"
+                  icon={FileSpreadsheet}
+                  data-testid="payslip-download-excel-btn"
+                  onClick={handleExportSingleSlipExcel}
+                  className="min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold shrink-0"
+                >
+                  📥 Tải file Excel phiếu lương
+                </AppButton>
+              </div>
             </div>
 
+            {showFullPayslip ? (
+              <div data-testid="full-payslip-viewer" className="space-y-4">
+                {/* PHẦN A: TỔNG QUAN THU NHẬP & KHẤU TRỪ THÁNG M/YYYY */}
+                <div
+                  data-testid="full-payslip-part-a"
+                  className="border border-slate-200 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs"
+                >
+                  <div className="bg-[#F0F3FF] dark:bg-slate-800 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide">
+                      Phần A • Tổng quan Thu nhập &amp; Khấu trừ Tháng {thang}/{nam}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Công chuẩn: {formatViWorkday(stdDays)} ngày (trừ Chủ nhật)
+                    </span>
+                  </div>
+
+                  {/* Hồ sơ nhân sự + Ngân hàng + Đơn giá 1 ngày công chuẩn */}
+                  <div className="p-3.5 sm:p-4 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <UserAvatar
+                        name={item.ho_ten || maNv}
+                        avatarUrl={item.avatar_url}
+                        size="md"
+                      />
+                      <div className="min-w-0">
+                        <div className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                          {item.ho_ten}
+                        </div>
+                        <div className="font-mono text-xs text-[#E11D48] dark:text-rose-300 font-semibold">
+                          {maNv}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400 block text-xs font-semibold">
+                        Khối nghề / Bộ phận
+                      </span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 block mt-0.5">
+                        {item.department || "Khối Công trình"}
+                      </span>
+                      {item.chuc_danh && (
+                        <span className="text-slate-600 dark:text-slate-300 block">
+                          {item.chuc_danh}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400 block text-xs font-semibold">
+                        Ngân hàng &amp; Số tài khoản
+                      </span>
+                      {item.bank_account_number ? (
+                        <div className="mt-0.5 space-y-0.5">
+                          <span className="font-bold text-slate-800 dark:text-slate-100 block">
+                            {item.bank_name || item.bank_code || "Ngân hàng"}
+                          </span>
+                          <span className="font-mono font-semibold text-blue-700 dark:text-blue-300 block">
+                            {item.bank_account_number}
+                          </span>
+                          {item.bank_account_name && (
+                            <span className="text-slate-600 dark:text-slate-300 block uppercase">
+                              {item.bank_account_name}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="italic text-slate-500 dark:text-slate-400 block mt-0.5">
+                          Chưa liên kết tài khoản ngân hàng
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400 block text-xs font-semibold">
+                        Đơn giá 1 ngày công chuẩn
+                      </span>
+                      <span
+                        data-testid="full-payslip-unit-daily-wage"
+                        className="font-mono font-extrabold text-sm text-[#111C2D] dark:text-white block mt-0.5"
+                      >
+                        {formatCurrency(unitDailyWage)}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400 block">
+                        Lương CB {formatCurrency(item.baseSalary || 0)} / {formatViWorkday(stdDays)} công
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Danh sách khoản thu nhập & khấu trừ (Ẩn 100% nếu bằng 0 hoặc trống) */}
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs sm:text-sm">
+                    {Number(item.salaryByWork) > 0 && (
+                      <div className="px-4 py-2.5 flex justify-between items-center gap-2">
+                        <span className="font-semibold text-slate-800 dark:text-slate-100">
+                          Lương theo ngày công thực tế ({formatViWorkday(item.totalWorkDays || 0)} công × {formatCurrency(unitDailyWage)})
+                        </span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white shrink-0">
+                          {formatCurrency(item.salaryByWork)}
+                        </span>
+                      </div>
+                    )}
+
+                    {showAllowancesBlock && (
+                      <div className="px-4 py-2.5 space-y-1.5">
+                        <div className="flex justify-between items-center font-semibold text-slate-800 dark:text-slate-100">
+                          <span>Các khoản Phụ cấp</span>
+                          <span className="font-mono font-bold text-blue-700 dark:text-blue-300">
+                            +{formatCurrency(totalPositiveAllowance)}
+                          </span>
+                        </div>
+                        <div className="pl-3 border-l-2 border-blue-200 dark:border-blue-800 space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                          {positiveAllowances.map((a) => (
+                            <div key={a.key || a.label} className="flex justify-between gap-2">
+                              <span>• {a.label}</span>
+                              <span className="font-mono font-semibold text-slate-800 dark:text-slate-200 shrink-0">
+                                +{formatCurrency(a.amount)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(Number(item.totalOtHours) > 0 || Number(item.otAmount) > 0) && (
+                      <div className="px-4 py-2.5 flex justify-between items-center gap-2">
+                        <span className="font-semibold text-slate-800 dark:text-slate-100">
+                          Tổng tiền Tăng ca (OT) ({formatViNumber(item.totalOtHours || 0)} giờ OT)
+                        </span>
+                        <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 shrink-0">
+                          +{formatCurrency(item.otAmount || 0)}
+                        </span>
+                      </div>
+                    )}
+
+                    {Number(item.bonusAmount) > 0 && (
+                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 bg-emerald-50/40 dark:bg-emerald-950/30">
+                        <span className="font-semibold text-emerald-800 dark:text-emerald-300">
+                          Tiền Thưởng
+                        </span>
+                        <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
+                          +{formatCurrency(item.bonusAmount)}
+                        </span>
+                      </div>
+                    )}
+
+                    {Number(item.latePenaltyAmount) > 0 && (
+                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 text-rose-700 dark:text-rose-300">
+                        <span>
+                          Phạt đi muộn ({formatViNumber(item.lateOccurrences || 0, 0)} lần / {formatViNumber(item.totalLateMinutes || 0, 0)} phút)
+                        </span>
+                        <span className="font-mono font-bold shrink-0">
+                          -{formatCurrency(item.latePenaltyAmount)}
+                        </span>
+                      </div>
+                    )}
+
+                    {Number(item.penaltyAmount) > 0 && (
+                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 text-rose-700 dark:text-rose-300">
+                        <span>
+                          Tiền Phạt / Khấu trừ{item.adjustment_note ? ` (${item.adjustment_note})` : ""}
+                        </span>
+                        <span className="font-mono font-bold shrink-0">
+                          -{formatCurrency(item.penaltyAmount)}
+                        </span>
+                      </div>
+                    )}
+
+                    {Number(item.advanceDeduction) > 0 && (
+                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 text-amber-800 dark:text-amber-300">
+                        <span>Tiền Tạm ứng</span>
+                        <span className="font-mono font-bold shrink-0">
+                          -{formatCurrency(item.advanceDeduction)}
+                        </span>
+                      </div>
+                    )}
+
+                    {Number(item.totalInsurance || item.insuranceDeduction || 0) > 0 && (
+                      <div className="px-4 py-2.5 flex justify-between items-center gap-2 text-rose-700 dark:text-rose-300">
+                        <span>Khấu trừ BHXH, BHYT, BHTN ({formatViNumber(item.insuranceRatePercent ?? 10.5)}%)</span>
+                        <span className="font-mono font-bold shrink-0">
+                          -{formatCurrency(item.totalInsurance || item.insuranceDeduction)}
+                        </span>
+                      </div>
+                    )}
+
+                    {!Number(item.penaltyAmount) && item.adjustment_note && (
+                      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/70 text-xs text-slate-600 dark:text-slate-300">
+                        <span className="font-semibold">Ghi chú kế toán: </span>
+                        {item.adjustment_note}
+                      </div>
+                    )}
+
+                    <div className="px-4 py-3 flex justify-between items-center gap-2 bg-emerald-50 dark:bg-emerald-950/60 font-extrabold text-sm sm:text-base">
+                      <span className="text-emerald-900 dark:text-emerald-200">
+                        Tổng thực lĩnh Tháng {thang}/{nam} (NET)
+                      </span>
+                      <span
+                        data-testid="full-payslip-net-total"
+                        className={`font-mono text-base sm:text-lg ${
+                          Number(item.netSalary) < 0 ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300"
+                        }`}
+                      >
+                        {formatCurrency(item.netSalary)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* PHẦN B: BẢNG KÊ CHI TIẾT TỪNG NGÀY TRONG THÁNG */}
+                <div
+                  data-testid="full-payslip-part-b"
+                  className="border border-slate-200 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs"
+                >
+                  <div className="bg-[#F0F3FF] dark:bg-slate-800 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide">
+                      Phần B • Bảng kê thu nhập từng ngày ({displayedDailyRows.length} ngày)
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                      Cộng dồn ngày công &amp; OT: {formatCurrency(dailyLedgerTotals.earned)}
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {displayedDailyRows.map((row) => {
+                      const hasOt = row.otHours > 0 || row.dailyOtAmount > 0;
+                      const hasPen = row.dailyPenaltyAmount > 0;
+                      const checkWindow =
+                        row.log?.check_in_time || row.log?.check_out_time
+                          ? `${row.log?.check_in_time ? String(row.log.check_in_time).slice(0, 5) : "--:--"} – ${
+                              row.log?.check_out_time ? String(row.log.check_out_time).slice(0, 5) : "--:--"
+                            }`
+                          : null;
+                      return (
+                        <div
+                          key={row.iso}
+                          data-testid={`full-payslip-day-${row.iso}`}
+                          className={`px-3.5 sm:px-4 py-2.5 flex flex-wrap items-start justify-between gap-2 text-xs ${
+                            row.isSunday
+                              ? "bg-slate-50/70 dark:bg-slate-800/30"
+                              : "bg-white dark:bg-slate-900"
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-bold text-slate-900 dark:text-white">
+                                {row.weekdayFull}, {row.fullDate}
+                              </span>
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                                  row.colorName === "green"
+                                    ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
+                                    : row.colorName === "blue"
+                                      ? "bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-700 text-sky-800 dark:text-sky-200"
+                                      : row.colorName === "red"
+                                        ? "bg-rose-50 dark:bg-rose-950/55 border-rose-200 dark:border-rose-700 text-rose-700 dark:text-rose-200"
+                                        : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                                }`}
+                              >
+                                {row.statusLabelVi}
+                              </span>
+                              {checkWindow && (
+                                <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                                  ({checkWindow})
+                                </span>
+                              )}
+                            </div>
+
+                            {row.log?.holiday_name && (
+                              <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
+                                🎉 {row.log.holiday_name}
+                              </div>
+                            )}
+
+                            {hasOt && (
+                              <div
+                                data-testid={`full-payslip-day-ot-${row.iso}`}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-200 font-semibold text-[11px]"
+                              >
+                                <span>
+                                  +{formatViNumber(row.otHours)} giờ OT = +{formatCurrency(row.dailyOtAmount)}
+                                </span>
+                              </div>
+                            )}
+
+                            {hasPen && (
+                              <div
+                                data-testid={`full-payslip-day-penalty-${row.iso}`}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-semibold text-[11px] ml-1"
+                              >
+                                <span>
+                                  Phạt ngày: -{formatCurrency(row.dailyPenaltyAmount)}
+                                  {row.dailyPenaltyReason ? ` (${row.dailyPenaltyReason})` : ""}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="text-right shrink-0 space-y-0.5">
+                            {row.dailyBaseAmount > 0 && (hasOt || hasPen) && (
+                              <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                                Công ngày: {formatCurrency(row.dailyBaseAmount)}
+                              </div>
+                            )}
+                            <div
+                              data-testid={`full-payslip-day-earned-${row.iso}`}
+                              className={`font-mono font-extrabold text-xs sm:text-sm ${
+                                row.dailyEarnedAmount > 0
+                                  ? "text-emerald-700 dark:text-emerald-300"
+                                  : row.dailyEarnedAmount < 0
+                                    ? "text-rose-600 dark:text-rose-300"
+                                    : "text-slate-400 dark:text-slate-500"
+                              }`}
+                            >
+                              {formatCurrency(row.dailyEarnedAmount)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Chân trang Đối chiếu Cộng dồn Tháng */}
+                  <div
+                    data-testid="full-payslip-reconciliation"
+                    className="bg-[#F0F3FF] dark:bg-slate-800/90 px-4 py-3 border-t border-slate-200 dark:border-slate-700 space-y-1.5 text-xs"
+                  >
+                    <div className="flex justify-between font-bold text-slate-800 dark:text-slate-100">
+                      <span>Cộng dồn tiền kiếm được từng ngày ({displayedDailyRows.length} ngày)</span>
+                      <span className="font-mono text-emerald-700 dark:text-emerald-300">
+                        {formatCurrency(dailyLedgerTotals.earned)}
+                      </span>
+                    </div>
+                    {totalPositiveAllowance > 0 && (
+                      <div className="flex justify-between text-blue-700 dark:text-blue-300">
+                        <span>+ Tổng phụ cấp theo công</span>
+                        <span className="font-mono font-semibold">+{formatCurrency(totalPositiveAllowance)}</span>
+                      </div>
+                    )}
+                    {Number(item.bonusAmount) > 0 && (
+                      <div className="flex justify-between text-emerald-700 dark:text-emerald-300">
+                        <span>+ Tiền thưởng</span>
+                        <span className="font-mono font-semibold">+{formatCurrency(item.bonusAmount)}</span>
+                      </div>
+                    )}
+                    {Number(item.penaltyAmount) > 0 && (
+                      <div className="flex justify-between text-rose-700 dark:text-rose-300">
+                        <span>- Phạt / Khấu trừ tháng</span>
+                        <span className="font-mono font-semibold">-{formatCurrency(item.penaltyAmount)}</span>
+                      </div>
+                    )}
+                    {Number(item.advanceDeduction) > 0 && (
+                      <div className="flex justify-between text-amber-700 dark:text-amber-300">
+                        <span>- Tiền tạm ứng</span>
+                        <span className="font-mono font-semibold">-{formatCurrency(item.advanceDeduction)}</span>
+                      </div>
+                    )}
+                    {Number(item.totalInsurance || item.insuranceDeduction || 0) > 0 && (
+                      <div className="flex justify-between text-rose-700 dark:text-rose-300">
+                        <span>- Khấu trừ BHXH</span>
+                        <span className="font-mono font-semibold">
+                          -{formatCurrency(item.totalInsurance || item.insuranceDeduction)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="pt-1.5 border-t border-slate-300 dark:border-slate-600 flex justify-between font-extrabold text-sm text-[#111C2D] dark:text-white">
+                      <span>= Tổng Thực lĩnh Tháng {thang}/{nam}</span>
+                      <span className="font-mono text-emerald-700 dark:text-emerald-300">
+                        {formatCurrency(item.netSalary)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
             {/* Thông tin nhân sự — Stitch #F0F3FF Tactical Pod */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#F0F3FF] dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs">
               <div>
@@ -874,10 +1311,10 @@ export default function SalarySlipModal({
                   Ngày Công Thực Tế
                 </span>
                 <span className="font-extrabold text-[#16A34A] dark:text-emerald-300 block">
-                  {formatViWorkday(item.totalWorkDays || 0)} / {formatViWorkday(item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(thang, nam))} công
+                  {formatViWorkday(item.totalWorkDays || 0)} / {formatViWorkday(stdDays)} công
                 </span>
                 <span className="text-xs text-slate-600 dark:text-slate-300 block mt-0.5">
-                  TT {formatViWorkday(item.workedDays ?? item.totalWorkDays)} • Phép {formatViWorkday(item.paidLeaveDays || 0)} • Lễ {formatViWorkday(item.holidayDays || 0)}
+                  Đơn giá: {formatCurrency(unitDailyWage)}/công
                 </span>
               </div>
             </div>
@@ -895,26 +1332,28 @@ export default function SalarySlipModal({
               <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                 <div className="px-3.5 py-2.5 flex justify-between items-center gap-2">
                   <span className="text-slate-600 dark:text-slate-300">
-                    1. Lương cơ bản hợp đồng (Định mức {formatViWorkday(item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(thang, nam))} ngày)
+                    Lương cơ bản hợp đồng (Định mức {formatViWorkday(stdDays)} ngày)
                   </span>
                   <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 shrink-0">
                     {formatCurrency(item.baseSalary)}
                   </span>
                 </div>
 
-                <div className="px-3.5 py-2.5 flex justify-between items-center gap-2 bg-slate-50/60 dark:bg-slate-800/40">
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">
-                    2. Lương chính theo ngày công ({formatViWorkday(item.totalWorkDays || 0)} ngày)
-                  </span>
-                  <span className="font-mono font-bold text-slate-900 dark:text-white shrink-0">
-                    {formatCurrency(item.salaryByWork)}
-                  </span>
-                </div>
+                {Number(item.salaryByWork) > 0 && (
+                  <div className="px-3.5 py-2.5 flex justify-between items-center gap-2 bg-slate-50/60 dark:bg-slate-800/40">
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">
+                      Lương chính theo ngày công ({formatViWorkday(item.totalWorkDays || 0)} ngày × {formatCurrency(unitDailyWage)})
+                    </span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white shrink-0">
+                      {formatCurrency(item.salaryByWork)}
+                    </span>
+                  </div>
+                )}
 
                 {showAllowancesBlock && (
                   <div data-testid="payslip-allowances-section" className="px-3.5 py-2.5">
                     <div className="flex justify-between items-center font-semibold text-slate-800 dark:text-slate-100 mb-1.5">
-                      <span>3. Các khoản phụ cấp theo công</span>
+                      <span>Các khoản phụ cấp theo công</span>
                       <span className="font-mono font-bold text-blue-700 dark:text-blue-300">
                         +{formatCurrency(totalPositiveAllowance)}
                       </span>
@@ -932,19 +1371,21 @@ export default function SalarySlipModal({
                   </div>
                 )}
 
-                <div className="px-3.5 py-2.5 flex justify-between items-center gap-2">
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">
-                    {otRowNumber}. Lương làm thêm giờ (Tăng ca / OT: {formatViNumber(item.totalOtHours || 0)} giờ)
-                  </span>
-                  <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 shrink-0">
-                    +{formatCurrency(item.otAmount)}
-                  </span>
-                </div>
+                {(Number(item.totalOtHours) > 0 || Number(item.otAmount) > 0) && (
+                  <div className="px-3.5 py-2.5 flex justify-between items-center gap-2">
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">
+                      Lương làm thêm giờ (Tăng ca / OT: {formatViNumber(item.totalOtHours || 0)} giờ)
+                    </span>
+                    <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 shrink-0">
+                      +{formatCurrency(item.otAmount)}
+                    </span>
+                  </div>
+                )}
 
                 {Number(item.bonusAmount) > 0 && (
                   <div className="px-3.5 py-2.5 flex justify-between items-center gap-2 bg-emerald-50/40 dark:bg-emerald-950/40">
                     <span className="font-semibold text-emerald-800 dark:text-emerald-300">
-                      {bonusRowNumber}. Thưởng nóng / Phụ cấp thêm
+                      Thưởng nóng / Phụ cấp thêm
                     </span>
                     <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
                       +{formatCurrency(item.bonusAmount)}
@@ -964,18 +1405,22 @@ export default function SalarySlipModal({
                 Khấu trừ &amp; Thực lĩnh
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                <div className="px-3.5 py-2.5 flex justify-between text-slate-600 dark:text-slate-300">
-                  <span>Mức lương đóng BHXH</span>
-                  <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">
-                    {formatCurrency(item.insuranceBase || item.baseSalary)}
-                  </span>
-                </div>
-                <div className="px-3.5 py-2.5 flex justify-between text-rose-700 dark:text-rose-300">
-                  <span>Khấu trừ BHXH, BHYT, BHTN</span>
-                  <span className="font-mono font-bold">
-                    -{formatCurrency(item.totalInsurance || item.insuranceDeduction)}
-                  </span>
-                </div>
+                {Number(item.totalInsurance || item.insuranceDeduction || 0) > 0 && (
+                  <>
+                    <div className="px-3.5 py-2.5 flex justify-between text-slate-600 dark:text-slate-300">
+                      <span>Mức lương đóng BHXH</span>
+                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">
+                        {formatCurrency(item.insuranceBase || item.baseSalary)}
+                      </span>
+                    </div>
+                    <div className="px-3.5 py-2.5 flex justify-between text-rose-700 dark:text-rose-300">
+                      <span>Khấu trừ BHXH, BHYT, BHTN</span>
+                      <span className="font-mono font-bold">
+                        -{formatCurrency(item.totalInsurance || item.insuranceDeduction)}
+                      </span>
+                    </div>
+                  </>
+                )}
                 {Number(item.latePenaltyAmount) > 0 && (
                   <div className="px-3.5 py-2.5 flex justify-between text-rose-600 dark:text-rose-300">
                     <span>Khấu trừ đi muộn ({item.totalLateMinutes || 0} phút)</span>
@@ -1166,6 +1611,8 @@ export default function SalarySlipModal({
                 )}
               </div>
             </div>
+              </>
+            )}
 
             {/* Form gửi khiếu nại cho Nhân viên khi bấm nút [⚠️ Báo sai sót] ở Thanh đáy */}
             {!isAdminOrAccountant && showDisputeForm && (

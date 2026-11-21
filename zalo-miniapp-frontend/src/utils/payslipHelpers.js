@@ -12,6 +12,15 @@ export const ALLOWANCE_DEFS = [
 ];
 
 const VI_WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+const VI_WEEKDAYS_FULL = [
+  "Chủ nhật",
+  "Thứ Hai",
+  "Thứ Ba",
+  "Thứ Tư",
+  "Thứ Năm",
+  "Thứ Sáu",
+  "Thứ Bảy"
+];
 
 export function formatDayWithWeekday(isoStr, fallbackLabel = "") {
   if (fallbackLabel) return fallbackLabel;
@@ -24,6 +33,41 @@ export function formatDayWithWeekday(isoStr, fallbackLabel = "") {
   const dt = new Date(Date.UTC(y, mo - 1, d));
   const wd = VI_WEEKDAYS[dt.getUTCDay()] || "";
   return `${String(d).padStart(2, "0")}/${String(mo).padStart(2, "0")} (${wd})`;
+}
+
+export function formatFullDateWithWeekday(isoStr) {
+  const clean = String(isoStr || "").trim().slice(0, 10);
+  const m = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return { ddmmyyyy: clean || "--/--/----", weekdayFull: "" };
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  const d = parseInt(m[3], 10);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  const weekdayFull = VI_WEEKDAYS_FULL[dt.getUTCDay()] || "";
+  return {
+    ddmmyyyy: `${String(d).padStart(2, "0")}/${String(mo).padStart(2, "0")}/${y}`,
+    weekdayFull
+  };
+}
+
+export function resolveDailyStatusLabelVi({ log = null, credit = 0, isSunday = false, isFutureOrTodayEmpty = false } = {}) {
+  if (log?.status_label_vi) return String(log.status_label_vi);
+  if (!log) {
+    if (isSunday) return "Chủ nhật";
+    return isFutureOrTodayEmpty ? "Chưa phát sinh" : "Nghỉ không lương";
+  }
+  const st = String(log.status || "").trim().toUpperCase();
+  if (st === "L" || st === "HOLIDAY") return "Nghỉ lễ hưởng lương";
+  if (st === "P" || st === "PAID_LEAVE") return "Nghỉ phép có lương";
+  if (["KL", "KP", "V", "ABSENT", "0"].includes(st)) return isSunday ? "Chủ nhật" : "Nghỉ không lương";
+  if (st === "OT") {
+    if (credit >= 1) return "Đủ 1 công";
+    if (credit === 0.5) return "Làm nửa công (0,5)";
+    return isSunday ? "Chủ nhật" : "Tăng ca OT";
+  }
+  if (st === "1/OT" || st === "1" || st === "FULL" || st === "PRESENT" || credit >= 1) return "Đủ 1 công";
+  if (st === "0.5" || st === "HALF" || credit === 0.5) return "Làm nửa công (0,5)";
+  return isSunday ? "Chủ nhật" : "Nghỉ không lương";
 }
 
 export function getPositiveAllowances(slip) {

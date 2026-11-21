@@ -702,12 +702,21 @@ export default function EmployeeManagementTab({
 
   return (
     <div className="space-y-3.5 pb-8">
-      {/* 1. Thanh Tìm Kiếm & Nút [+ Thêm nhân viên] Siêu Gọn */}
+      {/* 1. Thanh Tìm Kiếm, Chỉ Số Nhân Sự & Nút [+ Thêm nhân viên] Siêu Gọn */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 shadow-sm flex flex-wrap items-center gap-2.5">
+        <div
+          data-testid="hr-employee-count"
+          className="inline-flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl bg-[#F0F3FF] dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 text-xs sm:text-sm font-bold text-[#111C2D] dark:text-slate-100 shrink-0"
+        >
+          <Users className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
+          <span>Số lượng nhân viên: {formatViNumber(filtered.length, 0)}</span>
+        </div>
+
         <div className="relative flex-1 min-w-[180px]">
           <Search className="w-4 h-4 text-slate-400 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
+            data-testid="hr-search-input"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Tìm họ tên, mã NV, SĐT..."

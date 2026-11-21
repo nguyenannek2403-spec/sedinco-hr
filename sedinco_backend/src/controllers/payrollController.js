@@ -1,4 +1,5 @@
 const payrollService = require('../services/payrollService');
+const { getAccountantPermissions } = require('../middlewares/authMiddleware');
 
 class PayrollController {
     async getPayroll(req, res, next) {
@@ -30,6 +31,43 @@ class PayrollController {
             const { ma_nv } = req.params;
             const { month, year } = req.query;
             const data = await payrollService.getEmployeePayrollDetail(ma_nv, month, year);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getSlip(req, res, next) {
+        try {
+            const { month, year, ma_nv } = req.query;
+            if (!req.user) {
+                return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập!' });
+            }
+            const targetCode = ma_nv ? String(ma_nv).trim() : '';
+            if (targetCode && targetCode !== req.user.ma_nv) {
+                const userRole = req.user.role === 'employee' ? 'worker' : req.user.role;
+                let canViewAll = userRole === 'admin';
+                if (!canViewAll && userRole === 'accountant') {
+                    const perms = await getAccountantPermissions();
+                    canViewAll = Boolean(perms && (perms.payroll_view_all === true || perms.payroll_view_all === 1));
+                }
+                if (!canViewAll) {
+                    return res.status(403).json({
+                        success: false,
+                        code: 'FORBIDDEN',
+                        message: 'Bạn không có quyền xem phiếu lương của nhân viên khác!'
+                    });
+                }
+                const data = await payrollService.getEmployeePayrollDetail(targetCode, month, year);
+                return res.json({ success: true, data });
+            }
+            if (req.user.role === 'admin' && !targetCode) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Vui lòng truyền tham số ma_nv để xem phiếu lương nhân viên!'
+                });
+            }
+            const data = await payrollService.getMyPayroll(req.user.ma_nv, month, year);
             return res.json({ success: true, data });
         } catch (err) {
             next(err);

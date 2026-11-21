@@ -12,6 +12,7 @@ const {
 // 1. Xem bảng lương cá nhân & Xác nhận / Khiếu nại sai lương (V5)
 router.get('/me', authenticateToken, requireAuth, (req, res, next) => payrollController.getMyPayroll(req, res, next));
 router.get('/my-payslip', authenticateToken, requireAuth, (req, res, next) => payrollController.getMyPayroll(req, res, next));
+router.get('/slip', authenticateToken, requireAuth, (req, res, next) => payrollController.getSlip(req, res, next));
 router.post('/confirm', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => payrollController.confirmOrDisputeSalary(req, res, next));
 router.post('/resolve-dispute', authenticateToken, requirePermission('payroll_approve'), idempotencyMiddleware(), (req, res, next) => payrollController.resolveSalaryDispute(req, res, next));
 
