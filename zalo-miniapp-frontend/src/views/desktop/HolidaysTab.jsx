@@ -166,18 +166,18 @@ export default function HolidaysTab({ showToast }) {
   };
 
   return (
-    <div className="space-y-4 max-w-4xl pb-6">
+    <div className="space-y-3 max-w-4xl pb-6">
       {/* Header — Google Stitch Sedinco Pulse Holiday Multiplier Hub */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
         <div>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase tracking-wider mb-1">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-[11px] font-extrabold uppercase tracking-wider mb-1">
             <span>● LỊCH NGHỈ LỄ &amp; HỆ SỐ LƯƠNG TÙY CHỈNH</span>
           </span>
-          <h2 className="text-lg font-extrabold leading-snug text-[#111C2D] dark:text-white flex items-center gap-2">
-            <Gift className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />
+          <h2 className="text-base font-bold leading-snug text-[#111C2D] dark:text-white flex items-center gap-2">
+            <Gift className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
             <span>Danh mục lịch nghỉ lễ quốc gia</span>
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">
+          <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
             Nghỉ lễ hưởng nguyên lương (1,0 công) và nhân hệ số tùy chỉnh (x1,5 • x2 • x3...) khi đi làm
           </p>
         </div>
@@ -187,7 +187,7 @@ export default function HolidaysTab({ showToast }) {
             variant="danger"
             icon={Plus}
             onClick={handleOpenAdd}
-            className="text-xs shadow-lg shadow-rose-600/25"
+            className="w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap shadow-sm shadow-rose-600/20"
           >
             Thêm ngày lễ
           </AppButton>
@@ -197,7 +197,7 @@ export default function HolidaysTab({ showToast }) {
             loading={loading}
             onClick={fetchHolidays}
             aria-label="Làm mới"
-            className="min-w-[44px] px-3"
+            className="w-fit h-[36px] min-h-[36px] px-3 rounded-lg"
           />
         </div>
       </div>
@@ -266,7 +266,7 @@ export default function HolidaysTab({ showToast }) {
                           variant="secondary"
                           icon={Pencil}
                           onClick={() => handleOpenEdit(h)}
-                          className="min-h-[40px] px-3 py-1.5 text-xs"
+                          className="w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap"
                           aria-label={`Sửa ngày lễ ${h.holiday_name || h.name}`}
                         >
                           Sửa
@@ -275,9 +275,11 @@ export default function HolidaysTab({ showToast }) {
                           variant="ghost"
                           icon={Trash2}
                           onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
-                          className="min-w-[40px] min-h-[40px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
+                          className="w-fit h-[36px] min-h-[36px] px-3 text-[13.5px] font-semibold rounded-lg whitespace-nowrap text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
                           aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
-                        />
+                        >
+                          Xóa
+                        </AppButton>
                       </div>
                     </div>
                   </div>
@@ -330,7 +332,7 @@ export default function HolidaysTab({ showToast }) {
                             icon={Pencil}
                             data-testid={`edit-holiday-btn-${h.id}`}
                             onClick={() => handleOpenEdit(h)}
-                            className="min-w-[44px] px-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            className="w-fit h-[36px] min-h-[36px] px-3 text-[13.5px] font-semibold rounded-lg whitespace-nowrap text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                             title="Sửa ngày lễ"
                             aria-label={`Sửa ngày lễ ${h.holiday_name || h.name}`}
                           >
@@ -341,10 +343,12 @@ export default function HolidaysTab({ showToast }) {
                             icon={Trash2}
                             data-testid={`delete-holiday-btn-${h.id}`}
                             onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
-                            className="min-w-[44px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
+                            className="w-fit h-[36px] min-h-[36px] px-3 text-[13.5px] font-semibold rounded-lg whitespace-nowrap text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
                             title="Xóa"
                             aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
-                          />
+                          >
+                            Xóa
+                          </AppButton>
                         </div>
                       </td>
                     </tr>

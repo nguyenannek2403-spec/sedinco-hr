@@ -147,27 +147,27 @@ export default function AccountantPermissionView({ showToast }) {
   }, {});
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-8">
+    <div className="space-y-3 max-w-5xl mx-auto pb-6">
       {/* Header card */}
-      <div className="bg-gradient-to-r from-[#111C2D] via-[#2A1120] to-[#B80035] dark:from-slate-900 dark:via-[#23101B] dark:to-rose-950 rounded-2xl p-5 sm:p-6 text-white shadow-xl border border-rose-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-[#111C2D] via-[#2A1120] to-[#B80035] dark:from-slate-900 dark:via-[#23101B] dark:to-rose-950 rounded-xl p-4 sm:p-5 text-white shadow-md border border-rose-500/20 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-rose-500/20 text-rose-200 text-xs font-semibold rounded-full border border-rose-400/35 mb-2">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-rose-500/20 text-rose-200 text-xs font-semibold rounded-full border border-rose-400/35 mb-1.5">
             <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
             <span>Quản trị viên — Cấu hình phân quyền 1:1 ({ACCOUNTANT_ENFORCED_PERMISSION_KEYS.length} quyền thực thi)</span>
           </div>
-          <h2 className="text-lg sm:text-xl font-bold leading-snug">Phân quyền nghiệp vụ Kế toán</h2>
-          <p className="text-slate-300 text-sm leading-relaxed mt-1 max-w-xl">
+          <h2 className="text-base sm:text-lg font-bold leading-snug">Phân quyền nghiệp vụ Kế toán</h2>
+          <p className="text-slate-300 text-xs sm:text-[13.5px] leading-relaxed mt-0.5 max-w-xl">
             Quản trị viên bật hoặc tắt từng quyền nghiệp vụ của Kế toán. Toàn bộ công tắc khớp trực tiếp 1:1 với lớp kiểm soát quyền hạn trên máy chủ.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <AppButton
             variant="secondary"
             icon={RotateCcw}
             disabled={saving || loading}
             onClick={handleApplyPreset}
-            className="text-sm"
+            className="w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap"
           >
             Cấu hình mặc định
           </AppButton>
@@ -178,7 +178,7 @@ export default function AccountantPermissionView({ showToast }) {
             disabled={loading}
             loadingText="Đang lưu..."
             onClick={handleSave}
-            className="text-sm"
+            className="w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap"
           >
             Lưu phân quyền
           </AppButton>
@@ -208,7 +208,7 @@ export default function AccountantPermissionView({ showToast }) {
       {loading ? (
         <SkeletonList rows={4} label="Đang tải danh sách phân quyền từ máy chủ..." />
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {ACCOUNTANT_PERMISSION_GROUPS.map((group) => {
             const Icon = GROUP_ICONS[group.id] || Settings;
             const enabledCount = group.items.filter((item) => permMap[item.key]).length;
@@ -216,16 +216,16 @@ export default function AccountantPermissionView({ showToast }) {
             return (
               <div
                 key={group.id}
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden transition hover:shadow-md"
+                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden"
               >
-                <div className="px-4 sm:px-6 py-4 bg-slate-50/80 dark:bg-slate-800/70 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`p-2 rounded-xl shrink-0 ${group.color}`}>
-                      <Icon className="w-5 h-5" />
+                <div className="px-3.5 sm:px-4 py-3 bg-slate-50/80 dark:bg-slate-800/70 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${group.color}`}>
+                      <Icon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base leading-snug break-words">{group.label}</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5 leading-snug break-words">
+                      <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-[14px] leading-snug break-words">{group.label}</h3>
+                      <p className="text-[12px] text-slate-500 dark:text-slate-300 mt-0.5 leading-snug break-words">
                         Đang bật: <span className="font-semibold text-[#E11D48] dark:text-rose-400">{enabledCount}</span> / {group.items.length} quyền • {group.description}
                       </p>
                     </div>
@@ -240,21 +240,21 @@ export default function AccountantPermissionView({ showToast }) {
                     return (
                       <div
                         key={item.key}
-                        className="perf-list-item px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition"
+                        className="perf-list-item px-3.5 sm:px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition"
                       >
                         <div className="pr-2 min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm sm:text-base leading-snug break-words">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100 text-[13.5px] sm:text-[14px] leading-snug break-words">
                               {item.name}
                             </span>
                             {item.sodWarning && (
-                              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/70 font-semibold leading-snug">
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/70 font-semibold leading-snug">
                                 {item.sodWarning}
                               </span>
                             )}
                           </div>
                           {displayDesc && (
-                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed break-words">
+                            <p className="text-[12px] text-slate-600 dark:text-slate-300 mt-0.5 leading-snug break-words">
                               {displayDesc}
                             </p>
                           )}

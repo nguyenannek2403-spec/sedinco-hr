@@ -188,16 +188,16 @@ export default function MediaStorageManagementTab({ showToast }) {
   const totalActiveFilterCount = Object.values(filters).filter(Boolean).length;
 
   return (
-    <div data-testid="admin-media-storage-management" className="max-w-5xl mx-auto pb-6 space-y-4">
+    <div data-testid="admin-media-storage-management" className="max-w-5xl mx-auto pb-6 space-y-3">
       {/* Header card */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 flex items-center justify-center shrink-0">
-              <HardDrive className="w-5 h-5" />
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 p-3.5 sm:p-4 shadow-xs space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 flex items-center justify-center shrink-0">
+              <HardDrive className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white">
+              <h2 className="text-[15px] sm:text-base font-bold text-[#111C2D] dark:text-white">
                 Quản lý Dung lượng &amp; Media Tập Trung (Cloudinary)
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -215,7 +215,7 @@ export default function MediaStorageManagementTab({ showToast }) {
               icon={RefreshCw}
               loading={syncingUsage}
               onClick={handleSyncUsage}
-              className="text-xs px-3 py-2"
+              className="w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap"
             >
               Đồng bộ Usage API
             </AppButton>
@@ -224,7 +224,7 @@ export default function MediaStorageManagementTab({ showToast }) {
               icon={Sparkles}
               loading={runningCleanup}
               onClick={handleDryRunOrphanScan}
-              className="text-xs px-3 py-2"
+              className="w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap"
             >
               Quét &amp; Dọn file mồ côi
             </AppButton>
@@ -522,7 +522,7 @@ export default function MediaStorageManagementTab({ showToast }) {
                       variant="secondary"
                       icon={Eye}
                       onClick={() => setPreviewAsset(item)}
-                      className="text-xs px-2.5 py-1.5 min-h-[36px]"
+                      className="w-fit h-[36px] min-h-[36px] px-3 text-[13.5px] font-semibold rounded-lg whitespace-nowrap"
                     >
                       Xem
                     </AppButton>
@@ -532,7 +532,7 @@ export default function MediaStorageManagementTab({ showToast }) {
                       variant="ghost"
                       icon={Trash2}
                       onClick={() => setDeleteTarget(item)}
-                      className="text-xs px-2.5 py-1.5 min-h-[36px] text-rose-600 dark:text-rose-400"
+                      className="w-fit h-[36px] min-h-[36px] px-3 text-[13.5px] font-semibold rounded-lg whitespace-nowrap text-rose-600 dark:text-rose-400"
                     >
                       Xóa
                     </AppButton>

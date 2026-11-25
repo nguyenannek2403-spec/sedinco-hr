@@ -9,11 +9,9 @@ import {
   Trash2,
   Navigation,
   ChevronDown,
-  ChevronUp,
   CheckCircle2,
   AlertCircle,
   Building2,
-  CalendarDays,
   Layers,
   Pencil,
   Check,
@@ -22,8 +20,7 @@ import {
   RefreshCw,
   Upload,
   Loader2,
-  Gift,
-  ShieldCheck
+  Megaphone
 } from "lucide-react";
 import QRCode from "qrcode";
 import { safeGet, safePut, safePost, safeDelete, generateIdempotencyKey } from "../../utils/api";
@@ -32,7 +29,7 @@ import { zaloMediaService } from "../../services/zalo-media.service";
 import { attendanceService } from "../../services/attendance.service";
 import { formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
 import { getMonthlyStandardWorkdays, getVietnamTodayIso } from "../../utils/workdayUtils";
-import { AppButton, AppModal, FormRow, SkeletonList } from "../../components/ui";
+import { AppModal, SkeletonList } from "../../components/ui";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import useDepartments, { notifyDepartmentsChanged } from "../../hooks/useDepartments";
 
@@ -43,19 +40,49 @@ const toNum = (val, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const COMPACT_BTN_BASE =
+  "w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-60 shrink-0";
+
+const INPUT_PAIRED_BTN_BASE =
+  "w-fit h-[40px] min-h-[40px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-60 shrink-0";
+
+const COMPACT_INPUT_CLASS =
+  "w-full h-[40px] min-h-[40px] px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[14px] font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none";
+
 /**
- * SectionSaveButton — Nút Lưu cục bộ cho từng phân mục nhỏ trong Cài đặt
- * - Chuẩn kích thước gọn đẹp: h-[36px] px-3.5 text-sm rounded-lg font-medium whitespace-nowrap
- * - Dirty State thông minh: Dịu nhẹ khi chưa sửa; nổi bật màu Primary (kèm chấm tròn nhỏ) khi có thay đổi;
- *   hiển thị "Đang lưu..." khi đang gọi API.
+ * InputWithSuffix — Ô nhập liệu chuẩn cao 40px có hậu tố đơn vị nằm cố định bên phải trong ô
+ */
+function InputWithSuffix({
+  suffix,
+  suffixWidthClass = "pr-11",
+  className = "",
+  ...inputProps
+}) {
+  return (
+    <div className="relative flex items-center w-full">
+      <input
+        {...inputProps}
+        className={`${COMPACT_INPUT_CLASS} ${suffix ? suffixWidthClass : ""} ${className}`}
+      />
+      {suffix && (
+        <span className="pointer-events-none select-none absolute right-3 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+          {suffix}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * SectionSaveButton — Nút Lưu cục bộ đặt ở góc phải dưới mỗi khối Accordion đang mở
  */
 function SectionSaveButton({
-  label,
+  label = "Lưu",
+  dirtyLabel = "Lưu thay đổi",
   isDirty,
   loading,
   onClick,
-  testId,
-  className = ""
+  testId
 }) {
   return (
     <button
@@ -67,11 +94,11 @@ function SectionSaveButton({
         e.stopPropagation();
         onClick?.();
       }}
-      className={`h-[36px] min-h-[36px] px-3.5 text-xs sm:text-sm rounded-lg font-bold whitespace-nowrap inline-flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-60 shrink-0 ${
+      className={`${COMPACT_BTN_BASE} ${
         isDirty
           ? "bg-[#E11D48] hover:bg-[#BE123C] text-white shadow-sm shadow-rose-600/25 border border-[#E11D48]"
           : "bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700"
-      } ${className}`}
+      }`}
     >
       {loading ? (
         <>
@@ -80,71 +107,89 @@ function SectionSaveButton({
         </>
       ) : (
         <>
-          {isDirty ? (
-            <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
-          ) : (
-            <Save className="w-3.5 h-3.5 shrink-0" />
-          )}
-          <span>{label}</span>
+          <Save className="w-3.5 h-3.5 shrink-0" />
+          <span>{isDirty ? dirtyLabel : label}</span>
         </>
       )}
     </button>
   );
 }
 
-const AccordionSection = ({
+/**
+ * SmartAccordion — Kiểu B Compact Enterprise Accordion
+ * - Header gọn py-3 px-3.5: Icon w-8 h-8 rounded-lg + Tiêu đề 14px font-semibold + Tóm tắt động 1 dòng 12px truncate
+ * - Bên phải: Huy hiệu cam "● Chưa lưu" khi isDirty + ChevronDown xoay 180deg
+ * - Thân gọn px-3.5 pb-3.5 pt-2.5 (mobile) / px-4 pb-4 pt-3 (desktop) với border-t mảnh
+ */
+function SmartAccordion({
   id,
   title,
-  subtitle,
+  summary,
   icon: Icon,
   iconColor = "text-[#E11D48] dark:text-rose-300",
   iconBg = "bg-[#FFE4E6] dark:bg-rose-950/60",
   isOpen,
+  isDirty = false,
   onToggle,
-  headerAction = null,
   children
-}) => (
-  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden transition-all">
-    <div className="w-full flex flex-wrap items-center justify-between gap-2.5 p-[14px] sm:p-4 hover:bg-[#F0F3FF]/50 dark:hover:bg-slate-800/40 transition-colors min-h-[64px]">
+}) {
+  return (
+    <div
+      data-testid={`settings-accordion-${id}`}
+      data-open={isOpen ? "true" : "false"}
+      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs overflow-hidden transition-all"
+    >
       <button
         type="button"
+        data-testid={`accordion-header-${id}`}
         onClick={() => onToggle(id)}
-        className="flex items-center gap-[10px] min-w-0 flex-1 text-left cursor-pointer min-h-[40px]"
+        aria-expanded={isOpen}
+        className="w-full flex items-center justify-between gap-2.5 py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer"
       >
-        <div
-          className={`w-[38px] h-[38px] rounded-xl ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
-        >
-          <Icon className="w-[18px] h-[18px]" />
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div
+            className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
+          >
+            <Icon className="w-4 h-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate">
+              {title}
+            </h3>
+            <p
+              data-testid={`accordion-summary-${id}`}
+              className="text-[12px] text-slate-500 dark:text-slate-400 truncate mt-0.5 leading-snug"
+            >
+              {summary}
+            </p>
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-[15px] font-bold text-slate-800 dark:text-slate-100 leading-snug break-words">
-            {title}
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-300 leading-snug break-words mt-0.5">
-            {subtitle}
-          </p>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isDirty && (
+            <span
+              data-testid={`unsaved-badge-${id}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap"
+            >
+              ● Chưa lưu
+            </span>
+          )}
+          <ChevronDown
+            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 ${
+              isOpen ? "rotate-180" : "rotate-0"
+            }`}
+          />
         </div>
       </button>
 
-      <div className="flex items-center gap-2 shrink-0 ml-auto">
-        {headerAction}
-        <button
-          type="button"
-          onClick={() => onToggle(id)}
-          aria-label={isOpen ? "Thu gọn mục" : "Mở rộng mục"}
-          className="w-[36px] h-[36px] min-h-[36px] rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 cursor-pointer"
-        >
-          {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-      </div>
+      {isOpen && (
+        <div className="px-3.5 pb-3.5 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+          {children}
+        </div>
+      )}
     </div>
-    {isOpen && (
-      <div className="px-[14px] sm:px-4 pb-[14px] sm:pb-4 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-4">
-        {children}
-      </div>
-    )}
-  </div>
-);
+  );
+}
 
 const INITIAL_CONFIG = {
   company_name: "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO",
@@ -193,11 +238,14 @@ const INITIAL_CONFIG = {
 
 export default function CompanySettingsTab({ showToast }) {
   const [loading, setLoading] = useState(true);
-  const [savingSection, setSavingSection] = useState(null); // null | 'announcement' | 'schedule' | 'company_info' | 'locations' | 'rules'
+  const [savingSection, setSavingSection] = useState(null);
   const [savingWifi, setSavingWifi] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef(null);
   const lastPositiveInsuranceRateRef = useRef(10.5);
+  const lastAnnouncementTextRef = useRef("");
+  const [announcementEnabled, setAnnouncementEnabled] = useState(false);
+  const [newWifiInput, setNewWifiInput] = useState("");
   const [detectingLocIdx, setDetectingLocIdx] = useState(null);
   const [qrModalState, setQrModalState] = useState({
     open: false,
@@ -208,12 +256,16 @@ export default function CompanySettingsTab({ showToast }) {
     error: ""
   });
   const [statusBanner, setStatusBanner] = useState(null);
+
+  // Mặc định khép gọn để toàn bộ 6 mục Accordion nằm gọn trong 1 màn hình điện thoại;
+  // Trên Mobile (< 768px): Single-Open; Trên Desktop (>= 768px): Multi-Open.
   const [openSections, setOpenSections] = useState({
-    schedule: true,
     company_info: false,
-    departments: true,
+    announcement: false,
+    schedule: false,
     locations: false,
-    payroll: true
+    departments: false,
+    payroll: false
   });
 
   const {
@@ -251,6 +303,13 @@ export default function CompanySettingsTab({ showToast }) {
     if (Number(data.insurance_rate) > 0) {
       lastPositiveInsuranceRateRef.current = Number(data.insurance_rate);
     }
+    if (data.announcement_text !== undefined) {
+      const cleanText = String(data.announcement_text || "").trim();
+      if (cleanText) {
+        lastAnnouncementTextRef.current = cleanText;
+      }
+      setAnnouncementEnabled(Boolean(cleanText));
+    }
     setConfig((prev) => {
       const merged = {
         ...prev,
@@ -282,21 +341,48 @@ export default function CompanySettingsTab({ showToast }) {
     fetchConfig();
   }, [fetchConfig]);
 
-  const toggleSection = (id) => {
-    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
+  // Hành vi đóng/mở thích nghi: Mobile (< 768px) Single-Open, Desktop (>= 768px) Multi-Open
+  const toggleSection = useCallback((id) => {
+    const isMobileViewport =
+      typeof window !== "undefined" && Number(window.innerWidth) < 768;
+    setOpenSections((prev) => {
+      const nextState = !prev[id];
+      if (isMobileViewport) {
+        return {
+          company_info: false,
+          announcement: false,
+          schedule: false,
+          locations: false,
+          departments: false,
+          payroll: false,
+          [id]: nextState
+        };
+      }
+      return {
+        ...prev,
+        [id]: nextState
+      };
+    });
+  }, []);
 
   const updateField = (key, value) => {
     if (key === "insurance_rate" && toNum(value, 0) > 0) {
       lastPositiveInsuranceRateRef.current = toNum(value, 10.5);
     }
+    if (key === "announcement_text" && String(value || "").trim()) {
+      lastAnnouncementTextRef.current = String(value);
+      if (!announcementEnabled) setAnnouncementEnabled(true);
+    }
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Kiểm tra Dirty State riêng cho từng phân mục nhỏ
-  const isAnnouncementDirty =
-    String(config.announcement_text || "").trim() !==
-    String(savedConfig.announcement_text || "").trim();
+  // Kiểm tra Dirty State riêng cho từng khối
+  const effectiveAnnouncementText = announcementEnabled
+    ? String(config.announcement_text || "").trim()
+    : "";
+  const savedAnnouncementText = String(savedConfig.announcement_text || "").trim();
+
+  const isAnnouncementDirty = effectiveAnnouncementText !== savedAnnouncementText;
 
   const isScheduleDirty =
     (config.work_start || "08:00") !== (savedConfig.work_start || "08:00") ||
@@ -327,23 +413,11 @@ export default function CompanySettingsTab({ showToast }) {
       toNum(savedConfig.late_penalty_amount ?? savedConfig.penalty_fixed_block, 50000) ||
     toNum(config.max_late_minutes_for_half_day, 60) !==
       toNum(savedConfig.max_late_minutes_for_half_day, 60) ||
-    Number(Boolean(config.free_late_exempts_halfday)) !==
-      Number(Boolean(savedConfig.free_late_exempts_halfday)) ||
     toNum(config.monthly_paid_leave_limit, 1) !== toNum(savedConfig.monthly_paid_leave_limit, 1) ||
-    toNum(config.probation_salary_percent, 85) !==
-      toNum(savedConfig.probation_salary_percent, 85) ||
-    Number(config.probation_allowance_full ? 1 : 0) !==
-      Number(savedConfig.probation_allowance_full ? 1 : 0) ||
     toNum(config.ot_rate_weekday, 1.5) !== toNum(savedConfig.ot_rate_weekday, 1.5) ||
     toNum(config.ot_rate_weekend, 2.0) !== toNum(savedConfig.ot_rate_weekend, 2.0) ||
-    toNum(config.custom_ot_hourly_rate, 0) !== toNum(savedConfig.custom_ot_hourly_rate, 0) ||
-    String(config.ot_calculation_mode || "APPROVED_OR_AUTO") !==
-      String(savedConfig.ot_calculation_mode || "APPROVED_OR_AUTO") ||
-    toNum(config.insurance_rate, 10.5) !== toNum(savedConfig.insurance_rate, 10.5) ||
-    String(config.negative_salary_policy || "CLAMP_ZERO") !==
-      String(savedConfig.negative_salary_policy || "CLAMP_ZERO");
+    toNum(config.insurance_rate, 10.5) !== toNum(savedConfig.insurance_rate, 10.5);
 
-  // Hàm lưu cục bộ từng phân mục nhỏ (chỉ gửi đúng các trường của phân mục đó)
   const saveSectionPayload = async (sectionKey, partialPayload, successMessage) => {
     if (savingSection) return;
     setSavingSection(sectionKey);
@@ -364,30 +438,6 @@ export default function CompanySettingsTab({ showToast }) {
     }
   };
 
-  // 1. Lưu riêng Bảng tin thông báo nội bộ (payload siêu nhẹ vài trăm byte)
-  const handleSaveAnnouncement = () =>
-    saveSectionPayload(
-      "announcement",
-      {
-        announcement_text: String(config.announcement_text || "").trim()
-      },
-      "Đã lưu bảng tin nội bộ!"
-    );
-
-  // 2. Lưu riêng Giờ làm việc (Ca Sáng / Ca Chiều)
-  const handleSaveSchedule = () =>
-    saveSectionPayload(
-      "schedule",
-      {
-        work_start: config.work_start || "08:00",
-        lunch_start: config.lunch_start || "12:00",
-        lunch_end: config.lunch_end || "13:30",
-        work_end: config.work_end || "17:30"
-      },
-      "Đã lưu giờ làm việc!"
-    );
-
-  // 3. Lưu riêng Thông tin công ty
   const handleSaveCompanyInfo = () =>
     saveSectionPayload(
       "company_info",
@@ -402,7 +452,27 @@ export default function CompanySettingsTab({ showToast }) {
       "Đã lưu thông tin công ty!"
     );
 
-  // 4. Lưu riêng Địa chỉ & Wi-Fi chấm công
+  const handleSaveAnnouncement = () =>
+    saveSectionPayload(
+      "announcement",
+      {
+        announcement_text: effectiveAnnouncementText
+      },
+      "Đã lưu bảng tin nội bộ!"
+    );
+
+  const handleSaveSchedule = () =>
+    saveSectionPayload(
+      "schedule",
+      {
+        work_start: config.work_start || "08:00",
+        lunch_start: config.lunch_start || "12:00",
+        lunch_end: config.lunch_end || "13:30",
+        work_end: config.work_end || "17:30"
+      },
+      "Đã lưu giờ làm việc!"
+    );
+
   const handleSaveLocations = () => {
     const cleanedLocations = (config.allowed_locations || []).map((loc, idx) => ({
       id: loc.id || `loc_${idx + 1}`,
@@ -427,11 +497,10 @@ export default function CompanySettingsTab({ showToast }) {
         radius_meters: primary.radius,
         office_ip_whitelist: String(config.office_ip_whitelist || "").trim()
       },
-      "Đã lưu vị trí chấm công!"
+      "Đã lưu vị trí & Wi-Fi chấm công!"
     );
   };
 
-  // 5. Lưu riêng Quy tắc tính công, tăng ca & bảo hiểm
   const handleSaveRules = () => {
     const perMin = Math.max(
       0,
@@ -628,7 +697,7 @@ export default function CompanySettingsTab({ showToast }) {
         next[idx] = { ...next[idx], lat, lng };
         return { ...prev, allowed_locations: next };
       });
-      notify("Đã cập nhật tọa độ theo vị trí bạn đang đứng! Hãy bấm Lưu vị trí chấm công.");
+      notify("Đã cập nhật tọa độ GPS hiện tại! Hãy bấm Lưu thay đổi.");
     } catch (err) {
       notify(
         err?.message || "Không thể lấy vị trí. Hãy kiểm tra quyền truy cập vị trí trên thiết bị.",
@@ -677,6 +746,28 @@ export default function CompanySettingsTab({ showToast }) {
     }
   };
 
+  const wifiItems = String(config.office_ip_whitelist || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const handleAddWifiEntry = () => {
+    const entry = String(newWifiInput || "").trim();
+    if (!entry) return;
+    if (wifiItems.includes(entry)) {
+      setNewWifiInput("");
+      return;
+    }
+    const nextList = [...wifiItems, entry].join(", ");
+    updateField("office_ip_whitelist", nextList);
+    setNewWifiInput("");
+  };
+
+  const handleRemoveWifiEntry = (targetEntry) => {
+    const nextList = wifiItems.filter((item) => item !== targetEntry).join(", ");
+    updateField("office_ip_whitelist", nextList);
+  };
+
   const handleSaveWifiIp = async () => {
     setSavingWifi(true);
     try {
@@ -700,7 +791,7 @@ export default function CompanySettingsTab({ showToast }) {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto py-4">
+      <div className="max-w-3xl mx-auto py-3">
         <SkeletonList rows={4} label="Đang tải cài đặt công ty..." />
       </div>
     );
@@ -711,216 +802,82 @@ export default function CompanySettingsTab({ showToast }) {
   const currentYearNum = Number(getVietnamTodayIso().slice(0, 4));
   const currentStdDays = getMonthlyStandardWorkdays();
 
+  // Tóm tắt động 1 dòng (Live Summaries) cho cả 6 khối dựa trên dữ liệu đã lưu (savedConfig)
+  const companyInfoSummary = `${
+    savedConfig.company_name || "Chưa đặt tên công ty"
+  } • ${savedConfig.logo_url ? "Đã có logo" : "Chưa có logo"}`;
+
+  const announcementSummary = savedAnnouncementText
+    ? `Đang bật • ${savedAnnouncementText.slice(0, 34)}${
+        savedAnnouncementText.length > 34 ? "…" : ""
+      }`
+    : "Đang tắt";
+
+  const scheduleSummary = `Sáng ${savedConfig.work_start || "08:00"}–${
+    savedConfig.lunch_start || "12:00"
+  } • Chiều ${savedConfig.lunch_end || "13:30"}–${savedConfig.work_end || "17:30"}`;
+
+  const savedLocations = Array.isArray(savedConfig.allowed_locations)
+    ? savedConfig.allowed_locations
+    : [];
+  const primarySavedLoc = savedLocations[0];
+  const savedWifiList = String(savedConfig.office_ip_whitelist || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const hasSavedGps =
+    primarySavedLoc &&
+    Number.isFinite(Number(primarySavedLoc.lat)) &&
+    Number.isFinite(Number(primarySavedLoc.lng));
+  const locationsSummary = hasSavedGps
+    ? `Bán kính ${primarySavedLoc.radius || 300} m • ${savedWifiList.length} Wi-Fi`
+    : `Chưa cấu hình GPS • ${savedWifiList.length} Wi-Fi`;
+
+  const departmentsSummary = `${departments.length} khối làm việc • Mặc định: ${defaultDepartmentName}`;
+
+  const savedInsuranceOn = toNum(savedConfig.insurance_rate, 0) > 0;
+  const payrollSummary = `OT x${formatViNumber(
+    savedConfig.ot_rate_weekday ?? 1.5
+  )} / x${formatViNumber(savedConfig.ot_rate_weekend ?? 2.0)} • Phép ${
+    savedConfig.monthly_paid_leave_limit ?? 1
+  } lượt/tháng • BH: ${savedInsuranceOn ? "Bật" : "Tắt"}`;
+
   return (
-    <div className="max-w-3xl mx-auto pb-8 space-y-4">
+    <div className="max-w-3xl mx-auto pb-6 space-y-2.5 sm:space-y-3">
       {statusBanner && (
         <div
-          className={`flex items-start gap-2.5 p-3.5 rounded-xl border text-sm font-medium ${
+          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-[13px] font-medium ${
             statusBanner.type === "error"
               ? "bg-red-50 dark:bg-rose-950/60 border-red-200 dark:border-rose-800/70 text-red-700 dark:text-rose-300"
               : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/70 text-emerald-700 dark:text-emerald-300"
           }`}
         >
           {statusBanner.type === "error" ? (
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+            <AlertCircle className="w-4 h-4 shrink-0" />
           ) : (
-            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
           )}
           <span>{statusBanner.msg}</span>
         </div>
       )}
 
-      {/* KHỐI 1: BẢNG TIN THÔNG BÁO NỘI BỘ (Lưu độc lập, payload siêu nhẹ) */}
-      <div className="bg-amber-50/85 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/70 rounded-2xl p-4 space-y-3 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-2.5">
-          <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-bold text-amber-950 dark:text-amber-200">
-              📢 Bảng tin thông báo nội bộ
-            </h3>
-            <p className="text-xs text-amber-800/80 dark:text-amber-300/90 mt-0.5">
-              Hiển thị nổi bật ngay đầu màn hình chấm công của toàn bộ công nhân.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {config.announcement_text && (
-              <button
-                type="button"
-                onClick={() => updateField("announcement_text", "")}
-                className="h-[36px] min-h-[36px] px-3 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/60 whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                Xóa nội dung
-              </button>
-            )}
-            <SectionSaveButton
-              label="Lưu bảng tin"
-              testId="save-section-announcement-btn"
-              isDirty={isAnnouncementDirty}
-              loading={savingSection === "announcement"}
-              onClick={handleSaveAnnouncement}
-            />
-          </div>
-        </div>
-        <textarea
-          rows={3}
-          data-testid="company-announcement-textarea"
-          value={config.announcement_text || ""}
-          onChange={(e) => updateField("announcement_text", e.target.value)}
-          placeholder="VD: Thứ 7 tuần này công trình A nghỉ bảo trì điện, anh em ca chiều chuyển sang kho B lúc 13:00..."
-          className="w-full p-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:border-amber-500 focus:outline-none"
-        />
-      </div>
-
-      {/* KHỐI 2: GIỜ LÀM VIỆC (CA SÁNG / CA CHIỀU) */}
-      <AccordionSection
-        id="schedule"
-        title="1. Giờ làm việc (Ca Sáng / Ca Chiều)"
-        subtitle={`${config.work_start || "08:00"} – ${config.work_end || "17:30"} • Nghỉ trưa ${config.lunch_start || "12:00"} – ${config.lunch_end || "13:30"}`}
-        icon={Clock}
-        iconColor="text-[#E11D48] dark:text-rose-300"
-        iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
-        isOpen={openSections.schedule}
-        onToggle={toggleSection}
-        headerAction={
-          <SectionSaveButton
-            label="Lưu giờ làm việc"
-            testId="save-section-schedule-btn"
-            isDirty={isScheduleDirty}
-            loading={savingSection === "schedule"}
-            onClick={handleSaveSchedule}
-          />
-        }
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-          <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:justify-center gap-2">
-            <span className="text-slate-600 dark:text-slate-300 font-bold">CA SÁNG (4,0H)</span>
-            <strong className="text-[#111C2D] dark:text-white font-mono whitespace-nowrap">
-              {config.work_start || "08:00"} – {config.lunch_start || "12:00"}
-            </strong>
-          </div>
-          <div className="p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/70 flex items-center justify-between sm:flex-col sm:justify-center gap-2">
-            <span className="text-amber-800 dark:text-amber-300 font-bold">NGHỈ TRƯA</span>
-            <strong className="text-amber-950 dark:text-amber-200 font-mono whitespace-nowrap">
-              {config.lunch_start || "12:00"} – {config.lunch_end || "13:30"}
-            </strong>
-          </div>
-          <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:justify-center gap-2">
-            <span className="text-slate-600 dark:text-slate-300 font-bold">CA CHIỀU (4,0H)</span>
-            <strong className="text-[#111C2D] dark:text-white font-mono whitespace-nowrap">
-              {config.lunch_end || "13:30"} – {config.work_end || "17:30"}
-            </strong>
-          </div>
-        </div>
-
-        <div className="divide-y divide-slate-100 dark:divide-slate-700/70 border border-slate-200 dark:border-slate-700/80 rounded-2xl bg-slate-50/70 dark:bg-slate-800/70 overflow-hidden">
-          <FormRow label="Giờ bắt đầu ca sáng">
-            <input
-              type="time"
-              value={config.work_start || "08:00"}
-              onChange={(e) => updateField("work_start", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-          </FormRow>
-          <FormRow label="Bắt đầu nghỉ trưa (Kết thúc ca sáng)">
-            <input
-              type="time"
-              value={config.lunch_start || "12:00"}
-              onChange={(e) => updateField("lunch_start", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-          </FormRow>
-          <FormRow label="Kết thúc nghỉ trưa (Bắt đầu ca chiều)">
-            <input
-              type="time"
-              value={config.lunch_end || "13:30"}
-              onChange={(e) => updateField("lunch_end", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-          </FormRow>
-          <FormRow label="Giờ tan ca chiều">
-            <input
-              type="time"
-              value={config.work_end || "17:30"}
-              onChange={(e) => updateField("work_end", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-          </FormRow>
-        </div>
-      </AccordionSection>
-
-      {/* KHỐI 3: THÔNG TIN CÔNG TY & LOGO */}
-      <AccordionSection
+      {/* KHỐI 1: THÔNG TIN CÔNG TY & LOGO */}
+      <SmartAccordion
         id="company_info"
-        title="2. Thông tin công ty & Logo nhận diện"
-        subtitle={config.company_name || "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO"}
+        title="Thông tin công ty & Logo"
+        summary={companyInfoSummary}
         icon={Building2}
         iconColor="text-[#E11D48] dark:text-rose-300"
         iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
         isOpen={openSections.company_info}
+        isDirty={isCompanyInfoDirty}
         onToggle={toggleSection}
-        headerAction={
-          <SectionSaveButton
-            label="Lưu thông tin"
-            testId="save-section-company-info-btn"
-            isDirty={isCompanyInfoDirty}
-            loading={savingSection === "company_info"}
-            onClick={handleSaveCompanyInfo}
-          />
-        }
       >
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Tên công ty hiển thị trên phiếu lương
-            </label>
-            <input
-              type="text"
-              value={config.company_name || ""}
-              onChange={(e) => updateField("company_name", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Mã số thuế
-              </label>
-              <input
-                type="text"
-                value={config.tax_code || ""}
-                onChange={(e) => updateField("tax_code", e.target.value)}
-                placeholder="VD: 0401234567"
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Số điện thoại liên hệ
-              </label>
-              <input
-                type="text"
-                value={config.phone || ""}
-                onChange={(e) => updateField("phone", e.target.value)}
-                placeholder="Ví dụ: 0236 3888 999"
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Địa chỉ trụ sở
-              </label>
-              <input
-                type="text"
-                value={config.address || ""}
-                onChange={(e) => updateField("address", e.target.value)}
-                placeholder="Nhập địa chỉ công ty"
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+        <div className="space-y-2.5">
+          {/* Hàng Logo 48x48 cùng hàng ngang với nút [Đổi logo] và mô tả dung lượng */}
+          <div className="flex items-center justify-between gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
                 <img
                   src={
                     config.logo_url &&
@@ -934,15 +891,16 @@ export default function CompanySettingsTab({ showToast }) {
                 />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-bold text-[#111C2D] dark:text-white">
-                  Logo nhận diện công ty (Cloudinary)
+                <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 truncate">
+                  Logo nhận diện
                 </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Hỗ trợ PNG, JPEG, WebP. Tự động lưu URL Cloudinary ngay sau khi tải lên.
+                <div className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">
+                  PNG, JPG, WebP • Tối đa 512×512px
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+
+            <div className="flex items-center gap-1.5 shrink-0">
               <input
                 ref={logoInputRef}
                 type="file"
@@ -964,7 +922,7 @@ export default function CompanySettingsTab({ showToast }) {
                       await saveSectionPayload(
                         "company_logo",
                         { logo_url: uploadRes.data.url },
-                        "Đã tải lên và lưu Logo công ty thành công!"
+                        "Đã tải lên và lưu Logo công ty!"
                       );
                     } else {
                       notify(uploadRes.message || "Không thể tải lên logo công ty.", "error");
@@ -979,21 +937,22 @@ export default function CompanySettingsTab({ showToast }) {
                   }
                 }}
               />
-              <AppButton
+              <button
                 type="button"
-                variant="secondary"
-                icon={uploadingLogo ? Loader2 : Upload}
-                loading={uploadingLogo}
+                disabled={uploadingLogo}
                 onClick={() => logoInputRef.current?.click()}
-                className="text-xs px-3 py-2"
+                className={`${COMPACT_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}
               >
-                Tải Logo mới
-              </AppButton>
+                {uploadingLogo ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span>Đổi logo</span>
+              </button>
               {config.logo_url && (
-                <AppButton
+                <button
                   type="button"
-                  variant="ghost"
-                  icon={Trash2}
                   onClick={() => {
                     updateField("logo_url", null);
                     saveSectionPayload(
@@ -1002,681 +961,831 @@ export default function CompanySettingsTab({ showToast }) {
                       "Đã đặt lại Logo mặc định!"
                     );
                   }}
-                  className="text-xs px-2.5 py-2 text-rose-600 dark:text-rose-400"
+                  className={`${COMPACT_BTN_BASE} text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50`}
                 >
-                  Đặt lại
-                </AppButton>
+                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Xóa</span>
+                </button>
               )}
             </div>
           </div>
-        </div>
-      </AccordionSection>
 
-      {/* KHỐI 4: QUẢN LÝ KHỐI / BỘ PHẬN LÀM VIỆC (Lưu trực tiếp từng khối V52) */}
-      <AccordionSection
-        id="departments"
-        title="3. Quản lý Khối / Bộ phận làm việc"
-        subtitle={`${departments.length} khối / bộ phận • Mặc định: ${defaultDepartmentName}`}
-        icon={Layers}
-        iconColor="text-[#0051CA] dark:text-blue-300"
-        iconBg="bg-blue-50 dark:bg-blue-950/60"
-        isOpen={openSections.departments}
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+              Tên công ty
+            </label>
+            <input
+              type="text"
+              value={config.company_name || ""}
+              onChange={(e) => updateField("company_name", e.target.value)}
+              placeholder="Nhập tên công ty"
+              className={COMPACT_INPUT_CLASS}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5 items-end">
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                Mã số thuế
+              </label>
+              <input
+                type="text"
+                value={config.tax_code || ""}
+                onChange={(e) => updateField("tax_code", e.target.value)}
+                placeholder="0401234567"
+                className={COMPACT_INPUT_CLASS}
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                Điện thoại
+              </label>
+              <input
+                type="text"
+                value={config.phone || ""}
+                onChange={(e) => updateField("phone", e.target.value)}
+                placeholder="0236 3888 999"
+                className={COMPACT_INPUT_CLASS}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+              Địa chỉ trụ sở
+            </label>
+            <input
+              type="text"
+              value={config.address || ""}
+              onChange={(e) => updateField("address", e.target.value)}
+              placeholder="Nhập địa chỉ công ty"
+              className={COMPACT_INPUT_CLASS}
+            />
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+              {isCompanyInfoDirty ? "Có thay đổi chưa lưu" : "Hiển thị trên phiếu lương"}
+            </span>
+            <SectionSaveButton
+              testId="save-section-company-info-btn"
+              isDirty={isCompanyInfoDirty}
+              loading={savingSection === "company_info"}
+              onClick={handleSaveCompanyInfo}
+            />
+          </div>
+        </div>
+      </SmartAccordion>
+
+      {/* KHỐI 2: BẢNG TIN THÔNG BÁO NỘI BỘ */}
+      <SmartAccordion
+        id="announcement"
+        title="Bảng tin thông báo nội bộ"
+        summary={announcementSummary}
+        icon={Megaphone}
+        iconColor="text-amber-600 dark:text-amber-300"
+        iconBg="bg-amber-50 dark:bg-amber-950/60"
+        isOpen={openSections.announcement}
+        isDirty={isAnnouncementDirty}
         onToggle={toggleSection}
       >
-        <form onSubmit={handleAddDepartment} className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            data-testid="new-department-input"
-            value={newDeptName}
-            onChange={(e) => setNewDeptName(e.target.value)}
-            placeholder="Nhập tên khối / bộ phận mới..."
-            className="flex-1 min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-          />
-          <AppButton
-            type="submit"
-            variant="primary"
-            icon={Plus}
-            loading={addingDept}
-            data-testid="add-department-btn"
-            className="min-h-[44px] px-4 text-xs sm:text-sm whitespace-nowrap shrink-0"
-          >
-            Thêm khối
-          </AppButton>
-        </form>
-
-        {loadingDepartments && departments.length === 0 ? (
-          <SkeletonList rows={3} label="Đang tải danh sách khối / bộ phận..." />
-        ) : (
-          <div
-            data-testid="departments-list"
-            className="divide-y divide-slate-200 dark:divide-slate-700/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60 overflow-hidden"
-          >
-            {departments.map((dept) => {
-              const isDefault = Number(dept.is_default) === 1;
-              const isEditing = editingDeptId === dept.id;
-              return (
-                <div
-                  key={dept.id}
-                  data-testid={`department-row-${dept.id}`}
-                  className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white dark:bg-slate-900/70"
-                >
-                  {isEditing ? (
-                    <div className="flex-1 flex flex-wrap items-center gap-2">
-                      <input
-                        type="text"
-                        data-testid={`rename-dept-input-${dept.id}`}
-                        value={editingDeptName}
-                        onChange={(e) => setEditingDeptName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleSaveRenameDepartment(dept.id);
-                          } else if (e.key === "Escape") {
-                            setEditingDeptId(null);
-                            setEditingDeptName("");
-                          }
-                        }}
-                        autoFocus
-                        className="flex-1 min-w-[160px] min-h-[44px] px-3 py-1.5 rounded-xl border border-rose-400 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none"
-                      />
-                      <AppButton
-                        variant="success"
-                        icon={Check}
-                        loading={savingDept}
-                        data-testid={`save-rename-dept-btn-${dept.id}`}
-                        onClick={() => handleSaveRenameDepartment(dept.id)}
-                        className="min-h-[44px] px-3 text-xs"
-                      >
-                        Lưu
-                      </AppButton>
-                      <AppButton
-                        variant="secondary"
-                        icon={X}
-                        disabled={savingDept}
-                        onClick={() => {
-                          setEditingDeptId(null);
-                          setEditingDeptName("");
-                        }}
-                        className="min-h-[44px] px-3 text-xs"
-                      >
-                        Hủy
-                      </AppButton>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="min-w-0 flex-1 flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-[#111C2D] dark:text-white break-words">
-                          {dept.name}
-                        </span>
-                        {isDefault && (
-                          <span
-                            data-testid="default-department-badge"
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300 text-xs font-extrabold whitespace-nowrap"
-                          >
-                            Khối chính • Mặc định
-                          </span>
-                        )}
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold whitespace-nowrap">
-                          {dept.employee_count || 0} nhân viên
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <AppButton
-                          variant="secondary"
-                          icon={Pencil}
-                          data-testid={`rename-dept-btn-${dept.id}`}
-                          onClick={() => {
-                            setEditingDeptId(dept.id);
-                            setEditingDeptName(dept.name);
-                          }}
-                          className="min-h-[44px] px-3 text-xs font-bold whitespace-nowrap"
-                        >
-                          Đổi tên
-                        </AppButton>
-                        {!isDefault && (
-                          <AppButton
-                            variant="ghost"
-                            icon={Trash2}
-                            data-testid={`delete-dept-btn-${dept.id}`}
-                            onClick={() => setConfirmDeleteDept({ open: true, dept })}
-                            className="min-h-[44px] px-3 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 whitespace-nowrap"
-                          >
-                            Xóa
-                          </AppButton>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-100">
+              Hiển thị bảng tin cho nhân viên
+            </span>
+            <button
+              type="button"
+              role="switch"
+              data-testid="company-announcement-toggle"
+              aria-checked={announcementEnabled}
+              onClick={() => {
+                if (announcementEnabled) {
+                  if (String(config.announcement_text || "").trim()) {
+                    lastAnnouncementTextRef.current = String(config.announcement_text);
+                  }
+                  setAnnouncementEnabled(false);
+                  setConfig((prev) => ({ ...prev, announcement_text: "" }));
+                } else {
+                  setAnnouncementEnabled(true);
+                  const restored =
+                    lastAnnouncementTextRef.current ||
+                    savedAnnouncementText ||
+                    "Thông báo nội bộ Sedinco";
+                  setConfig((prev) => ({ ...prev, announcement_text: restored }));
+                }
+              }}
+              className="shrink-0 inline-flex items-center cursor-pointer focus:outline-none"
+            >
+              <span
+                className={`w-10 h-5.5 flex items-center rounded-full p-0.5 transition-colors duration-200 ${
+                  announcementEnabled
+                    ? "bg-[#E11D48] dark:bg-rose-600"
+                    : "bg-slate-300 dark:bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${
+                    announcementEnabled ? "translate-x-4.5" : "translate-x-0"
+                  }`}
+                />
+              </span>
+            </button>
           </div>
-        )}
-      </AccordionSection>
 
-      {/* KHỐI 5: ĐỊA CHỈ & WI-FI CHẤM CÔNG (GPS / BSSID) */}
-      <AccordionSection
+          <div className={`relative transition-opacity ${announcementEnabled ? "opacity-100" : "opacity-55"}`}>
+            <textarea
+              rows={3}
+              data-testid="company-announcement-textarea"
+              value={config.announcement_text || ""}
+              onChange={(e) => updateField("announcement_text", e.target.value)}
+              placeholder="VD: Thứ 7 tuần này công trình A nghỉ bảo trì điện, anh em ca chiều chuyển sang kho B lúc 13:00..."
+              className="w-full p-2.5 pb-6 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[14px] text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:border-[#E11D48] focus:outline-none"
+            />
+            <span className="pointer-events-none select-none absolute bottom-2 right-2.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+              {(config.announcement_text || "").length} ký tự
+            </span>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+              {announcementEnabled ? "Đang bật trên màn hình Chấm công" : "Đang ẩn bảng tin"}
+            </span>
+            <SectionSaveButton
+              testId="save-section-announcement-btn"
+              isDirty={isAnnouncementDirty}
+              loading={savingSection === "announcement"}
+              onClick={handleSaveAnnouncement}
+            />
+          </div>
+        </div>
+      </SmartAccordion>
+
+      {/* KHỐI 3: GIỜ LÀM VIỆC */}
+      <SmartAccordion
+        id="schedule"
+        title="Giờ làm việc"
+        summary={scheduleSummary}
+        icon={Clock}
+        iconColor="text-[#E11D48] dark:text-rose-300"
+        iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
+        isOpen={openSections.schedule}
+        isDirty={isScheduleDirty}
+        onToggle={toggleSection}
+      >
+        <div className="space-y-2">
+          {/* Hàng 1: Ca sáng | [07:30] – [11:30] */}
+          <div className="flex items-center justify-between gap-2 py-1.5 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+            <span className="text-[13.5px] font-semibold text-slate-700 dark:text-slate-200 shrink-0">
+              Ca sáng
+            </span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="time"
+                aria-label="Giờ bắt đầu ca sáng"
+                value={config.work_start || "08:00"}
+                onChange={(e) => updateField("work_start", e.target.value)}
+                className="w-[106px] sm:w-[120px] h-[40px] min-h-[40px] px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[14px] font-semibold text-slate-800 dark:text-slate-100 text-center focus:border-[#E11D48] focus:outline-none"
+              />
+              <span className="text-slate-400 font-bold">–</span>
+              <input
+                type="time"
+                aria-label="Giờ kết thúc ca sáng"
+                value={config.lunch_start || "12:00"}
+                onChange={(e) => updateField("lunch_start", e.target.value)}
+                className="w-[106px] sm:w-[120px] h-[40px] min-h-[40px] px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[14px] font-semibold text-slate-800 dark:text-slate-100 text-center focus:border-[#E11D48] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Hàng 2: Ca chiều | [13:30] – [17:30] */}
+          <div className="flex items-center justify-between gap-2 py-1.5 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+            <span className="text-[13.5px] font-semibold text-slate-700 dark:text-slate-200 shrink-0">
+              Ca chiều
+            </span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="time"
+                aria-label="Giờ bắt đầu ca chiều"
+                value={config.lunch_end || "13:30"}
+                onChange={(e) => updateField("lunch_end", e.target.value)}
+                className="w-[106px] sm:w-[120px] h-[40px] min-h-[40px] px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[14px] font-semibold text-slate-800 dark:text-slate-100 text-center focus:border-[#E11D48] focus:outline-none"
+              />
+              <span className="text-slate-400 font-bold">–</span>
+              <input
+                type="time"
+                aria-label="Giờ kết thúc ca chiều"
+                value={config.work_end || "17:30"}
+                onChange={(e) => updateField("work_end", e.target.value)}
+                className="w-[106px] sm:w-[120px] h-[40px] min-h-[40px] px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[14px] font-semibold text-slate-800 dark:text-slate-100 text-center focus:border-[#E11D48] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+              Nghỉ trưa: {config.lunch_start || "12:00"}–{config.lunch_end || "13:30"}
+            </span>
+            <SectionSaveButton
+              testId="save-section-schedule-btn"
+              isDirty={isScheduleDirty}
+              loading={savingSection === "schedule"}
+              onClick={handleSaveSchedule}
+            />
+          </div>
+        </div>
+      </SmartAccordion>
+
+      {/* KHỐI 4: ĐỊA CHỈ & WI-FI CHẤM CÔNG */}
+      <SmartAccordion
         id="locations"
-        title="4. Địa chỉ & Wi-Fi chấm công (GPS / BSSID)"
-        subtitle={`${config.allowed_locations?.length || 1} địa điểm được phép chấm công`}
+        title="Địa chỉ & Wi-Fi chấm công"
+        summary={locationsSummary}
         icon={MapPin}
         iconColor="text-emerald-600 dark:text-emerald-300"
         iconBg="bg-emerald-50 dark:bg-emerald-950/60"
         isOpen={openSections.locations}
+        isDirty={isLocationsDirty}
         onToggle={toggleSection}
-        headerAction={
-          <SectionSaveButton
-            label="Lưu vị trí chấm công"
-            testId="save-section-locations-btn"
-            isDirty={isLocationsDirty}
-            loading={savingSection === "locations"}
-            onClick={handleSaveLocations}
-          />
-        }
       >
         <div className="space-y-3">
-          {(config.allowed_locations || []).map((loc, idx) => (
-            <div
-              key={loc.id || idx}
-              className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-800/70 space-y-3"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                  Địa điểm #{idx + 1}
-                </span>
-                <div className="flex items-center gap-2">
-                  <AppButton
-                    variant="success"
-                    icon={Navigation}
-                    loading={detectingLocIdx === idx}
-                    onClick={() => handleUseCurrentGps(idx)}
-                    className="text-xs px-3 py-2"
-                  >
-                    Lấy vị trí tôi đang đứng
-                  </AppButton>
-                  {(config.allowed_locations || []).length > 1 && (
-                    <AppButton
-                      variant="ghost"
-                      onClick={() => handleRemoveLocation(idx)}
-                      className="min-w-[44px] min-h-[44px] px-2.5 border border-red-200 dark:border-rose-800/70 bg-white dark:bg-slate-800 text-red-600 dark:text-rose-300 hover:bg-red-50 dark:hover:bg-rose-950/50"
-                      aria-label="Xóa địa điểm"
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 space-y-3">
+            {(config.allowed_locations || []).map((loc, idx) => (
+              <div key={loc.id || idx} className={idx > 0 ? "pt-3 space-y-2.5" : "space-y-2.5"}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Điểm chấm công #{idx + 1}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenBranchQr(loc)}
+                      className={`${COMPACT_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </AppButton>
-                  )}
+                      <QrCode className="w-3.5 h-3.5 shrink-0" />
+                      <span>Mã QR</span>
+                    </button>
+                    {(config.allowed_locations || []).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLocation(idx)}
+                        className={`${COMPACT_BTN_BASE} text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50`}
+                        aria-label="Xóa địa điểm"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>Xóa</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Tên văn phòng / Kho bãi / Công trình
-                </label>
-                <input
-                  type="text"
-                  value={loc.name || ""}
-                  onChange={(e) => handleLocationChange(idx, "name", e.target.value)}
-                  className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-                />
-              </div>
+                <div className="grid grid-cols-2 gap-2.5 items-end">
+                  <div>
+                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                      Tên điểm chấm công
+                    </label>
+                    <input
+                      type="text"
+                      value={loc.name || ""}
+                      onChange={(e) => handleLocationChange(idx, "name", e.target.value)}
+                      className={COMPACT_INPUT_CLASS}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                      Phương thức
+                    </label>
+                    <select
+                      value={loc.attendance_method || "GPS"}
+                      onChange={(e) => handleLocationChange(idx, "attendance_method", e.target.value)}
+                      className={COMPACT_INPUT_CLASS}
+                    >
+                      <option value="GPS">GPS / Wi-Fi nội bộ</option>
+                      <option value="GPS_AND_QR">GPS + QR động</option>
+                      <option value="QR_ONLY">Chỉ quét QR động</option>
+                    </select>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                    Vĩ độ
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={loc.lat ?? ""}
-                    onChange={(e) => handleLocationChange(idx, "lat", e.target.value)}
-                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-                  />
+                {/* Hàng 1 (2 cột items-end): Vĩ độ | Kinh độ */}
+                <div className="grid grid-cols-2 gap-2.5 items-end">
+                  <div>
+                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                      Vĩ độ
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={loc.lat ?? ""}
+                      onChange={(e) => handleLocationChange(idx, "lat", e.target.value)}
+                      className={COMPACT_INPUT_CLASS}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                      Kinh độ
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={loc.lng ?? ""}
+                      onChange={(e) => handleLocationChange(idx, "lng", e.target.value)}
+                      className={COMPACT_INPUT_CLASS}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                    Kinh độ
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={loc.lng ?? ""}
-                    onChange={(e) => handleLocationChange(idx, "lng", e.target.value)}
-                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                    Bán kính (mét)
-                  </label>
-                  <input
-                    type="number"
-                    min="20"
-                    value={loc.radius ?? 300}
-                    onChange={(e) => handleLocationChange(idx, "radius", e.target.value)}
-                    className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                    Phương thức chấm công tại điểm
-                  </label>
-                  <select
-                    value={loc.attendance_method || "GPS"}
-                    onChange={(e) => handleLocationChange(idx, "attendance_method", e.target.value)}
-                    className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
+                {/* Hàng 2 (flex items-end gap-2): Bán kính GPS [100 m] (flex-1) + [📍 Lấy GPS] (w-fit h-[40px]) */}
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 min-w-0">
+                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                      Bán kính GPS
+                    </label>
+                    <InputWithSuffix
+                      type="number"
+                      min="20"
+                      value={loc.radius ?? 300}
+                      onChange={(e) => handleLocationChange(idx, "radius", e.target.value)}
+                      suffix="m"
+                      suffixWidthClass="pr-8"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={detectingLocIdx === idx}
+                    onClick={() => handleUseCurrentGps(idx)}
+                    className={`${INPUT_PAIRED_BTN_BASE} bg-emerald-600 hover:bg-emerald-700 text-white`}
                   >
-                    <option value="GPS">GPS định vị / Wi-Fi nội bộ</option>
-                    <option value="GPS_AND_QR">Kết hợp GPS + Quét mã QR động</option>
-                    <option value="QR_ONLY">Chỉ Quét mã QR động (dự phòng khi tắt GPS)</option>
-                  </select>
+                    {detectingLocIdx === idx ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    ) : (
+                      <Navigation className="w-3.5 h-3.5 shrink-0" />
+                    )}
+                    <span>Lấy GPS</span>
+                  </button>
                 </div>
-                <AppButton
-                  variant="secondary"
-                  icon={QrCode}
-                  onClick={() => handleOpenBranchQr(loc)}
-                  className="min-h-[44px] text-xs font-bold"
-                >
-                  Hiển thị QR Động Chi nhánh
-                </AppButton>
               </div>
-            </div>
-          ))}
-
-          <AppButton
-            variant="ghost"
-            fullWidth
-            icon={Plus}
-            onClick={handleAddLocation}
-            className="border border-dashed border-emerald-400 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/70"
-          >
-            Thêm chi nhánh / công trình mới
-          </AppButton>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-[#F0F3FF] dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/70 space-y-2.5">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 text-[#0068FF] dark:text-blue-300 font-bold text-xs">
-              <Wifi className="w-4 h-4" />
-              <span>Chấm công nhanh bằng Wi-Fi công ty</span>
-            </div>
-            <AppButton
-              variant="primary"
-              icon={Wifi}
-              loading={savingWifi}
-              onClick={handleSaveWifiIp}
-              className="text-xs px-3 py-2"
-            >
-              Lưu Wi-Fi đang kết nối
-            </AppButton>
+            ))}
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            Địa chỉ mạng hiện tại của bạn:{" "}
-            <strong className="text-slate-800 dark:text-white">
-              {config.current_client_ip || "Đang xác định"}
-            </strong>
-          </p>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Danh sách địa chỉ mạng Wi-Fi hợp lệ (cách nhau bởi dấu phẩy)
-            </label>
-            <input
-              type="text"
-              value={config.office_ip_whitelist || ""}
-              onChange={(e) => updateField("office_ip_whitelist", e.target.value)}
-              placeholder="Bấm nút Lưu Wi-Fi đang kết nối để tự điền"
-              className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
+
+          {/* Hàng 3: Ô nhập Wi-Fi / BSSID (flex-1 h-[40px]) ghép chung 1 hàng với nút [+ Thêm] (w-fit h-[40px]) */}
+          <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-[12px] font-semibold text-slate-600 dark:text-slate-300 truncate">
+                Wi-Fi / BSSID văn phòng ({wifiItems.length})
+              </label>
+              <button
+                type="button"
+                disabled={savingWifi}
+                onClick={handleSaveWifiIp}
+                className="text-[12px] font-semibold text-[#0051CA] dark:text-blue-400 hover:underline inline-flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                <Wifi className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  {savingWifi
+                    ? "Đang lấy Wi-Fi..."
+                    : `Lưu Wi-Fi hiện tại${
+                        config.current_client_ip ? ` (${config.current_client_ip})` : ""
+                      }`}
+                </span>
+              </button>
+            </div>
+
+            <div className="flex items-end gap-2">
+              <input
+                type="text"
+                data-testid="new-wifi-input"
+                value={newWifiInput}
+                onChange={(e) => setNewWifiInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddWifiEntry();
+                  }
+                }}
+                placeholder="Nhập IP / BSSID Wi-Fi công ty..."
+                className={`flex-1 ${COMPACT_INPUT_CLASS}`}
+              />
+              <button
+                type="button"
+                data-testid="add-wifi-btn"
+                onClick={handleAddWifiEntry}
+                className={`${INPUT_PAIRED_BTN_BASE} bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white`}
+              >
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span>Thêm</span>
+              </button>
+            </div>
+
+            {wifiItems.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {wifiItems.map((wifi) => (
+                  <span
+                    key={wifi}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[12px] font-mono text-slate-700 dark:text-slate-200"
+                  >
+                    <Wifi className="w-3 h-3 text-[#0051CA] dark:text-blue-400 shrink-0" />
+                    <span>{wifi}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveWifiEntry(wifi)}
+                      aria-label={`Xóa Wi-Fi ${wifi}`}
+                      className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={handleAddLocation}
+              className={`${COMPACT_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}
+            >
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span>Thêm điểm</span>
+            </button>
+            <SectionSaveButton
+              testId="save-section-locations-btn"
+              isDirty={isLocationsDirty}
+              loading={savingSection === "locations"}
+              onClick={handleSaveLocations}
             />
           </div>
         </div>
-      </AccordionSection>
+      </SmartAccordion>
 
-      {/* KHỐI 6: QUY TẮC TÍNH CÔNG, TĂNG CA & BẢO HIỂM (Đồng bộ 1-1 với Payroll & Attendance Engine) */}
-      <AccordionSection
+      {/* KHỐI 5: QUẢN LÝ KHỐI / BỘ PHẬN LÀM VIỆC */}
+      <SmartAccordion
+        id="departments"
+        title="Quản lý Khối / Bộ phận"
+        summary={departmentsSummary}
+        icon={Layers}
+        iconColor="text-[#0051CA] dark:text-blue-300"
+        iconBg="bg-blue-50 dark:bg-blue-950/60"
+        isOpen={openSections.departments}
+        isDirty={false}
+        onToggle={toggleSection}
+      >
+        <div className="space-y-2.5">
+          {/* Thanh thêm mới 1 hàng duy nhất: [Ô nhập tên khối mới (flex-1 h-[40px])] + [+ Thêm] (w-fit h-[40px]) */}
+          <form onSubmit={handleAddDepartment} className="flex items-center gap-2">
+            <input
+              type="text"
+              data-testid="new-department-input"
+              value={newDeptName}
+              onChange={(e) => setNewDeptName(e.target.value)}
+              placeholder="Nhập tên khối / bộ phận mới..."
+              className={`flex-1 ${COMPACT_INPUT_CLASS}`}
+            />
+            <button
+              type="submit"
+              disabled={addingDept}
+              data-testid="add-department-btn"
+              className={`${INPUT_PAIRED_BTN_BASE} bg-[#E11D48] hover:bg-[#BE123C] text-white`}
+            >
+              {addingDept ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              ) : (
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span>Thêm</span>
+            </button>
+          </form>
+
+          {loadingDepartments && departments.length === 0 ? (
+            <SkeletonList rows={3} label="Đang tải danh sách khối / bộ phận..." />
+          ) : (
+            <div
+              data-testid="departments-list"
+              className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/85 dark:border-slate-700/80 rounded-xl bg-white dark:bg-slate-900 overflow-hidden"
+            >
+              {departments.map((dept) => {
+                const isDefault = Number(dept.is_default) === 1;
+                const isEditing = editingDeptId === dept.id;
+                return (
+                  <div
+                    key={dept.id}
+                    data-testid={`department-row-${dept.id}`}
+                    className="py-2 px-2.5 flex items-center justify-between gap-2"
+                  >
+                    {isEditing ? (
+                      <div className="flex-1 flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          data-testid={`rename-dept-input-${dept.id}`}
+                          value={editingDeptName}
+                          onChange={(e) => setEditingDeptName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSaveRenameDepartment(dept.id);
+                            } else if (e.key === "Escape") {
+                              setEditingDeptId(null);
+                              setEditingDeptName("");
+                            }
+                          }}
+                          autoFocus
+                          className={`flex-1 ${COMPACT_INPUT_CLASS}`}
+                        />
+                        <button
+                          type="button"
+                          disabled={savingDept}
+                          data-testid={`save-rename-dept-btn-${dept.id}`}
+                          onClick={() => handleSaveRenameDepartment(dept.id)}
+                          className={`${COMPACT_BTN_BASE} bg-emerald-600 hover:bg-emerald-700 text-white`}
+                        >
+                          <Check className="w-3.5 h-3.5 shrink-0" />
+                          <span>Lưu</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingDept}
+                          onClick={() => {
+                            setEditingDeptId(null);
+                            setEditingDeptName("");
+                          }}
+                          className={`${COMPACT_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200`}
+                        >
+                          <X className="w-3.5 h-3.5 shrink-0" />
+                          <span>Hủy</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate">
+                            {dept.name}
+                          </span>
+                          {isDefault && (
+                            <span
+                              data-testid="default-department-badge"
+                              className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300 text-[11px] font-bold whitespace-nowrap"
+                            >
+                              Mặc định
+                            </span>
+                          )}
+                          <span className="text-[12px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                            • {dept.employee_count || 0} NV
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            data-testid={`rename-dept-btn-${dept.id}`}
+                            onClick={() => {
+                              setEditingDeptId(dept.id);
+                              setEditingDeptName(dept.name);
+                            }}
+                            className={`${COMPACT_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}
+                          >
+                            <Pencil className="w-3.5 h-3.5 shrink-0" />
+                            <span>Sửa</span>
+                          </button>
+                          {!isDefault && (
+                            <button
+                              type="button"
+                              data-testid={`delete-dept-btn-${dept.id}`}
+                              onClick={() => setConfirmDeleteDept({ open: true, dept })}
+                              className={`${COMPACT_BTN_BASE} text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200/70 dark:border-rose-800/60`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                              <span>Xóa</span>
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </SmartAccordion>
+
+      {/* KHỐI 6: QUY TẮC TÍNH CÔNG, TĂNG CA & BẢO HIỂM */}
+      <SmartAccordion
         id="payroll"
-        title="5. Quy tắc tính công, tăng ca & bảo hiểm"
-        subtitle={`Công chuẩn tự động (${currentStdDays} ngày) • Phép tháng ${config.monthly_paid_leave_limit ?? 1} lượt • OT x${formatViNumber(config.ot_rate_weekday ?? 1.5)} • Bảo hiểm ${isInsuranceEnabled ? `${formatViNumber(config.insurance_rate ?? 10.5)}%` : "Tắt"}`}
+        title="Quy tắc tính công, tăng ca & bảo hiểm"
+        summary={payrollSummary}
         icon={Calculator}
         iconColor="text-[#E11D48] dark:text-rose-300"
         iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
         isOpen={openSections.payroll}
+        isDirty={isRulesDirty}
         onToggle={toggleSection}
-        headerAction={
-          <SectionSaveButton
-            label="Lưu quy tắc"
-            testId="save-section-rules-btn"
-            isDirty={isRulesDirty}
-            loading={savingSection === "rules"}
-            onClick={handleSaveRules}
-          />
-        }
       >
-        {/* NHÓM 1: QUY TẮC CHẤM CÔNG & PHÉP THÁNG */}
-        <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
-          <div className="flex items-center justify-between gap-2">
-            <h4 className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide flex items-center gap-1.5">
-              <CalendarDays className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
-              <span>Nhóm 1 — Quy tắc Chấm công &amp; Phép tháng</span>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 space-y-3">
+          {/* NHÓM 1: CHẤM CÔNG & PHÉP */}
+          <div className="space-y-2.5">
+            <h4 className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Chấm công &amp; Phép
             </h4>
-          </div>
 
-          <div
-            data-testid="auto-standard-workdays-note"
-            className="p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 text-xs text-slate-700 dark:text-slate-200 leading-relaxed"
-          >
-            <strong>Công chuẩn tháng tự động tính = Tổng số ngày trong tháng trừ Chủ nhật</strong>{" "}
-            (Tháng {currentMonthNum}/{currentYearNum} hiện tại: <strong>{currentStdDays} ngày công chuẩn</strong>).
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Định mức nghỉ phép có lương tối đa / tháng (lượt)
-              </label>
-              <input
-                data-testid="company-monthly-leave-limit-input"
-                type="number"
-                min="0"
-                max="31"
-                step="1"
-                value={config.monthly_paid_leave_limit ?? 1}
-                onChange={(e) => updateField("monthly_paid_leave_limit", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
-              />
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                Mặc định: 1 lượt/tháng (không cộng dồn). Áp dụng ngay cho duyệt đơn &amp; tính lương.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Ngưỡng đi muộn / về sớm cho phép (phút)
-              </label>
-              <input
-                data-testid="company-grace-period-input"
-                type="number"
-                min="0"
-                value={config.grace_period_minutes ?? 15}
-                onChange={(e) => updateField("grace_period_minutes", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
-              />
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                Vào trễ trong số phút này vẫn được ghi nhận đúng giờ.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Hình thức xử lý đi muộn
-              </label>
-              <select
-                value={config.late_policy_type || "PER_MINUTE"}
-                onChange={(e) => updateField("late_policy_type", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 focus:border-[#E11D48] focus:outline-none"
-              >
-                <option value="NONE">Không trừ phạt (Chỉ ghi nhận)</option>
-                <option value="PER_MINUTE">Phạt tiền theo số phút đi muộn</option>
-                <option value="PER_OCCURRENCE">Phạt tiền cố định mỗi lần đi muộn</option>
-                <option value="DEDUCT_WORKDAY">Trừ nửa ngày công nếu trễ quá ngưỡng</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Số lần đi muộn miễn phạt / tháng
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={config.free_late_occurrences ?? 3}
-                onChange={(e) => updateField("free_late_occurrences", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-              />
-            </div>
-          </div>
-
-          {(config.late_policy_type || "PER_MINUTE") === "PER_MINUTE" && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Mức phạt đi muộn mỗi phút (VNĐ — nhập 0 nếu không phạt tiền)
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={formatViNumber(
-                  config.late_penalty_per_minute ?? config.penalty_per_minute ?? 2000,
-                  0
-                )}
-                onChange={(e) => {
-                  const num = Math.max(0, Math.round(parseViNumberInput(e.target.value)));
-                  updateField("late_penalty_per_minute", num);
-                  updateField("penalty_per_minute", num);
-                }}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-              />
-            </div>
-          )}
-
-          {config.late_policy_type === "PER_OCCURRENCE" && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Mức phạt mỗi lần đi muộn (VNĐ — nhập 0 nếu không phạt tiền)
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={formatViNumber(
-                  config.late_penalty_amount ?? config.penalty_fixed_block ?? 50000,
-                  0
-                )}
-                onChange={(e) => {
-                  const num = Math.max(0, Math.round(parseViNumberInput(e.target.value)));
-                  updateField("late_penalty_amount", num);
-                  updateField("penalty_fixed_block", num);
-                }}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-              />
-            </div>
-          )}
-
-          {config.late_policy_type === "DEDUCT_WORKDAY" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2.5 items-end">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Ngưỡng trễ tính nửa công (phút)
+                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                  Đi muộn tối đa
                 </label>
-                <input
+                <InputWithSuffix
+                  data-testid="company-grace-period-input"
                   type="number"
-                  min="1"
-                  value={config.max_late_minutes_for_half_day ?? 60}
-                  onChange={(e) => updateField("max_late_minutes_for_half_day", e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
+                  min="0"
+                  value={config.grace_period_minutes ?? 15}
+                  onChange={(e) => updateField("grace_period_minutes", e.target.value)}
+                  suffix="phút"
+                  suffixWidthClass="pr-12"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Miễn hạ công trong số lần trễ cho phép
+                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                  Phép có lương / tháng
                 </label>
-                <select
-                  value={String(config.free_late_exempts_halfday ? 1 : 0)}
-                  onChange={(e) => updateField("free_late_exempts_halfday", Number(e.target.value))}
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
-                >
-                  <option value="0">Không miễn (Vẫn tính 0,5 công nếu trễ nặng)</option>
-                  <option value="1">Có miễn trong số lần trễ cho phép</option>
-                </select>
+                <InputWithSuffix
+                  data-testid="company-monthly-leave-limit-input"
+                  type="number"
+                  min="0"
+                  max="31"
+                  step="1"
+                  value={config.monthly_paid_leave_limit ?? 1}
+                  onChange={(e) => updateField("monthly_paid_leave_limit", e.target.value)}
+                  suffix="lượt"
+                  suffixWidthClass="pr-12"
+                />
               </div>
             </div>
-          )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/70 dark:border-slate-700/70">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Mức hưởng lương thử việc (%)
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={config.probation_salary_percent ?? 85}
-                onChange={(e) => updateField("probation_salary_percent", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Phụ cấp &amp; đơn giá tăng ca thử việc
-              </label>
-              <select
-                value={String(config.probation_allowance_full ?? 1)}
-                onChange={(e) => updateField("probation_allowance_full", Number(e.target.value))}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
-              >
-                <option value="1">Hưởng đủ 100% phụ cấp &amp; đơn giá tăng ca</option>
-                <option value="0">Nhân theo tỷ lệ lương thử việc</option>
-              </select>
-            </div>
-          </div>
-        </div>
+            <div className="grid grid-cols-2 gap-2.5 items-end">
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                  Hình thức phạt trễ
+                </label>
+                <select
+                  value={config.late_policy_type || "PER_MINUTE"}
+                  onChange={(e) => updateField("late_policy_type", e.target.value)}
+                  className={COMPACT_INPUT_CLASS}
+                >
+                  <option value="PER_MINUTE">Phạt theo phút</option>
+                  <option value="PER_OCCURRENCE">Phạt theo lần</option>
+                  <option value="DEDUCT_WORKDAY">Hạ xuống 0,5 công</option>
+                  <option value="NONE">Không phạt tiền</option>
+                </select>
+              </div>
 
-        {/* NHÓM 2: QUY TẮC TĂNG CA (OT) */}
-        <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
-          <h4 className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide flex items-center gap-1.5">
-            <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <span>Nhóm 2 — Quy tắc Tăng ca (OT)</span>
-          </h4>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Hệ số tăng ca ngày thường (VD: 1,5)
-              </label>
-              <input
-                data-testid="company-ot-weekday-input"
-                type="number"
-                min="1"
-                step="0.1"
-                value={config.ot_rate_weekday ?? 1.5}
-                onChange={(e) => updateField("ot_rate_weekday", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Hệ số tăng ca ngày Chủ nhật (VD: 2,0)
-              </label>
-              <input
-                data-testid="company-ot-weekend-input"
-                type="number"
-                min="1"
-                step="0.1"
-                value={config.ot_rate_weekend ?? 2.0}
-                onChange={(e) => updateField("ot_rate_weekend", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Đơn giá tăng ca cố định / giờ (VNĐ — nhập 0 để tính theo hệ số)
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={formatViNumber(config.custom_ot_hourly_rate ?? 0, 0)}
-                onChange={(e) =>
-                  updateField(
-                    "custom_ot_hourly_rate",
-                    Math.max(0, Math.round(parseViNumberInput(e.target.value)))
-                  )
-                }
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-              />
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                  {config.late_policy_type === "DEDUCT_WORKDAY"
+                    ? "Ngưỡng tính nửa công"
+                    : "Mức phạt đi muộn"}
+                </label>
+                {config.late_policy_type === "DEDUCT_WORKDAY" ? (
+                  <InputWithSuffix
+                    type="number"
+                    min="1"
+                    value={config.max_late_minutes_for_half_day ?? 60}
+                    onChange={(e) => updateField("max_late_minutes_for_half_day", e.target.value)}
+                    suffix="phút"
+                    suffixWidthClass="pr-12"
+                  />
+                ) : (
+                  <InputWithSuffix
+                    type="text"
+                    inputMode="numeric"
+                    disabled={config.late_policy_type === "NONE"}
+                    value={formatViNumber(
+                      config.late_policy_type === "PER_OCCURRENCE"
+                        ? (config.late_penalty_amount ?? config.penalty_fixed_block ?? 50000)
+                        : (config.late_penalty_per_minute ?? config.penalty_per_minute ?? 2000),
+                      0
+                    )}
+                    onChange={(e) => {
+                      const num = Math.max(0, Math.round(parseViNumberInput(e.target.value)));
+                      if (config.late_policy_type === "PER_OCCURRENCE") {
+                        updateField("late_penalty_amount", num);
+                        updateField("penalty_fixed_block", num);
+                      } else {
+                        updateField("late_penalty_per_minute", num);
+                        updateField("penalty_per_minute", num);
+                      }
+                    }}
+                    suffix="đ"
+                    suffixWidthClass="pr-8"
+                  />
+                )}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Chế độ ghi nhận tăng ca
-              </label>
-              <select
-                value={config.ot_calculation_mode || "APPROVED_OR_AUTO"}
-                onChange={(e) => updateField("ot_calculation_mode", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
-              >
-                <option value="APPROVED_OR_AUTO">Ưu tiên đơn duyệt, tự tính theo bảng công</option>
-                <option value="REQUIRE_APPROVAL">Bắt buộc có đơn tăng ca đã duyệt</option>
-                <option value="AUTO_ACTUAL">Tính đủ theo giờ tăng ca trên bảng công</option>
-              </select>
-            </div>
-          </div>
-
-          <div
-            data-testid="holiday-multiplier-guidance-note"
-            className="p-3 rounded-xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/70 flex items-center gap-2 text-xs text-rose-900 dark:text-rose-200 font-semibold"
-          >
-            <Gift className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
-            <span>
-              Hệ số đi làm ngày lễ được thiết lập riêng cho từng dịp tại mục{" "}
-              <strong>Cài đặt → Ngày lễ</strong>.
-            </span>
-          </div>
-        </div>
-
-        {/* NHÓM 3: QUY TẮC BẢO HIỂM (BHXH / BHYT / BHTN) */}
-        <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h4 className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span>Nhóm 3 — Quy tắc Bảo hiểm (BHXH / BHYT / BHTN)</span>
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Khi Tắt (0%), tiền khấu trừ bảo hiểm = 0 đ và ẩn hoàn toàn dòng bảo hiểm trên Bảng lương &amp; Phiếu lương.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isInsuranceEnabled}
-              data-testid="company-insurance-toggle"
-              onClick={() => {
-                if (isInsuranceEnabled) {
-                  updateField("insurance_rate", 0);
-                } else {
-                  updateField("insurance_rate", lastPositiveInsuranceRateRef.current || 10.5);
-                }
-              }}
-              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl border text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
-                isInsuranceEnabled
-                  ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
-                  : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600"
-              }`}
+            <p
+              data-testid="auto-standard-workdays-note"
+              className="text-[12px] text-slate-500 dark:text-slate-400 leading-snug"
             >
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${
-                  isInsuranceEnabled ? "bg-white" : "bg-slate-400"
-                }`}
-              />
-              <span>{isInsuranceEnabled ? "Đang Bật khấu trừ Bảo hiểm" : "Đang Tắt khấu trừ Bảo hiểm"}</span>
-            </button>
+              Công chuẩn tháng tự động tính = Tổng số ngày trong tháng trừ Chủ nhật (Tháng{" "}
+              {currentMonthNum}/{currentYearNum}: <strong>{currentStdDays} ngày</strong>).
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* NHÓM 2: TĂNG CA (OT) */}
+          <div className="pt-3 space-y-2.5">
+            <h4 className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Tăng ca (OT)
+            </h4>
+
+            <div className="grid grid-cols-2 gap-2.5 items-end">
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                  OT ngày thường
+                </label>
+                <InputWithSuffix
+                  data-testid="company-ot-weekday-input"
+                  type="number"
+                  min="1"
+                  step="0.1"
+                  value={config.ot_rate_weekday ?? 1.5}
+                  onChange={(e) => updateField("ot_rate_weekday", e.target.value)}
+                  suffix="x"
+                  suffixWidthClass="pr-8"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                  OT Chủ nhật
+                </label>
+                <InputWithSuffix
+                  data-testid="company-ot-weekend-input"
+                  type="number"
+                  min="1"
+                  step="0.1"
+                  value={config.ot_rate_weekend ?? 2.0}
+                  onChange={(e) => updateField("ot_rate_weekend", e.target.value)}
+                  suffix="x"
+                  suffixWidthClass="pr-8"
+                />
+              </div>
+            </div>
+
+            <p
+              data-testid="holiday-multiplier-guidance-note"
+              className="text-[12px] text-slate-500 dark:text-slate-400 leading-snug"
+            >
+              Hệ số đi làm ngày lễ được thiết lập riêng cho từng dịp tại mục{" "}
+              <strong className="text-slate-700 dark:text-slate-200">Cài đặt → Ngày lễ</strong>.
+            </p>
+          </div>
+
+          {/* NHÓM 3: BẢO HIỂM */}
+          <div className="pt-3 space-y-2.5">
+            <h4 className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Bảo hiểm
+            </h4>
+
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-100">
+                Khấu trừ bảo hiểm tự động
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isInsuranceEnabled}
+                data-testid="company-insurance-toggle"
+                onClick={() => {
+                  if (isInsuranceEnabled) {
+                    updateField("insurance_rate", 0);
+                  } else {
+                    updateField("insurance_rate", lastPositiveInsuranceRateRef.current || 10.5);
+                  }
+                }}
+                className="shrink-0 inline-flex items-center cursor-pointer focus:outline-none"
+              >
+                <span
+                  className={`w-10 h-5.5 flex items-center rounded-full p-0.5 transition-colors duration-200 ${
+                    isInsuranceEnabled
+                      ? "bg-[#E11D48] dark:bg-rose-600"
+                      : "bg-slate-300 dark:bg-slate-700"
+                  }`}
+                >
+                  <span
+                    className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${
+                      isInsuranceEnabled ? "translate-x-4.5" : "translate-x-0"
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
+
             {isInsuranceEnabled && (
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Tỷ lệ đóng bảo hiểm người lao động (%)
+                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                  Tỷ lệ khấu trừ BH
                 </label>
-                <input
+                <InputWithSuffix
                   data-testid="company-insurance-rate-input"
                   type="number"
                   min="0"
@@ -1684,27 +1793,26 @@ export default function CompanySettingsTab({ showToast }) {
                   step="0.1"
                   value={config.insurance_rate ?? 10.5}
                   onChange={(e) => updateField("insurance_rate", e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
+                  suffix="%"
+                  suffixWidthClass="pr-8"
                 />
               </div>
             )}
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Xử lý khi lương thực lĩnh âm
-              </label>
-              <select
-                value={config.negative_salary_policy || "CLAMP_ZERO"}
-                onChange={(e) => updateField("negative_salary_policy", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
-              >
-                <option value="CLAMP_ZERO">Giữ 0 đ &amp; ghi nhận nợ chuyển kỳ sau</option>
-                <option value="SHOW_NEGATIVE">Hiển thị số âm trực tiếp trên phiếu lương</option>
-              </select>
-            </div>
           </div>
         </div>
-      </AccordionSection>
+
+        <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+          <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+            {isRulesDirty ? "Có thay đổi chưa lưu" : "Đồng bộ trực tiếp với bảng lương"}
+          </span>
+          <SectionSaveButton
+            testId="save-section-rules-btn"
+            isDirty={isRulesDirty}
+            loading={savingSection === "rules"}
+            onClick={handleSaveRules}
+          />
+        </div>
+      </SmartAccordion>
 
       <ConfirmDialog
         open={confirmDeleteDept.open}
@@ -1714,7 +1822,7 @@ export default function CompanySettingsTab({ showToast }) {
             ? `Xóa khối "${confirmDeleteDept.dept.name}"? Toàn bộ ${confirmDeleteDept.dept.employee_count || 0} nhân viên đang thuộc khối này sẽ tự động chuyển về khối chính "${defaultDepartmentName}".`
             : ""
         }
-        confirmLabel="Xóa khối & Chuyển nhân viên"
+        confirmLabel="Xóa khối"
         variant="danger"
         loading={deletingDept}
         onCancel={() => {
@@ -1723,7 +1831,7 @@ export default function CompanySettingsTab({ showToast }) {
         onConfirm={handleExecuteDeleteDepartment}
       />
 
-      {/* Modal QR Động Chấm công Chi nhánh (Có thời hạn & chống replay) */}
+      {/* Modal QR Động Chấm công Chi nhánh */}
       <AppModal
         open={qrModalState.open}
         onClose={() => setQrModalState((prev) => ({ ...prev, open: false }))}
@@ -1731,23 +1839,23 @@ export default function CompanySettingsTab({ showToast }) {
         subtitle={qrModalState.branch?.name || "Điểm chấm công Sedinco"}
         maxWidthClass="max-w-sm"
         footer={
-          <div className="flex gap-2">
-            <AppButton
-              variant="secondary"
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
               onClick={() => setQrModalState((prev) => ({ ...prev, open: false }))}
-              className="flex-1"
+              className={`${COMPACT_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200`}
             >
               Đóng
-            </AppButton>
-            <AppButton
-              variant="primary"
-              icon={RefreshCw}
-              loading={qrModalState.loading}
+            </button>
+            <button
+              type="button"
+              disabled={qrModalState.loading}
               onClick={() => handleOpenBranchQr(qrModalState.branch)}
-              className="flex-1"
+              className={`${COMPACT_BTN_BASE} bg-[#E11D48] hover:bg-[#BE123C] text-white`}
             >
-              Cấp mã QR mới
-            </AppButton>
+              <RefreshCw className={`w-3.5 h-3.5 ${qrModalState.loading ? "animate-spin" : ""}`} />
+              <span>Cấp mã mới</span>
+            </button>
           </div>
         }
       >
