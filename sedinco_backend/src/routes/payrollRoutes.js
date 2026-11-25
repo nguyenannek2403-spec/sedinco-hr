@@ -20,9 +20,15 @@ router.post('/resolve-dispute', authenticateToken, requirePermission('payroll_ap
 router.get('/', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => payrollController.getPayroll(req, res, next));
 router.get('/employee/:ma_nv', authenticateToken, requirePermission('payroll_view_all'), (req, res, next) => payrollController.getEmployeePayrollDetail(req, res, next));
 
-// 3. Tính toán bảng lương tháng (Yêu cầu permission: payroll_calculate)
+// 3. Tính toán bảng lương tháng (Yêu cầu permission: payroll_calculate, chỉ cho phép POST để tránh CSRF qua GET)
 router.post('/calculate', authenticateToken, requirePermission('payroll_calculate'), (req, res, next) => payrollController.calculatePayroll(req, res, next));
-router.get('/calculate', authenticateToken, requirePermission('payroll_calculate'), (req, res, next) => payrollController.calculatePayroll(req, res, next));
+router.get('/calculate', authenticateToken, requireAuth, (req, res) => {
+    return res.status(405).json({
+        success: false,
+        code: 'METHOD_NOT_ALLOWED',
+        message: 'Phương thức GET không được phép thay đổi dữ liệu lương. Vui lòng sử dụng POST /api/payroll/calculate.'
+    });
+});
 router.post('/adjustments', authenticateToken, requirePermission('payroll_calculate'), idempotencyMiddleware(), (req, res, next) => payrollController.adjustSalary(req, res, next));
 
 // 4. Gửi báo cáo xác nhận lương & Chốt chuyển khoản (Chỉ Admin - V45)

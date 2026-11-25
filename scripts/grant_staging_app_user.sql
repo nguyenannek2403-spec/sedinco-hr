@@ -23,22 +23,27 @@ CREATE USER IF NOT EXISTS '${APP_USER}'@'${APP_HOST}' IDENTIFIED BY '${APP_PASSW
 -- 2. Thu hồi toàn bộ quyền trước khi cấp (Clean slate)
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM '${APP_USER}'@'${APP_HOST}';
 
--- 3. Cấp quyền DML (SELECT, INSERT, UPDATE, DELETE) trên 12 bảng nghiệp vụ thông thường
+-- 3. Cấp quyền DML (SELECT, INSERT, UPDATE, DELETE) trên 18 bảng nghiệp vụ thông thường
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`accountant_permissions` TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`admins`                 TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`attendance`             TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`attendance_logs`        TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`company_settings`       TO '${APP_USER}'@'${APP_HOST}';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`departments`            TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`employees`              TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`idempotency_keys`       TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`login_rate_limits`      TO '${APP_USER}'@'${APP_HOST}';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`media_assets`           TO '${APP_USER}'@'${APP_HOST}';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`media_upload_events`    TO '${APP_USER}'@'${APP_HOST}';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`media_usage_snapshots`  TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`ot_registrations`       TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`payroll_periods`        TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`period_locks`           TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`public_holidays`        TO '${APP_USER}'@'${APP_HOST}';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`requests`               TO '${APP_USER}'@'${APP_HOST}';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `${DB_NAME}`.`user_notifications`     TO '${APP_USER}'@'${APP_HOST}';
 
--- 4. BẢO VỆ ĐẶC BIỆT BẢNG AUDIT_LOGS (BẢNG THỨ 13):
+-- 4. BẢO VỆ ĐẶC BIỆT BẢNG AUDIT_LOGS (BẢNG THỨ 19):
 -- CHỈ CẤP QUYỀN SELECT VÀ INSERT (APPEND-ONLY). CẤM TUYỆT ĐỐI UPDATE VÀ DELETE!
 GRANT SELECT, INSERT ON `${DB_NAME}`.`audit_logs` TO '${APP_USER}'@'${APP_HOST}';
 

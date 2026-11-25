@@ -105,7 +105,7 @@ export default function DesktopHeader({
       case "settings":
         if (settingsSubTab === "permissions") return "Cài Đặt • Phân Quyền Kế Toán";
         if (settingsSubTab === "holidays") return "Cài Đặt • Lịch Nghỉ Lễ";
-        if (settingsSubTab === "audit_logs") return "Cài Đặt • Nhật Ký & An Ninh";
+        if (settingsSubTab === "media_storage") return "Cài Đặt • Quản Lý Media";
         return "Cài Đặt • Công Ty & GPS";
       case "profile":
         return effectiveRole === ROLES.ADMIN ? "Tài Khoản Quản Trị" : "Tài Khoản & Cỡ Chữ";

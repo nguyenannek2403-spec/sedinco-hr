@@ -255,7 +255,7 @@ export default function WorkerDashboard({
       {fixCheckoutInfo && (
         <SmartLeaveRequestModal
           currentUser={currentUser}
-          initialDate={fixCheckoutInfo.iso_date || fixCheckoutInfo.work_date || fixCheckoutInfo.short_date}
+          initialDate={fixCheckoutInfo.iso_date || fixCheckoutInfo.work_date || ""}
           initialMode="Bổ sung công / Quên chấm giờ ra"
           initialCorrectionMode="CHECK_OUT"
           initialCheckInTime={fixCheckoutInfo.check_in_time ? String(fixCheckoutInfo.check_in_time).slice(0, 5) : "07:30"}

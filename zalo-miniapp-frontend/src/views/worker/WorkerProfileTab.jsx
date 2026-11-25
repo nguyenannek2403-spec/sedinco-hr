@@ -406,29 +406,29 @@ export default function WorkerProfileTab({
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <h3 className="text-base sm:text-lg font-extrabold text-[#111C2D] dark:text-white leading-snug break-words">
-                {currentUser?.ho_ten || "Cán bộ công nhân viên"}
+                {profileUser?.ho_ten || currentUser?.ho_ten || "Cán bộ công nhân viên"}
               </h3>
               <span className="px-2 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-xs font-mono font-extrabold text-[#B80035] dark:text-rose-300">
-                {currentUser?.ma_nv}
+                {profileUser?.ma_nv || currentUser?.ma_nv}
               </span>
             </div>
             <p className="text-xs sm:text-sm font-bold text-[#E11D48] dark:text-rose-400">
-              {currentUser?.chuc_danh || "Nhân viên Sedinco"}
+              {profileUser?.chuc_danh || currentUser?.chuc_danh || "Nhân viên Sedinco"}
             </p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
               <span className="inline-flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span>{currentUser?.department || "Khối Công trình"}</span>
+                <span>{profileUser?.department || currentUser?.department || "Khối Công trình"}</span>
               </span>
               <span className="inline-flex items-center gap-1 font-mono">
                 <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span>{currentUser?.phone || currentUser?.dien_thoai || currentUser?.login_username || currentUser?.ma_nv}</span>
+                <span>{profileUser?.phone || profileUser?.dien_thoai || profileUser?.login_username || currentUser?.phone || currentUser?.dien_thoai || currentUser?.login_username || currentUser?.ma_nv}</span>
               </span>
             </div>
-            {currentUser?.email && (
+            {(profileUser?.email || currentUser?.email) && (
               <div className="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
                 <Mail className="w-3.5 h-3.5 shrink-0" />
-                <span className="break-all">{currentUser.email}</span>
+                <span className="break-all">{profileUser?.email || currentUser?.email}</span>
               </div>
             )}
           </div>

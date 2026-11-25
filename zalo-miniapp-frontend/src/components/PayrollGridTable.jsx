@@ -50,9 +50,7 @@ export default function PayrollGridTable({
   const canCalculatePayroll = isAccountant && dynamicPerms?.payroll_calculate !== false;
   const canApprovePayroll = isAdmin || dynamicPerms?.payroll_approve === true;
   const canManagePayment = isAdmin || dynamicPerms?.payroll_payment_status_manage === true;
-  const canLockPeriod =
-    hasPermission(effectiveRole, "canLockPeriod") &&
-    (effectiveRole !== ROLES.ACCOUNTANT || dynamicPerms?.attendance_lock === true);
+  const canLockPeriod = isAdmin || (isAccountant && dynamicPerms?.attendance_lock === true);
   const canUnlockPeriod = hasPermission(effectiveRole, "canUnlockPeriod");
   const notify = showToast || onShowToast;
   const [searchQuery, setSearchQuery] = useState("");

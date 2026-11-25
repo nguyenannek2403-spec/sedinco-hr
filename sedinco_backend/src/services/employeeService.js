@@ -450,6 +450,39 @@ class EmployeeService {
 
     async updateEmployee(id, data, current_user = null) {
         await ensureAllowanceSchema();
+        const actorId = current_user ? String(current_user.ma_nv || current_user.username || '').trim() : '';
+        const isActorAdmin = Boolean(current_user && current_user.role === 'admin');
+        const targetRows = await query('SELECT ma_nv, role, avatar_url FROM employees WHERE ma_nv = ? LIMIT 1', [id]);
+        if (!targetRows || targetRows.length === 0) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
+        const existingTarget = targetRows[0];
+
+        if (current_user && !isActorAdmin && existingTarget.role === 'admin') {
+            const err = new Error('Bạn không có quyền chỉnh sửa tài khoản Quản trị viên!');
+            err.statusCode = 403;
+            err.code = 'FORBIDDEN';
+            throw err;
+        }
+
+        const restrictedSelfFields = [
+            'luong_cb', 'phu_cap_an_trua', 'phu_cap_xang_xe', 'phu_cap_nha_o',
+            'thuong_htcv', 'phu_cap_trach_nhiem', 'phu_cap_tiep_khach', 'custom_allowances',
+            'has_insurance', 'annual_leave_quota', 'status', 'is_locked', 'role',
+            'keep_logs', 'shift_type', 'custom_start_time', 'custom_end_time', 'ngay_chinh_thuc'
+        ];
+        if (current_user && !isActorAdmin && actorId && actorId === String(id).trim()) {
+            const hasRestrictedChange = restrictedSelfFields.some((f) => data && data[f] !== undefined);
+            if (hasRestrictedChange) {
+                const err = new Error('Theo nguyên tắc kiểm soát nội bộ, bạn không thể tự điều chỉnh lương, phụ cấp hoặc trạng thái tài khoản của chính mình!');
+                err.statusCode = 403;
+                err.code = 'FORBIDDEN_SELF_PRIVILEGE_EDIT';
+                throw err;
+            }
+        }
+
         const {
             ho_ten, ngay_sinh, dien_thoai, phone, login_username, email, chuc_danh, department, role,
             ngay_bat_dau_lam, ngay_chinh_thuc, luong_cb,
@@ -766,6 +799,14 @@ class EmployeeService {
     }
 
     async deleteEmployee(id, current_user = null) {
+        const existingRows = await query('SELECT ma_nv, avatar_url FROM employees WHERE ma_nv = ? LIMIT 1', [id]);
+        if (!existingRows || existingRows.length === 0) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
+        const previousAvatarUrl = existingRows[0].avatar_url || null;
+
         const delRes = await query('DELETE FROM employees WHERE ma_nv=?', [id]);
         if (!delRes || delRes.affectedRows === 0) {
             const err = new Error('Không tìm thấy nhân viên!');
@@ -774,22 +815,16 @@ class EmployeeService {
         }
         invalidateUserCache(id);
 
-        if (avatar_url !== undefined) {
-            const mediaLifecycleService = require('./mediaLifecycleService');
-            if (sanitizedNextAvatar) {
-                await mediaLifecycleService.bindAssetToEntity({
-                    mediaRef: sanitizedNextAvatar,
-                    entityType: 'employee_avatar',
-                    entityId: id,
-                    employeeId: id
-                });
-            }
-            if (previousAvatarUrl && previousAvatarUrl !== sanitizedNextAvatar) {
+        if (previousAvatarUrl) {
+            try {
+                const mediaLifecycleService = require('./mediaLifecycleService');
                 await mediaLifecycleService.handleMediaReplacement({
                     oldMediaRef: previousAvatarUrl,
-                    newMediaRef: sanitizedNextAvatar,
+                    newMediaRef: null,
                     actor: current_user
                 });
+            } catch (mediaErr) {
+                console.warn(`[EmployeeService] Không thể đánh dấu mồ côi avatar cũ khi xóa ${id}:`, mediaErr?.message || mediaErr);
             }
         }
 

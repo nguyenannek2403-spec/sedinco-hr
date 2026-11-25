@@ -558,7 +558,7 @@ export default function MediaStorageManagementTab({ showToast }) {
         onClose={() => setPreviewAsset(null)}
         title={previewAsset?.original_filename || "Xem tài nguyên Media"}
         subtitle={`${previewAsset?.asset_folder || ""} (${formatBytes(previewAsset?.bytes)})`}
-        maxWidth="max-w-lg"
+        maxWidthClass="max-w-lg"
       >
         {previewAsset && (
           <div className="space-y-3">
@@ -588,7 +588,7 @@ export default function MediaStorageManagementTab({ showToast }) {
             : "Xác nhận dọn dẹp tệp mồ côi?"
         }
         confirmLabel="Xác nhận dọn dẹp"
-        danger={true}
+        variant="danger"
       />
 
       <ConfirmDialog
@@ -599,7 +599,7 @@ export default function MediaStorageManagementTab({ showToast }) {
         title="Xác nhận Xóa Tài Nguyên Media"
         message={`Xóa tệp "${deleteTarget?.original_filename || deleteTarget?.asset_uuid}"? Hệ thống sẽ tự động chặn nếu tệp vẫn đang được gắn với đơn từ, bảng công hoặc hồ sơ nhân sự.`}
         confirmLabel="Xóa an toàn"
-        danger={true}
+        variant="danger"
       />
     </div>
   );

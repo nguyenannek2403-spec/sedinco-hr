@@ -379,16 +379,18 @@ class CloudinaryService {
             const folderMode = credCfg.folderMode === 'fixed' ? 'fixed' : 'dynamic';
 
             for (const inspected of inspectedFiles) {
-                // Bước 9: Kiểm tra trùng lặp SHA-256 của cùng người dùng & danh mục trong 24h nếu bật UPLOAD_DUPLICATE_CHECK_ENABLED
+                // Bước 9: Kiểm tra trùng lặp SHA-256 của cùng người dùng, cùng nhân viên mục tiêu & danh mục trong 24h
                 if (secCfg.duplicateCheckEnabled) {
                     const dupRows = await query(
                         `SELECT * FROM media_assets
                          WHERE checksum = ?
                            AND uploaded_by = ?
                            AND upload_category = ?
+                           AND COALESCE(employee_id, '') = ?
                            AND upload_status IN ('active', 'orphan_candidate')
+                           AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
                          ORDER BY id DESC LIMIT 1`,
-                        [inspected.checksum, actorId, policy.canonical]
+                        [inspected.checksum, actorId, policy.canonical, resolvedEmployeeId || '']
                     );
                     if (dupRows?.[0]) {
                         const existing = dupRows[0];
@@ -405,6 +407,7 @@ class CloudinaryService {
 
                         uploadedAssets.push({
                             asset_uuid: existing.asset_uuid,
+                            employee_id: existing.employee_id || null,
                             url: exposedUrl,
                             secure_url: existing.access_level === 'private' ? null : existing.secure_url,
                             access_level: existing.access_level,

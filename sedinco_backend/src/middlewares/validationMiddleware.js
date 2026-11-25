@@ -25,7 +25,11 @@ function validateAttendanceInput({ ma_nv, day, month, year, date, dateStr: rawDa
     const d = parseInt(resolvedDay, 10);
     const m = parseInt(resolvedMonth, 10);
     const y = parseInt(resolvedYear, 10);
-    if (isNaN(d) || d < 1 || d > 31 || isNaN(m) || m < 1 || m > 12 || isNaN(y) || y < 2000 || y > 2100) {
+    const utcCheck = new Date(Date.UTC(y, m - 1, d));
+    const isRealCalendarDate = !isNaN(d) && !isNaN(m) && !isNaN(y) &&
+        y >= 2000 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31 &&
+        utcCheck.getUTCFullYear() === y && (utcCheck.getUTCMonth() + 1) === m && utcCheck.getUTCDate() === d;
+    if (!isRealCalendarDate) {
         return { valid: false, error: 'Ngày tháng năm không hợp lệ!' };
     }
 

@@ -298,7 +298,22 @@ class AuthService {
         // 3. Kiểm tra IP quen thuộc & bảo vệ toàn cục tài khoản (Tấn công phân tán nhiều IP)
         const isKnownIp = await isKnownLegitIp(identifier, normalizedIp);
         const globalAcctCheck = await checkRateLimitDb(acctKey, ACCOUNT_GLOBAL_MAX_ATTEMPTS, ACCOUNT_LOCKOUT_SEC);
-        const isUnderAttack = globalAcctCheck.blocked || globalAcctCheck.count >= ACCOUNT_SOFT_LOCK_THRESHOLD;
+        if (globalAcctCheck.blocked) {
+            await logAuditEvent({
+                actor_id: identifier,
+                actor_role: actorRole,
+                action: 'LOGIN_RATE_LIMITED',
+                resource: 'auth',
+                details: { reason: 'global_account_locked', total_attempts: globalAcctCheck.count, remain_seconds: globalAcctCheck.remainSec, ip: normalizedIp },
+                ip_address: normalizedIp
+            });
+            return {
+                success: false,
+                statusCode: 429,
+                message: `Tài khoản đang tạm khóa do phát hiện quá ${ACCOUNT_GLOBAL_MAX_ATTEMPTS} lần đăng nhập sai từ nhiều thiết bị/IP. Vui lòng thử lại sau ${globalAcctCheck.remainSec} giây!`
+            };
+        }
+        const isUnderAttack = globalAcctCheck.count >= ACCOUNT_SOFT_LOCK_THRESHOLD;
         if (isUnderAttack) {
             const delayMs = skipDelay
                 ? 0

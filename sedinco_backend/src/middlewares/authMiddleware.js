@@ -22,57 +22,39 @@ let permissionsCache = null;
 let cacheTime = 0;
 const CACHE_TTL_MS = 10000;
 
-// B7 (G4): Xác thực trực tiếp trạng thái tài khoản và vai trò từ CSDL ở MỖI request (0-delay)
-const userStatusCache = new Map();
-const USER_CACHE_TTL_MS = 0; // Đọc trực tiếp từ CSDL tại mỗi request
-
-function invalidateUserCache(identifier) {
-    if (identifier) {
-        userStatusCache.delete(String(identifier));
-    } else {
-        userStatusCache.clear();
-    }
+function invalidateUserCache() {
+    // No-op giữ tương thích API vì trạng thái user được kiểm tra trực tiếp trên DB mỗi request
 }
 
 async function verifyUserStatusInDb(user) {
     if (!user || (!user.id && !user.ma_nv && !user.username)) return null;
-    const identifier = user.ma_nv || user.id || user.username;
-    const now = Date.now();
 
     try {
         const { query } = require('../config/db');
         if (user.role === 'worker' || user.role === 'accountant' || user.ma_nv) {
             const rows = await query('SELECT ma_nv, role, status, is_locked, COALESCE(token_version, 1) AS token_version FROM employees WHERE ma_nv = ? LIMIT 1', [user.ma_nv || user.id]);
             if (!rows || rows.length === 0) {
-                const data = { notFound: true };
-                userStatusCache.set(String(identifier), { time: now, data });
-                return data;
+                return { notFound: true };
             }
             const emp = rows[0];
-            const data = {
+            return {
                 isLocked: Boolean(emp.is_locked === 1 || emp.status === 'inactive' || emp.status === 'locked'),
                 role: emp.role || resolveUserRole(emp),
                 tokenVersion: Number(emp.token_version || 1)
             };
-            userStatusCache.set(String(identifier), { time: now, data });
-            return data;
         } else if (user.role === 'admin' || user.username) {
             const rows = await query('SELECT id, username, COALESCE(token_version, 1) AS token_version FROM admins WHERE username = ? OR id = ? LIMIT 1', [user.username || user.id, user.id || 0]);
             if (!rows || rows.length === 0) {
-                const data = { notFound: true };
-                userStatusCache.set(String(identifier), { time: now, data });
-                return data;
+                return { notFound: true };
             }
-            const data = {
+            return {
                 isLocked: false,
                 role: 'admin',
                 tokenVersion: Number(rows[0].token_version || 1)
             };
-            userStatusCache.set(String(identifier), { time: now, data });
-            return data;
         }
     } catch {
-        return null;
+        return { dbError: true };
     }
     return null;
 }
@@ -205,31 +187,38 @@ async function authenticateToken(req, res, next) {
     if (token) {
         const user = verifyToken(token);
         if (user) {
-            // Xác thực tức thì trạng thái tài khoản từ CSDL (Chống dùng token cũ khi bị khóa hoặc đổi vai trò)
+            // Xác thực tức thì trạng thái tài khoản từ CSDL (Fail-Closed: không cho qua nếu mất kết nối DB)
             const dbCheck = await verifyUserStatusInDb(user);
-            if (dbCheck) {
-                if (dbCheck.notFound || dbCheck.isLocked) {
-                    return res.status(403).json({
-                        success: false,
-                        message: 'Tài khoản của bạn đã bị TẠM KHÓA hoặc không còn tồn tại trên hệ thống!'
-                    });
+            if (!dbCheck || dbCheck.dbError) {
+                return res.status(503).json({
+                    success: false,
+                    code: 'AUTH_VERIFICATION_UNAVAILABLE',
+                    message: 'Hệ thống đang bận xác thực phiên đăng nhập. Vui lòng thử lại sau giây lát!'
+                });
+            }
+            if (dbCheck.notFound || dbCheck.isLocked) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Tài khoản của bạn đã bị TẠM KHÓA hoặc không còn tồn tại trên hệ thống!'
+                });
+            }
+            const normalizedDbRole = dbCheck.role === 'employee' ? 'worker' : dbCheck.role;
+            const normalizedTokenRole = user.role === 'employee' ? 'worker' : user.role;
+            if (normalizedDbRole && normalizedDbRole !== normalizedTokenRole) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Vai trò tài khoản của bạn đã thay đổi. Vui lòng đăng nhập lại!'
+                });
+            }
+            if (Number(user.token_version || 1) !== Number(dbCheck.tokenVersion || 1)) {
+                if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+                    req.app.setCorsHeadersIfAllowed(req, res);
                 }
-                if (dbCheck.role && dbCheck.role !== user.role) {
-                    return res.status(403).json({
-                        success: false,
-                        message: 'Vai trò tài khoản của bạn đã thay đổi. Vui lòng đăng nhập lại!'
-                    });
-                }
-                if (Number(user.token_version || 1) !== Number(dbCheck.tokenVersion || 1)) {
-                    if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
-                        req.app.setCorsHeadersIfAllowed(req, res);
-                    }
-                    return res.status(401).json({
-                        success: false,
-                        code: 'TOKEN_REVOKED',
-                        message: 'Phiên đăng nhập đã hết hiệu lực do thay đổi bảo mật, vui lòng đăng nhập lại'
-                    });
-                }
+                return res.status(401).json({
+                    success: false,
+                    code: 'TOKEN_REVOKED',
+                    message: 'Phiên đăng nhập đã hết hiệu lực do thay đổi bảo mật, vui lòng đăng nhập lại'
+                });
             }
             req.user = user;
             return next();

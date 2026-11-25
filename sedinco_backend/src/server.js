@@ -13,11 +13,16 @@ const REQUIRED_TABLES = [
     'admins',
     'departments',
     'period_locks',
+    'payroll_periods',
     'accountant_permissions',
     'audit_logs',
+    'user_notifications',
     'ot_registrations',
     'login_rate_limits',
-    'idempotency_keys'
+    'idempotency_keys',
+    'media_assets',
+    'media_upload_events',
+    'media_usage_snapshots'
 ];
 
 async function verifySchemaReadiness(conn) {

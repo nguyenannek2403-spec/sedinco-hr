@@ -384,8 +384,8 @@ class CompanyService {
                 ? ''
                 : String(payload.announcement_text).trim().slice(0, 2000);
             await query(
-                'UPDATE company_settings SET announcement_text = ?, announcement_updated_at = ?',
-                [cleanAnnouncement || null, cleanAnnouncement ? new Date() : null]
+                'UPDATE company_settings SET announcement_text = ?, announcement_updated_at = ? WHERE id = ?',
+                [cleanAnnouncement || null, cleanAnnouncement ? new Date() : null, savedCompanyId]
             );
         }
 

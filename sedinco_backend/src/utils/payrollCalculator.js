@@ -106,7 +106,7 @@ function calculateEmployeeSalary({
     const insuranceRatio = insuranceRatePercent / 100;
     const rawMonthlyLeaveLimit = companySettings.monthly_paid_leave_limit;
     const monthlyPaidLeaveLimit = (rawMonthlyLeaveLimit !== undefined && rawMonthlyLeaveLimit !== null && rawMonthlyLeaveLimit !== '')
-        ? Math.max(0, Math.min(1, Number(rawMonthlyLeaveLimit) || 0))
+        ? Math.max(0, Math.min(31, Number(rawMonthlyLeaveLimit) || 0))
         : 1;
     const luong1Gio = customOtHourly > 0 ? customOtHourly : ((luongCb / congChuan) / 8);
 
@@ -116,8 +116,18 @@ function calculateEmployeeSalary({
         warning = 'CẢNH BÁO: Nhân viên đang ở trạng thái thử việc nhưng thiếu ngày chính thức (ngay_chinh_thuc). Hệ thống đang tính 100% lương theo mặc định!';
     }
 
-    const ngayChinhThuc = ngay_chinh_thuc ? new Date(ngay_chinh_thuc) : null;
-    if (ngayChinhThuc) ngayChinhThuc.setHours(0, 0, 0, 0);
+    const ngayChinhThucIso = ngay_chinh_thuc ? normalizePureIsoDate(ngay_chinh_thuc) : null;
+    const approvedOtByIso = new Map();
+    if (Array.isArray(otRegistrations)) {
+        for (const r of otRegistrations) {
+            if (r && r.status === 'approved') {
+                const rIso = normalizePureIsoDate(r.work_date);
+                if (rIso && !approvedOtByIso.has(rIso)) {
+                    approvedOtByIso.set(rIso, r);
+                }
+            }
+        }
+    }
 
     let congThuViec = 0;
     let congChinhThuc = 0;
@@ -192,7 +202,6 @@ function calculateEmployeeSalary({
         const cleanIsoDate = normalizePureIsoDate(log.record_date_iso || log.record_date);
         if (cleanIsoDate) seenIsoDates.add(cleanIsoDate);
         const logDate = cleanIsoDate ? new Date(`${cleanIsoDate}T00:00:00+07:00`) : new Date(log.record_date);
-        logDate.setHours(0, 0, 0, 0);
 
         const isAdminAdjustedFull = String(log.duration_status || '').trim().toUpperCase() === 'ADMIN_ADJUSTED_FULL';
         const lateMins = isAdminAdjustedFull ? 0 : (Number(log.late_minutes) || 0);
@@ -228,7 +237,7 @@ function calculateEmployeeSalary({
             ? Math.max(1, Number(matchedHoliday?.salary_multiplier ?? matchedHoliday?.multiplier ?? otHoliday ?? 3.0) || 3.0)
             : 0;
 
-        const isProbation = ngayChinhThuc && (logDate < ngayChinhThuc);
+        const isProbation = Boolean(ngayChinhThucIso && cleanIsoDate && (cleanIsoDate < ngayChinhThucIso));
         const unitDailyRateForDay = (!probationAllowanceFull && isProbation)
             ? ((luongCb / congChuan) * probationRatio)
             : (luongCb / congChuan);
@@ -244,13 +253,7 @@ function calculateEmployeeSalary({
         let effectiveStatus = log.status;
         let customAttendanceNote = null;
 
-        const matchedReg = Array.isArray(otRegistrations)
-            ? otRegistrations.find(r => {
-                const rDate = new Date(r.work_date);
-                rDate.setHours(0, 0, 0, 0);
-                return rDate.getTime() === logDate.getTime() && r.status === 'approved';
-            })
-            : null;
+        const matchedReg = cleanIsoDate ? (approvedOtByIso.get(cleanIsoDate) || null) : null;
         const resolveAllowedOtHours = (rawHrs) => {
             if (otCalculationMode === 'REQUIRE_APPROVAL') {
                 return matchedReg ? Math.min(rawHrs, Number(matchedReg.expected_hours)) : 0;
@@ -440,9 +443,7 @@ function calculateEmployeeSalary({
             if (!hol) continue;
             const isSun = isSundayIsoDate(iso);
             if (!isSun) {
-                const holDate = new Date(`${iso}T00:00:00+07:00`);
-                holDate.setHours(0, 0, 0, 0);
-                const isProbHol = Boolean(ngayChinhThuc && holDate < ngayChinhThuc);
+                const isProbHol = Boolean(ngayChinhThucIso && iso < ngayChinhThucIso);
                 holidayDays += 1;
                 if (isProbHol) congThuViec += 1; else congChinhThuc += 1;
                 const earnedAmt = calculateDailyEarnedAmount({

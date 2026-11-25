@@ -1371,9 +1371,10 @@ class AttendanceService {
                     [locTokenHash, ma_nv]
                 ).catch(() => {});
             } else {
-                // Fallback an toàn đối với token hết hạn chưa từng dùng để không làm gián đoạn chấm công thực tế
-                location_source = 'raw';
-                is_low_trust = 1;
+                const err = new Error('Token định vị Zalo không hợp lệ, đã hết hạn hoặc bị chỉnh sửa. Vui lòng lấy lại vị trí từ Zalo!');
+                err.statusCode = 403;
+                err.code = 'INVALID_ZALO_LOCATION_TOKEN';
+                throw err;
             }
         }
 
@@ -1731,8 +1732,22 @@ class AttendanceService {
                 if (prevNightRows && prevNightRows.length > 0) {
                     existingLog = prevNightRows[0];
                     targetRecordDate = prevDateStr;
+                    const [prevY, prevM] = prevDateStr.split('-').map(Number);
+                    if (prevM !== currentMonth || prevY !== currentYear) {
+                        const prevLockRows = await txQuery(
+                            'SELECT is_locked FROM period_locks WHERE month = ? AND year = ? LIMIT 1',
+                            [prevM, prevY]
+                        );
+                        if (prevLockRows?.[0]?.is_locked) {
+                            const err = new Error(`Kỳ công Tháng ${prevM}/${prevY} của ca đêm đã bị KHÓA SỔ. Không thể chấm ra!`);
+                            err.statusCode = 400;
+                            err.code = 'PERIOD_LOCKED';
+                            throw err;
+                        }
+                    }
                 }
             }
+            const [targetYear, targetMonth] = targetRecordDate.split('-').map(Number);
 
             const isCheckOut = Boolean(existingLog && existingLog.check_in_time);
 
@@ -1808,7 +1823,7 @@ class AttendanceService {
                     if (policyType === 'DEDUCT_WORKDAY' && late_minutes > maxLateHalfDay) {
                         const priorLateRows = await txQuery(
                             'SELECT COUNT(*) as cnt FROM attendance_logs WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ? AND record_date != ? AND late_minutes > 0',
-                            [ma_nv, currentMonth, currentYear, targetRecordDate]
+                            [ma_nv, targetMonth, targetYear, targetRecordDate]
                         );
                         const priorLateCnt = Number(priorLateRows?.[0]?.cnt || 0);
                         if (!freeExemptsHalfday || priorLateCnt >= freeLateCount) {

@@ -59,7 +59,10 @@ export function DesktopMobileBottomNav({
   // Build bottom nav items matching Stitch Screens 6–13
   const navItems =
     effectiveRole === ROLES.ACCOUNTANT
-      ? allowedItems.slice(0, 4)
+      ? [
+          ...allowedItems.slice(0, 4),
+          { id: "profile", label: "Hồ sơ", shortLabel: "Hồ sơ", icon: User }
+        ]
       : allowedItems.slice(0, 5);
 
   const pendingReqCount = Number(pendingRequestsCount || alertsSummary?.pending_requests_count || 0);
