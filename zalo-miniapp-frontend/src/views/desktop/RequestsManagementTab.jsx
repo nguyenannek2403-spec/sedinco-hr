@@ -9,14 +9,26 @@ import {
   Eye,
   Clock,
   Calendar,
-  UserCheck
+  UserCheck,
+  Users,
+  ChevronDown,
+  Check,
+  RotateCcw
 } from "lucide-react";
 import { safeGet, safePut, generateIdempotencyKey } from "../../utils/api";
-import { useDebouncedValue } from "../../hooks/useDebounce";
 import useDepartments from "../../hooks/useDepartments";
 import { getRequestTypeLabel, getCorrectionModeLabel } from "../../utils/viLabels";
 import { formatViCurrency } from "../../utils/viNumberFormat";
-import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState, UserAvatar, SecureMediaPreview } from "../../components/ui";
+import {
+  AppButton,
+  AppModal,
+  BottomSheet,
+  StatusBadge,
+  SkeletonList,
+  EmptyState,
+  UserAvatar,
+  SecureMediaPreview
+} from "../../components/ui";
 
 function formatTimestampVi(isoOrRaw, preformattedVn = null) {
   if (preformattedVn && /^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/.test(String(preformattedVn).trim())) {
@@ -43,7 +55,7 @@ function formatTimestampVi(isoOrRaw, preformattedVn = null) {
 function getRequestStatusLabel(status) {
   const s = String(status || "").toLowerCase();
   if (s === "approved") return "Đã duyệt";
-  if (s === "rejected") return "Từ chối";
+  if (s === "rejected") return "Từ chối duyệt";
   if (s === "cancelled") return "Đã hủy";
   return "Chờ duyệt";
 }
@@ -58,6 +70,37 @@ function normalizeSearchStr(val) {
     .trim();
 }
 
+const STATUS_OPTIONS_META = [
+  {
+    id: "pending",
+    label: "Chờ duyệt",
+    dotClass: "bg-amber-500",
+    badgeClass:
+      "bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-200 border-amber-300/80 dark:border-amber-700/70"
+  },
+  {
+    id: "approved",
+    label: "Đã duyệt",
+    dotClass: "bg-emerald-500",
+    badgeClass:
+      "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-200 border-emerald-300/80 dark:border-emerald-700/70"
+  },
+  {
+    id: "rejected",
+    label: "Từ chối duyệt",
+    dotClass: "bg-rose-500",
+    badgeClass:
+      "bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-200 border-rose-300/80 dark:border-rose-700/70"
+  },
+  {
+    id: "all",
+    label: "Tất cả trạng thái",
+    dotClass: "bg-[#0051CA]",
+    badgeClass:
+      "bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-200 border-blue-300/80 dark:border-blue-700/70"
+  }
+];
+
 export default function RequestsManagementTab({
   currentUser,
   showToast,
@@ -71,14 +114,21 @@ export default function RequestsManagementTab({
     return Boolean(dynamicPerms?.leave_approve || dynamicPerms?.attendance_request_approve);
   }, [effectiveRole, dynamicPerms]);
 
+  const { defaultDepartmentName } = useDepartments();
+
   const [employeeGroups, setEmployeeGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [filterMode, setFilterMode] = useState("all"); // 'pending' | 'all' | 'processed'
-  const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSearch = useDebouncedValue(searchQuery, 250);
-  const [selectedEmpMaNv, setSelectedEmpMaNv] = useState(null);
 
+  // V56: 2 Bộ chọn Option chuẩn Enterprise (Mặc định: "pending" - Chờ duyệt & "ALL" - Tất cả nhân viên)
+  const [statusFilter, setStatusFilter] = useState("pending"); // 'pending' | 'approved' | 'rejected' | 'all'
+  const [employeeFilter, setEmployeeFilter] = useState("ALL"); // 'ALL' | ma_nv
+  const [activePicker, setActivePicker] = useState(null); // null | 'status' | 'employee'
+  const [isMobilePickerSheet, setIsMobilePickerSheet] = useState(false);
+  const [empPickerSearch, setEmpPickerSearch] = useState("");
+  const filterToolbarRef = useRef(null);
+
+  const [selectedEmpMaNv, setSelectedEmpMaNv] = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [rejectDialogReq, setRejectDialogReq] = useState(null);
   const [rejectReasonInput, setRejectReasonInput] = useState("");
@@ -90,11 +140,31 @@ export default function RequestsManagementTab({
     if (!focusTarget?.ts || focusTarget.ts === lastFocusTsRef.current) return;
     if (focusTarget.tab !== "requests" && focusTarget.category !== "pending_request") return;
     lastFocusTsRef.current = focusTarget.ts;
-    setFilterMode("pending");
+    setStatusFilter("pending");
     if (focusTarget.ma_nv) {
-      setSearchQuery(focusTarget.ma_nv);
+      setEmployeeFilter(focusTarget.ma_nv);
     }
   }, [focusTarget]);
+
+  useEffect(() => {
+    if (!activePicker || isMobilePickerSheet) return undefined;
+    const handleOutsideClick = (e) => {
+      if (filterToolbarRef.current && !filterToolbarRef.current.contains(e.target)) {
+        setActivePicker(null);
+      }
+    };
+    const handleEsc = (e) => {
+      if (e.key === "Escape") setActivePicker(null);
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick, { passive: true });
+    window.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, [activePicker, isMobilePickerSheet]);
 
   const notify = useCallback(
     (msg, type = "info") => {
@@ -159,81 +229,274 @@ export default function RequestsManagementTab({
     }
   };
 
-  const { departmentNames, defaultDepartmentName } = useDepartments();
-  const [selectedDepartment, setSelectedDepartment] = useState("ALL");
-
   const selectedEmployee = useMemo(
     () => employeeGroups.find((g) => g.ma_nv === selectedEmpMaNv) || null,
     [employeeGroups, selectedEmpMaNv]
   );
 
-  const availableDepartments = useMemo(
+  const activeFilteredEmployeeObj = useMemo(
     () =>
-      Array.from(
-        new Set([
-          ...departmentNames,
-          ...employeeGroups.map((e) => e.department).filter(Boolean)
-        ])
-      ),
-    [departmentNames, employeeGroups]
+      employeeFilter !== "ALL"
+        ? employeeGroups.find((g) => g.ma_nv === employeeFilter) || null
+        : null,
+    [employeeGroups, employeeFilter]
   );
 
-  useEffect(() => {
-    if (
-      selectedDepartment !== "ALL" &&
-      availableDepartments.length > 0 &&
-      !availableDepartments.includes(selectedDepartment)
-    ) {
-      setSelectedDepartment("ALL");
-    }
-  }, [selectedDepartment, availableDepartments]);
+  // Thống kê số lượng đơn theo 4 trạng thái (tính trên nhân viên đang chọn hoặc toàn công ty)
+  const statusCounts = useMemo(() => {
+    let pending = 0;
+    let approved = 0;
+    let rejected = 0;
+    let all = 0;
+    let withPendingEmployees = 0;
 
-  const stats = useMemo(() => {
-    let withPending = 0;
-    let totalPending = 0;
-    let withProcessed = 0;
-    for (const g of employeeGroups) {
-      if (g.pending_count > 0) {
-        withPending++;
-        totalPending += g.pending_count;
-      } else if (g.total_requests > 0) {
-        withProcessed++;
+    const targetGroups =
+      employeeFilter !== "ALL"
+        ? employeeGroups.filter((g) => g.ma_nv === employeeFilter)
+        : employeeGroups;
+
+    for (const g of targetGroups) {
+      const reqList = Array.isArray(g.requests) ? g.requests : [];
+      if (g.pending_count > 0) withPendingEmployees++;
+      for (const r of reqList) {
+        const st = String(r.status || "pending").toLowerCase();
+        all++;
+        if (st === "pending") pending++;
+        else if (st === "approved") approved++;
+        else if (st === "rejected") rejected++;
       }
     }
+
     return {
-      totalEmployees: employeeGroups.length,
-      withPending,
-      totalPending,
-      withProcessed
+      pending,
+      approved,
+      rejected,
+      all,
+      withPendingEmployees
     };
-  }, [employeeGroups]);
+  }, [employeeGroups, employeeFilter]);
 
-  const filteredEmployees = useMemo(() => {
-    const q = normalizeSearchStr(debouncedSearch);
+  // Danh sách nhân viên bên trong Option 2 (lọc theo từ khóa tìm nhanh tiếng Việt có dấu / không dấu)
+  const pickerEmployeesList = useMemo(() => {
+    const q = normalizeSearchStr(empPickerSearch);
+    if (!q) return employeeGroups;
     return employeeGroups.filter((emp) => {
-      if (filterMode === "pending" && emp.pending_count === 0) return false;
-      if (filterMode === "processed" && (emp.pending_count > 0 || emp.total_requests === 0)) {
-        return false;
-      }
-      const empDept = emp.department || defaultDepartmentName;
-      if (selectedDepartment !== "ALL" && empDept !== selectedDepartment) {
-        return false;
-      }
-      if (!q) return true;
-      const haystack = normalizeSearchStr(
-        `${emp.ma_nv} ${emp.ho_ten} ${empDept} ${emp.chuc_danh || ""}`
-      );
+      const dept = emp.department || defaultDepartmentName;
+      const haystack = normalizeSearchStr(`${emp.ho_ten || ""} ${dept}`);
       return haystack.includes(q);
     });
-  }, [employeeGroups, filterMode, debouncedSearch, selectedDepartment, defaultDepartmentName]);
+  }, [employeeGroups, empPickerSearch, defaultDepartmentName]);
+
+  // Lọc danh sách thẻ nhân viên hiển thị ngoài màn hình theo Option 1 (Trạng thái) & Option 2 (Nhân viên)
+  const filteredEmployees = useMemo(() => {
+    return employeeGroups.filter((emp) => {
+      if (employeeFilter !== "ALL" && emp.ma_nv !== employeeFilter) {
+        return false;
+      }
+      const reqList = Array.isArray(emp.requests) ? emp.requests : [];
+      if (statusFilter === "pending") {
+        return (
+          emp.pending_count > 0 ||
+          reqList.some((r) => String(r.status || "pending").toLowerCase() === "pending")
+        );
+      }
+      if (statusFilter === "approved") {
+        return reqList.some((r) => String(r.status || "").toLowerCase() === "approved");
+      }
+      if (statusFilter === "rejected") {
+        return reqList.some((r) => String(r.status || "").toLowerCase() === "rejected");
+      }
+      // statusFilter === "all"
+      if (employeeFilter !== "ALL") return true;
+      return reqList.length > 0 || emp.total_requests > 0;
+    });
+  }, [employeeGroups, statusFilter, employeeFilter]);
+
+  const handleTogglePicker = (pickerName) => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setIsMobilePickerSheet(true);
+    } else {
+      setIsMobilePickerSheet(false);
+    }
+    if (pickerName === "employee") {
+      setEmpPickerSearch("");
+    }
+    setActivePicker((prev) => (prev === pickerName ? null : pickerName));
+  };
+
+  const activeStatusMeta =
+    STATUS_OPTIONS_META.find((item) => item.id === statusFilter) || STATUS_OPTIONS_META[0];
+  const activeStatusCount = statusCounts[activeStatusMeta.id] || 0;
+  const hasNonDefaultFilter = statusFilter !== "pending" || employeeFilter !== "ALL";
 
   const myMaNv = currentUser?.ma_nv || currentUser?.username;
   const managerCanAct = canApproveRequest();
 
+  const renderStatusOptionList = () => (
+    <div className="space-y-1.5" role="listbox" aria-label="Chọn trạng thái đơn">
+      {STATUS_OPTIONS_META.map((opt) => {
+        const isSelected = statusFilter === opt.id;
+        const count = statusCounts[opt.id] || 0;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            role="option"
+            aria-selected={isSelected}
+            data-testid={`requests-status-opt-${opt.id}`}
+            onClick={() => {
+              setStatusFilter(opt.id);
+              setActivePicker(null);
+            }}
+            className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl border flex items-center justify-between gap-3 text-left transition cursor-pointer ${
+              isSelected
+                ? "bg-[#FFE4E6]/80 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700"
+                : "bg-white dark:bg-slate-800/80 border-slate-200/70 dark:border-slate-700/80 hover:bg-slate-50 dark:hover:bg-slate-800"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${opt.dotClass}`} />
+              <span
+                className={`text-xs sm:text-sm font-extrabold truncate ${
+                  isSelected
+                    ? "text-[#B80035] dark:text-rose-200"
+                    : "text-[#111C2D] dark:text-white"
+                }`}
+              >
+                {opt.label}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span
+                className={`px-2 py-0.5 rounded-full border text-xs font-extrabold font-mono ${opt.badgeClass}`}
+              >
+                {count}
+              </span>
+              {isSelected && (
+                <span className="w-6 h-6 rounded-full bg-[#E11D48] text-white flex items-center justify-center shrink-0">
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                </span>
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderEmployeeOptionList = () => (
+    <div className="space-y-2.5" role="listbox" aria-label="Chọn nhân viên">
+      {/* Ô tìm nhanh theo tên / khối làm việc */}
+      <div className="relative">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          data-testid="requests-emp-picker-search"
+          value={empPickerSearch}
+          onChange={(e) => setEmpPickerSearch(e.target.value)}
+          placeholder="Tìm nhanh theo họ tên hoặc khối làm việc..."
+          className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-medium text-[#111C2D] dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#E11D48]"
+        />
+      </div>
+
+      <div className="max-h-72 overflow-y-auto space-y-1.5 pr-0.5">
+        {/* Mục đầu tiên: Tất cả nhân viên */}
+        <button
+          type="button"
+          role="option"
+          aria-selected={employeeFilter === "ALL"}
+          data-testid="requests-emp-opt-ALL"
+          onClick={() => {
+            setEmployeeFilter("ALL");
+            setActivePicker(null);
+          }}
+          className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl border flex items-center justify-between gap-3 text-left transition cursor-pointer ${
+            employeeFilter === "ALL"
+              ? "bg-[#FFE4E6]/80 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700"
+              : "bg-white dark:bg-slate-800/80 border-slate-200/70 dark:border-slate-700/80 hover:bg-slate-50 dark:hover:bg-slate-800"
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[#F0F3FF] dark:bg-slate-700 text-[#E11D48] dark:text-rose-300 flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white truncate">
+                Tất cả nhân viên
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                Hiển thị đơn từ của toàn bộ nhân sự
+              </div>
+            </div>
+          </div>
+
+          {employeeFilter === "ALL" && (
+            <span className="w-6 h-6 rounded-full bg-[#E11D48] text-white flex items-center justify-center shrink-0">
+              <Check className="w-3.5 h-3.5 stroke-[3]" />
+            </span>
+          )}
+        </button>
+
+        {/* Danh sách từng nhân viên: UserAvatar + Họ và tên + Khối làm việc (Ẩn hoàn toàn mã NV00x) */}
+        {pickerEmployeesList.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+            Không tìm thấy nhân viên nào khớp tên vừa nhập.
+          </div>
+        ) : (
+          pickerEmployeesList.map((emp) => {
+            const isSelected = employeeFilter === emp.ma_nv;
+            const deptLabel = emp.department || defaultDepartmentName;
+            return (
+              <button
+                key={emp.ma_nv}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                data-testid={`requests-emp-opt-${emp.ma_nv}`}
+                onClick={() => {
+                  setEmployeeFilter(emp.ma_nv);
+                  setActivePicker(null);
+                }}
+                className={`w-full min-h-[50px] px-3 py-2 rounded-xl border flex items-center justify-between gap-2.5 text-left transition cursor-pointer ${
+                  isSelected
+                    ? "bg-[#FFE4E6]/80 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700"
+                    : "bg-white dark:bg-slate-800/80 border-slate-200/70 dark:border-slate-700/80 hover:bg-slate-50 dark:hover:bg-slate-800"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <UserAvatar
+                    name={emp.ho_ten || "Nhân viên"}
+                    avatarUrl={emp.avatar_url}
+                    size="sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white truncate">
+                      {emp.ho_ten || "Nhân viên"}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                      {deptLabel}
+                    </div>
+                  </div>
+                </div>
+
+                {isSelected && (
+                  <span className="w-6 h-6 rounded-full bg-[#E11D48] text-white flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  </span>
+                )}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
-      {/* Header tinh gọn + bộ lọc & tìm kiếm */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 space-y-3 shadow-xs">
+      {/* Header tinh gọn + Thanh công cụ 2 Option Selector đặt cân đối trên 1 hàng */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-4 space-y-3 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70 text-[#E11D48] dark:text-rose-400 flex items-center justify-center shrink-0">
@@ -244,84 +507,137 @@ export default function RequestsManagementTab({
                 Đơn từ theo Nhân viên
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
-                {stats.totalPending > 0
-                  ? `${stats.totalPending} đơn đang chờ duyệt tại ${stats.withPending} nhân sự`
+                {statusCounts.pending > 0
+                  ? `${statusCounts.pending} đơn đang chờ duyệt`
                   : "Không có đơn chờ duyệt"}
               </p>
             </div>
           </div>
 
-          <AppButton
-            variant="secondary"
-            icon={RefreshCw}
-            loading={loading}
-            onClick={fetchEmployeeRequests}
-            className="text-xs px-3 py-2"
-          >
-            Làm mới
-          </AppButton>
+          <div className="flex items-center gap-2 shrink-0">
+            {hasNonDefaultFilter && (
+              <button
+                type="button"
+                data-testid="requests-reset-filter-btn"
+                onClick={() => {
+                  setStatusFilter("pending");
+                  setEmployeeFilter("ALL");
+                  setActivePicker(null);
+                }}
+                className="min-h-[40px] px-3 py-1.5 rounded-xl bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-xs font-extrabold text-[#0051CA] dark:text-blue-400 inline-flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                <span>Đặt lại</span>
+              </button>
+            )}
+
+            <AppButton
+              variant="secondary"
+              icon={RefreshCw}
+              loading={loading}
+              onClick={fetchEmployeeRequests}
+              className="text-xs px-3 py-2 min-h-[40px]"
+            >
+              Làm mới
+            </AppButton>
+          </div>
         </div>
 
-        {/* Tìm kiếm theo Họ tên hoặc Bộ phận + Tabs lọc gọn */}
-        <div className="flex flex-col sm:flex-row gap-2.5">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              data-testid="requests-search-input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm nhân viên theo họ tên hoặc bộ phận..."
-              className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl bg-[#F4F6F9] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-medium text-[#111C2D] dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#E11D48]"
-            />
+        {/* Thanh công cụ duy nhất chứa 2 nút chọn dạng Option đặt cân đối trên cùng 1 hàng */}
+        <div
+          ref={filterToolbarRef}
+          data-testid="requests-option-toolbar"
+          className="grid grid-cols-2 gap-2.5 md:flex md:items-center md:gap-3 relative"
+        >
+          {/* Option 1: Bộ chọn Trạng thái đơn */}
+          <div className="relative min-w-0 md:flex-1">
+            <button
+              type="button"
+              data-testid="requests-status-selector-trigger"
+              aria-expanded={activePicker === "status"}
+              aria-haspopup="listbox"
+              onClick={() => handleTogglePicker("status")}
+              className="w-full min-h-[46px] px-3 sm:px-3.5 py-2 rounded-xl bg-[#F0F3FF]/80 dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700 hover:border-[#E11D48] dark:hover:border-rose-500/60 flex items-center justify-between gap-2 text-left transition active:scale-[0.99] cursor-pointer"
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${activeStatusMeta.dotClass}`} />
+                <span className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white truncate">
+                  {activeStatusMeta.label}
+                  {activeStatusCount > 0 ? ` (${activeStatusCount})` : ""}
+                </span>
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 transition-transform duration-200 ${
+                  activePicker === "status" ? "rotate-180 text-[#E11D48]" : ""
+                }`}
+              />
+            </button>
+
+            {/* Desktop Dropdown cho Option 1 (>= 768px) */}
+            {activePicker === "status" && !isMobilePickerSheet && (
+              <div
+                data-testid="requests-status-dropdown"
+                className="hidden md:block absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 rounded-2xl shadow-2xl p-2.5 animate-fade-in"
+              >
+                {renderStatusOptionList()}
+              </div>
+            )}
           </div>
 
-          <select
-            value={selectedDepartment}
-            data-testid="requests-department-filter"
-            aria-label="Lọc theo bộ phận"
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#E11D48]"
-          >
-            <option value="ALL">🏢 Tất cả bộ phận</option>
-            {availableDepartments.map((dept) => (
-              <option key={dept} value={dept}>
-                {dept}
-              </option>
-            ))}
-          </select>
+          {/* Option 2: Bộ chọn Nhân viên */}
+          <div className="relative min-w-0 md:flex-1">
+            <button
+              type="button"
+              data-testid="requests-employee-selector-trigger"
+              aria-expanded={activePicker === "employee"}
+              aria-haspopup="listbox"
+              onClick={() => handleTogglePicker("employee")}
+              className="w-full min-h-[46px] px-3 sm:px-3.5 py-2 rounded-xl bg-[#F0F3FF]/80 dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700 hover:border-[#E11D48] dark:hover:border-rose-500/60 flex items-center justify-between gap-2 text-left transition active:scale-[0.99] cursor-pointer"
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Users className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
+                <span className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white truncate">
+                  {activeFilteredEmployeeObj
+                    ? activeFilteredEmployeeObj.ho_ten
+                    : "Tất cả nhân viên"}
+                </span>
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 transition-transform duration-200 ${
+                  activePicker === "employee" ? "rotate-180 text-[#E11D48]" : ""
+                }`}
+              />
+            </button>
 
-          <div
-            data-filter-group="requests-employee-filter"
-            data-testid="requests-filter-bar"
-            className="flex flex-wrap bg-[#F4F6F9] dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 p-1 rounded-xl gap-2 text-xs"
-          >
-            {[
-              { id: "pending", label: `Chờ duyệt (${stats.withPending})` },
-              { id: "all", label: `Tất cả nhân viên (${stats.totalEmployees})` },
-              { id: "processed", label: `Đã xử lý (${stats.withProcessed})` }
-            ].map((tab) => {
-              const active = filterMode === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  data-testid={`requests-filter-${tab.id}`}
-                  data-active={active ? "true" : "false"}
-                  onClick={() => setFilterMode(tab.id)}
-                  className={`min-h-[44px] px-3 py-2 rounded-lg font-bold transition cursor-pointer whitespace-nowrap ${
-                    active
-                      ? "bg-[#E11D48] text-white shadow-xs dark:bg-rose-600"
-                      : "text-slate-600 dark:text-slate-300 hover:text-[#111C2D] dark:hover:text-white"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
+            {/* Desktop Dropdown cho Option 2 (>= 768px) */}
+            {activePicker === "employee" && !isMobilePickerSheet && (
+              <div
+                data-testid="requests-employee-dropdown"
+                className="hidden md:block absolute right-0 left-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 rounded-2xl shadow-2xl p-3 animate-fade-in"
+              >
+                {renderEmployeeOptionList()}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Mobile Bottom Sheet Picker cho Option 1 & Option 2 (< 768px) */}
+      <BottomSheet
+        open={Boolean(activePicker && isMobilePickerSheet)}
+        onClose={() => setActivePicker(null)}
+        title={activePicker === "status" ? "Chọn trạng thái đơn" : "Chọn nhân viên"}
+        subtitle={
+          activePicker === "status"
+            ? "Lọc danh sách đơn từ theo trạng thái xử lý"
+            : "Lọc danh sách đơn từ theo từng nhân sự"
+        }
+        footer={null}
+      >
+        <div className="p-3.5">
+          {activePicker === "status" ? renderStatusOptionList() : renderEmployeeOptionList()}
+        </div>
+      </BottomSheet>
 
       {/* Error banner */}
       {error && (
@@ -342,17 +658,27 @@ export default function RequestsManagementTab({
       ) : filteredEmployees.length === 0 ? (
         <EmptyState
           icon={FileText}
-          title="Không có nhân viên phù hợp"
+          title={`Không có đơn ở trạng thái "${activeStatusMeta.label}"`}
           description={
-            searchQuery
-              ? "Không tìm thấy nhân viên nào khớp từ khóa tìm kiếm."
-              : "Chưa có dữ liệu đơn từ ở bộ lọc này."
+            activeFilteredEmployeeObj
+              ? `Nhân viên ${activeFilteredEmployeeObj.ho_ten} hiện không có đơn nào khớp bộ lọc đang chọn.`
+              : "Hãy bấm đổi sang trạng thái khác hoặc bấm Đặt lại để xem các đơn từ khác."
           }
         />
       ) : (
         <div className="space-y-2.5">
           {filteredEmployees.map((emp) => {
-            const latest = emp.latest_request;
+            const empRequests = Array.isArray(emp.requests) ? emp.requests : [];
+            const matchingRequest =
+              statusFilter === "all"
+                ? emp.latest_request || empRequests[0] || null
+                : empRequests.find(
+                    (r) => String(r.status || "pending").toLowerCase() === statusFilter
+                  ) ||
+                  emp.latest_request ||
+                  null;
+
+            const latest = matchingRequest;
             const latestSt = latest ? String(latest.status || "pending").toLowerCase() : "pending";
             const latestPending = Boolean(latest && latestSt === "pending");
             const isSelf = myMaNv && myMaNv === emp.ma_nv;
@@ -372,7 +698,7 @@ export default function RequestsManagementTab({
                 data-testid={`req-emp-card-${emp.ma_nv}`}
                 className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
               >
-                {/* Trái: Avatar + Họ tên + Khối nghề + Tóm tắt đơn mới nhất (Thuần Tiếng Việt, ẩn Mã NV) */}
+                {/* Trái: Avatar + Họ tên + Khối làm việc + Tóm tắt đơn (Thuần Tiếng Việt, ẩn Mã NV) */}
                 <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                   <UserAvatar
                     name={emp.ho_ten || "Nhân viên"}
@@ -415,8 +741,12 @@ export default function RequestsManagementTab({
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
                           {latestCreatedLabel && (
                             <span>
-                              <span className="font-semibold text-slate-500 dark:text-slate-400">Ngày làm đơn: </span>
-                              <span className="font-mono font-bold text-[#111C2D] dark:text-slate-100">{latestCreatedLabel}</span>
+                              <span className="font-semibold text-slate-500 dark:text-slate-400">
+                                Ngày làm đơn:{" "}
+                              </span>
+                              <span className="font-mono font-bold text-[#111C2D] dark:text-slate-100">
+                                {latestCreatedLabel}
+                              </span>
                             </span>
                           )}
                           <span>
@@ -424,10 +754,10 @@ export default function RequestsManagementTab({
                               {latestSt === "rejected"
                                 ? "Ngày từ chối: "
                                 : latestSt === "approved"
-                                ? "Ngày duyệt đơn: "
-                                : latestSt === "cancelled"
-                                ? "Ngày hủy đơn: "
-                                : ""}
+                                  ? "Ngày duyệt đơn: "
+                                  : latestSt === "cancelled"
+                                    ? "Ngày hủy đơn: "
+                                    : ""}
                             </span>
                             <span className="font-mono font-bold text-[#111C2D] dark:text-slate-100">
                               {latestPending
@@ -445,7 +775,7 @@ export default function RequestsManagementTab({
                   </div>
                 </div>
 
-                {/* Phải: Nút Xem chi tiết + Duyệt/Từ chối nhanh (nếu đơn mới nhất đang PENDING) */}
+                {/* Phải: Nút Xem chi tiết + Duyệt/Từ chối nhanh (nếu đơn đang Chờ duyệt) */}
                 <div className="flex flex-wrap items-center justify-end gap-2.5 shrink-0">
                   {canQuickAct && (
                     <>
@@ -609,10 +939,10 @@ export default function RequestsManagementTab({
                             {st === "rejected"
                               ? "Ngày từ chối:"
                               : st === "approved"
-                              ? "Ngày duyệt đơn:"
-                              : st === "cancelled"
-                              ? "Ngày hủy đơn:"
-                              : "Trạng thái duyệt:"}
+                                ? "Ngày duyệt đơn:"
+                                : st === "cancelled"
+                                  ? "Ngày hủy đơn:"
+                                  : "Trạng thái duyệt:"}
                           </div>
                           <div
                             data-testid={`req-processed-at-${req.id}`}
@@ -682,7 +1012,7 @@ export default function RequestsManagementTab({
         )}
       </AppModal>
 
-      {/* Modal nhập lý do từ chối (tùy chọn) — --z-nested-modal chồng chuẩn trên modal chi tiết */}
+      {/* Modal nhập lý do từ chối (tùy chọn) */}
       <AppModal
         open={Boolean(rejectDialogReq)}
         onClose={() => !actionLoadingId && setRejectDialogReq(null)}
