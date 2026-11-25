@@ -13,7 +13,7 @@ import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from ".
 import { safeGet, safePut } from "../../utils/api";
 import { compressAvatarImage } from "../../utils/imageCompressor";
 import { zaloMediaService } from "../../services/zalo-media.service";
-import { AppButton, UserAvatar } from "../../components/ui";
+import { AppButton, UserAvatar, BottomSheet } from "../../components/ui";
 import { FontScaleSelector } from "../../context/FontScaleContext";
 import {
   RefreshCw,
@@ -25,8 +25,37 @@ import {
   LogOut,
   Camera,
   Trash2,
-  Loader2
+  Loader2,
+  ChevronDown,
+  Check
 } from "lucide-react";
+
+const SETTINGS_OPTIONS = [
+  {
+    id: "company",
+    label: "Công ty & Vị trí",
+    description: "Thông tin doanh nghiệp, tọa độ GPS/Wi-Fi & Khối làm việc",
+    icon: Building2
+  },
+  {
+    id: "permissions",
+    label: "Phân quyền kế toán",
+    description: "Cấp quyền thao tác cho vai trò Kế toán",
+    icon: ShieldCheck
+  },
+  {
+    id: "holidays",
+    label: "Ngày lễ",
+    description: "Lịch 11 ngày nghỉ lễ & hệ số lương ngày lễ",
+    icon: Gift
+  },
+  {
+    id: "media_storage",
+    label: "Quản lý Media",
+    description: "Dung lượng Cloudinary & dọn tệp mồ côi",
+    icon: HardDrive
+  }
+];
 
 // Lazy-load các phân hệ quản trị
 const AttendanceMatrixTable = lazy(() => import("../../components/AttendanceMatrixTable"));
@@ -47,8 +76,31 @@ export default function DesktopDashboard({
     const r = activeRole || currentUser?.role;
     return getDefaultTabForRole(r, currentUser?.dynamic_permissions || {});
   });
-  const [settingsSubTab, setSettingsSubTab] = useState("company"); // 'company' | 'permissions' | 'holidays' | 'audit_logs'
+  const [settingsSubTab, setSettingsSubTab] = useState("company");
+  const [isSettingsPickerOpen, setIsSettingsPickerOpen] = useState(false);
+  const [isMobileSettingsSheet, setIsMobileSettingsSheet] = useState(false);
+  const settingsDropdownRef = useRef(null);
   const [focusTarget, setFocusTarget] = useState(null);
+
+  useEffect(() => {
+    if (!isSettingsPickerOpen || isMobileSettingsSheet) return undefined;
+    const handleOutsideClick = (e) => {
+      if (settingsDropdownRef.current && !settingsDropdownRef.current.contains(e.target)) {
+        setIsSettingsPickerOpen(false);
+      }
+    };
+    const handleEsc = (e) => {
+      if (e.key === "Escape") setIsSettingsPickerOpen(false);
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick, { passive: true });
+    window.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, [isSettingsPickerOpen, isMobileSettingsSheet]);
   const [liveDynamicPerms, setLiveDynamicPerms] = useState(null);
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -342,99 +394,220 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 5. Cài Đặt Hệ Thống */}
-            {effectiveTab === "settings" && resolvedRole === ROLES.ADMIN && (
-              <div className="space-y-4">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm">
-                  <div
-                    data-filter-group="settings-subtabs"
-                    className="bg-[#F0F3FF] border border-slate-200/80 dark:bg-slate-950 dark:border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5"
-                  >
-                    <button
-                      type="button"
-                      data-subtab="company"
-                      data-active={settingsSubTab === "company" ? "true" : "false"}
-                      onClick={() => setSettingsSubTab("company")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        settingsSubTab === "company"
-                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
-                      }`}
-                    >
-                      <Building2 size={16} className="shrink-0" />
-                      <span>Công ty &amp; Vị trí</span>
-                    </button>
-                    <button
-                      type="button"
-                      data-subtab="permissions"
-                      data-active={settingsSubTab === "permissions" ? "true" : "false"}
-                      onClick={() => setSettingsSubTab("permissions")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        settingsSubTab === "permissions"
-                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
-                      }`}
-                    >
-                      <ShieldCheck size={16} className="shrink-0" />
-                      <span>Phân quyền Kế toán</span>
-                    </button>
-                    <button
-                      type="button"
-                      data-subtab="holidays"
-                      data-active={settingsSubTab === "holidays" ? "true" : "false"}
-                      onClick={() => setSettingsSubTab("holidays")}
-                      className={`min-h-[44px] flex-1 min-w-[140px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        settingsSubTab === "holidays"
-                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
-                      }`}
-                    >
-                      <Gift size={16} className="shrink-0" />
-                      <span>Lịch nghỉ lễ</span>
-                    </button>
-                    <button
-                      type="button"
-                      data-subtab="media_storage"
-                      data-active={settingsSubTab === "media_storage" ? "true" : "false"}
-                      onClick={() => setSettingsSubTab("media_storage")}
-                      className={`min-h-[44px] flex-1 min-w-[150px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        settingsSubTab === "media_storage"
-                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
-                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
-                      }`}
-                    >
-                      <HardDrive size={16} className="shrink-0" />
-                      <span>Quản lý Media</span>
-                    </button>
-                  </div>
-                </div>
+            {/* 5. Cài Đặt Hệ Thống (Compact Enterprise Option Selector) */}
+            {effectiveTab === "settings" && resolvedRole === ROLES.ADMIN && (() => {
+              const activeSettingOpt =
+                SETTINGS_OPTIONS.find((item) => item.id === settingsSubTab) || SETTINGS_OPTIONS[0];
+              const ActiveSettingIcon = activeSettingOpt.icon;
 
-                {settingsSubTab === "company" && (
-                  <CompanySettingsTab
-                    currentUser={currentUser}
-                    showToast={showToast}
-                  />
-                )}
-                {settingsSubTab === "permissions" && (
-                  <AccountantPermissionView
-                    currentUser={currentUser}
-                    showToast={showToast}
-                  />
-                )}
-                {settingsSubTab === "holidays" && (
-                  <HolidaysTab
-                    currentUser={currentUser}
-                    showToast={showToast}
-                  />
-                )}
-                {settingsSubTab === "media_storage" && (
-                  <MediaStorageManagementTab
-                    currentUser={currentUser}
-                    showToast={showToast}
-                  />
-                )}
-              </div>
-            )}
+              return (
+                <div className="space-y-4">
+                  {/* Thanh Option Selector Thống Nhất (Dropdown trên Desktop >= 768px & Bottom Sheet trên Mobile < 768px) */}
+                  <div ref={settingsDropdownRef} className="relative max-w-3xl mx-auto">
+                    <button
+                      type="button"
+                      data-testid="settings-option-selector-trigger"
+                      aria-expanded={isSettingsPickerOpen}
+                      aria-haspopup="listbox"
+                      onClick={() => {
+                        if (typeof window !== "undefined" && window.innerWidth < 768) {
+                          setIsMobileSettingsSheet(true);
+                        } else {
+                          setIsMobileSettingsSheet(false);
+                        }
+                        setIsSettingsPickerOpen((prev) => !prev);
+                      }}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-[#E11D48] dark:hover:border-rose-500/60 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between gap-3 text-left transition active:scale-[0.99] cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-11 h-11 rounded-2xl bg-[#FFE4E6] dark:bg-rose-950/70 text-[#E11D48] dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/60 flex items-center justify-center shrink-0">
+                          <ActiveSettingIcon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#E11D48] dark:text-rose-400">
+                              Danh mục cài đặt
+                            </span>
+                          </div>
+                          <div className="font-extrabold text-sm sm:text-base text-[#111C2D] dark:text-white truncate leading-snug">
+                            {activeSettingOpt.label}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                            {activeSettingOpt.description}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-xs font-extrabold text-[#111C2D] dark:text-slate-200 shrink-0">
+                        <span className="hidden sm:inline">Chọn mục</span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-[#E11D48] dark:text-rose-400 transition-transform duration-200 ${
+                            isSettingsPickerOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
+
+                    {/* Desktop Dropdown / Popover (>= 768px) */}
+                    {isSettingsPickerOpen && !isMobileSettingsSheet && (
+                      <div
+                        role="listbox"
+                        data-testid="settings-option-dropdown"
+                        className="hidden md:block absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 rounded-2xl shadow-2xl p-2 space-y-1 animate-fade-in"
+                      >
+                        {SETTINGS_OPTIONS.map((opt) => {
+                          const OptIcon = opt.icon;
+                          const isSelected = settingsSubTab === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              data-subtab={opt.id}
+                              data-active={isSelected ? "true" : "false"}
+                              onClick={() => {
+                                setSettingsSubTab(opt.id);
+                                setIsSettingsPickerOpen(false);
+                              }}
+                              className={`w-full min-h-[54px] px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left transition cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#FFE4E6]/70 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70"
+                                  : "hover:bg-slate-50 dark:hover:bg-slate-800/80 border border-transparent"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div
+                                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                    isSelected
+                                      ? "bg-[#E11D48] text-white"
+                                      : "bg-[#F0F3FF] dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                  }`}
+                                >
+                                  <OptIcon className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div
+                                    className={`text-sm font-extrabold truncate ${
+                                      isSelected
+                                        ? "text-[#B80035] dark:text-rose-200"
+                                        : "text-[#111C2D] dark:text-white"
+                                    }`}
+                                  >
+                                    {opt.label}
+                                  </div>
+                                  <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                    {opt.description}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {isSelected && (
+                                <span className="w-7 h-7 rounded-full bg-[#E11D48] text-white flex items-center justify-center shrink-0">
+                                  <Check className="w-4 h-4 stroke-[3]" />
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Mobile Bottom Sheet Picker (< 768px) */}
+                    <BottomSheet
+                      open={isSettingsPickerOpen && isMobileSettingsSheet}
+                      onClose={() => setIsSettingsPickerOpen(false)}
+                      title="Chọn phân mục Cài đặt"
+                      subtitle="Chạm vào phân mục cần cấu hình"
+                      footer={null}
+                    >
+                      <div className="p-3.5 space-y-2" role="listbox">
+                        {SETTINGS_OPTIONS.map((opt) => {
+                          const OptIcon = opt.icon;
+                          const isSelected = settingsSubTab === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              data-subtab={opt.id}
+                              data-active={isSelected ? "true" : "false"}
+                              onClick={() => {
+                                setSettingsSubTab(opt.id);
+                                setIsSettingsPickerOpen(false);
+                              }}
+                              className={`w-full min-h-[56px] p-3 rounded-2xl border flex items-center justify-between gap-3 text-left transition active:scale-[0.99] cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#FFE4E6]/80 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700"
+                                  : "bg-white dark:bg-slate-800/90 border-slate-200/80 dark:border-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div
+                                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                    isSelected
+                                      ? "bg-[#E11D48] text-white"
+                                      : "bg-[#F0F3FF] dark:bg-slate-700 text-slate-700 dark:text-slate-200"
+                                  }`}
+                                >
+                                  <OptIcon className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div
+                                    className={`text-sm font-extrabold leading-snug ${
+                                      isSelected
+                                        ? "text-[#B80035] dark:text-rose-200"
+                                        : "text-[#111C2D] dark:text-white"
+                                    }`}
+                                  >
+                                    {opt.label}
+                                  </div>
+                                  <div className="text-xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
+                                    {opt.description}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {isSelected && (
+                                <span className="w-7 h-7 rounded-full bg-[#E11D48] text-white flex items-center justify-center shrink-0">
+                                  <Check className="w-4 h-4 stroke-[3]" />
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </BottomSheet>
+                  </div>
+
+                  {settingsSubTab === "company" && (
+                    <CompanySettingsTab
+                      currentUser={currentUser}
+                      showToast={showToast}
+                    />
+                  )}
+                  {settingsSubTab === "permissions" && (
+                    <AccountantPermissionView
+                      currentUser={currentUser}
+                      showToast={showToast}
+                    />
+                  )}
+                  {settingsSubTab === "holidays" && (
+                    <HolidaysTab
+                      currentUser={currentUser}
+                      showToast={showToast}
+                    />
+                  )}
+                  {settingsSubTab === "media_storage" && (
+                    <MediaStorageManagementTab
+                      currentUser={currentUser}
+                      showToast={showToast}
+                    />
+                  )}
+                </div>
+              );
+            })()}
 
             {/* 6. Hồ Sơ Quản Trị (Tách biệt hoàn toàn khỏi chấm công/lương cá nhân) / Hồ Sơ Kế Toán */}
             {effectiveTab === "profile" && (

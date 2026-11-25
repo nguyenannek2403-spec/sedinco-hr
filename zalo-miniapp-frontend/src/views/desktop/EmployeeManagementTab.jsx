@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   Copy,
   Building2,
-  Eye,
   Smartphone,
   CheckCircle2,
   XCircle,
@@ -789,7 +788,7 @@ export default function EmployeeManagementTab({
         </div>
       </div>
 
-      {/* 2. Danh Sách Nhân Viên Siêu Sạch (Avatar + Họ tên + Mã NV bên trái, icon Con Mắt 👁️ bên phải) */}
+      {/* 2. Danh Sách Nhân Viên Mở Rộng (Avatar + Họ tên + Số điện thoại + Khối làm việc bên trái, nút "Chi tiết" bên phải) */}
       {loading ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
           <SkeletonList rows={4} label="Đang tải danh sách nhân sự..." />
@@ -806,39 +805,71 @@ export default function EmployeeManagementTab({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filtered.map((emp) => {
+            const empPhone = String(emp.phone || emp.dien_thoai || "").trim();
+            const empDept = emp.department || defaultDepartmentName;
+            const isEmpLocked = Boolean(emp.is_locked || emp.status === "inactive");
+
             return (
               <div
                 key={emp.ma_nv}
                 data-testid={`employee-row-${emp.ma_nv}`}
-                className="perf-list-item bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-500/40 rounded-2xl px-4 py-3 shadow-sm transition flex items-center justify-between gap-3"
+                className="perf-list-item bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-500/40 rounded-2xl px-4 py-3.5 shadow-sm transition flex items-center justify-between gap-3"
               >
-                {/* Bên trái: Avatar thật + Họ và tên in đậm + Mã NV nhỏ gọn */}
-                <div className="flex items-center gap-3 min-w-0 flex-1">
+                {/* Bên trái: Avatar + Họ và tên + Số điện thoại & Khối làm việc (Ẩn hoàn toàn mã NV ở danh sách ngoài) */}
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                   <UserAvatar
                     name={emp.ho_ten || emp.ma_nv}
                     avatarUrl={emp.avatar_url}
                     size="md"
                   />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-extrabold text-base text-[#111C2D] dark:text-white truncate leading-snug">
-                      {emp.ho_ten}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-extrabold text-sm sm:text-base text-[#111C2D] dark:text-white leading-snug break-words">
+                        {emp.ho_ten}
+                      </span>
+                      {emp.role === "accountant" && (
+                        <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 text-[10px] font-extrabold text-indigo-700 dark:text-indigo-300 shrink-0">
+                          Kế toán
+                        </span>
+                      )}
+                      {isEmpLocked && (
+                        <span className="px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-[10px] font-extrabold text-rose-700 dark:text-rose-300 inline-flex items-center gap-1 shrink-0">
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>Đang khóa</span>
+                        </span>
+                      )}
                     </div>
-                    <div className="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                      {emp.ma_nv}
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <span
+                        className={`inline-flex items-center gap-1 font-semibold ${
+                          empPhone
+                            ? "text-slate-700 dark:text-slate-200 font-mono"
+                            : "text-slate-400 dark:text-slate-500 italic"
+                        }`}
+                      >
+                        <Phone className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
+                        <span>{empPhone || "Chưa có SĐT"}</span>
+                      </span>
+
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-[11px] font-bold text-[#111C2D] dark:text-slate-200 max-w-full">
+                        <Building2 className="w-3 h-3 text-[#0051CA] dark:text-blue-400 shrink-0" />
+                        <span className="truncate">{empDept}</span>
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Bên phải: Nút icon Con Mắt (44x44px, rounded-xl) mở Modal Chi tiết Nhân viên */}
+                {/* Bên phải: Nút chữ "Chi tiết" rõ ràng, chuyên nghiệp */}
                 <button
                   type="button"
                   onClick={() => handleOpen360Modal(emp)}
-                  aria-label="Xem chi tiết nhân viên"
-                  title="Xem chi tiết nhân viên"
-                  data-testid={`employee-eye-btn-${emp.ma_nv}`}
-                  className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-500/20 border border-slate-200/80 dark:border-slate-700 text-[#111C2D] hover:text-[#E11D48] dark:text-slate-200 dark:hover:text-rose-300 flex items-center justify-center transition cursor-pointer shrink-0"
+                  aria-label={`Xem chi tiết nhân viên ${emp.ho_ten}`}
+                  title="Xem hồ sơ chi tiết nhân viên"
+                  data-testid={`employee-detail-btn-${emp.ma_nv}`}
+                  className="min-h-[42px] sm:min-h-[38px] px-3.5 py-2 rounded-xl bg-[#F0F3FF] hover:bg-[#E11D48] dark:bg-slate-800 dark:hover:bg-rose-600 border border-slate-200/90 dark:border-slate-700 hover:border-[#E11D48] text-xs font-extrabold text-[#111C2D] hover:text-white dark:text-slate-100 dark:hover:text-white inline-flex items-center justify-center whitespace-nowrap transition active:scale-95 cursor-pointer shrink-0 shadow-2xs"
                 >
-                  <Eye className="w-5 h-5" />
+                  Chi tiết
                 </button>
               </div>
             );
@@ -1095,7 +1126,7 @@ export default function EmployeeManagementTab({
         </form>
       </AppModal>
 
-      {/* 3. MODAL CHI TIẾT NHÂN VIÊN (KHI BẤM ICON CON MẮT 👁️) */}
+      {/* 3. MODAL CHI TIẾT NHÂN VIÊN (KHI BẤM NÚT "CHI TIẾT") */}
       <AppModal
         open={Boolean(detailEmp && detailForm)}
         onClose={() => {
@@ -1108,7 +1139,7 @@ export default function EmployeeManagementTab({
         maxWidthClass="max-w-2xl"
         title="Chi tiết Nhân viên"
         subtitle={detailEmp ? `${detailEmp.ho_ten} (${detailEmp.ma_nv})` : ""}
-        icon={<Eye className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />}
+        icon={<Users className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />}
         footer={
           <div className="flex gap-2.5">
             <AppButton
