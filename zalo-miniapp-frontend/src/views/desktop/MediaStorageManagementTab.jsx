@@ -7,19 +7,19 @@ import {
   Image as ImageIcon,
   FileText,
   Video,
-  FolderOpen,
-  Users,
-  CheckCircle2,
-  AlertTriangle,
   Eye,
   Filter,
   Search,
   Sparkles,
-  Cloud
+  ChevronDown,
+  RotateCcw,
+  Loader2,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { zaloMediaService } from "../../services/zalo-media.service";
 import { formatViNumber } from "../../utils/viNumberFormat";
-import { AppButton, AppModal, SkeletonList, EmptyState, SecureMediaPreview, CollapsibleFilterBar } from "../../components/ui";
+import { AppModal, SkeletonList, EmptyState, SecureMediaPreview } from "../../components/ui";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
 function formatBytes(raw) {
@@ -47,13 +47,123 @@ function formatDateTimeVi(val) {
 }
 
 const THRESHOLD_BADGES = {
-  NORMAL: { label: "An toàn", cls: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700" },
-  WARNING: { label: "Cảnh báo (>=70%)", cls: "bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700" },
-  CRITICAL: { label: "Nghiêm trọng (>=85%)", cls: "bg-orange-50 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border-orange-300 dark:border-orange-700" },
-  RESTRICTED: { label: "Hạn chế upload (>=95%)", cls: "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700" },
-  EXHAUSTED: { label: "Đầy hạn mức (100%)", cls: "bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 border-rose-400" },
-  UNBOUNDED_MONITORING: { label: "Đang theo dõi (Chưa đặt budget)", cls: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700" }
+  NORMAL: {
+    label: "Bình thường",
+    cls: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700"
+  },
+  WARNING: {
+    label: "Cảnh báo (>=70%)",
+    cls: "bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700"
+  },
+  CRITICAL: {
+    label: "Nghiêm trọng (>=85%)",
+    cls: "bg-orange-50 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border-orange-300 dark:border-orange-700"
+  },
+  RESTRICTED: {
+    label: "Hạn chế upload (>=95%)",
+    cls: "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700"
+  },
+  EXHAUSTED: {
+    label: "Đầy hạn mức (100%)",
+    cls: "bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 border-rose-400"
+  },
+  UNBOUNDED_MONITORING: {
+    label: "Bình thường",
+    cls: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700"
+  }
 };
+
+const CATEGORY_LABELS = {
+  employee_avatar: "Ảnh đại diện",
+  employee_document: "Hồ sơ nhân viên",
+  attendance_evidence: "Chấm công",
+  leave_evidence: "Đơn xin nghỉ",
+  attendance_adjustment: "Điều chỉnh công",
+  overtime_evidence: "Tăng ca",
+  shift_change_evidence: "Đổi ca",
+  business_trip_document: "Công tác",
+  accounting_attachment: "Kế toán / Lương",
+  company_branding: "Logo công ty"
+};
+
+const COMPACT_BTN_BASE =
+  "w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-60 shrink-0";
+
+const COMPACT_INPUT_CLASS =
+  "w-full h-[40px] min-h-[40px] px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[14px] font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none";
+
+const ROW_ACTION_BTN_BASE =
+  "w-fit h-[32px] min-h-[32px] px-2.5 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer disabled:opacity-60 shrink-0";
+
+function SmartAccordion({
+  id,
+  title,
+  summary,
+  icon: Icon,
+  iconColor = "text-[#E11D48] dark:text-rose-300",
+  iconBg = "bg-[#FFE4E6] dark:bg-rose-950/60",
+  isOpen,
+  isDirty = false,
+  onToggle,
+  children
+}) {
+  return (
+    <div
+      data-testid={`media-accordion-${id}`}
+      data-open={isOpen ? "true" : "false"}
+      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs overflow-hidden transition-all"
+    >
+      <button
+        type="button"
+        data-testid={`media-accordion-header-${id}`}
+        onClick={() => onToggle(id)}
+        aria-expanded={isOpen}
+        className="w-full flex items-center justify-between gap-2.5 py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer"
+      >
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div
+            className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
+          >
+            <Icon className="w-4 h-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate">
+              {title}
+            </h3>
+            <p
+              data-testid={`media-accordion-summary-${id}`}
+              className="text-[12px] text-slate-500 dark:text-slate-400 truncate mt-0.5 leading-snug"
+            >
+              {summary}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isDirty && (
+            <span
+              data-testid={`unsaved-badge-${id}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap"
+            >
+              ● Chưa lưu
+            </span>
+          )}
+          <ChevronDown
+            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 ${
+              isOpen ? "rotate-180" : "rotate-0"
+            }`}
+          />
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="px-3.5 pb-3.5 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function MediaStorageManagementTab({ showToast }) {
   const [loading, setLoading] = useState(true);
@@ -67,6 +177,34 @@ export default function MediaStorageManagementTab({ showToast }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingAsset, setDeletingAsset] = useState(false);
   const [previewAsset, setPreviewAsset] = useState(null);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+
+  // Khối 1 (Dung lượng & Hạn mức Cloudinary) mặc định mở sẵn
+  const [openSections, setOpenSections] = useState({
+    media_quota: true,
+    media_maintenance: false,
+    media_assets: false
+  });
+
+  const toggleSection = useCallback((id) => {
+    const isMobileViewport =
+      typeof window !== "undefined" && Number(window.innerWidth) < 768;
+    setOpenSections((prev) => {
+      const nextState = !prev[id];
+      if (isMobileViewport) {
+        return {
+          media_quota: false,
+          media_maintenance: false,
+          media_assets: false,
+          [id]: nextState
+        };
+      }
+      return {
+        ...prev,
+        [id]: nextState
+      };
+    });
+  }, []);
 
   const [filters, setFilters] = useState({
     startDate: "",
@@ -85,24 +223,27 @@ export default function MediaStorageManagementTab({ showToast }) {
     return out;
   }, []);
 
-  const loadData = useCallback(async (page = 1) => {
-    setLoading(true);
-    setAssetsLoading(true);
-    try {
-      const fParams = cleanFilterParams(filters);
-      const [dashRes, listRes] = await Promise.all([
-        zaloMediaService.getAdminMediaDashboard(fParams),
-        zaloMediaService.getAdminMediaAssets({ ...fParams, page, limit: 20 })
-      ]);
-      if (dashRes?.success) setDashboard(dashRes.data);
-      if (listRes?.success) setAssetsData(listRes.data);
-    } catch (err) {
-      showToast?.(err?.message || "Không thể tải báo cáo dung lượng media.", "error");
-    } finally {
-      setLoading(false);
-      setAssetsLoading(false);
-    }
-  }, [filters, cleanFilterParams, showToast]);
+  const loadData = useCallback(
+    async (page = 1) => {
+      setLoading(true);
+      setAssetsLoading(true);
+      try {
+        const fParams = cleanFilterParams(filters);
+        const [dashRes, listRes] = await Promise.all([
+          zaloMediaService.getAdminMediaDashboard(fParams),
+          zaloMediaService.getAdminMediaAssets({ ...fParams, page, limit: 20 })
+        ]);
+        if (dashRes?.success) setDashboard(dashRes.data);
+        if (listRes?.success) setAssetsData(listRes.data);
+      } catch (err) {
+        showToast?.(err?.message || "Không thể tải báo cáo dung lượng media.", "error");
+      } finally {
+        setLoading(false);
+        setAssetsLoading(false);
+      }
+    },
+    [filters, cleanFilterParams, showToast]
+  );
 
   useEffect(() => {
     loadData(1);
@@ -157,19 +298,30 @@ export default function MediaStorageManagementTab({ showToast }) {
     if (!deleteTarget) return;
     setDeletingAsset(true);
     try {
-      const res = await zaloMediaService.deleteMediaAsset(deleteTarget.asset_uuid, "ADMIN_MEDIA_STORAGE_DELETE");
+      const res = await zaloMediaService.deleteMediaAsset(
+        deleteTarget.asset_uuid,
+        "ADMIN_MEDIA_STORAGE_DELETE"
+      );
       setDeleteTarget(null);
       showToast?.(res?.message || "Đã xóa tài nguyên media an toàn!", "success");
       await loadData(assetsData.page || 1);
     } catch (err) {
-      showToast?.(err?.message || "Không thể xóa tài nguyên này (có thể đang được hồ sơ/đơn từ sử dụng).", "error");
+      showToast?.(
+        err?.message ||
+          "Không thể xóa tài nguyên này (có thể đang được hồ sơ/đơn từ sử dụng).",
+        "error"
+      );
     } finally {
       setDeletingAsset(false);
     }
   };
 
   if (loading && !dashboard) {
-    return <SkeletonList rows={4} label="Đang tải thống kê lưu trữ Cloudinary..." />;
+    return (
+      <div className="max-w-3xl mx-auto py-3">
+        <SkeletonList rows={3} label="Đang tải thống kê lưu trữ Cloudinary..." />
+      </div>
+    );
   }
 
   const cloud = dashboard?.cloudinary_account || {};
@@ -177,9 +329,26 @@ export default function MediaStorageManagementTab({ showToast }) {
   const summary = dashboard?.summary || {};
   const snapshot = quota.latest_snapshot || null;
   const badge = THRESHOLD_BADGES[quota.threshold_state] || THRESHOLD_BADGES.UNBOUNDED_MONITORING;
-  const percentBar = Math.min(100, Math.max(0, Number(quota.current_percent || 0)));
 
-  const activeAdvancedFilterCount = [
+  const usedBytes = Number(quota.effective_used_bytes ?? summary.active_bytes ?? 0);
+  const budgetBytes = Number(quota.budget_bytes || 25 * 1024 * 1024 * 1024);
+  const percentBar = Math.min(
+    100,
+    Math.max(
+      0,
+      Number(
+        quota.current_percent !== undefined && quota.current_percent !== null
+          ? quota.current_percent
+          : (usedBytes / budgetBytes) * 100
+      )
+    )
+  );
+
+  const usedMbStr = `${formatViNumber(usedBytes / (1024 * 1024), 2)} MB`;
+  const budgetGbStr = `${formatViNumber(budgetBytes / (1024 * 1024 * 1024), 1)} GB`;
+
+  const advancedFilterCount = [
+    filters.category,
     filters.startDate,
     filters.endDate,
     filters.resourceType,
@@ -187,69 +356,65 @@ export default function MediaStorageManagementTab({ showToast }) {
   ].filter(Boolean).length;
   const totalActiveFilterCount = Object.values(filters).filter(Boolean).length;
 
+  // Dòng tóm tắt động cho 3 khối Smart Accordion
+  const quotaSummary = `Đã dùng ${usedMbStr} / ${budgetGbStr} (${formatViNumber(
+    percentBar,
+    1
+  )}%) • ${badge.label}`;
+
+  const maintenanceSummary = `${summary.orphan_files || 0} tệp mồ côi chờ dọn • Lưu giữ 24 giờ`;
+
+  const assetsSummary = `${assetsData.total || 0} tệp đang lưu trữ${
+    totalActiveFilterCount > 0 ? " • Đang lọc" : ""
+  }`;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(Number(assetsData.total || 0) / Number(assetsData.limit || 20))
+  );
+
   return (
-    <div data-testid="admin-media-storage-management" className="max-w-5xl mx-auto pb-6 space-y-3">
-      {/* Header card */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 p-3.5 sm:p-4 shadow-xs space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-2.5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#FFE4E6] dark:bg-rose-950/60 text-[#E11D48] dark:text-rose-300 flex items-center justify-center shrink-0">
-              <HardDrive className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-[15px] sm:text-base font-bold text-[#111C2D] dark:text-white">
-                Quản lý Dung lượng &amp; Media Tập Trung (Cloudinary)
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Thư mục gốc: <span className="font-mono font-bold">{cloud.root_folder || "sedinco-hr"}</span> • Chế độ thư mục: <span className="font-mono font-bold uppercase">{cloud.folder_mode || "dynamic"}</span> • Trạng thái:{" "}
-                <strong className={cloud.configured ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
-                  {cloud.configured ? `Đã kết nối (${cloud.cloud_name})` : "Chưa cấu hình khóa Cloudinary trong .env"}
-                </strong>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <AppButton
-              variant="secondary"
-              icon={RefreshCw}
-              loading={syncingUsage}
-              onClick={handleSyncUsage}
-              className="w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap"
-            >
-              Đồng bộ Usage API
-            </AppButton>
-            <AppButton
-              variant="danger"
-              icon={Sparkles}
-              loading={runningCleanup}
-              onClick={handleDryRunOrphanScan}
-              className="w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap"
-            >
-              Quét &amp; Dọn file mồ côi
-            </AppButton>
-          </div>
-        </div>
-
-        {/* Quota Progress Gauge */}
-        <div className="p-3.5 rounded-2xl bg-[#F0F3FF] dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 space-y-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs font-bold text-[#111C2D] dark:text-white flex items-center gap-2">
-              <Cloud className="w-4 h-4 text-[#0051CA] dark:text-blue-400" />
-              <span>
-                Tình trạng hạn mức lưu trữ:{" "}
-                {quota.budget_bytes
-                  ? `${formatBytes(quota.effective_used_bytes)} / ${formatBytes(quota.budget_bytes)} (${formatViNumber(percentBar, 1)}%)`
-                  : `${formatBytes(summary.active_bytes)} đang sử dụng (Chưa giới hạn CLOUDINARY_STORAGE_BUDGET_BYTES)`}
+    <div
+      data-testid="admin-media-storage-management"
+      className="max-w-3xl mx-auto pb-6 space-y-2.5 sm:space-y-3"
+    >
+      {/* KHỐI ACCORDION 1: DUNG LƯỢNG & HẠN MỨC CLOUDINARY (Mặc định mở sẵn) */}
+      <SmartAccordion
+        id="media_quota"
+        title="Dung lượng & Hạn mức Cloudinary"
+        summary={quotaSummary}
+        icon={HardDrive}
+        iconColor="text-[#E11D48] dark:text-rose-300"
+        iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
+        isOpen={openSections.media_quota}
+        isDirty={false}
+        onToggle={toggleSection}
+      >
+        <div className="space-y-2.5">
+          {/* Thanh tiến trình dung lượng mảnh, rõ nét */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2 text-[12px]">
+              <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">
+                Thư mục gốc:{" "}
+                <strong className="font-mono">{cloud.root_folder || "sedinco-hr"}</strong> •{" "}
+                <span
+                  className={
+                    cloud.configured
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  }
+                >
+                  {cloud.configured ? `Đã kết nối (${cloud.cloud_name})` : "Chế độ Local Fallback"}
+                </span>
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold shrink-0 ${badge.cls}`}
+              >
+                {badge.label}
               </span>
             </div>
-            <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-bold ${badge.cls}`}>
-              {badge.label}
-            </span>
-          </div>
 
-          {quota.budget_bytes && (
-            <div className="w-full h-2.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 overflow-hidden">
               <div
                 className={`h-full transition-all ${
                   percentBar >= 95
@@ -260,310 +425,423 @@ export default function MediaStorageManagementTab({ showToast }) {
                         ? "bg-amber-500"
                         : "bg-emerald-500"
                 }`}
-                style={{ width: `${percentBar}%` }}
+                style={{ width: `${Math.max(percentBar, usedBytes > 0 ? 1.5 : 0)}%` }}
               />
             </div>
-          )}
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] text-slate-600 dark:text-slate-300">
-            <div>
-              Gói Cloudinary: <strong>{snapshot?.plan_name || "Chưa đồng bộ"}</strong>
-            </div>
-            <div>
-              Bandwidth đã dùng: <strong>{formatBytes(snapshot?.cloud_bandwidth_bytes || 0)}</strong>
-            </div>
-            <div>
-              Transformations: <strong>{formatViNumber(snapshot?.cloud_transformations || 0, 0)}</strong>
-            </div>
-            <div>
-              Sync gần nhất: <strong>{formatDateTimeVi(snapshot?.synced_at)}</strong>
-            </div>
           </div>
-        </div>
 
-        {/* Anomaly / Security / Quota Alerts */}
-        {(dashboard?.anomaly_alerts || []).length > 0 && (
-          <div className="space-y-2">
-            {dashboard.anomaly_alerts.map((al, i) => (
-              <div
-                key={`${al.code}-${i}`}
-                className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/70 flex items-start gap-2.5 text-xs"
-              >
-                <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-bold text-rose-800 dark:text-rose-200">{al.title}</div>
-                  <div className="text-rose-700 dark:text-rose-300">{al.description}</div>
-                </div>
+          {/* Lưới 4 chỉ số chính nén gọn (grid-cols-2 sm:grid-cols-4 gap-2, p-2.5) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70">
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                Dung lượng lưu trữ
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3.5 shadow-sm">
-          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Tổng tệp hoạt động</div>
-          <div className="text-xl font-black text-[#111C2D] dark:text-white mt-1">{formatViNumber(summary.active_files || 0, 0)}</div>
-          <div className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">{formatBytes(summary.active_bytes)}</div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3.5 shadow-sm">
-          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-1">
-            <ImageIcon className="w-3.5 h-3.5 text-emerald-600" /> Ảnh / Tài liệu / Video
-          </div>
-          <div className="text-xs font-semibold text-[#111C2D] dark:text-white mt-1.5 space-y-0.5">
-            <div>Ảnh ({summary.image_files || 0}): <strong>{formatBytes(summary.image_bytes)}</strong></div>
-            <div>PDF/Tài liệu ({summary.document_files || 0}): <strong>{formatBytes(summary.document_bytes)}</strong></div>
-            <div>Video ({summary.video_files || 0}): <strong>{formatBytes(summary.video_bytes)}</strong></div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3.5 shadow-sm">
-          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Lưu lượng Ngày / Tháng</div>
-          <div className="text-xs font-semibold text-[#111C2D] dark:text-white mt-1.5 space-y-1">
-            <div>Hôm nay: <strong>{summary.uploads_today || 0} tệp</strong> ({formatBytes(summary.bytes_today)})</div>
-            <div>Tháng này: <strong>{summary.uploads_month || 0} tệp</strong> ({formatBytes(summary.bytes_month)})</div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3.5 shadow-sm">
-          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Chặn / Lỗi / Mồ côi</div>
-          <div className="text-xs font-semibold text-[#111C2D] dark:text-white mt-1.5 space-y-0.5">
-            <div className="text-rose-600 dark:text-rose-400">Chặn/Từ chối: <strong>{summary.rejected_requests || 0}</strong></div>
-            <div className="text-amber-600 dark:text-amber-400">Upload lỗi: <strong>{summary.failed_uploads || 0}</strong></div>
-            <div>Mồ côi chờ dọn: <strong>{summary.orphan_files || 0}</strong> ({summary.deleted_files || 0} đã xóa)</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Top Folders & Top Uploaders */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm space-y-3">
-          <div className="flex items-center gap-2 text-sm font-extrabold text-[#111C2D] dark:text-white">
-            <FolderOpen className="w-4 h-4 text-[#E11D48]" />
-            <span>Top Thư mục Tiêu thụ Storage</span>
-          </div>
-          {(dashboard?.folders_breakdown || []).length === 0 ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400 py-4 text-center">Chưa có tệp nào được ghi nhận.</p>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-64 overflow-y-auto">
-              {dashboard.folders_breakdown.map((f, idx) => (
-                <div key={`${f.asset_folder}-${idx}`} className="py-2 flex items-center justify-between gap-2 text-xs">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-mono font-bold text-[#111C2D] dark:text-slate-100 truncate">{f.asset_folder}</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {f.upload_category} • {f.access_level === "private" ? "Riêng tư" : "Công khai chính sách"}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-bold text-slate-800 dark:text-white">{f.file_count} tệp</div>
-                    <div className="font-mono text-[11px] text-indigo-600 dark:text-indigo-400">{formatBytes(f.total_bytes)}</div>
-                  </div>
-                </div>
-              ))}
+              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 font-mono">
+                {formatBytes(summary.active_bytes)}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                Hôm nay: {formatBytes(summary.bytes_today)}
+              </div>
             </div>
-          )}
-        </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm space-y-3">
-          <div className="flex items-center gap-2 text-sm font-extrabold text-[#111C2D] dark:text-white">
-            <Users className="w-4 h-4 text-[#0051CA]" />
-            <span>Nhân sự Tải lên Nhiều nhất</span>
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70">
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                Băng thông / Tín dụng
+              </div>
+              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 font-mono">
+                {formatBytes(snapshot?.cloud_bandwidth_bytes || 0)}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                Biến đổi: {formatViNumber(snapshot?.cloud_transformations || 0, 0)}
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70">
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                Số tệp hoạt động
+              </div>
+              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5">
+                {formatViNumber(summary.active_files || 0, 0)} tệp
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                Ảnh: {summary.image_files || 0} • TL: {summary.document_files || 0}
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70">
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                Ngưỡng cảnh báo
+              </div>
+              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 font-mono">
+                70% / 85% / 95%
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                Gói: {snapshot?.plan_name || "Tiêu chuẩn"}
+              </div>
+            </div>
           </div>
-          {(dashboard?.top_uploaders || []).length === 0 ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400 py-4 text-center">Chưa có dữ liệu tải lên.</p>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-64 overflow-y-auto">
-              {dashboard.top_uploaders.map((u) => (
-                <div key={u.uploaded_by} className="py-2 flex items-center justify-between gap-2 text-xs">
+
+          {(dashboard?.anomaly_alerts || []).length > 0 && (
+            <div className="space-y-1.5">
+              {dashboard.anomaly_alerts.map((al, i) => (
+                <div
+                  key={`${al.code}-${i}`}
+                  className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/70 flex items-start gap-2 text-[12px]"
+                >
+                  <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
                   <div className="min-w-0">
-                    <div className="font-bold text-[#111C2D] dark:text-white truncate">
-                      {u.ho_ten} <span className="font-mono text-slate-500">({u.uploaded_by})</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Hôm nay: {formatBytes(u.today_bytes)}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-bold text-slate-800 dark:text-white">{u.total_files} tệp</div>
-                    <div className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">{formatBytes(u.total_bytes)}</div>
+                    <span className="font-bold text-rose-800 dark:text-rose-200">{al.title}: </span>
+                    <span className="text-rose-700 dark:text-rose-300">{al.description}</span>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Filters & Asset Explorer (Progressive Disclosure) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-sm font-extrabold text-[#111C2D] dark:text-white">
-            <Filter className="w-4 h-4 text-[#E11D48]" />
-            <span>Danh sách Tài nguyên Media ({assetsData.total || 0})</span>
+          {/* Hàng thao tác 1 dòng gọn (flex items-center justify-between gap-2 pt-2) */}
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+              Đồng bộ gần nhất: {formatDateTimeVi(snapshot?.synced_at)}
+            </span>
+            <button
+              type="button"
+              disabled={syncingUsage}
+              onClick={handleSyncUsage}
+              data-testid="sync-cloudinary-usage-btn"
+              className={`${COMPACT_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${syncingUsage ? "animate-spin" : ""}`} />
+              <span>{syncingUsage ? "Đang đồng bộ..." : "Đồng bộ Usage"}</span>
+            </button>
           </div>
         </div>
+      </SmartAccordion>
 
-        <CollapsibleFilterBar
-          activeFilterCount={totalActiveFilterCount}
-          onReset={() =>
-            setFilters({ startDate: "", endDate: "", category: "", ma_nv: "", resourceType: "", status: "" })
-          }
-          primaryControls={
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+      {/* KHỐI ACCORDION 2: BẢO TRÌ & DỌN TỆP MỒ CÔI */}
+      <SmartAccordion
+        id="media_maintenance"
+        title="Bảo trì & Dọn tệp mồ côi"
+        summary={maintenanceSummary}
+        icon={Sparkles}
+        iconColor="text-amber-600 dark:text-amber-300"
+        iconBg="bg-amber-50 dark:bg-amber-950/60"
+        isOpen={openSections.media_maintenance}
+        isDirty={false}
+        onToggle={toggleSection}
+      >
+        <div className="space-y-2.5">
+          <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-snug">
+            Hệ thống tự động giữ an toàn <strong>24 giờ</strong> đối với các tệp không còn gắn với hồ sơ nhân viên, bảng công hoặc đơn từ trước khi cho phép thu hồi vĩnh viễn khỏi Cloudinary.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2 text-[12px] text-slate-500 dark:text-slate-400">
+            <span>
+              Chờ dọn: <strong className="text-slate-800 dark:text-slate-100">{summary.orphan_files || 0} tệp</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Đã thu hồi: <strong className="text-slate-800 dark:text-slate-100">{summary.deleted_files || 0} tệp</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Chặn quá tải / Lỗi: <strong className="text-rose-600 dark:text-rose-400">{(summary.rejected_requests || 0) + (summary.failed_uploads || 0)}</strong>
+            </span>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+              Bảo vệ 100% tệp đang sử dụng (ASSET_IN_USE)
+            </span>
+            <button
+              type="button"
+              disabled={runningCleanup}
+              onClick={handleDryRunOrphanScan}
+              data-testid="cleanup-orphan-media-btn"
+              className={`${COMPACT_BTN_BASE} bg-[#E11D48] hover:bg-[#BE123C] text-white shadow-xs`}
+            >
+              {runningCleanup ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span>{runningCleanup ? "Đang quét..." : "Dọn tệp mồ côi"}</span>
+            </button>
+          </div>
+        </div>
+      </SmartAccordion>
+
+      {/* KHỐI ACCORDION 3: DANH SÁCH TỆP MEDIA */}
+      <SmartAccordion
+        id="media_assets"
+        title="Danh sách tệp Media"
+        summary={assetsSummary}
+        icon={Filter}
+        iconColor="text-[#0051CA] dark:text-blue-300"
+        iconBg="bg-blue-50 dark:bg-blue-950/60"
+        isOpen={openSections.media_assets}
+        isDirty={false}
+        onToggle={toggleSection}
+      >
+        <div className="space-y-2.5">
+          {/* Thanh tìm kiếm & Bộ lọc nâng cao gọn trên 1 hàng (flex items-center gap-2) */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={filters.ma_nv}
-                onChange={(e) => setFilters((p) => ({ ...p, ma_nv: e.target.value.toUpperCase() }))}
+                onChange={(e) =>
+                  setFilters((p) => ({ ...p, ma_nv: e.target.value.toUpperCase() }))
+                }
                 placeholder="Tìm theo Mã NV (VD: NV001)..."
-                className="min-h-[40px] px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                className={`${COMPACT_INPUT_CLASS} pl-9`}
               />
-              <select
-                value={filters.category}
-                onChange={(e) => setFilters((p) => ({ ...p, category: e.target.value }))}
-                className="min-h-[40px] px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-              >
-                <option value="">Tất cả module nghiệp vụ</option>
-                <option value="employee_avatar">Ảnh đại diện</option>
-                <option value="employee_document">Hồ sơ nhân viên</option>
-                <option value="attendance_evidence">Chấm công</option>
-                <option value="leave_evidence">Đơn xin nghỉ</option>
-                <option value="attendance_adjustment">Điều chỉnh công</option>
-                <option value="overtime_evidence">Tăng ca</option>
-                <option value="shift_change_evidence">Đổi ca</option>
-                <option value="business_trip_document">Công tác</option>
-                <option value="accounting_attachment">Kế toán / Khiếu nại lương</option>
-                <option value="company_branding">Logo công ty</option>
-              </select>
             </div>
-          }
-          advancedControls={
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters((p) => ({ ...p, startDate: e.target.value }))}
-                aria-label="Từ ngày"
-                className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-              />
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters((p) => ({ ...p, endDate: e.target.value }))}
-                aria-label="Đến ngày"
-                className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-              />
-              <select
-                value={filters.resourceType}
-                onChange={(e) => setFilters((p) => ({ ...p, resourceType: e.target.value }))}
-                className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-              >
-                <option value="">Mọi loại tệp</option>
-                <option value="image">Hình ảnh</option>
-                <option value="raw">Tài liệu (PDF/Excel)</option>
-                <option value="video">Video</option>
-              </select>
-              <select
-                value={filters.status}
-                onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}
-                className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-              >
-                <option value="">Mọi trạng thái</option>
-                <option value="active">Đang sử dụng (active)</option>
-                <option value="orphan_candidate">Mồ côi chờ dọn</option>
-                <option value="deleted">Đã xóa</option>
-                <option value="failed">Lỗi</option>
-              </select>
-            </div>
-          }
-        />
 
-        {assetsLoading ? (
-          <SkeletonList rows={3} label="Đang lọc danh sách tài nguyên..." />
-        ) : (assetsData.items || []).length === 0 ? (
-          <EmptyState
-            icon={Search}
-            title="Chưa có tệp nào khớp bộ lọc"
-            description="Thử thay đổi bộ lọc thời gian, module hoặc nhân viên."
-          />
-        ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {assetsData.items.map((item) => (
-              <div key={item.asset_uuid} className="py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-bold text-[#111C2D] dark:text-white">
-                      {item.original_filename || item.asset_uuid.slice(0, 12)}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold uppercase">
-                      {item.resource_type} • {item.format || "file"}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        item.upload_status === "active"
-                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
-                          : item.upload_status === "orphan_candidate"
-                            ? "bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                      }`}
-                    >
-                      {item.upload_status}
-                    </span>
-                    <span className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400">
-                      {formatBytes(item.bytes)}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
-                    {item.asset_folder} • Người tải: {item.uploader_name} ({item.uploaded_by}) • {formatDateTimeVi(item.created_at)}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {item.upload_status !== "deleted" && item.preview_url && (
-                    <AppButton
-                      variant="secondary"
-                      icon={Eye}
-                      onClick={() => setPreviewAsset(item)}
-                      className="w-fit h-[36px] min-h-[36px] px-3 text-[13.5px] font-semibold rounded-lg whitespace-nowrap"
-                    >
-                      Xem
-                    </AppButton>
-                  )}
-                  {item.upload_status !== "deleted" && (
-                    <AppButton
-                      variant="ghost"
-                      icon={Trash2}
-                      onClick={() => setDeleteTarget(item)}
-                      className="w-fit h-[36px] min-h-[36px] px-3 text-[13.5px] font-semibold rounded-lg whitespace-nowrap text-rose-600 dark:text-rose-400"
-                    >
-                      Xóa
-                    </AppButton>
-                  )}
-                </div>
-              </div>
-            ))}
+            <button
+              type="button"
+              data-testid="toggle-media-filters-btn"
+              onClick={() => setFilterPanelOpen((prev) => !prev)}
+              className={`w-fit h-[40px] min-h-[40px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1.5 border transition cursor-pointer shrink-0 ${
+                filterPanelOpen || advancedFilterCount > 0
+                  ? "bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700 text-[#E11D48] dark:text-rose-300"
+                  : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5 shrink-0" />
+              <span>Bộ lọc{totalActiveFilterCount > 0 ? ` (${totalActiveFilterCount})` : ""}</span>
+            </button>
           </div>
-        )}
-      </div>
 
-      {/* Lịch sử dọn dẹp */}
-      {(dashboard?.cleanup_history || []).length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm space-y-2.5">
-          <div className="flex items-center gap-2 text-sm font-extrabold text-[#111C2D] dark:text-white">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>Nhật ký Đồng bộ &amp; Dọn dẹp Tài nguyên</span>
-          </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-            {dashboard.cleanup_history.map((log) => (
-              <div key={log.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
+          {/* Bộ lọc nâng cao Progressive Disclosure: lưới grid-cols-2 gap-2.5 items-end, cao h-[40px], nút [Đặt lại] w-fit h-[34px] */}
+          {filterPanelOpen && (
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5 items-end">
                 <div>
-                  <span className="font-mono font-bold text-[#111C2D] dark:text-white">{log.action}</span>
-                  <span className="text-slate-500 dark:text-slate-400 ml-2">bởi {log.actor_id}</span>
+                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                    Module nghiệp vụ
+                  </label>
+                  <select
+                    value={filters.category}
+                    onChange={(e) => setFilters((p) => ({ ...p, category: e.target.value }))}
+                    className={COMPACT_INPUT_CLASS}
+                  >
+                    <option value="">Tất cả module</option>
+                    <option value="employee_avatar">Ảnh đại diện</option>
+                    <option value="employee_document">Hồ sơ nhân viên</option>
+                    <option value="attendance_evidence">Chấm công</option>
+                    <option value="leave_evidence">Đơn xin nghỉ</option>
+                    <option value="attendance_adjustment">Điều chỉnh công</option>
+                    <option value="overtime_evidence">Tăng ca</option>
+                    <option value="shift_change_evidence">Đổi ca</option>
+                    <option value="business_trip_document">Công tác</option>
+                    <option value="accounting_attachment">Kế toán / Lương</option>
+                    <option value="company_branding">Logo công ty</option>
+                  </select>
                 </div>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">{formatDateTimeVi(log.created_at)}</span>
+
+                <div>
+                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                    Loại tệp
+                  </label>
+                  <select
+                    value={filters.resourceType}
+                    onChange={(e) => setFilters((p) => ({ ...p, resourceType: e.target.value }))}
+                    className={COMPACT_INPUT_CLASS}
+                  >
+                    <option value="">Mọi loại tệp</option>
+                    <option value="image">Hình ảnh</option>
+                    <option value="raw">Tài liệu (PDF/Excel)</option>
+                    <option value="video">Video</option>
+                  </select>
+                </div>
               </div>
-            ))}
-          </div>
+
+              <div className="grid grid-cols-2 gap-2.5 items-end">
+                <div>
+                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                    Từ ngày
+                  </label>
+                  <input
+                    type="date"
+                    aria-label="Từ ngày"
+                    value={filters.startDate}
+                    onChange={(e) => setFilters((p) => ({ ...p, startDate: e.target.value }))}
+                    className={COMPACT_INPUT_CLASS}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                    Đến ngày
+                  </label>
+                  <input
+                    type="date"
+                    aria-label="Đến ngày"
+                    value={filters.endDate}
+                    onChange={(e) => setFilters((p) => ({ ...p, endDate: e.target.value }))}
+                    className={COMPACT_INPUT_CLASS}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-end justify-between gap-2.5">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                    Trạng thái tệp
+                  </label>
+                  <select
+                    value={filters.status}
+                    onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}
+                    className={COMPACT_INPUT_CLASS}
+                  >
+                    <option value="">Mọi trạng thái</option>
+                    <option value="active">Đang sử dụng</option>
+                    <option value="orphan_candidate">Mồ côi chờ dọn</option>
+                    <option value="deleted">Đã xóa</option>
+                    <option value="failed">Lỗi tải lên</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFilters({
+                      startDate: "",
+                      endDate: "",
+                      category: "",
+                      ma_nv: "",
+                      resourceType: "",
+                      status: ""
+                    })
+                  }
+                  className="w-fit h-[34px] min-h-[34px] px-3 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+                >
+                  <RotateCcw className="w-3 h-3 shrink-0" />
+                  <span>Đặt lại</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Danh sách tệp nén gọn (divide-y) */}
+          {assetsLoading ? (
+            <SkeletonList rows={3} label="Đang lọc danh sách tài nguyên..." />
+          ) : (assetsData.items || []).length === 0 ? (
+            <EmptyState
+              icon={Search}
+              title="Chưa có tệp nào khớp bộ lọc"
+              description="Thử thay đổi từ khóa tìm kiếm hoặc điều kiện lọc."
+            />
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {assetsData.items.map((item) => {
+                const isImage = item.resource_type === "image";
+                const isVideo = item.resource_type === "video";
+                const TypeIcon = isImage ? ImageIcon : isVideo ? Video : FileText;
+                const categoryName =
+                  CATEGORY_LABELS[item.upload_category] ||
+                  item.upload_category ||
+                  "Tài nguyên hệ thống";
+
+                return (
+                  <div
+                    key={item.asset_uuid}
+                    className="py-2.5 flex items-center justify-between gap-2.5"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {/* Ảnh thu nhỏ / icon loại file (36px × 36px rounded-lg shrink-0) */}
+                      <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                        {isImage && item.preview_url && item.upload_status !== "deleted" ? (
+                          <img
+                            src={item.preview_url}
+                            alt={item.original_filename || "Thumbnail"}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <TypeIcon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate">
+                            {item.original_filename || item.asset_uuid.slice(0, 12)}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap shrink-0">
+                            {categoryName}
+                          </span>
+                        </div>
+                        <div className="text-[12px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          {item.uploader_name || item.uploaded_by || "Hệ thống"} •{" "}
+                          <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                            {formatBytes(item.bytes)}
+                          </span>{" "}
+                          • {formatDateTimeVi(item.created_at)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cụm 2 nút gọn Xem & Xóa (w-fit h-[32px] px-2.5 text-[12.5px] font-semibold) */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {item.upload_status !== "deleted" && item.preview_url && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewAsset(item)}
+                          className={`${ROW_ACTION_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}
+                        >
+                          <Eye className="w-3 h-3 shrink-0" />
+                          <span>Xem</span>
+                        </button>
+                      )}
+                      {item.upload_status !== "deleted" && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(item)}
+                          className={`${ROW_ACTION_BTN_BASE} text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200/70 dark:border-rose-800/60`}
+                        >
+                          <Trash2 className="w-3 h-3 shrink-0" />
+                          <span>Xóa</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Phân trang gọn gàng phía dưới nếu danh sách nhiều tệp */}
+          {totalPages > 1 && (
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-[12px]">
+              <span className="text-slate-500 dark:text-slate-400">
+                Trang <strong>{assetsData.page || 1}</strong> / {totalPages} ({assetsData.total} tệp)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={(assetsData.page || 1) <= 1 || assetsLoading}
+                  onClick={() => loadData((assetsData.page || 1) - 1)}
+                  className={`${ROW_ACTION_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200`}
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Trước</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={(assetsData.page || 1) >= totalPages || assetsLoading}
+                  onClick={() => loadData((assetsData.page || 1) + 1)}
+                  className={`${ROW_ACTION_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200`}
+                >
+                  <span>Sau</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </SmartAccordion>
 
       {/* Modal Preview Tài Nguyên */}
       <AppModal
@@ -581,9 +859,19 @@ export default function MediaStorageManagementTab({ showToast }) {
               filename={previewAsset.original_filename}
             />
             <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl">
-              <div><strong>Public ID:</strong> <span className="font-mono">{previewAsset.public_id || "inline_fallback"}</span></div>
-              <div><strong>Loại nghiệp vụ:</strong> {previewAsset.upload_category}</div>
-              <div><strong>Liên kết nghiệp vụ:</strong> {previewAsset.related_entity_type || "Chưa gắn bản ghi"} {previewAsset.related_entity_id ? `(#${previewAsset.related_entity_id})` : ""}</div>
+              <div>
+                <strong>Public ID:</strong>{" "}
+                <span className="font-mono">{previewAsset.public_id || "inline_fallback"}</span>
+              </div>
+              <div>
+                <strong>Loại nghiệp vụ:</strong>{" "}
+                {CATEGORY_LABELS[previewAsset.upload_category] || previewAsset.upload_category}
+              </div>
+              <div>
+                <strong>Liên kết nghiệp vụ:</strong>{" "}
+                {previewAsset.related_entity_type || "Chưa gắn bản ghi"}{" "}
+                {previewAsset.related_entity_id ? `(#${previewAsset.related_entity_id})` : ""}
+              </div>
             </div>
           </div>
         )}
