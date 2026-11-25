@@ -103,10 +103,14 @@ class PermissionService {
             });
         }
 
+        const updatedRows = await this.getAccountantPermissions();
+
         return { 
             success: true, 
             message: 'Cập nhật cấu hình phân quyền Kế toán thành công!',
-            changed_count: Object.keys(changes).length 
+            changed_count: Object.keys(changes).length,
+            updated_keys: Object.keys(inputMap),
+            data: updatedRows
         };
     }
 

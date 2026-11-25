@@ -5,7 +5,7 @@ function parseHolidayMultiplier(raw, fallback = 3.0) {
     if (raw === undefined || raw === null || String(raw).trim() === '') {
         return fallback;
     }
-    const normalized = String(raw).trim().replace(',', '.');
+    const normalized = String(raw).trim().replace(/^x/i, '').replace(',', '.');
     const num = Number(normalized);
     if (!Number.isFinite(num) || num < 1.0 || num > 10.0) {
         const err = new Error('Hệ số lương ngày lễ phải nằm trong khoảng từ 1,0 đến 10,0!');
@@ -40,6 +40,20 @@ class HolidayService {
             throw err;
         }
         const mult = parseHolidayMultiplier(salary_multiplier, 3.0);
+
+        // Kiểm tra trùng ngày lễ để trả thông báo tiếng Việt rõ ràng
+        const duplicateRows = await query(
+            "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date FROM public_holidays WHERE DATE_FORMAT(start_date, '%Y-%m-%d') = ? AND DATE_FORMAT(end_date, '%Y-%m-%d') = ? LIMIT 1",
+            [s, e]
+        );
+        if (duplicateRows && duplicateRows.length > 0) {
+            const err = new Error(
+                `Ngày nghỉ lễ ${s} đã tồn tại trong danh mục ("${duplicateRows[0].holiday_name}")!`
+            );
+            err.statusCode = 400;
+            throw err;
+        }
+
         const res = await query(
             'INSERT INTO public_holidays (holiday_name, start_date, end_date, salary_multiplier) VALUES (?, ?, ?, ?)',
             [cleanName, s, e, mult]
@@ -77,6 +91,18 @@ class HolidayService {
         const mult = salary_multiplier !== undefined
             ? parseHolidayMultiplier(salary_multiplier, existingMult)
             : existingMult;
+
+        const duplicateRows = await query(
+            "SELECT id, holiday_name FROM public_holidays WHERE DATE_FORMAT(start_date, '%Y-%m-%d') = ? AND DATE_FORMAT(end_date, '%Y-%m-%d') = ? AND id != ? LIMIT 1",
+            [s, e, cleanId]
+        );
+        if (duplicateRows && duplicateRows.length > 0) {
+            const err = new Error(
+                `Ngày nghỉ lễ ${s} bị trùng với dịp lễ "${duplicateRows[0].holiday_name}" đã có trong danh mục!`
+            );
+            err.statusCode = 400;
+            throw err;
+        }
 
         await query(
             'UPDATE public_holidays SET holiday_name = ?, start_date = ?, end_date = ?, salary_multiplier = ? WHERE id = ?',

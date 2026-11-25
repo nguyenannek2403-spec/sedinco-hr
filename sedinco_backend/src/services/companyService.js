@@ -33,17 +33,62 @@ const DEFAULT_COMPANY_SETTINGS = {
     announcement_text: ''
 };
 
+function createValidationError(message) {
+    const err = new Error(message);
+    err.statusCode = 400;
+    return err;
+}
+
 function normalizeIp(rawIp) {
     if (!rawIp) return '';
     const first = String(rawIp).split(',')[0].trim();
     return first.replace(/^::ffff:/i, '');
 }
 
-function toFiniteNumber(val, fallback) {
-    if (val === '' || val === null || val === undefined) return fallback;
+function parseStrictDecimal(val) {
+    if (val === '' || val === null || val === undefined || typeof val === 'boolean') {
+        return NaN;
+    }
     const normalized = typeof val === 'string' ? val.trim().replace(',', '.') : val;
+    if (normalized === '') return NaN;
     const num = Number(normalized);
+    return Number.isFinite(num) ? num : NaN;
+}
+
+function toFiniteNumber(val, fallback) {
+    const num = parseStrictDecimal(val);
     return Number.isFinite(num) ? num : fallback;
+}
+
+function validateNumberRange(rawVal, { label, min, max, integer = false }) {
+    const num = parseStrictDecimal(rawVal);
+    if (!Number.isFinite(num)) {
+        throw createValidationError(`${label} không hợp lệ (vui lòng nhập số hợp lệ)!`);
+    }
+    if (min !== undefined && num < min) {
+        throw createValidationError(`${label} phải lớn hơn hoặc bằng ${String(min).replace('.', ',')}!`);
+    }
+    if (max !== undefined && num > max) {
+        throw createValidationError(`${label} không được vượt quá ${String(max).replace('.', ',')}!`);
+    }
+    return integer ? Math.round(num) : Math.round(num * 100) / 100;
+}
+
+function parseTimeMinutes(rawTime, label) {
+    const str = String(rawTime || '').trim();
+    const match = str.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (!match) {
+        throw createValidationError(`${label} không đúng định dạng giờ (HH:MM)!`);
+    }
+    const hh = Number(match[1]);
+    const mm = Number(match[2]);
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+        throw createValidationError(`${label} nằm ngoài phạm vi 00:00 – 23:59!`);
+    }
+    return {
+        formatted: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`,
+        minutes: hh * 60 + mm
+    };
 }
 
 function toSafeText(val, fallback = '') {
@@ -53,18 +98,50 @@ function toSafeText(val, fallback = '') {
 
 const VALID_ATTENDANCE_METHODS = new Set(['GPS', 'GPS_AND_QR', 'QR_ONLY']);
 
-function sanitizeLocationsList(items, defaultLat = 16.0544, defaultLng = 108.2022, defaultRadius = 500) {
-    if (!Array.isArray(items) || items.length === 0) return null;
+function sanitizeLocationsList(items, defaultLat = 16.0544, defaultLng = 108.2022, defaultRadius = 500, strict = false) {
+    if (!Array.isArray(items) || items.length === 0) {
+        if (strict) {
+            throw createValidationError('Danh sách địa điểm chấm công không được để trống!');
+        }
+        return null;
+    }
     const cleaned = items
         .filter((item) => item && typeof item === 'object')
         .map((item, idx) => {
             const rawMethod = String(item.attendance_method || 'GPS').trim().toUpperCase();
+            let lat = toFiniteNumber(item.lat, defaultLat);
+            let lng = toFiniteNumber(item.lng, defaultLng);
+            let radius = toFiniteNumber(item.radius, defaultRadius);
+
+            if (strict) {
+                lat = validateNumberRange(item.lat ?? defaultLat, {
+                    label: `Vĩ độ điểm #${idx + 1}`,
+                    min: -90,
+                    max: 90
+                });
+                lng = validateNumberRange(item.lng ?? defaultLng, {
+                    label: `Kinh độ điểm #${idx + 1}`,
+                    min: -180,
+                    max: 180
+                });
+                const rawRad = parseStrictDecimal(item.radius ?? defaultRadius);
+                if (!Number.isFinite(rawRad) || rawRad <= 0) {
+                    throw createValidationError(`Bán kính GPS tại điểm #${idx + 1} phải lớn hơn 0 mét!`);
+                }
+                if (rawRad > 50000) {
+                    throw createValidationError(`Bán kính GPS tại điểm #${idx + 1} không được vượt quá 50.000 mét!`);
+                }
+                radius = Math.max(20, Math.round(rawRad));
+            } else {
+                radius = Math.max(20, Math.round(radius));
+            }
+
             return {
                 id: toSafeText(item.id, `loc_${idx + 1}`) || `loc_${idx + 1}`,
                 name: toSafeText(item.name, `Địa điểm ${idx + 1}`) || `Địa điểm ${idx + 1}`,
-                lat: toFiniteNumber(item.lat, defaultLat),
-                lng: toFiniteNumber(item.lng, defaultLng),
-                radius: Math.max(20, toFiniteNumber(item.radius, defaultRadius)),
+                lat,
+                lng,
+                radius,
                 attendance_method: VALID_ATTENDANCE_METHODS.has(rawMethod) ? rawMethod : 'GPS'
             };
         });
@@ -87,12 +164,12 @@ function parseAllowedLocations(rawJson, fallbackLat = 16.0544, fallbackLng = 108
     ];
     if (!rawJson) return defaultList;
     if (Array.isArray(rawJson)) {
-        return sanitizeLocationsList(rawJson, safeLat, safeLng, safeRadius) || defaultList;
+        return sanitizeLocationsList(rawJson, safeLat, safeLng, safeRadius, false) || defaultList;
     }
     if (typeof rawJson === 'string') {
         try {
             const parsed = JSON.parse(rawJson);
-            return sanitizeLocationsList(parsed, safeLat, safeLng, safeRadius) || defaultList;
+            return sanitizeLocationsList(parsed, safeLat, safeLng, safeRadius, false) || defaultList;
         } catch {
             return defaultList;
         }
@@ -146,10 +223,10 @@ class CompanyService {
         return {
             ...DEFAULT_COMPANY_SETTINGS,
             ...row,
-            work_start: row.work_start || DEFAULT_COMPANY_SETTINGS.work_start,
-            lunch_start: row.lunch_start || DEFAULT_COMPANY_SETTINGS.lunch_start,
-            lunch_end: row.lunch_end || DEFAULT_COMPANY_SETTINGS.lunch_end,
-            work_end: row.work_end || DEFAULT_COMPANY_SETTINGS.work_end,
+            work_start: String(row.work_start || DEFAULT_COMPANY_SETTINGS.work_start).slice(0, 5),
+            lunch_start: String(row.lunch_start || DEFAULT_COMPANY_SETTINGS.lunch_start).slice(0, 5),
+            lunch_end: String(row.lunch_end || DEFAULT_COMPANY_SETTINGS.lunch_end).slice(0, 5),
+            work_end: String(row.work_end || DEFAULT_COMPANY_SETTINGS.work_end).slice(0, 5),
             grace_period_minutes: gracePeriod,
             penalty_per_minute: penaltyPerMin,
             penalty_fixed_block: penaltyFixedBlock,
@@ -168,19 +245,31 @@ class CompanyService {
                 : DEFAULT_COMPANY_SETTINGS.max_late_minutes_for_half_day,
             standard_work_days: getMonthlyStandardWorkdays(getVietnamDateParts().month, getVietnamDateParts().year),
             standard_workdays_mode: 'AUTO_EXCLUDING_SUNDAYS',
-            probation_salary_percent: Number(row.probation_salary_percent) || DEFAULT_COMPANY_SETTINGS.probation_salary_percent,
+            probation_salary_percent: row.probation_salary_percent !== undefined && row.probation_salary_percent !== null
+                ? Number(row.probation_salary_percent)
+                : DEFAULT_COMPANY_SETTINGS.probation_salary_percent,
             probation_allowance_full: (row.probation_allowance_full === undefined || row.probation_allowance_full === null)
                 ? DEFAULT_COMPANY_SETTINGS.probation_allowance_full
                 : (Number(row.probation_allowance_full) ? 1 : 0),
-            ot_rate_weekday: Number(row.ot_rate_weekday) || DEFAULT_COMPANY_SETTINGS.ot_rate_weekday,
-            ot_rate_weekend: Number(row.ot_rate_weekend) || DEFAULT_COMPANY_SETTINGS.ot_rate_weekend,
-            ot_rate_holiday: Number(row.ot_rate_holiday) || DEFAULT_COMPANY_SETTINGS.ot_rate_holiday,
+            ot_rate_weekday: row.ot_rate_weekday !== undefined && row.ot_rate_weekday !== null
+                ? Number(row.ot_rate_weekday)
+                : DEFAULT_COMPANY_SETTINGS.ot_rate_weekday,
+            ot_rate_weekend: row.ot_rate_weekend !== undefined && row.ot_rate_weekend !== null
+                ? Number(row.ot_rate_weekend)
+                : DEFAULT_COMPANY_SETTINGS.ot_rate_weekend,
+            ot_rate_holiday: row.ot_rate_holiday !== undefined && row.ot_rate_holiday !== null
+                ? Number(row.ot_rate_holiday)
+                : DEFAULT_COMPANY_SETTINGS.ot_rate_holiday,
             custom_ot_hourly_rate: Number(row.custom_ot_hourly_rate) || 0,
             ot_calculation_mode: normalizedOtMode,
             free_late_exempts_halfday: Number(row.free_late_exempts_halfday) ? 1 : 0,
             negative_salary_policy: normalizedNegPolicy,
-            insurance_rate: row.insurance_rate !== undefined && row.insurance_rate !== null ? Number(row.insurance_rate) : DEFAULT_COMPANY_SETTINGS.insurance_rate,
-            monthly_paid_leave_limit: row.monthly_paid_leave_limit !== undefined && row.monthly_paid_leave_limit !== null ? Math.max(0, Number(row.monthly_paid_leave_limit)) : DEFAULT_COMPANY_SETTINGS.monthly_paid_leave_limit,
+            insurance_rate: row.insurance_rate !== undefined && row.insurance_rate !== null
+                ? Number(row.insurance_rate)
+                : DEFAULT_COMPANY_SETTINGS.insurance_rate,
+            monthly_paid_leave_limit: row.monthly_paid_leave_limit !== undefined && row.monthly_paid_leave_limit !== null
+                ? Math.max(0, Number(row.monthly_paid_leave_limit))
+                : DEFAULT_COMPANY_SETTINGS.monthly_paid_leave_limit,
             log_retention_days: Number(row.log_retention_days) || DEFAULT_COMPANY_SETTINGS.log_retention_days,
             allowed_locations,
             office_ip_whitelist,
@@ -195,135 +284,301 @@ class CompanyService {
         const payload = data && typeof data === 'object' ? data : {};
         const current = await this.getCompanyConfig(clientIp);
 
-        let locationsList = parseAllowedLocations(
-            current.allowed_locations,
-            current.latitude,
-            current.longitude,
-            current.radius_meters
-        );
-        if (payload.allowed_locations !== undefined) {
-            locationsList = parseAllowedLocations(
-                payload.allowed_locations,
-                toFiniteNumber(payload.latitude, toFiniteNumber(current.latitude, 16.0544)),
-                toFiniteNumber(payload.longitude, toFiniteNumber(current.longitude, 108.2022)),
-                toFiniteNumber(payload.radius_meters, toFiniteNumber(current.radius_meters, 500))
-            );
-        }
-
-        const primaryLoc = locationsList[0] || { lat: 16.0544, lng: 108.2022, radius: 500 };
-
-        const company_name = toSafeText(payload.company_name ?? payload.name ?? current.company_name, 'CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO') || 'CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO';
-        const phone = payload.phone !== undefined ? (payload.phone === null ? null : String(payload.phone).trim()) : (current.phone ?? null);
-        const address = payload.address !== undefined ? (payload.address === null ? null : String(payload.address).trim()) : (current.address ?? null);
-        const tax_code = payload.tax_code !== undefined ? (payload.tax_code === null ? null : String(payload.tax_code).trim()) : (current.tax_code ?? null);
-        let logo_url = current.logo_url ?? null;
-        const previousLogoUrl = current.logo_url ?? null;
-        const logoChanged = payload.logo_url !== undefined && (payload.logo_url || null) !== (previousLogoUrl || null);
-        if (logoChanged) {
-            const { validateMediaReference } = require('../utils/mediaValidator');
-            logo_url = validateMediaReference(payload.logo_url, {
-                maxInlineBytes: 185 * 1024,
-                allowNull: true
-            });
-        }
-
-        const work_start = toSafeText(payload.work_start, current.work_start || '08:00') || '08:00';
-        const work_end = toSafeText(payload.work_end, current.work_end || '17:30') || '17:30';
-        const lunch_start = toSafeText(payload.lunch_start, current.lunch_start || '12:00') || '12:00';
-        const lunch_end = toSafeText(payload.lunch_end, current.lunch_end || '13:30') || '13:30';
-
-        const grace_period_minutes = Math.max(0, Math.round(toFiniteNumber(payload.grace_period_minutes, toFiniteNumber(current.grace_period_minutes, 15))));
-        const rawPerMinInput = payload.late_penalty_per_minute !== undefined ? payload.late_penalty_per_minute : payload.penalty_per_minute;
-        const penalty_per_minute = Math.max(0, toFiniteNumber(rawPerMinInput, toFiniteNumber(current.penalty_per_minute, 2000)));
-        const rawFixedInput = payload.late_penalty_amount !== undefined ? payload.late_penalty_amount : payload.penalty_fixed_block;
-        const penalty_fixed_block = Math.max(0, toFiniteNumber(rawFixedInput, toFiniteNumber(current.penalty_fixed_block, 50000)));
-        const penalty_salary_percent = Math.max(0, toFiniteNumber(payload.penalty_salary_percent, toFiniteNumber(current.penalty_salary_percent, 0)));
-        const validPolicies = ['NONE', 'PER_MINUTE', 'PER_OCCURRENCE', 'DEDUCT_WORKDAY'];
-        const rawPolicyInput = payload.late_policy_type !== undefined
-            ? String(payload.late_policy_type || '').trim().toUpperCase()
-            : String(current.late_policy_type || 'PER_MINUTE').toUpperCase();
-        const late_policy_type = validPolicies.includes(rawPolicyInput) ? rawPolicyInput : 'PER_MINUTE';
-        const free_late_occurrences = Math.max(0, Math.round(toFiniteNumber(payload.free_late_occurrences, toFiniteNumber(current.free_late_occurrences, 3))));
-        const late_penalty_per_minute = penalty_per_minute;
-        const late_penalty_amount = penalty_fixed_block;
-        const max_late_minutes_for_half_day = Math.max(1, Math.round(toFiniteNumber(payload.max_late_minutes_for_half_day, toFiniteNumber(current.max_late_minutes_for_half_day, 60))));
-        const nowVnParts = getVietnamDateParts();
-        const standard_work_days = getMonthlyStandardWorkdays(nowVnParts.month, nowVnParts.year);
-        const probation_salary_percent = Math.min(100, Math.max(0, toFiniteNumber(payload.probation_salary_percent, toFiniteNumber(current.probation_salary_percent, 85))));
         const toBoolInt = (val, fallback) => {
             if (val === undefined || val === null || val === '') return fallback;
             if (val === true || val === 1 || String(val) === '1' || String(val).toLowerCase() === 'true') return 1;
-            return 0;
+            if (val === false || val === 0 || String(val) === '0' || String(val).toLowerCase() === 'false') return 0;
+            return fallback;
         };
-        const probation_allowance_full = toBoolInt(
-            payload.probation_allowance_full,
-            current.probation_allowance_full !== undefined ? (Number(current.probation_allowance_full) ? 1 : 0) : 1
-        );
-        const ot_rate_weekday = Math.max(0, toFiniteNumber(payload.ot_rate_weekday, toFiniteNumber(current.ot_rate_weekday, 1.5)));
-        const ot_rate_weekend = Math.max(0, toFiniteNumber(payload.ot_rate_weekend, toFiniteNumber(current.ot_rate_weekend, 2.0)));
-        const ot_rate_holiday = Math.max(0, toFiniteNumber(payload.ot_rate_holiday, toFiniteNumber(current.ot_rate_holiday, 3.0)));
-        const custom_ot_hourly_rate = Math.max(0, toFiniteNumber(payload.custom_ot_hourly_rate, toFiniteNumber(current.custom_ot_hourly_rate, 0)));
-        const validOtModes = ['APPROVED_OR_AUTO', 'REQUIRE_APPROVAL', 'AUTO_ACTUAL'];
-        const rawOtModeInput = payload.ot_calculation_mode !== undefined
-            ? String(payload.ot_calculation_mode || '').trim().toUpperCase()
-            : String(current.ot_calculation_mode || 'APPROVED_OR_AUTO').toUpperCase();
-        const ot_calculation_mode = validOtModes.includes(rawOtModeInput) ? rawOtModeInput : 'APPROVED_OR_AUTO';
-        const free_late_exempts_halfday = toBoolInt(
-            payload.free_late_exempts_halfday,
-            current.free_late_exempts_halfday ? 1 : 0
-        );
-        const validNegPolicies = ['CLAMP_ZERO', 'SHOW_NEGATIVE'];
-        const rawNegPolicyInput = payload.negative_salary_policy !== undefined
-            ? String(payload.negative_salary_policy || '').trim().toUpperCase()
-            : String(current.negative_salary_policy || 'CLAMP_ZERO').toUpperCase();
-        const negative_salary_policy = validNegPolicies.includes(rawNegPolicyInput) ? rawNegPolicyInput : 'CLAMP_ZERO';
-        const insurance_rate = Math.max(0, toFiniteNumber(payload.insurance_rate, toFiniteNumber(current.insurance_rate, 10.5)));
-        const monthly_paid_leave_limit = Math.max(0, Math.min(31, toFiniteNumber(payload.monthly_paid_leave_limit, toFiniteNumber(current.monthly_paid_leave_limit, 1))));
-        const log_retention_days = Math.max(1, Math.round(toFiniteNumber(payload.log_retention_days, toFiniteNumber(current.log_retention_days, 30))));
 
-        const latitude = toFiniteNumber(payload.latitude, primaryLoc.lat);
-        const longitude = toFiniteNumber(payload.longitude, primaryLoc.lng);
-        const rawRadiusInput = payload.radius_meters !== undefined ? payload.radius_meters : payload.geofence_radius;
-        const radius_meters = Math.max(20, Math.round(toFiniteNumber(rawRadiusInput, primaryLoc.radius)));
+        // Danh sách cột cần cập nhật (True Partial Update Whitelist)
+        const columnUpdates = {};
+        let logoChanged = false;
+        const previousLogoUrl = current.logo_url ?? null;
+        let nextLogoUrl = previousLogoUrl;
 
-        const office_ip_whitelist = payload.office_ip_whitelist !== undefined
-            ? toSafeText(payload.office_ip_whitelist, '')
-            : toSafeText(current.office_ip_whitelist, '');
+        // 1. Khối Thông tin công ty & Logo
+        if (payload.company_name !== undefined || payload.name !== undefined) {
+            const rawName = toSafeText(payload.company_name ?? payload.name, '');
+            if (!rawName) {
+                throw createValidationError('Tên công ty không được để trống!');
+            }
+            columnUpdates.company_name = rawName;
+        }
+        if (payload.phone !== undefined) {
+            columnUpdates.phone = payload.phone === null ? null : String(payload.phone).trim();
+        }
+        if (payload.address !== undefined) {
+            columnUpdates.address = payload.address === null ? null : String(payload.address).trim();
+        }
+        if (payload.tax_code !== undefined) {
+            columnUpdates.tax_code = payload.tax_code === null ? null : String(payload.tax_code).trim();
+        }
+        if (payload.logo_url !== undefined) {
+            logoChanged = (payload.logo_url || null) !== (previousLogoUrl || null);
+            if (logoChanged) {
+                const { validateMediaReference } = require('../utils/mediaValidator');
+                nextLogoUrl = validateMediaReference(payload.logo_url, {
+                    maxInlineBytes: 185 * 1024,
+                    allowNull: true
+                });
+            } else {
+                nextLogoUrl = payload.logo_url || null;
+            }
+            columnUpdates.logo_url = nextLogoUrl;
+        }
 
-        const allowedLocationsJson = JSON.stringify(locationsList);
-        const params = [
-            company_name, phone, address, tax_code, logo_url,
-            work_start, work_end, lunch_start, lunch_end,
-            grace_period_minutes, penalty_per_minute, penalty_fixed_block, penalty_salary_percent,
-            late_policy_type, free_late_occurrences, late_penalty_per_minute, late_penalty_amount, max_late_minutes_for_half_day,
-            standard_work_days, probation_salary_percent, probation_allowance_full,
-            ot_rate_weekday, ot_rate_weekend, ot_rate_holiday, custom_ot_hourly_rate,
-            ot_calculation_mode, free_late_exempts_halfday, negative_salary_policy,
-            insurance_rate, monthly_paid_leave_limit, log_retention_days,
-            latitude, longitude, radius_meters,
-            allowedLocationsJson, office_ip_whitelist
-        ];
+        // 2. Khối Bảng tin thông báo nội bộ
+        if (payload.announcement_text !== undefined) {
+            const cleanAnnouncement = payload.announcement_text === null
+                ? ''
+                : String(payload.announcement_text).trim().slice(0, 50000);
+            columnUpdates.announcement_text = cleanAnnouncement || null;
+            columnUpdates.announcement_updated_at = cleanAnnouncement ? new Date() : null;
+        }
+
+        // 3. Khối Giờ làm việc (Validate giờ kết thúc sau giờ bắt đầu)
+        const hasScheduleField =
+            payload.work_start !== undefined ||
+            payload.lunch_start !== undefined ||
+            payload.lunch_end !== undefined ||
+            payload.work_end !== undefined;
+        if (hasScheduleField) {
+            const ws = parseTimeMinutes(payload.work_start ?? current.work_start ?? '08:00', 'Giờ bắt đầu ca sáng');
+            const ls = parseTimeMinutes(payload.lunch_start ?? current.lunch_start ?? '12:00', 'Giờ kết thúc ca sáng');
+            const le = parseTimeMinutes(payload.lunch_end ?? current.lunch_end ?? '13:30', 'Giờ bắt đầu ca chiều');
+            const we = parseTimeMinutes(payload.work_end ?? current.work_end ?? '17:30', 'Giờ kết thúc ca chiều');
+
+            if (ls.minutes <= ws.minutes) {
+                throw createValidationError('Giờ kết thúc ca sáng phải sau giờ bắt đầu ca sáng!');
+            }
+            if (le.minutes < ls.minutes) {
+                throw createValidationError('Giờ bắt đầu ca chiều không được sớm hơn giờ kết thúc ca sáng!');
+            }
+            if (we.minutes <= le.minutes) {
+                throw createValidationError('Giờ kết thúc ca chiều phải sau giờ bắt đầu ca chiều!');
+            }
+
+            if (payload.work_start !== undefined) columnUpdates.work_start = ws.formatted;
+            if (payload.lunch_start !== undefined) columnUpdates.lunch_start = ls.formatted;
+            if (payload.lunch_end !== undefined) columnUpdates.lunch_end = le.formatted;
+            if (payload.work_end !== undefined) columnUpdates.work_end = we.formatted;
+        }
+
+        // 4. Khối Địa chỉ & Wi-Fi chấm công
+        if (payload.allowed_locations !== undefined) {
+            const cleanedLocs = sanitizeLocationsList(
+                payload.allowed_locations,
+                toFiniteNumber(payload.latitude, toFiniteNumber(current.latitude, 16.0544)),
+                toFiniteNumber(payload.longitude, toFiniteNumber(current.longitude, 108.2022)),
+                toFiniteNumber(payload.radius_meters, toFiniteNumber(current.radius_meters, 500)),
+                true
+            );
+            const primary = cleanedLocs[0] || { lat: 16.0544, lng: 108.2022, radius: 500 };
+            columnUpdates.allowed_locations = JSON.stringify(cleanedLocs);
+            columnUpdates.latitude = primary.lat;
+            columnUpdates.longitude = primary.lng;
+            columnUpdates.radius_meters = primary.radius;
+        } else {
+            if (payload.latitude !== undefined) {
+                columnUpdates.latitude = validateNumberRange(payload.latitude, {
+                    label: 'Vĩ độ GPS',
+                    min: -90,
+                    max: 90
+                });
+            }
+            if (payload.longitude !== undefined) {
+                columnUpdates.longitude = validateNumberRange(payload.longitude, {
+                    label: 'Kinh độ GPS',
+                    min: -180,
+                    max: 180
+                });
+            }
+            if (payload.radius_meters !== undefined || payload.geofence_radius !== undefined) {
+                const rawR = payload.radius_meters !== undefined ? payload.radius_meters : payload.geofence_radius;
+                const parsedR = parseStrictDecimal(rawR);
+                if (!Number.isFinite(parsedR) || parsedR <= 0) {
+                    throw createValidationError('Bán kính chấm công GPS phải lớn hơn 0 mét!');
+                }
+                columnUpdates.radius_meters = Math.max(20, Math.round(parsedR));
+            }
+        }
+
+        if (payload.office_ip_whitelist !== undefined) {
+            columnUpdates.office_ip_whitelist = toSafeText(payload.office_ip_whitelist, '');
+        }
+
+        // 5. Khối Quy tắc tính công, tăng ca & bảo hiểm
+        if (payload.grace_period_minutes !== undefined) {
+            columnUpdates.grace_period_minutes = validateNumberRange(payload.grace_period_minutes, {
+                label: 'Ngưỡng đi muộn tối đa',
+                min: 0,
+                max: 240,
+                integer: true
+            });
+        }
+        if (payload.late_policy_type !== undefined) {
+            const validPolicies = ['NONE', 'PER_MINUTE', 'PER_OCCURRENCE', 'DEDUCT_WORKDAY'];
+            const rawPolicy = String(payload.late_policy_type || '').trim().toUpperCase();
+            if (!validPolicies.includes(rawPolicy)) {
+                throw createValidationError('Hình thức xử lý đi muộn không hợp lệ!');
+            }
+            columnUpdates.late_policy_type = rawPolicy;
+        }
+        if (payload.free_late_occurrences !== undefined) {
+            columnUpdates.free_late_occurrences = validateNumberRange(payload.free_late_occurrences, {
+                label: 'Số lần đi muộn miễn phạt',
+                min: 0,
+                max: 31,
+                integer: true
+            });
+        }
+        if (payload.late_penalty_per_minute !== undefined || payload.penalty_per_minute !== undefined) {
+            const rawPerMin = payload.late_penalty_per_minute !== undefined
+                ? payload.late_penalty_per_minute
+                : payload.penalty_per_minute;
+            const val = validateNumberRange(rawPerMin, {
+                label: 'Mức phạt đi muộn mỗi phút',
+                min: 0,
+                max: 10000000,
+                integer: true
+            });
+            columnUpdates.penalty_per_minute = val;
+            columnUpdates.late_penalty_per_minute = val;
+        }
+        if (payload.late_penalty_amount !== undefined || payload.penalty_fixed_block !== undefined) {
+            const rawFixed = payload.late_penalty_amount !== undefined
+                ? payload.late_penalty_amount
+                : payload.penalty_fixed_block;
+            const val = validateNumberRange(rawFixed, {
+                label: 'Mức phạt mỗi lần đi muộn',
+                min: 0,
+                max: 50000000,
+                integer: true
+            });
+            columnUpdates.penalty_fixed_block = val;
+            columnUpdates.late_penalty_amount = val;
+        }
+        if (payload.penalty_salary_percent !== undefined) {
+            columnUpdates.penalty_salary_percent = validateNumberRange(payload.penalty_salary_percent, {
+                label: 'Tỷ lệ phạt lương',
+                min: 0,
+                max: 100
+            });
+        }
+        if (payload.max_late_minutes_for_half_day !== undefined) {
+            columnUpdates.max_late_minutes_for_half_day = validateNumberRange(payload.max_late_minutes_for_half_day, {
+                label: 'Ngưỡng trễ tính nửa công',
+                min: 1,
+                max: 480,
+                integer: true
+            });
+        }
+        if (payload.free_late_exempts_halfday !== undefined) {
+            columnUpdates.free_late_exempts_halfday = toBoolInt(payload.free_late_exempts_halfday, 0);
+        }
+        if (payload.monthly_paid_leave_limit !== undefined) {
+            columnUpdates.monthly_paid_leave_limit = validateNumberRange(payload.monthly_paid_leave_limit, {
+                label: 'Định mức phép có lương / tháng',
+                min: 0,
+                max: 31
+            });
+        }
+        if (payload.probation_salary_percent !== undefined) {
+            columnUpdates.probation_salary_percent = validateNumberRange(payload.probation_salary_percent, {
+                label: 'Mức hưởng lương thử việc',
+                min: 0,
+                max: 100
+            });
+        }
+        if (payload.probation_allowance_full !== undefined) {
+            columnUpdates.probation_allowance_full = toBoolInt(payload.probation_allowance_full, 1);
+        }
+        if (payload.ot_rate_weekday !== undefined) {
+            columnUpdates.ot_rate_weekday = validateNumberRange(payload.ot_rate_weekday, {
+                label: 'Hệ số OT ngày thường',
+                min: 1.0,
+                max: 10.0
+            });
+        }
+        if (payload.ot_rate_weekend !== undefined) {
+            columnUpdates.ot_rate_weekend = validateNumberRange(payload.ot_rate_weekend, {
+                label: 'Hệ số OT Chủ nhật',
+                min: 1.0,
+                max: 10.0
+            });
+        }
+        if (payload.ot_rate_holiday !== undefined) {
+            columnUpdates.ot_rate_holiday = validateNumberRange(payload.ot_rate_holiday, {
+                label: 'Hệ số OT ngày lễ',
+                min: 1.0,
+                max: 10.0
+            });
+        }
+        if (payload.custom_ot_hourly_rate !== undefined) {
+            columnUpdates.custom_ot_hourly_rate = validateNumberRange(payload.custom_ot_hourly_rate, {
+                label: 'Đơn giá tăng ca cố định / giờ',
+                min: 0,
+                max: 50000000
+            });
+        }
+        if (payload.ot_calculation_mode !== undefined) {
+            const validOtModes = ['APPROVED_OR_AUTO', 'REQUIRE_APPROVAL', 'AUTO_ACTUAL'];
+            const rawMode = String(payload.ot_calculation_mode || '').trim().toUpperCase();
+            if (!validOtModes.includes(rawMode)) {
+                throw createValidationError('Chế độ tính tăng ca không hợp lệ!');
+            }
+            columnUpdates.ot_calculation_mode = rawMode;
+        }
+        if (payload.insurance_rate !== undefined) {
+            columnUpdates.insurance_rate = validateNumberRange(payload.insurance_rate, {
+                label: 'Tỷ lệ khấu trừ bảo hiểm',
+                min: 0,
+                max: 100
+            });
+        }
+        if (payload.negative_salary_policy !== undefined) {
+            const validNegPolicies = ['CLAMP_ZERO', 'SHOW_NEGATIVE'];
+            const rawNeg = String(payload.negative_salary_policy || '').trim().toUpperCase();
+            if (!validNegPolicies.includes(rawNeg)) {
+                throw createValidationError('Chính sách xử lý lương âm không hợp lệ!');
+            }
+            columnUpdates.negative_salary_policy = rawNeg;
+        }
+        if (payload.log_retention_days !== undefined) {
+            columnUpdates.log_retention_days = validateNumberRange(payload.log_retention_days, {
+                label: 'Số ngày lưu trữ nhật ký',
+                min: 1,
+                max: 365,
+                integer: true
+            });
+        }
 
         const existingRows = await query('SELECT id FROM company_settings LIMIT 1');
         let savedCompanyId = 1;
+
         if (existingRows && existingRows.length > 0) {
             savedCompanyId = existingRows[0].id;
-            await query(
-                `UPDATE company_settings SET 
-                    company_name=?, phone=?, address=?, tax_code=?, logo_url=?,
-                    work_start=?, work_end=?, lunch_start=?, lunch_end=?,
-                    grace_period_minutes=?, penalty_per_minute=?, penalty_fixed_block=?, penalty_salary_percent=?,
-                    late_policy_type=?, free_late_occurrences=?, late_penalty_per_minute=?, late_penalty_amount=?, max_late_minutes_for_half_day=?,
-                    standard_work_days=?, probation_salary_percent=?, probation_allowance_full=?,
-                    ot_rate_weekday=?, ot_rate_weekend=?, ot_rate_holiday=?, custom_ot_hourly_rate=?,
-                    ot_calculation_mode=?, free_late_exempts_halfday=?, negative_salary_policy=?,
-                    insurance_rate=?, monthly_paid_leave_limit=?, log_retention_days=?,
-                    latitude=?, longitude=?, radius_meters=?,
-                    allowed_locations=?, office_ip_whitelist=?
-                WHERE id=?`,
-                [...params, savedCompanyId]
-            );
+            const updateEntries = Object.entries(columnUpdates);
+            if (updateEntries.length > 0) {
+                const setClauses = updateEntries.map(([col]) => `${col} = ?`).join(', ');
+                const values = updateEntries.map(([, val]) => val);
+                await query(
+                    `UPDATE company_settings SET ${setClauses} WHERE id = ?`,
+                    [...values, savedCompanyId]
+                );
+            }
         } else {
+            const merged = { ...DEFAULT_COMPANY_SETTINGS, ...current, ...columnUpdates };
+            const nowVnParts = getVietnamDateParts();
+            const stdDays = getMonthlyStandardWorkdays(nowVnParts.month, nowVnParts.year);
+            const locs = parseAllowedLocations(
+                merged.allowed_locations,
+                merged.latitude,
+                merged.longitude,
+                merged.radius_meters
+            );
+            const primary = locs[0] || { lat: 16.0544, lng: 108.2022, radius: 500 };
             const insRes = await query(
                 `INSERT INTO company_settings (
                     company_name, phone, address, tax_code, logo_url,
@@ -335,71 +590,97 @@ class CompanyService {
                     ot_calculation_mode, free_late_exempts_halfday, negative_salary_policy,
                     insurance_rate, monthly_paid_leave_limit, log_retention_days,
                     latitude, longitude, radius_meters,
-                    allowed_locations, office_ip_whitelist
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                params
+                    allowed_locations, office_ip_whitelist, announcement_text, announcement_updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    merged.company_name || 'CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO',
+                    merged.phone ?? null,
+                    merged.address ?? null,
+                    merged.tax_code ?? null,
+                    merged.logo_url ?? null,
+                    merged.work_start || '08:00',
+                    merged.work_end || '17:30',
+                    merged.lunch_start || '12:00',
+                    merged.lunch_end || '13:30',
+                    merged.grace_period_minutes ?? 15,
+                    merged.penalty_per_minute ?? 2000,
+                    merged.penalty_fixed_block ?? 50000,
+                    merged.penalty_salary_percent ?? 0,
+                    merged.late_policy_type || 'PER_MINUTE',
+                    merged.free_late_occurrences ?? 3,
+                    merged.late_penalty_per_minute ?? 2000,
+                    merged.late_penalty_amount ?? 50000,
+                    merged.max_late_minutes_for_half_day ?? 60,
+                    stdDays,
+                    merged.probation_salary_percent ?? 85,
+                    merged.probation_allowance_full ?? 1,
+                    merged.ot_rate_weekday ?? 1.5,
+                    merged.ot_rate_weekend ?? 2.0,
+                    merged.ot_rate_holiday ?? 3.0,
+                    merged.custom_ot_hourly_rate ?? 0,
+                    merged.ot_calculation_mode || 'APPROVED_OR_AUTO',
+                    merged.free_late_exempts_halfday ?? 0,
+                    merged.negative_salary_policy || 'CLAMP_ZERO',
+                    merged.insurance_rate ?? 10.5,
+                    merged.monthly_paid_leave_limit ?? 1,
+                    merged.log_retention_days ?? 30,
+                    primary.lat,
+                    primary.lng,
+                    primary.radius,
+                    typeof merged.allowed_locations === 'string'
+                        ? merged.allowed_locations
+                        : JSON.stringify(locs),
+                    merged.office_ip_whitelist || '',
+                    merged.announcement_text || null,
+                    merged.announcement_text ? new Date() : null
+                ]
             );
             savedCompanyId = insRes?.insertId || 1;
         }
 
         if (logoChanged) {
             const mediaLifecycleService = require('./mediaLifecycleService');
-            if (logo_url) {
+            if (nextLogoUrl) {
                 await mediaLifecycleService.bindAssetToEntity({
-                    mediaRef: logo_url,
+                    mediaRef: nextLogoUrl,
                     entityType: 'company_branding',
                     entityId: String(savedCompanyId),
                     employeeId: current_user?.username || current_user?.ma_nv || 'admin'
                 });
             }
-            if (previousLogoUrl && previousLogoUrl !== logo_url) {
+            if (previousLogoUrl && previousLogoUrl !== nextLogoUrl) {
                 await mediaLifecycleService.handleMediaReplacement({
                     oldMediaRef: previousLogoUrl,
-                    newMediaRef: logo_url,
+                    newMediaRef: nextLogoUrl,
                     actor: current_user
                 });
             }
         }
 
-        if (current_user) {
+        if (current_user && Object.keys(columnUpdates).length > 0) {
             await logAuditEvent({
                 actor_id: current_user.ma_nv || current_user.username || 'admin',
                 actor_role: current_user.role || 'admin',
                 action: 'UPDATE_COMPANY_SETTINGS',
                 resource: 'company_settings',
                 details: {
-                    work_start,
-                    lunch_start,
-                    lunch_end,
-                    work_end,
-                    standard_work_days,
-                    monthly_paid_leave_limit,
-                    locations_count: locationsList.length,
-                    office_ip_whitelist
+                    updated_fields: Object.keys(columnUpdates)
                 }
             });
         }
 
-        if (payload.announcement_text !== undefined) {
-            const cleanAnnouncement = payload.announcement_text === null
-                ? ''
-                : String(payload.announcement_text).trim().slice(0, 50000);
-            await query(
-                'UPDATE company_settings SET announcement_text = ?, announcement_updated_at = ? WHERE id = ?',
-                [cleanAnnouncement || null, cleanAnnouncement ? new Date() : null, savedCompanyId]
-            );
-        }
-
         const updated = await this.getCompanyConfig(clientIp);
-        return { success: true, data: updated };
+        return {
+            success: true,
+            updated_fields: Object.keys(columnUpdates),
+            data: updated
+        };
     }
 
     async saveCurrentWifiIp(rawClientIp, current_user = null) {
         const cleanIp = normalizeIp(rawClientIp);
         if (!cleanIp) {
-            const error = new Error('Không xác định được địa chỉ IP mạng hiện tại!');
-            error.statusCode = 400;
-            throw error;
+            throw createValidationError('Không xác định được địa chỉ IP mạng hiện tại!');
         }
         const current = await this.getCompanyConfig(cleanIp);
         const existingIps = String(current.office_ip_whitelist || '')

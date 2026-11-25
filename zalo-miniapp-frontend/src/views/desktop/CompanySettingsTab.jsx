@@ -33,10 +33,62 @@ import { AppModal, SkeletonList, Switch } from "../../components/ui";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import useDepartments, { notifyDepartmentsChanged } from "../../hooks/useDepartments";
 
-const toNum = (val, fallback) => {
-  if (val === "" || val === null || val === undefined) return fallback;
+const SECTION_FIELD_MAP = {
+  company_info: ["company_name", "phone", "address", "tax_code"],
+  company_logo: ["logo_url"],
+  announcement: ["announcement_text", "announcement_updated_at"],
+  schedule: ["work_start", "lunch_start", "lunch_end", "work_end"],
+  locations: [
+    "allowed_locations",
+    "latitude",
+    "longitude",
+    "radius_meters",
+    "office_ip_whitelist",
+    "is_matching_office_wifi"
+  ],
+  rules: [
+    "grace_period_minutes",
+    "late_policy_type",
+    "free_late_occurrences",
+    "penalty_per_minute",
+    "late_penalty_per_minute",
+    "penalty_fixed_block",
+    "late_penalty_amount",
+    "max_late_minutes_for_half_day",
+    "free_late_exempts_halfday",
+    "monthly_paid_leave_limit",
+    "probation_salary_percent",
+    "probation_allowance_full",
+    "ot_rate_weekday",
+    "ot_rate_weekend",
+    "custom_ot_hourly_rate",
+    "ot_calculation_mode",
+    "insurance_rate",
+    "negative_salary_policy"
+  ]
+};
+
+function parseTimeStrToMinutes(timeStr) {
+  const m = String(timeStr || "").trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return NaN;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return NaN;
+  return hh * 60 + mm;
+}
+
+function parseStrictViDecimal(val) {
+  if (val === "" || val === null || val === undefined || typeof val === "boolean") {
+    return NaN;
+  }
   const normalized = typeof val === "string" ? val.trim().replace(",", ".") : val;
+  if (normalized === "") return NaN;
   const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+const toNum = (val, fallback) => {
+  const parsed = parseStrictViDecimal(val);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
@@ -238,7 +290,8 @@ const INITIAL_CONFIG = {
 
 export default function CompanySettingsTab({ showToast }) {
   const [loading, setLoading] = useState(true);
-  const [savingSection, setSavingSection] = useState(null);
+  const [savingSections, setSavingSections] = useState({});
+  const savingSectionsRef = useRef({});
   const [savingWifi, setSavingWifi] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef(null);
@@ -418,39 +471,70 @@ export default function CompanySettingsTab({ showToast }) {
     toNum(config.ot_rate_weekend, 2.0) !== toNum(savedConfig.ot_rate_weekend, 2.0) ||
     toNum(config.insurance_rate, 10.5) !== toNum(savedConfig.insurance_rate, 10.5);
 
+  // Áp dụng cấu hình cục bộ cho đúng 1 khối vừa lưu (Bảo toàn 100% bản nháp & chấm cam ở các khối khác)
+  const applySectionSavedConfig = useCallback((sectionKey, serverData, partialPayload) => {
+    const keys = SECTION_FIELD_MAP[sectionKey] || Object.keys(partialPayload || {});
+    const source = serverData && typeof serverData === "object" ? serverData : partialPayload || {};
+
+    if (keys.includes("insurance_rate") && Number(source.insurance_rate) > 0) {
+      lastPositiveInsuranceRateRef.current = Number(source.insurance_rate);
+    }
+    if (keys.includes("announcement_text") && source.announcement_text !== undefined) {
+      const cleanText = String(source.announcement_text || "").trim();
+      if (cleanText) {
+        lastAnnouncementTextRef.current = cleanText;
+      }
+      setAnnouncementEnabled(Boolean(cleanText));
+    }
+
+    const patch = {};
+    keys.forEach((k) => {
+      if (source[k] !== undefined) {
+        patch[k] = source[k];
+      } else if (partialPayload && partialPayload[k] !== undefined) {
+        patch[k] = partialPayload[k];
+      }
+    });
+
+    setSavedConfig((prev) => ({ ...prev, ...patch }));
+    setConfig((prev) => ({ ...prev, ...patch }));
+  }, []);
+
   const saveSectionPayload = async (sectionKey, partialPayload, successMessage) => {
-    if (savingSection) return;
-    setSavingSection(sectionKey);
+    if (savingSectionsRef.current[sectionKey]) return;
+    savingSectionsRef.current[sectionKey] = true;
+    setSavingSections((prev) => ({ ...prev, [sectionKey]: true }));
     try {
       const res = await safePut("/company/settings", partialPayload, {
         idempotencyKey: generateIdempotencyKey(`comp_${sectionKey}`)
       });
-      if (res?.data) {
-        applyServerConfig(res.data);
-      } else {
-        setSavedConfig((prev) => ({ ...prev, ...partialPayload }));
-      }
+      applySectionSavedConfig(sectionKey, res?.data, partialPayload);
       notify(successMessage || res?.message || "Đã lưu cài đặt thành công!");
     } catch (err) {
       notify(err?.message || "Không thể lưu cài đặt. Vui lòng thử lại!", "error");
     } finally {
-      setSavingSection(null);
+      savingSectionsRef.current[sectionKey] = false;
+      setSavingSections((prev) => ({ ...prev, [sectionKey]: false }));
     }
   };
 
-  const handleSaveCompanyInfo = () =>
-    saveSectionPayload(
+  const handleSaveCompanyInfo = () => {
+    const cleanCompanyName = String(config.company_name || "").trim();
+    if (!cleanCompanyName) {
+      notify("Tên công ty không được để trống!", "error");
+      return;
+    }
+    return saveSectionPayload(
       "company_info",
       {
-        company_name:
-          String(config.company_name || "").trim() ||
-          "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO",
+        company_name: cleanCompanyName,
         phone: config.phone ? String(config.phone).trim() : "",
         address: config.address ? String(config.address).trim() : "",
         tax_code: config.tax_code ? String(config.tax_code).trim() : ""
       },
       "Đã lưu thông tin công ty!"
     );
+  };
 
   const handleSaveAnnouncement = () =>
     saveSectionPayload(
@@ -461,20 +545,72 @@ export default function CompanySettingsTab({ showToast }) {
       "Đã lưu bảng tin nội bộ!"
     );
 
-  const handleSaveSchedule = () =>
-    saveSectionPayload(
+  const handleSaveSchedule = () => {
+    const ws = config.work_start || "08:00";
+    const ls = config.lunch_start || "12:00";
+    const le = config.lunch_end || "13:30";
+    const we = config.work_end || "17:30";
+    const wsMin = parseTimeStrToMinutes(ws);
+    const lsMin = parseTimeStrToMinutes(ls);
+    const leMin = parseTimeStrToMinutes(le);
+    const weMin = parseTimeStrToMinutes(we);
+
+    if (
+      !Number.isFinite(wsMin) ||
+      !Number.isFinite(lsMin) ||
+      !Number.isFinite(leMin) ||
+      !Number.isFinite(weMin)
+    ) {
+      notify("Định dạng giờ làm việc không hợp lệ (HH:MM)!", "error");
+      return;
+    }
+    if (lsMin <= wsMin) {
+      notify("Giờ kết thúc ca sáng phải sau giờ bắt đầu ca sáng!", "error");
+      return;
+    }
+    if (leMin < lsMin) {
+      notify("Giờ bắt đầu ca chiều không được sớm hơn giờ kết thúc ca sáng!", "error");
+      return;
+    }
+    if (weMin <= leMin) {
+      notify("Giờ kết thúc ca chiều phải sau giờ bắt đầu ca chiều!", "error");
+      return;
+    }
+
+    return saveSectionPayload(
       "schedule",
       {
-        work_start: config.work_start || "08:00",
-        lunch_start: config.lunch_start || "12:00",
-        lunch_end: config.lunch_end || "13:30",
-        work_end: config.work_end || "17:30"
+        work_start: ws,
+        lunch_start: ls,
+        lunch_end: le,
+        work_end: we
       },
       "Đã lưu giờ làm việc!"
     );
+  };
 
   const handleSaveLocations = () => {
-    const cleanedLocations = (config.allowed_locations || []).map((loc, idx) => ({
+    const rawList = config.allowed_locations || [];
+    for (let i = 0; i < rawList.length; i++) {
+      const item = rawList[i];
+      const latNum = parseStrictViDecimal(item.lat);
+      const lngNum = parseStrictViDecimal(item.lng);
+      const radNum = parseStrictViDecimal(item.radius);
+      if (!Number.isFinite(latNum) || latNum < -90 || latNum > 90) {
+        notify(`Vĩ độ tại điểm #${i + 1} không hợp lệ (-90 đến 90)!`, "error");
+        return;
+      }
+      if (!Number.isFinite(lngNum) || lngNum < -180 || lngNum > 180) {
+        notify(`Kinh độ tại điểm #${i + 1} không hợp lệ (-180 đến 180)!`, "error");
+        return;
+      }
+      if (!Number.isFinite(radNum) || radNum <= 0) {
+        notify(`Bán kính GPS tại điểm #${i + 1} phải lớn hơn 0 mét!`, "error");
+        return;
+      }
+    }
+
+    const cleanedLocations = rawList.map((loc, idx) => ({
       id: loc.id || `loc_${idx + 1}`,
       name: String(loc.name || `Địa điểm ${idx + 1}`).trim(),
       lat: toNum(loc.lat, 16.0544),
@@ -502,6 +638,32 @@ export default function CompanySettingsTab({ showToast }) {
   };
 
   const handleSaveRules = () => {
+    const graceNum = parseStrictViDecimal(config.grace_period_minutes);
+    if (!Number.isFinite(graceNum) || graceNum < 0 || graceNum > 240) {
+      notify("Ngưỡng đi muộn tối đa phải từ 0 đến 240 phút!", "error");
+      return;
+    }
+    const leaveLimitNum = parseStrictViDecimal(config.monthly_paid_leave_limit);
+    if (!Number.isFinite(leaveLimitNum) || leaveLimitNum < 0 || leaveLimitNum > 31) {
+      notify("Định mức phép có lương / tháng phải từ 0 đến 31 lượt!", "error");
+      return;
+    }
+    const otWeekdayNum = parseStrictViDecimal(config.ot_rate_weekday);
+    if (!Number.isFinite(otWeekdayNum) || otWeekdayNum < 1 || otWeekdayNum > 10) {
+      notify("Hệ số OT ngày thường phải từ 1,0 đến 10,0!", "error");
+      return;
+    }
+    const otWeekendNum = parseStrictViDecimal(config.ot_rate_weekend);
+    if (!Number.isFinite(otWeekendNum) || otWeekendNum < 1 || otWeekendNum > 10) {
+      notify("Hệ số OT Chủ nhật phải từ 1,0 đến 10,0!", "error");
+      return;
+    }
+    const insRateNum = parseStrictViDecimal(config.insurance_rate);
+    if (!Number.isFinite(insRateNum) || insRateNum < 0 || insRateNum > 100) {
+      notify("Tỷ lệ khấu trừ bảo hiểm phải từ 0% đến 100%!", "error");
+      return;
+    }
+
     const perMin = Math.max(
       0,
       toNum(config.late_penalty_per_minute ?? config.penalty_per_minute, 2000)
@@ -520,7 +682,7 @@ export default function CompanySettingsTab({ showToast }) {
     return saveSectionPayload(
       "rules",
       {
-        grace_period_minutes: Math.max(0, Math.round(toNum(config.grace_period_minutes, 15))),
+        grace_period_minutes: Math.round(graceNum),
         late_policy_type: config.late_policy_type || "PER_MINUTE",
         free_late_occurrences: Math.max(0, Math.round(toNum(config.free_late_occurrences, 3))),
         penalty_per_minute: perMin,
@@ -532,20 +694,17 @@ export default function CompanySettingsTab({ showToast }) {
           Math.round(toNum(config.max_late_minutes_for_half_day, 60))
         ),
         free_late_exempts_halfday: Number(config.free_late_exempts_halfday) ? 1 : 0,
-        monthly_paid_leave_limit: Math.max(
-          0,
-          Math.min(31, toNum(config.monthly_paid_leave_limit, 1))
-        ),
+        monthly_paid_leave_limit: Math.round(leaveLimitNum * 100) / 100,
         probation_salary_percent: Math.min(
           100,
           Math.max(0, toNum(config.probation_salary_percent, 85))
         ),
         probation_allowance_full: probationFull,
-        ot_rate_weekday: Math.max(0, toNum(config.ot_rate_weekday, 1.5)),
-        ot_rate_weekend: Math.max(0, toNum(config.ot_rate_weekend, 2.0)),
+        ot_rate_weekday: Math.round(otWeekdayNum * 100) / 100,
+        ot_rate_weekend: Math.round(otWeekendNum * 100) / 100,
         custom_ot_hourly_rate: Math.max(0, toNum(config.custom_ot_hourly_rate, 0)),
         ot_calculation_mode: config.ot_calculation_mode || "APPROVED_OR_AUTO",
-        insurance_rate: Math.max(0, toNum(config.insurance_rate, 10.5)),
+        insurance_rate: Math.round(insRateNum * 100) / 100,
         negative_salary_policy: config.negative_salary_policy || "CLAMP_ZERO"
       },
       "Đã lưu quy tắc tính công, tăng ca & bảo hiểm!"
@@ -779,7 +938,9 @@ export default function CompanySettingsTab({ showToast }) {
         }
       );
       if (res?.data) {
-        applyServerConfig(res.data);
+        applySectionSavedConfig("locations", res.data, {
+          office_ip_whitelist: res.office_ip_whitelist
+        });
       }
       notify(res?.message || "Đã lưu mạng Wi-Fi công ty thành công!");
     } catch (err) {
@@ -1030,7 +1191,7 @@ export default function CompanySettingsTab({ showToast }) {
             <SectionSaveButton
               testId="save-section-company-info-btn"
               isDirty={isCompanyInfoDirty}
-              loading={savingSection === "company_info"}
+              loading={Boolean(savingSections.company_info)}
               onClick={handleSaveCompanyInfo}
             />
           </div>
@@ -1098,7 +1259,7 @@ export default function CompanySettingsTab({ showToast }) {
             <SectionSaveButton
               testId="save-section-announcement-btn"
               isDirty={isAnnouncementDirty}
-              loading={savingSection === "announcement"}
+              loading={Boolean(savingSections.announcement)}
               onClick={handleSaveAnnouncement}
             />
           </div>
@@ -1173,7 +1334,7 @@ export default function CompanySettingsTab({ showToast }) {
             <SectionSaveButton
               testId="save-section-schedule-btn"
               isDirty={isScheduleDirty}
-              loading={savingSection === "schedule"}
+              loading={Boolean(savingSections.schedule)}
               onClick={handleSaveSchedule}
             />
           </div>
@@ -1396,7 +1557,7 @@ export default function CompanySettingsTab({ showToast }) {
             <SectionSaveButton
               testId="save-section-locations-btn"
               isDirty={isLocationsDirty}
-              loading={savingSection === "locations"}
+              loading={Boolean(savingSections.locations)}
               onClick={handleSaveLocations}
             />
           </div>
@@ -1688,9 +1849,8 @@ export default function CompanySettingsTab({ showToast }) {
                 </label>
                 <InputWithSuffix
                   data-testid="company-ot-weekday-input"
-                  type="number"
-                  min="1"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   value={config.ot_rate_weekday ?? 1.5}
                   onChange={(e) => updateField("ot_rate_weekday", e.target.value)}
                   suffix="x"
@@ -1704,9 +1864,8 @@ export default function CompanySettingsTab({ showToast }) {
                 </label>
                 <InputWithSuffix
                   data-testid="company-ot-weekend-input"
-                  type="number"
-                  min="1"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   value={config.ot_rate_weekend ?? 2.0}
                   onChange={(e) => updateField("ot_rate_weekend", e.target.value)}
                   suffix="x"
@@ -1755,10 +1914,8 @@ export default function CompanySettingsTab({ showToast }) {
                 </label>
                 <InputWithSuffix
                   data-testid="company-insurance-rate-input"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   value={config.insurance_rate ?? 10.5}
                   onChange={(e) => updateField("insurance_rate", e.target.value)}
                   suffix="%"
@@ -1776,7 +1933,7 @@ export default function CompanySettingsTab({ showToast }) {
           <SectionSaveButton
             testId="save-section-rules-btn"
             isDirty={isRulesDirty}
-            loading={savingSection === "rules"}
+            loading={Boolean(savingSections.rules)}
             onClick={handleSaveRules}
           />
         </div>

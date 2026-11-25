@@ -117,6 +117,7 @@ export default function AccountantPermissionView({ showToast }) {
   const [savedPermMap, setSavedPermMap] = useState(DEFAULT_PRESETS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingGroupId, setSavingGroupId] = useState(null);
   const savingRef = useRef(false);
   const [message, setMessage] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -216,23 +217,41 @@ export default function AccountantPermissionView({ showToast }) {
     if (showToast) showToast(infoMsg, "info");
   };
 
-  const handleSave = async () => {
+  // Lưu cục bộ riêng 1 nhóm quyền (Merge cục bộ: không ghi đè các nhóm khác và bảo toàn bản nháp chưa lưu ở các nhóm khác)
+  const handleSaveGroup = async (group) => {
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
+    setSavingGroupId(group?.id || "ALL");
     setMessage(null);
     try {
       const payloadMap = {};
-      ACCOUNTANT_ENFORCED_PERMISSION_KEYS.forEach((key) => {
-        payloadMap[key] = Boolean(permMap[key]);
-      });
+      if (group && Array.isArray(group.items)) {
+        group.items.forEach((item) => {
+          payloadMap[item.key] = Boolean(permMap[item.key]);
+        });
+      } else {
+        ACCOUNTANT_ENFORCED_PERMISSION_KEYS.forEach((key) => {
+          payloadMap[key] = Boolean(permMap[key]);
+        });
+      }
       const res = await safePut("/settings/accountant-permissions", { permissions: payloadMap });
       if (res && res.success) {
-        setSavedPermMap({ ...permMap });
-        const okMsg = "Lưu cấu hình phân quyền Kế toán thành công! Hệ thống đã cập nhật tức thì.";
+        if (Array.isArray(res.data)) {
+          setPermissions(res.data);
+        }
+        setSavedPermMap((prev) => {
+          const next = { ...prev };
+          Object.keys(payloadMap).forEach((k) => {
+            next[k] = Boolean(payloadMap[k]);
+          });
+          return next;
+        });
+        const okMsg = group?.label
+          ? `Đã lưu nhóm "${group.label}" thành công!`
+          : "Lưu cấu hình phân quyền Kế toán thành công!";
         setMessage({ type: "success", text: okMsg });
         if (showToast) showToast(okMsg, "success");
-        loadPermissions();
         loadAuditLogs();
       } else {
         const errMsg = res?.message || "Lưu thất bại";
@@ -246,8 +265,11 @@ export default function AccountantPermissionView({ showToast }) {
     } finally {
       savingRef.current = false;
       setSaving(false);
+      setSavingGroupId(null);
     }
   };
+
+  const handleSave = () => handleSaveGroup(null);
 
   const serverDescMap = permissions.reduce((acc, p) => {
     if (p?.permission_key) acc[p.permission_key] = p;
@@ -403,14 +425,14 @@ export default function AccountantPermissionView({ showToast }) {
                     type="button"
                     data-testid={`save-permissions-btn-${group.id}`}
                     disabled={saving || loading}
-                    onClick={handleSave}
+                    onClick={() => handleSaveGroup(group)}
                     className={`${COMPACT_BTN_BASE} ${
-                      groupDirty || isAnyDirty
+                      groupDirty
                         ? "bg-[#E11D48] hover:bg-[#BE123C] text-white shadow-sm shadow-rose-600/25 border border-[#E11D48]"
                         : "bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700"
                     }`}
                   >
-                    {saving ? (
+                    {saving && (savingGroupId === group.id || savingGroupId === "ALL") ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                         <span>Đang lưu...</span>
@@ -418,7 +440,7 @@ export default function AccountantPermissionView({ showToast }) {
                     ) : (
                       <>
                         <Save className="w-3.5 h-3.5 shrink-0" />
-                        <span>Lưu phân quyền</span>
+                        <span>{groupDirty ? "Lưu thay đổi" : "Lưu phân quyền"}</span>
                       </>
                     )}
                   </button>
