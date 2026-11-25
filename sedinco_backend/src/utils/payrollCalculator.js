@@ -94,15 +94,18 @@ function calculateEmployeeSalary({
     const congChuan = hasExplicitPeriod
         ? getMonthlyStandardWorkdays(month, year)
         : (Number(cong_chuan) || getMonthlyStandardWorkdays());
-    const probationPercent = Number(companySettings.probation_salary_percent) || 85;
+    const parseSettingRate = (val, fallback) => {
+        if (val === undefined || val === null || val === '') return fallback;
+        const n = Number(String(val).trim().replace(',', '.'));
+        return Number.isFinite(n) && n >= 0 ? n : fallback;
+    };
+    const probationPercent = parseSettingRate(companySettings.probation_salary_percent, 85);
     const probationRatio = probationPercent / 100;
-    const otWeekday = Number(companySettings.ot_rate_weekday) || 1.5;
-    const otWeekend = Number(companySettings.ot_rate_weekend) || 2.0;
-    const otHoliday = Number(companySettings.ot_rate_holiday) || 3.0;
-    const customOtHourly = Number(companySettings.custom_ot_hourly_rate) || 0;
-    const insuranceRatePercent = companySettings.insurance_rate !== undefined && companySettings.insurance_rate !== null
-        ? Number(companySettings.insurance_rate)
-        : 10.5;
+    const otWeekday = parseSettingRate(companySettings.ot_rate_weekday, 1.5);
+    const otWeekend = parseSettingRate(companySettings.ot_rate_weekend, 2.0);
+    const otHoliday = parseSettingRate(companySettings.ot_rate_holiday, 3.0);
+    const customOtHourly = parseSettingRate(companySettings.custom_ot_hourly_rate, 0);
+    const insuranceRatePercent = parseSettingRate(companySettings.insurance_rate, 10.5);
     const insuranceRatio = insuranceRatePercent / 100;
     const rawMonthlyLeaveLimit = companySettings.monthly_paid_leave_limit;
     const monthlyPaidLeaveLimit = (rawMonthlyLeaveLimit !== undefined && rawMonthlyLeaveLimit !== null && rawMonthlyLeaveLimit !== '')
@@ -292,6 +295,16 @@ function calculateEmployeeSalary({
                     dailyHolidayAmount = Math.round(rawHolExtra);
                     customAttendanceNote = `Đi làm ngày lễ (x${formatViMultiplier(holidayMultiplier)}) • ${matchedHoliday.holiday_name}`;
                 }
+            }
+            const extraOtOnWorkday = resolveAllowedOtHours(Math.max(0, Number(log.ot_hours) || 0));
+            if (extraOtOnWorkday > 0) {
+                const heSo = isHoliday ? holidayMultiplier : (isSunday ? otWeekend : otWeekday);
+                appliedOtHours = extraOtOnWorkday;
+                totalOtHours += extraOtOnWorkday;
+                const rawDayOt = otBaseHourly * extraOtOnWorkday * heSo;
+                tienOt += rawDayOt;
+                dailyOtMultiplier = heSo;
+                dailyOtAmount = Math.round(rawDayOt);
             }
         } else if (log.status === 'P') {
             // V39: Tối đa 1 công nghỉ phép có lương/tháng; phát sinh vượt hạn mức tính là nghỉ không lương (KL)
@@ -604,6 +617,8 @@ function calculateEmployeeSalary({
         unitDailyWage,
         probationPercent: isProbationProfile || congThuViec > 0 ? probationPercent : 100,
         insuranceRatePercent,
+        otRateWeekday: otWeekday,
+        otRateWeekend: otWeekend,
         congThuViec,
         congChinhThuc,
         workedDays,

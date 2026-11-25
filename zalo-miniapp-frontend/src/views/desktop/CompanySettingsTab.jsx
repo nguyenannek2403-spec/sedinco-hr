@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Clock,
   MapPin,
   Calculator,
   Wifi,
   Save,
-  RotateCcw,
   Plus,
   Trash2,
   Navigation,
@@ -22,7 +21,9 @@ import {
   QrCode,
   RefreshCw,
   Upload,
-  Loader2
+  Loader2,
+  Gift,
+  ShieldCheck
 } from "lucide-react";
 import QRCode from "qrcode";
 import { safeGet, safePut, safePost, safeDelete, generateIdempotencyKey } from "../../utils/api";
@@ -37,9 +38,59 @@ import useDepartments, { notifyDepartmentsChanged } from "../../hooks/useDepartm
 
 const toNum = (val, fallback) => {
   if (val === "" || val === null || val === undefined) return fallback;
-  const parsed = Number(val);
+  const normalized = typeof val === "string" ? val.trim().replace(",", ".") : val;
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+
+/**
+ * SectionSaveButton — Nút Lưu cục bộ cho từng phân mục nhỏ trong Cài đặt
+ * - Chuẩn kích thước gọn đẹp: h-[36px] px-3.5 text-sm rounded-lg font-medium whitespace-nowrap
+ * - Dirty State thông minh: Dịu nhẹ khi chưa sửa; nổi bật màu Primary (kèm chấm tròn nhỏ) khi có thay đổi;
+ *   hiển thị "Đang lưu..." khi đang gọi API.
+ */
+function SectionSaveButton({
+  label,
+  isDirty,
+  loading,
+  onClick,
+  testId,
+  className = ""
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      data-dirty={isDirty ? "true" : "false"}
+      disabled={loading}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      className={`h-[36px] min-h-[36px] px-3.5 text-xs sm:text-sm rounded-lg font-bold whitespace-nowrap inline-flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-60 shrink-0 ${
+        isDirty
+          ? "bg-[#E11D48] hover:bg-[#BE123C] text-white shadow-sm shadow-rose-600/25 border border-[#E11D48]"
+          : "bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700"
+      } ${className}`}
+    >
+      {loading ? (
+        <>
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+          <span>Đang lưu...</span>
+        </>
+      ) : (
+        <>
+          {isDirty ? (
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
+          ) : (
+            <Save className="w-3.5 h-3.5 shrink-0" />
+          )}
+          <span>{label}</span>
+        </>
+      )}
+    </button>
+  );
+}
 
 const AccordionSection = ({
   id,
@@ -50,29 +101,43 @@ const AccordionSection = ({
   iconBg = "bg-[#FFE4E6] dark:bg-rose-950/60",
   isOpen,
   onToggle,
-  children,
+  headerAction = null,
+  children
 }) => (
   <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden transition-all">
-    <button
-      type="button"
-      onClick={() => onToggle(id)}
-      className="w-full flex items-center justify-between gap-[10px] p-[14px] sm:p-4 text-left hover:bg-[#F0F3FF]/70 dark:hover:bg-slate-800/60 active:bg-slate-100/70 dark:active:bg-slate-800 transition-colors min-h-[64px]"
-    >
-      <div className="flex items-center gap-[10px] min-w-0 flex-1">
+    <div className="w-full flex flex-wrap items-center justify-between gap-2.5 p-[14px] sm:p-4 hover:bg-[#F0F3FF]/50 dark:hover:bg-slate-800/40 transition-colors min-h-[64px]">
+      <button
+        type="button"
+        onClick={() => onToggle(id)}
+        className="flex items-center gap-[10px] min-w-0 flex-1 text-left cursor-pointer min-h-[40px]"
+      >
         <div
           className={`w-[38px] h-[38px] rounded-xl ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
         >
           <Icon className="w-[18px] h-[18px]" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[15px] font-bold text-slate-800 dark:text-slate-100 leading-snug break-words">{title}</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-300 leading-snug break-words mt-0.5">{subtitle}</p>
+          <h3 className="text-[15px] font-bold text-slate-800 dark:text-slate-100 leading-snug break-words">
+            {title}
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-300 leading-snug break-words mt-0.5">
+            {subtitle}
+          </p>
         </div>
+      </button>
+
+      <div className="flex items-center gap-2 shrink-0 ml-auto">
+        {headerAction}
+        <button
+          type="button"
+          onClick={() => onToggle(id)}
+          aria-label={isOpen ? "Thu gọn mục" : "Mở rộng mục"}
+          className="w-[36px] h-[36px] min-h-[36px] rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 cursor-pointer"
+        >
+          {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
       </div>
-      <div className="w-[34px] h-[34px] rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
-        {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-      </div>
-    </button>
+    </div>
     {isOpen && (
       <div className="px-[14px] sm:px-4 pb-[14px] sm:pb-4 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-4">
         {children}
@@ -81,13 +146,58 @@ const AccordionSection = ({
   </div>
 );
 
+const INITIAL_CONFIG = {
+  company_name: "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO",
+  phone: "",
+  address: "",
+  tax_code: "",
+  logo_url: null,
+  work_start: "08:00",
+  lunch_start: "12:00",
+  lunch_end: "13:30",
+  work_end: "17:30",
+  grace_period_minutes: 15,
+  penalty_per_minute: 2000,
+  penalty_fixed_block: 50000,
+  late_policy_type: "PER_MINUTE",
+  free_late_occurrences: 3,
+  late_penalty_per_minute: 2000,
+  late_penalty_amount: 50000,
+  max_late_minutes_for_half_day: 60,
+  probation_salary_percent: 85,
+  probation_allowance_full: 1,
+  ot_rate_weekday: 1.5,
+  ot_rate_weekend: 2.0,
+  custom_ot_hourly_rate: 0,
+  ot_calculation_mode: "APPROVED_OR_AUTO",
+  free_late_exempts_halfday: 0,
+  negative_salary_policy: "CLAMP_ZERO",
+  insurance_rate: 10.5,
+  monthly_paid_leave_limit: 1,
+  office_ip_whitelist: "",
+  announcement_text: "",
+  announcement_updated_at: null,
+  current_client_ip: "",
+  is_matching_office_wifi: false,
+  allowed_locations: [
+    {
+      id: "loc_hq_1",
+      name: "Trụ sở chính Đà Nẵng",
+      lat: 16.0544,
+      lng: 108.2022,
+      radius: 500,
+      attendance_method: "GPS"
+    }
+  ]
+};
+
 export default function CompanySettingsTab({ showToast }) {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingSection, setSavingSection] = useState(null); // null | 'announcement' | 'schedule' | 'company_info' | 'locations' | 'rules'
   const [savingWifi, setSavingWifi] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const logoInputRef = React.useRef(null);
+  const logoInputRef = useRef(null);
+  const lastPositiveInsuranceRateRef = useRef(10.5);
   const [detectingLocIdx, setDetectingLocIdx] = useState(null);
   const [qrModalState, setQrModalState] = useState({
     open: false,
@@ -100,16 +210,17 @@ export default function CompanySettingsTab({ showToast }) {
   const [statusBanner, setStatusBanner] = useState(null);
   const [openSections, setOpenSections] = useState({
     schedule: true,
+    company_info: false,
     departments: true,
     locations: false,
-    payroll: false,
+    payroll: true
   });
 
   const {
     departments,
     defaultDepartmentName,
     loading: loadingDepartments,
-    refreshDepartments,
+    refreshDepartments
   } = useDepartments();
   const [newDeptName, setNewDeptName] = useState("");
   const [addingDept, setAddingDept] = useState(false);
@@ -119,52 +230,8 @@ export default function CompanySettingsTab({ showToast }) {
   const [confirmDeleteDept, setConfirmDeleteDept] = useState({ open: false, dept: null });
   const [deletingDept, setDeletingDept] = useState(false);
 
-  const [config, setConfig] = useState({
-    company_name: "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO",
-    phone: "",
-    address: "",
-    tax_code: "",
-    work_start: "08:00",
-    lunch_start: "12:00",
-    lunch_end: "13:30",
-    work_end: "17:30",
-    grace_period_minutes: 15,
-    penalty_per_minute: 2000,
-    penalty_fixed_block: 50000,
-    penalty_salary_percent: 0,
-    late_policy_type: "PER_MINUTE",
-    free_late_occurrences: 3,
-    late_penalty_per_minute: 2000,
-    late_penalty_amount: 50000,
-    max_late_minutes_for_half_day: 60,
-    standard_work_days: 26,
-    probation_salary_percent: 85,
-    probation_allowance_full: 1,
-    ot_rate_weekday: 1.5,
-    ot_rate_weekend: 2.0,
-    ot_rate_holiday: 3.0,
-    custom_ot_hourly_rate: 0,
-    ot_calculation_mode: "APPROVED_OR_AUTO",
-    free_late_exempts_halfday: 0,
-    negative_salary_policy: "CLAMP_ZERO",
-    insurance_rate: 10.5,
-    monthly_paid_leave_limit: 1,
-    log_retention_days: 30,
-    office_ip_whitelist: "",
-    announcement_text: "",
-    announcement_updated_at: null,
-    current_client_ip: "",
-    is_matching_office_wifi: false,
-    allowed_locations: [
-      {
-        id: "loc_hq_1",
-        name: "Trụ sở chính Đà Nẵng",
-        lat: 16.0544,
-        lng: 108.2022,
-        radius: 500,
-      },
-    ],
-  });
+  const [config, setConfig] = useState(INITIAL_CONFIG);
+  const [savedConfig, setSavedConfig] = useState(INITIAL_CONFIG);
 
   const notify = useCallback(
     (msg, type = "success") => {
@@ -179,27 +246,37 @@ export default function CompanySettingsTab({ showToast }) {
     [showToast]
   );
 
+  const applyServerConfig = useCallback((data) => {
+    if (!data || typeof data !== "object") return;
+    if (Number(data.insurance_rate) > 0) {
+      lastPositiveInsuranceRateRef.current = Number(data.insurance_rate);
+    }
+    setConfig((prev) => {
+      const merged = {
+        ...prev,
+        ...data,
+        allowed_locations:
+          Array.isArray(data.allowed_locations) && data.allowed_locations.length > 0
+            ? data.allowed_locations
+            : prev.allowed_locations
+      };
+      setSavedConfig(merged);
+      return merged;
+    });
+  }, []);
+
   const fetchConfig = useCallback(async () => {
     setLoading(true);
     try {
       const res = await safeGet("/company", {}, { cancelPrevious: false });
       const data = res?.data || res;
-      if (data && typeof data === "object") {
-        setConfig((prev) => ({
-          ...prev,
-          ...data,
-          allowed_locations:
-            Array.isArray(data.allowed_locations) && data.allowed_locations.length > 0
-              ? data.allowed_locations
-              : prev.allowed_locations,
-        }));
-      }
+      applyServerConfig(data);
     } catch (err) {
       notify(err?.message || "Không thể tải cài đặt công ty", "error");
     } finally {
       setLoading(false);
     }
-  }, [notify]);
+  }, [applyServerConfig, notify]);
 
   useEffect(() => {
     fetchConfig();
@@ -210,7 +287,200 @@ export default function CompanySettingsTab({ showToast }) {
   };
 
   const updateField = (key, value) => {
+    if (key === "insurance_rate" && toNum(value, 0) > 0) {
+      lastPositiveInsuranceRateRef.current = toNum(value, 10.5);
+    }
     setConfig((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Kiểm tra Dirty State riêng cho từng phân mục nhỏ
+  const isAnnouncementDirty =
+    String(config.announcement_text || "").trim() !==
+    String(savedConfig.announcement_text || "").trim();
+
+  const isScheduleDirty =
+    (config.work_start || "08:00") !== (savedConfig.work_start || "08:00") ||
+    (config.work_end || "17:30") !== (savedConfig.work_end || "17:30") ||
+    (config.lunch_start || "12:00") !== (savedConfig.lunch_start || "12:00") ||
+    (config.lunch_end || "13:30") !== (savedConfig.lunch_end || "13:30");
+
+  const isCompanyInfoDirty =
+    String(config.company_name || "").trim() !== String(savedConfig.company_name || "").trim() ||
+    String(config.phone || "").trim() !== String(savedConfig.phone || "").trim() ||
+    String(config.address || "").trim() !== String(savedConfig.address || "").trim() ||
+    String(config.tax_code || "").trim() !== String(savedConfig.tax_code || "").trim();
+
+  const isLocationsDirty =
+    JSON.stringify(config.allowed_locations || []) !==
+      JSON.stringify(savedConfig.allowed_locations || []) ||
+    String(config.office_ip_whitelist || "").trim() !==
+      String(savedConfig.office_ip_whitelist || "").trim();
+
+  const isRulesDirty =
+    toNum(config.grace_period_minutes, 15) !== toNum(savedConfig.grace_period_minutes, 15) ||
+    String(config.late_policy_type || "PER_MINUTE") !==
+      String(savedConfig.late_policy_type || "PER_MINUTE") ||
+    toNum(config.free_late_occurrences, 3) !== toNum(savedConfig.free_late_occurrences, 3) ||
+    toNum(config.late_penalty_per_minute ?? config.penalty_per_minute, 2000) !==
+      toNum(savedConfig.late_penalty_per_minute ?? savedConfig.penalty_per_minute, 2000) ||
+    toNum(config.late_penalty_amount ?? config.penalty_fixed_block, 50000) !==
+      toNum(savedConfig.late_penalty_amount ?? savedConfig.penalty_fixed_block, 50000) ||
+    toNum(config.max_late_minutes_for_half_day, 60) !==
+      toNum(savedConfig.max_late_minutes_for_half_day, 60) ||
+    Number(Boolean(config.free_late_exempts_halfday)) !==
+      Number(Boolean(savedConfig.free_late_exempts_halfday)) ||
+    toNum(config.monthly_paid_leave_limit, 1) !== toNum(savedConfig.monthly_paid_leave_limit, 1) ||
+    toNum(config.probation_salary_percent, 85) !==
+      toNum(savedConfig.probation_salary_percent, 85) ||
+    Number(config.probation_allowance_full ? 1 : 0) !==
+      Number(savedConfig.probation_allowance_full ? 1 : 0) ||
+    toNum(config.ot_rate_weekday, 1.5) !== toNum(savedConfig.ot_rate_weekday, 1.5) ||
+    toNum(config.ot_rate_weekend, 2.0) !== toNum(savedConfig.ot_rate_weekend, 2.0) ||
+    toNum(config.custom_ot_hourly_rate, 0) !== toNum(savedConfig.custom_ot_hourly_rate, 0) ||
+    String(config.ot_calculation_mode || "APPROVED_OR_AUTO") !==
+      String(savedConfig.ot_calculation_mode || "APPROVED_OR_AUTO") ||
+    toNum(config.insurance_rate, 10.5) !== toNum(savedConfig.insurance_rate, 10.5) ||
+    String(config.negative_salary_policy || "CLAMP_ZERO") !==
+      String(savedConfig.negative_salary_policy || "CLAMP_ZERO");
+
+  // Hàm lưu cục bộ từng phân mục nhỏ (chỉ gửi đúng các trường của phân mục đó)
+  const saveSectionPayload = async (sectionKey, partialPayload, successMessage) => {
+    if (savingSection) return;
+    setSavingSection(sectionKey);
+    try {
+      const res = await safePut("/company/settings", partialPayload, {
+        idempotencyKey: generateIdempotencyKey(`comp_${sectionKey}`)
+      });
+      if (res?.data) {
+        applyServerConfig(res.data);
+      } else {
+        setSavedConfig((prev) => ({ ...prev, ...partialPayload }));
+      }
+      notify(successMessage || res?.message || "Đã lưu cài đặt thành công!");
+    } catch (err) {
+      notify(err?.message || "Không thể lưu cài đặt. Vui lòng thử lại!", "error");
+    } finally {
+      setSavingSection(null);
+    }
+  };
+
+  // 1. Lưu riêng Bảng tin thông báo nội bộ (payload siêu nhẹ vài trăm byte)
+  const handleSaveAnnouncement = () =>
+    saveSectionPayload(
+      "announcement",
+      {
+        announcement_text: String(config.announcement_text || "").trim()
+      },
+      "Đã lưu bảng tin nội bộ!"
+    );
+
+  // 2. Lưu riêng Giờ làm việc (Ca Sáng / Ca Chiều)
+  const handleSaveSchedule = () =>
+    saveSectionPayload(
+      "schedule",
+      {
+        work_start: config.work_start || "08:00",
+        lunch_start: config.lunch_start || "12:00",
+        lunch_end: config.lunch_end || "13:30",
+        work_end: config.work_end || "17:30"
+      },
+      "Đã lưu giờ làm việc!"
+    );
+
+  // 3. Lưu riêng Thông tin công ty
+  const handleSaveCompanyInfo = () =>
+    saveSectionPayload(
+      "company_info",
+      {
+        company_name:
+          String(config.company_name || "").trim() ||
+          "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO",
+        phone: config.phone ? String(config.phone).trim() : "",
+        address: config.address ? String(config.address).trim() : "",
+        tax_code: config.tax_code ? String(config.tax_code).trim() : ""
+      },
+      "Đã lưu thông tin công ty!"
+    );
+
+  // 4. Lưu riêng Địa chỉ & Wi-Fi chấm công
+  const handleSaveLocations = () => {
+    const cleanedLocations = (config.allowed_locations || []).map((loc, idx) => ({
+      id: loc.id || `loc_${idx + 1}`,
+      name: String(loc.name || `Địa điểm ${idx + 1}`).trim(),
+      lat: toNum(loc.lat, 16.0544),
+      lng: toNum(loc.lng, 108.2022),
+      radius: Math.max(20, Math.round(toNum(loc.radius, 300))),
+      attendance_method: ["GPS", "GPS_AND_QR", "QR_ONLY"].includes(
+        String(loc.attendance_method || "").toUpperCase()
+      )
+        ? String(loc.attendance_method).toUpperCase()
+        : "GPS"
+    }));
+    const primary = cleanedLocations[0] || { lat: 16.0544, lng: 108.2022, radius: 500 };
+
+    return saveSectionPayload(
+      "locations",
+      {
+        allowed_locations: cleanedLocations,
+        latitude: primary.lat,
+        longitude: primary.lng,
+        radius_meters: primary.radius,
+        office_ip_whitelist: String(config.office_ip_whitelist || "").trim()
+      },
+      "Đã lưu vị trí chấm công!"
+    );
+  };
+
+  // 5. Lưu riêng Quy tắc tính công, tăng ca & bảo hiểm
+  const handleSaveRules = () => {
+    const perMin = Math.max(
+      0,
+      toNum(config.late_penalty_per_minute ?? config.penalty_per_minute, 2000)
+    );
+    const perBlock = Math.max(
+      0,
+      toNum(config.late_penalty_amount ?? config.penalty_fixed_block, 50000)
+    );
+    const probationFull =
+      config.probation_allowance_full === 0 ||
+      config.probation_allowance_full === false ||
+      String(config.probation_allowance_full) === "0"
+        ? 0
+        : 1;
+
+    return saveSectionPayload(
+      "rules",
+      {
+        grace_period_minutes: Math.max(0, Math.round(toNum(config.grace_period_minutes, 15))),
+        late_policy_type: config.late_policy_type || "PER_MINUTE",
+        free_late_occurrences: Math.max(0, Math.round(toNum(config.free_late_occurrences, 3))),
+        penalty_per_minute: perMin,
+        late_penalty_per_minute: perMin,
+        penalty_fixed_block: perBlock,
+        late_penalty_amount: perBlock,
+        max_late_minutes_for_half_day: Math.max(
+          1,
+          Math.round(toNum(config.max_late_minutes_for_half_day, 60))
+        ),
+        free_late_exempts_halfday: Number(config.free_late_exempts_halfday) ? 1 : 0,
+        monthly_paid_leave_limit: Math.max(
+          0,
+          Math.min(31, toNum(config.monthly_paid_leave_limit, 1))
+        ),
+        probation_salary_percent: Math.min(
+          100,
+          Math.max(0, toNum(config.probation_salary_percent, 85))
+        ),
+        probation_allowance_full: probationFull,
+        ot_rate_weekday: Math.max(0, toNum(config.ot_rate_weekday, 1.5)),
+        ot_rate_weekend: Math.max(0, toNum(config.ot_rate_weekend, 2.0)),
+        custom_ot_hourly_rate: Math.max(0, toNum(config.custom_ot_hourly_rate, 0)),
+        ot_calculation_mode: config.ot_calculation_mode || "APPROVED_OR_AUTO",
+        insurance_rate: Math.max(0, toNum(config.insurance_rate, 10.5)),
+        negative_salary_policy: config.negative_salary_policy || "CLAMP_ZERO"
+      },
+      "Đã lưu quy tắc tính công, tăng ca & bảo hiểm!"
+    );
   };
 
   const handleAddDepartment = async (e) => {
@@ -314,8 +584,9 @@ export default function CompanySettingsTab({ showToast }) {
           lat: 16.0544,
           lng: 108.2022,
           radius: 300,
-        },
-      ],
+          attendance_method: "GPS"
+        }
+      ]
     }));
   };
 
@@ -328,7 +599,7 @@ export default function CompanySettingsTab({ showToast }) {
       }
       return {
         ...prev,
-        allowed_locations: list.filter((_, i) => i !== idx),
+        allowed_locations: list.filter((_, i) => i !== idx)
       };
     });
   };
@@ -336,11 +607,18 @@ export default function CompanySettingsTab({ showToast }) {
   const handleUseCurrentGps = async (idx) => {
     setDetectingLocIdx(idx);
     try {
-      const locRes = await zaloLocationService.acquireVerifiedLocation({ requestPermissionIfNeeded: true, timeoutMs: 10000 });
+      const locRes = await zaloLocationService.acquireVerifiedLocation({
+        requestPermissionIfNeeded: true,
+        timeoutMs: 10000
+      });
       const rawLat = Number(locRes?.data?.latitude);
       const rawLng = Number(locRes?.data?.longitude);
       if (!locRes.ok || !Number.isFinite(rawLat) || !Number.isFinite(rawLng)) {
-        notify(locRes?.message || "Thiết bị chưa trả về được tọa độ vị trí hiện tại. Vui lòng nhập tay hoặc thử lại.", "error");
+        notify(
+          locRes?.message ||
+            "Thiết bị chưa trả về được tọa độ vị trí hiện tại. Vui lòng nhập tay hoặc thử lại.",
+          "error"
+        );
         return;
       }
       const lat = Number(rawLat.toFixed(6));
@@ -350,9 +628,12 @@ export default function CompanySettingsTab({ showToast }) {
         next[idx] = { ...next[idx], lat, lng };
         return { ...prev, allowed_locations: next };
       });
-      notify("Đã cập nhật tọa độ theo vị trí bạn đang đứng!");
+      notify("Đã cập nhật tọa độ theo vị trí bạn đang đứng! Hãy bấm Lưu vị trí chấm công.");
     } catch (err) {
-      notify(err?.message || "Không thể lấy vị trí. Hãy kiểm tra quyền truy cập vị trí trên thiết bị.", "error");
+      notify(
+        err?.message || "Không thể lấy vị trí. Hãy kiểm tra quyền truy cập vị trí trên thiết bị.",
+        "error"
+      );
     } finally {
       setDetectingLocIdx(null);
     }
@@ -399,116 +680,21 @@ export default function CompanySettingsTab({ showToast }) {
   const handleSaveWifiIp = async () => {
     setSavingWifi(true);
     try {
-      const res = await safePost("/company/save-wifi-ip", {}, {
-        idempotencyKey: generateIdempotencyKey("comp_wifi")
-      });
+      const res = await safePost(
+        "/company/save-wifi-ip",
+        {},
+        {
+          idempotencyKey: generateIdempotencyKey("comp_wifi")
+        }
+      );
       if (res?.data) {
-        setConfig((prev) => ({ ...prev, ...res.data }));
+        applyServerConfig(res.data);
       }
       notify(res?.message || "Đã lưu mạng Wi-Fi công ty thành công!");
     } catch (err) {
       notify(err?.message || "Không thể lưu mạng Wi-Fi hiện tại", "error");
     } finally {
       setSavingWifi(false);
-    }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const cleanedLocations = (config.allowed_locations || []).map((loc, idx) => ({
-        id: loc.id || `loc_${idx + 1}`,
-        name: String(loc.name || `Địa điểm ${idx + 1}`).trim(),
-        lat: toNum(loc.lat, 16.0544),
-        lng: toNum(loc.lng, 108.2022),
-        radius: Math.max(20, Math.round(toNum(loc.radius, 300))),
-        attendance_method: ["GPS", "GPS_AND_QR", "QR_ONLY"].includes(String(loc.attendance_method || "").toUpperCase())
-          ? String(loc.attendance_method).toUpperCase()
-          : "GPS"
-      }));
-
-      const primary = cleanedLocations[0] || { lat: 16.0544, lng: 108.2022, radius: 500 };
-
-      const payload = {
-        company_name: String(config.company_name || "").trim() || "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO",
-        phone: config.phone ? String(config.phone).trim() : "",
-        address: config.address ? String(config.address).trim() : "",
-        tax_code: config.tax_code ? String(config.tax_code).trim() : "",
-        logo_url: config.logo_url !== undefined ? config.logo_url : undefined,
-        work_start: config.work_start || "08:00",
-        lunch_start: config.lunch_start || "12:00",
-        lunch_end: config.lunch_end || "13:30",
-        work_end: config.work_end || "17:30",
-        grace_period_minutes: Math.max(0, Math.round(toNum(config.grace_period_minutes, 15))),
-        penalty_per_minute: Math.max(0, toNum(config.late_penalty_per_minute ?? config.penalty_per_minute, 2000)),
-        penalty_fixed_block: Math.max(0, toNum(config.late_penalty_amount ?? config.penalty_fixed_block, 50000)),
-        penalty_salary_percent: Math.max(0, toNum(config.penalty_salary_percent, 0)),
-        late_policy_type: config.late_policy_type || "PER_MINUTE",
-        free_late_occurrences: Math.max(0, Math.round(toNum(config.free_late_occurrences, 3))),
-        late_penalty_per_minute: Math.max(0, toNum(config.late_penalty_per_minute ?? config.penalty_per_minute, 2000)),
-        late_penalty_amount: Math.max(0, toNum(config.late_penalty_amount ?? config.penalty_fixed_block, 50000)),
-        max_late_minutes_for_half_day: Math.max(1, Math.round(toNum(config.max_late_minutes_for_half_day, 60))),
-        probation_salary_percent: Math.min(100, Math.max(0, toNum(config.probation_salary_percent, 85))),
-        probation_allowance_full: config.probation_allowance_full === 0 || config.probation_allowance_full === false || String(config.probation_allowance_full) === "0" ? 0 : 1,
-        ot_rate_weekday: Math.max(0, toNum(config.ot_rate_weekday, 1.5)),
-        ot_rate_weekend: Math.max(0, toNum(config.ot_rate_weekend, 2.0)),
-        ot_rate_holiday: Math.max(0, toNum(config.ot_rate_holiday, 3.0)),
-        custom_ot_hourly_rate: Math.max(0, toNum(config.custom_ot_hourly_rate, 0)),
-        ot_calculation_mode: config.ot_calculation_mode || "APPROVED_OR_AUTO",
-        free_late_exempts_halfday: Number(config.free_late_exempts_halfday) ? 1 : 0,
-        negative_salary_policy: config.negative_salary_policy || "CLAMP_ZERO",
-        insurance_rate: Math.max(0, toNum(config.insurance_rate, 10.5)),
-        log_retention_days: Math.max(1, Math.round(toNum(config.log_retention_days, 30))),
-        office_ip_whitelist: String(config.office_ip_whitelist || "").trim(),
-        announcement_text: String(config.announcement_text || "").trim(),
-        allowed_locations: cleanedLocations,
-        latitude: primary.lat,
-        longitude: primary.lng,
-        radius_meters: primary.radius,
-      };
-
-      const res = await safePut("/company", payload, {
-        idempotencyKey: generateIdempotencyKey("comp_save")
-      });
-      if (res?.data) {
-        setConfig((prev) => ({
-          ...prev,
-          ...res.data,
-          allowed_locations:
-            Array.isArray(res.data.allowed_locations) && res.data.allowed_locations.length > 0
-              ? res.data.allowed_locations
-              : cleanedLocations,
-        }));
-      }
-      notify(res?.message || "Đã lưu cấu hình công ty thành công!");
-    } catch (err) {
-      notify(err?.message || "Lỗi khi lưu cấu hình. Vui lòng thử lại!", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleResetDefaults = async () => {
-    setResetting(true);
-    try {
-      const res = await safePost("/company/reset-defaults", {}, {
-        idempotencyKey: generateIdempotencyKey("comp_reset")
-      });
-      if (res?.data) {
-        setConfig((prev) => ({
-          ...prev,
-          ...res.data,
-          allowed_locations:
-            Array.isArray(res.data.allowed_locations) && res.data.allowed_locations.length > 0
-              ? res.data.allowed_locations
-              : prev.allowed_locations,
-        }));
-      }
-      notify("Đã khôi phục toàn bộ cài đặt về mức chuẩn ban đầu!");
-    } catch (err) {
-      notify(err?.message || "Không thể khôi phục mặc định", "error");
-    } finally {
-      setResetting(false);
     }
   };
 
@@ -520,22 +706,13 @@ export default function CompanySettingsTab({ showToast }) {
     );
   }
 
+  const isInsuranceEnabled = toNum(config.insurance_rate, 0) > 0;
+  const currentMonthNum = Number(getVietnamTodayIso().slice(5, 7));
+  const currentYearNum = Number(getVietnamTodayIso().slice(0, 4));
+  const currentStdDays = getMonthlyStandardWorkdays();
+
   return (
     <div className="max-w-3xl mx-auto pb-8 space-y-4">
-      <div className="bg-gradient-to-r from-[#E11D48] via-[#D81441] to-[#B80035] dark:from-[#9F1239] dark:via-[#881337] dark:to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-            <Building2 className="w-6 h-6 text-white" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-base font-bold leading-snug">Cài đặt Công ty & Chấm công</h2>
-            <p className="text-xs text-rose-100 mt-0.5">
-              Chọn từng mục bên dưới để điều chỉnh giờ làm, địa điểm và quy tắc tính lương.
-            </p>
-          </div>
-        </div>
-      </div>
-
       {statusBanner && (
         <div
           className={`flex items-start gap-2.5 p-3.5 rounded-xl border text-sm font-medium ${
@@ -553,27 +730,39 @@ export default function CompanySettingsTab({ showToast }) {
         </div>
       )}
 
-      {/* F4: Bảng tin Thông báo Nội bộ */}
-      <div className="bg-amber-50/80 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/70 rounded-2xl p-4 space-y-2.5 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-bold text-amber-950 dark:text-amber-200">📢 Bảng tin thông báo nội bộ</h3>
+      {/* KHỐI 1: BẢNG TIN THÔNG BÁO NỘI BỘ (Lưu độc lập, payload siêu nhẹ) */}
+      <div className="bg-amber-50/85 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/70 rounded-2xl p-4 space-y-3 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-2.5">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-bold text-amber-950 dark:text-amber-200">
+              📢 Bảng tin thông báo nội bộ
+            </h3>
             <p className="text-xs text-amber-800/80 dark:text-amber-300/90 mt-0.5">
               Hiển thị nổi bật ngay đầu màn hình chấm công của toàn bộ công nhân.
             </p>
           </div>
-          {config.announcement_text && (
-            <button
-              type="button"
-              onClick={() => updateField("announcement_text", "")}
-              className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/60 whitespace-nowrap shrink-0"
-            >
-              Xóa thông báo
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {config.announcement_text && (
+              <button
+                type="button"
+                onClick={() => updateField("announcement_text", "")}
+                className="h-[36px] min-h-[36px] px-3 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/60 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                Xóa nội dung
+              </button>
+            )}
+            <SectionSaveButton
+              label="Lưu bảng tin"
+              testId="save-section-announcement-btn"
+              isDirty={isAnnouncementDirty}
+              loading={savingSection === "announcement"}
+              onClick={handleSaveAnnouncement}
+            />
+          </div>
         </div>
         <textarea
           rows={3}
+          data-testid="company-announcement-textarea"
           value={config.announcement_text || ""}
           onChange={(e) => updateField("announcement_text", e.target.value)}
           placeholder="VD: Thứ 7 tuần này công trình A nghỉ bảo trì điện, anh em ca chiều chuyển sang kho B lúc 13:00..."
@@ -581,71 +770,29 @@ export default function CompanySettingsTab({ showToast }) {
         />
       </div>
 
-      {/* STITCH ADMIN SCREEN 5 — PERFORATED PHYSICAL TICKET CARD FOR 8H STANDARD SHIFT */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#FFE4E6] dark:bg-rose-950/60 flex items-center justify-center text-[#B80035] dark:text-rose-300 shrink-0">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white">Ca tiêu chuẩn 8h</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Định mức chuẩn MISA AMIS • 2 buổi Sáng/Chiều</p>
-            </div>
-          </div>
-          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300 text-xs font-bold shrink-0 whitespace-nowrap">
-            Thứ 2 - Thứ 7
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <div className="bg-[#F0F3FF] dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200/70 dark:border-slate-700">
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="w-2 h-2 rounded-full bg-[#B80035] dark:bg-rose-400 shrink-0" />
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Ca Sáng (4,0h chuẩn)</span>
-            </div>
-            <p className="text-sm font-extrabold text-[#111C2D] dark:text-white font-mono">
-              {config.work_start || "08:00"} – {config.lunch_start || "12:00"}
-            </p>
-          </div>
-          <div className="bg-[#F0F3FF] dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200/70 dark:border-slate-700">
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="w-2 h-2 rounded-full bg-[#0051CA] dark:bg-blue-400 shrink-0" />
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Ca Chiều (4,0h chuẩn)</span>
-            </div>
-            <p className="text-sm font-extrabold text-[#111C2D] dark:text-white font-mono">
-              {config.lunch_end || "13:30"} – {config.work_end || "17:30"}
-            </p>
-          </div>
-        </div>
-
-        <div className="sedinco-ticket-cutout">
-          <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="text-slate-600 dark:text-slate-300 font-semibold">Dung sai đi muộn tối đa:</span>
-          <span className="font-extrabold text-[#111C2D] dark:text-white">
-            {config.grace_period_minutes ?? 15} phút (gắn cờ tính lỗi)
-          </span>
-        </div>
-      </div>
-
-      {/* Mục 1: Giờ làm việc & Nghỉ trưa */}
+      {/* KHỐI 2: GIỜ LÀM VIỆC (CA SÁNG / CA CHIỀU) */}
       <AccordionSection
         id="schedule"
-        title="1. Giờ làm việc & Nghỉ trưa"
+        title="1. Giờ làm việc (Ca Sáng / Ca Chiều)"
         subtitle={`${config.work_start || "08:00"} – ${config.work_end || "17:30"} • Nghỉ trưa ${config.lunch_start || "12:00"} – ${config.lunch_end || "13:30"}`}
         icon={Clock}
         iconColor="text-[#E11D48] dark:text-rose-300"
         iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
         isOpen={openSections.schedule}
         onToggle={toggleSection}
+        headerAction={
+          <SectionSaveButton
+            label="Lưu giờ làm việc"
+            testId="save-section-schedule-btn"
+            isDirty={isScheduleDirty}
+            loading={savingSection === "schedule"}
+            onClick={handleSaveSchedule}
+          />
+        }
       >
-        {/* STITCH SCREEN 13 — 3-TILE 8H SHIFT VISUAL BANNER */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
           <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:justify-center gap-2">
-            <span className="text-slate-600 dark:text-slate-300 font-bold">CA SÁNG (4H)</span>
+            <span className="text-slate-600 dark:text-slate-300 font-bold">CA SÁNG (4,0H)</span>
             <strong className="text-[#111C2D] dark:text-white font-mono whitespace-nowrap">
               {config.work_start || "08:00"} – {config.lunch_start || "12:00"}
             </strong>
@@ -657,7 +804,7 @@ export default function CompanySettingsTab({ showToast }) {
             </strong>
           </div>
           <div className="p-2.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between sm:flex-col sm:justify-center gap-2">
-            <span className="text-slate-600 dark:text-slate-300 font-bold">CA CHIỀU (4H)</span>
+            <span className="text-slate-600 dark:text-slate-300 font-bold">CA CHIỀU (4,0H)</span>
             <strong className="text-[#111C2D] dark:text-white font-mono whitespace-nowrap">
               {config.lunch_end || "13:30"} – {config.work_end || "17:30"}
             </strong>
@@ -665,7 +812,7 @@ export default function CompanySettingsTab({ showToast }) {
         </div>
 
         <div className="divide-y divide-slate-100 dark:divide-slate-700/70 border border-slate-200 dark:border-slate-700/80 rounded-2xl bg-slate-50/70 dark:bg-slate-800/70 overflow-hidden">
-          <FormRow label="Giờ bắt đầu làm việc">
+          <FormRow label="Giờ bắt đầu ca sáng">
             <input
               type="time"
               value={config.work_start || "08:00"}
@@ -673,15 +820,7 @@ export default function CompanySettingsTab({ showToast }) {
               className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </FormRow>
-          <FormRow label="Giờ tan ca">
-            <input
-              type="time"
-              value={config.work_end || "17:30"}
-              onChange={(e) => updateField("work_end", e.target.value)}
-              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-          </FormRow>
-          <FormRow label="Bắt đầu nghỉ trưa">
+          <FormRow label="Bắt đầu nghỉ trưa (Kết thúc ca sáng)">
             <input
               type="time"
               value={config.lunch_start || "12:00"}
@@ -689,7 +828,7 @@ export default function CompanySettingsTab({ showToast }) {
               className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </FormRow>
-          <FormRow label="Kết thúc nghỉ trưa">
+          <FormRow label="Kết thúc nghỉ trưa (Bắt đầu ca chiều)">
             <input
               type="time"
               value={config.lunch_end || "13:30"}
@@ -697,25 +836,38 @@ export default function CompanySettingsTab({ showToast }) {
               className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </FormRow>
+          <FormRow label="Giờ tan ca chiều">
+            <input
+              type="time"
+              value={config.work_end || "17:30"}
+              onChange={(e) => updateField("work_end", e.target.value)}
+              className="w-[116px] sm:w-36 min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-base font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 text-center focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
+            />
+          </FormRow>
         </div>
+      </AccordionSection>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-            Thời gian đi muộn được châm chước (phút)
-          </label>
-          <input
-            type="number"
-            min="0"
-            value={config.grace_period_minutes ?? 15}
-            onChange={(e) => updateField("grace_period_minutes", e.target.value)}
-            className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
+      {/* KHỐI 3: THÔNG TIN CÔNG TY & LOGO */}
+      <AccordionSection
+        id="company_info"
+        title="2. Thông tin công ty & Logo nhận diện"
+        subtitle={config.company_name || "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO"}
+        icon={Building2}
+        iconColor="text-[#E11D48] dark:text-rose-300"
+        iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
+        isOpen={openSections.company_info}
+        onToggle={toggleSection}
+        headerAction={
+          <SectionSaveButton
+            label="Lưu thông tin"
+            testId="save-section-company-info-btn"
+            isDirty={isCompanyInfoDirty}
+            loading={savingSection === "company_info"}
+            onClick={handleSaveCompanyInfo}
           />
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Ví dụ: nhập 15 nghĩa là nhân viên vào trễ trong vòng 15 phút đầu vẫn được tính đúng giờ.
-          </p>
-        </div>
-
-        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
+        }
+      >
+        <div className="space-y-3">
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
               Tên công ty hiển thị trên phiếu lương
@@ -727,7 +879,19 @@ export default function CompanySettingsTab({ showToast }) {
               className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Mã số thuế
+              </label>
+              <input
+                type="text"
+                value={config.tax_code || ""}
+                onChange={(e) => updateField("tax_code", e.target.value)}
+                placeholder="VD: 0401234567"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
+              />
+            </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                 Số điện thoại liên hệ
@@ -758,15 +922,23 @@ export default function CompanySettingsTab({ showToast }) {
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
                 <img
-                  src={config.logo_url && (String(config.logo_url).startsWith("https://res.cloudinary.com/") || String(config.logo_url).startsWith("data:image/")) ? config.logo_url : "/sedinco-logo.png"}
+                  src={
+                    config.logo_url &&
+                    (String(config.logo_url).startsWith("https://res.cloudinary.com/") ||
+                      String(config.logo_url).startsWith("data:image/"))
+                      ? config.logo_url
+                      : "/sedinco-logo.png"
+                  }
                   alt="Logo công ty"
                   className="w-full h-full object-contain"
                 />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-bold text-[#111C2D] dark:text-white">Logo nhận diện công ty (Cloudinary)</div>
+                <div className="text-xs font-bold text-[#111C2D] dark:text-white">
+                  Logo nhận diện công ty (Cloudinary)
+                </div>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Hỗ trợ PNG, JPEG, WebP. Sau khi tải lên hãy bấm "Lưu Cấu Hình".
+                  Hỗ trợ PNG, JPEG, WebP. Tự động lưu URL Cloudinary ngay sau khi tải lên.
                 </div>
               </div>
             </div>
@@ -789,7 +961,11 @@ export default function CompanySettingsTab({ showToast }) {
                     });
                     if (uploadRes.ok && uploadRes.data?.url) {
                       updateField("logo_url", uploadRes.data.url);
-                      notify(uploadRes.message || "Đã tải logo công ty lên Cloudinary!");
+                      await saveSectionPayload(
+                        "company_logo",
+                        { logo_url: uploadRes.data.url },
+                        "Đã tải lên và lưu Logo công ty thành công!"
+                      );
                     } else {
                       notify(uploadRes.message || "Không thể tải lên logo công ty.", "error");
                     }
@@ -797,7 +973,9 @@ export default function CompanySettingsTab({ showToast }) {
                     notify(err?.message || "Lỗi tải logo công ty.", "error");
                   } finally {
                     setUploadingLogo(false);
-                    try { e.target.value = ""; } catch {}
+                    try {
+                      e.target.value = "";
+                    } catch {}
                   }
                 }}
               />
@@ -816,7 +994,14 @@ export default function CompanySettingsTab({ showToast }) {
                   type="button"
                   variant="ghost"
                   icon={Trash2}
-                  onClick={() => updateField("logo_url", null)}
+                  onClick={() => {
+                    updateField("logo_url", null);
+                    saveSectionPayload(
+                      "company_logo",
+                      { logo_url: null },
+                      "Đã đặt lại Logo mặc định!"
+                    );
+                  }}
                   className="text-xs px-2.5 py-2 text-rose-600 dark:text-rose-400"
                 >
                   Đặt lại
@@ -827,10 +1012,10 @@ export default function CompanySettingsTab({ showToast }) {
         </div>
       </AccordionSection>
 
-      {/* Mục 2: Quản lý Khối / Bộ phận làm việc */}
+      {/* KHỐI 4: QUẢN LÝ KHỐI / BỘ PHẬN LÀM VIỆC (Lưu trực tiếp từng khối V52) */}
       <AccordionSection
         id="departments"
-        title="2. Quản lý Khối / Bộ phận làm việc"
+        title="3. Quản lý Khối / Bộ phận làm việc"
         subtitle={`${departments.length} khối / bộ phận • Mặc định: ${defaultDepartmentName}`}
         icon={Layers}
         iconColor="text-[#0051CA] dark:text-blue-300"
@@ -862,7 +1047,10 @@ export default function CompanySettingsTab({ showToast }) {
         {loadingDepartments && departments.length === 0 ? (
           <SkeletonList rows={3} label="Đang tải danh sách khối / bộ phận..." />
         ) : (
-          <div data-testid="departments-list" className="divide-y divide-slate-200 dark:divide-slate-700/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60 overflow-hidden">
+          <div
+            data-testid="departments-list"
+            className="divide-y divide-slate-200 dark:divide-slate-700/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60 overflow-hidden"
+          >
             {departments.map((dept) => {
               const isDefault = Number(dept.is_default) === 1;
               const isEditing = editingDeptId === dept.id;
@@ -967,16 +1155,25 @@ export default function CompanySettingsTab({ showToast }) {
         )}
       </AccordionSection>
 
-      {/* Mục 3: Địa điểm chấm công & Wi-Fi công ty */}
+      {/* KHỐI 5: ĐỊA CHỈ & WI-FI CHẤM CÔNG (GPS / BSSID) */}
       <AccordionSection
         id="locations"
-        title="3. Địa điểm chấm công & Wi-Fi công ty"
+        title="4. Địa chỉ & Wi-Fi chấm công (GPS / BSSID)"
         subtitle={`${config.allowed_locations?.length || 1} địa điểm được phép chấm công`}
         icon={MapPin}
         iconColor="text-emerald-600 dark:text-emerald-300"
         iconBg="bg-emerald-50 dark:bg-emerald-950/60"
         isOpen={openSections.locations}
         onToggle={toggleSection}
+        headerAction={
+          <SectionSaveButton
+            label="Lưu vị trí chấm công"
+            testId="save-section-locations-btn"
+            isDirty={isLocationsDirty}
+            loading={savingSection === "locations"}
+            onClick={handleSaveLocations}
+          />
+        }
       >
         <div className="space-y-3">
           {(config.allowed_locations || []).map((loc, idx) => (
@@ -1118,7 +1315,9 @@ export default function CompanySettingsTab({ showToast }) {
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-300">
             Địa chỉ mạng hiện tại của bạn:{" "}
-            <strong className="text-slate-800 dark:text-white">{config.current_client_ip || "Đang xác định"}</strong>
+            <strong className="text-slate-800 dark:text-white">
+              {config.current_client_ip || "Đang xác định"}
+            </strong>
           </p>
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
@@ -1135,217 +1334,101 @@ export default function CompanySettingsTab({ showToast }) {
         </div>
       </AccordionSection>
 
-      {/* Mục 4: Quy tắc tính công, Tăng ca & Bảo hiểm */}
+      {/* KHỐI 6: QUY TẮC TÍNH CÔNG, TĂNG CA & BẢO HIỂM (Đồng bộ 1-1 với Payroll & Attendance Engine) */}
       <AccordionSection
         id="payroll"
-        title="4. Quy tắc tính công, Tăng ca & Bảo hiểm"
-        subtitle={`Công chuẩn tự động theo tháng (${getMonthlyStandardWorkdays()} ngày) • Phép tháng ${config.monthly_paid_leave_limit ?? 1} lượt • Bảo hiểm ${config.insurance_rate ?? 10.5}%`}
+        title="5. Quy tắc tính công, tăng ca & bảo hiểm"
+        subtitle={`Công chuẩn tự động (${currentStdDays} ngày) • Phép tháng ${config.monthly_paid_leave_limit ?? 1} lượt • OT x${formatViNumber(config.ot_rate_weekday ?? 1.5)} • Bảo hiểm ${isInsuranceEnabled ? `${formatViNumber(config.insurance_rate ?? 10.5)}%` : "Tắt"}`}
         icon={Calculator}
         iconColor="text-[#E11D48] dark:text-rose-300"
         iconBg="bg-[#FFE4E6] dark:bg-rose-950/60"
         isOpen={openSections.payroll}
         onToggle={toggleSection}
+        headerAction={
+          <SectionSaveButton
+            label="Lưu quy tắc"
+            testId="save-section-rules-btn"
+            isDirty={isRulesDirty}
+            loading={savingSection === "rules"}
+            onClick={handleSaveRules}
+          />
+        }
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* NHÓM 1: QUY TẮC CHẤM CÔNG & PHÉP THÁNG */}
+        <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide flex items-center gap-1.5">
+              <CalendarDays className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
+              <span>Nhóm 1 — Quy tắc Chấm công &amp; Phép tháng</span>
+            </h4>
+          </div>
+
           <div
             data-testid="auto-standard-workdays-note"
-            className="p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 space-y-1"
+            className="p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 text-xs text-slate-700 dark:text-slate-200 leading-relaxed"
           >
-            <div className="flex items-center gap-1.5 text-xs font-extrabold text-blue-900 dark:text-blue-200">
-              <CalendarDays className="w-4 h-4 text-blue-600 dark:text-blue-300 shrink-0" />
-              <span>Công chuẩn tự động theo tháng</span>
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              Ngày công chuẩn được hệ thống tự động tính theo từng tháng (Tổng số ngày trong tháng trừ Chủ nhật) — hiện tại Tháng {Number(getVietnamTodayIso().slice(5, 7))}/{Number(getVietnamTodayIso().slice(0, 4))}: <strong>{getMonthlyStandardWorkdays()} ngày</strong>.
-            </p>
+            <strong>Công chuẩn tháng tự động tính = Tổng số ngày trong tháng trừ Chủ nhật</strong>{" "}
+            (Tháng {currentMonthNum}/{currentYearNum} hiện tại: <strong>{currentStdDays} ngày công chuẩn</strong>).
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Mức hưởng lương thử việc (%)
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={config.probation_salary_percent ?? 85}
-              onChange={(e) => updateField("probation_salary_percent", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Tỷ lệ đóng bảo hiểm người lao động (%)
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              value={config.insurance_rate ?? 10.5}
-              onChange={(e) => updateField("insurance_rate", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Định mức nghỉ có lương mỗi tháng (lượt/tháng)
-            </label>
-            <input
-              data-testid="company-monthly-leave-limit-input"
-              type="number"
-              min="0"
-              max="31"
-              step="1"
-              value={config.monthly_paid_leave_limit ?? 1}
-              onChange={(e) => updateField("monthly_paid_leave_limit", e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Mặc định: 1 lượt/tháng, không cộng dồn sang tháng sau.
-            </p>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Đơn giá tăng ca cố định / giờ (VNĐ)
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formatViNumber(config.custom_ot_hourly_rate ?? 0, 0)}
-              onChange={(e) => updateField("custom_ot_hourly_rate", Math.max(0, Math.round(parseViNumberInput(e.target.value))))}
-              className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
-            />
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Nhập 0 nếu tính theo hệ số bên dưới.
-            </p>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Hệ số ngày thường
-            </label>
-            <input
-              type="number"
-              min="1"
-              step="0.1"
-              value={config.ot_rate_weekday ?? 1.5}
-              onChange={(e) => updateField("ot_rate_weekday", e.target.value)}
-              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Hệ số cuối tuần
-            </label>
-            <input
-              type="number"
-              min="1"
-              step="0.1"
-              value={config.ot_rate_weekend ?? 2.0}
-              onChange={(e) => updateField("ot_rate_weekend", e.target.value)}
-              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-              Hệ số ngày lễ
-            </label>
-            <input
-              type="number"
-              min="1"
-              step="0.1"
-              value={config.ot_rate_holiday ?? 3.0}
-              onChange={(e) => updateField("ot_rate_holiday", e.target.value)}
-              className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-            />
-          </div>
-        </div>
-
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
-          <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">
-            Quy tắc linh hoạt phụ cấp thử việc, tăng ca &amp; khấu trừ
-          </h4>
-          <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/70 overflow-hidden">
-            <FormRow
-              label="Phụ cấp & đơn giá tăng ca thử việc"
-              description="Áp dụng cho ngày công trước ngày chính thức"
-            >
-              <select
-                value={String(config.probation_allowance_full ?? 1)}
-                onChange={(e) => updateField("probation_allowance_full", Number(e.target.value))}
-                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
-              >
-                <option value="1">Hưởng đủ 100% phụ cấp &amp; đơn giá tăng ca</option>
-                <option value="0">Nhân theo tỷ lệ lương thử việc</option>
-              </select>
-            </FormRow>
-            <FormRow
-              label="Chế độ ghi nhận tăng ca"
-              description="Kiểm soát điều kiện chi trả giờ tăng ca"
-            >
-              <select
-                value={config.ot_calculation_mode || "APPROVED_OR_AUTO"}
-                onChange={(e) => updateField("ot_calculation_mode", e.target.value)}
-                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
-              >
-                <option value="APPROVED_OR_AUTO">Ưu tiên đơn duyệt, tự tính theo chấm công</option>
-                <option value="REQUIRE_APPROVAL">Bắt buộc có đơn tăng ca đã duyệt</option>
-                <option value="AUTO_ACTUAL">Tính đủ theo giờ thực tế chấm công</option>
-              </select>
-            </FormRow>
-            <FormRow
-              label="Miễn hạ công khi trễ nặng"
-              description="Áp dụng khi bật trừ nửa ngày công"
-            >
-              <select
-                value={String(config.free_late_exempts_halfday ? 1 : 0)}
-                onChange={(e) => updateField("free_late_exempts_halfday", Number(e.target.value))}
-                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
-              >
-                <option value="0">Không miễn (Vẫn trừ 0.5 công nếu trễ nặng)</option>
-                <option value="1">Có miễn trong số lần trễ cho phép</option>
-              </select>
-            </FormRow>
-            <FormRow
-              label="Xử lý khi lương thực lĩnh âm"
-              description="Khi tổng khấu trừ vượt thu nhập kỳ lương"
-            >
-              <select
-                value={config.negative_salary_policy || "CLAMP_ZERO"}
-                onChange={(e) => updateField("negative_salary_policy", e.target.value)}
-                className="w-full min-h-[44px] px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
-              >
-                <option value="CLAMP_ZERO">Giữ 0đ &amp; ghi nhận nợ chuyển kỳ sau</option>
-                <option value="SHOW_NEGATIVE">Hiển thị số âm trực tiếp trên phiếu lương</option>
-              </select>
-            </FormRow>
-          </div>
-        </div>
-
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-          <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">
-            Chính sách xử lý đi trễ & Quy đổi công
-          </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Hình thức xử lý đi trễ
+                Định mức nghỉ phép có lương tối đa / tháng (lượt)
+              </label>
+              <input
+                data-testid="company-monthly-leave-limit-input"
+                type="number"
+                min="0"
+                max="31"
+                step="1"
+                value={config.monthly_paid_leave_limit ?? 1}
+                onChange={(e) => updateField("monthly_paid_leave_limit", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Mặc định: 1 lượt/tháng (không cộng dồn). Áp dụng ngay cho duyệt đơn &amp; tính lương.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Ngưỡng đi muộn / về sớm cho phép (phút)
+              </label>
+              <input
+                data-testid="company-grace-period-input"
+                type="number"
+                min="0"
+                value={config.grace_period_minutes ?? 15}
+                onChange={(e) => updateField("grace_period_minutes", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Vào trễ trong số phút này vẫn được ghi nhận đúng giờ.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Hình thức xử lý đi muộn
               </label>
               <select
                 value={config.late_policy_type || "PER_MINUTE"}
                 onChange={(e) => updateField("late_policy_type", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 focus:border-[#E11D48] focus:outline-none"
               >
                 <option value="NONE">Không trừ phạt (Chỉ ghi nhận)</option>
-                <option value="PER_MINUTE">Phạt tiền theo số phút đi trễ</option>
-                <option value="PER_OCCURRENCE">Phạt tiền cố định mỗi lần đi trễ</option>
+                <option value="PER_MINUTE">Phạt tiền theo số phút đi muộn</option>
+                <option value="PER_OCCURRENCE">Phạt tiền cố định mỗi lần đi muộn</option>
                 <option value="DEDUCT_WORKDAY">Trừ nửa ngày công nếu trễ quá ngưỡng</option>
               </select>
             </div>
+
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Số lần đi trễ miễn phạt / tháng
+                Số lần đi muộn miễn phạt / tháng
               </label>
               <input
                 type="number"
@@ -1357,46 +1440,52 @@ export default function CompanySettingsTab({ showToast }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {(config.late_policy_type || "PER_MINUTE") === "PER_MINUTE" && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Tiền phạt đi trễ mỗi phút (VNĐ)
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={formatViNumber(config.late_penalty_per_minute ?? config.penalty_per_minute ?? 2000, 0)}
-                  onChange={(e) => {
-                    const num = Math.max(0, Math.round(parseViNumberInput(e.target.value)));
-                    updateField("late_penalty_per_minute", num);
-                    updateField("penalty_per_minute", num);
-                  }}
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-                />
-              </div>
-            )}
+          {(config.late_policy_type || "PER_MINUTE") === "PER_MINUTE" && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Mức phạt đi muộn mỗi phút (VNĐ — nhập 0 nếu không phạt tiền)
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatViNumber(
+                  config.late_penalty_per_minute ?? config.penalty_per_minute ?? 2000,
+                  0
+                )}
+                onChange={(e) => {
+                  const num = Math.max(0, Math.round(parseViNumberInput(e.target.value)));
+                  updateField("late_penalty_per_minute", num);
+                  updateField("penalty_per_minute", num);
+                }}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
+              />
+            </div>
+          )}
 
-            {config.late_policy_type === "PER_OCCURRENCE" && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                  Tiền phạt mỗi lần đi trễ (VNĐ)
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={formatViNumber(config.late_penalty_amount ?? config.penalty_fixed_block ?? 50000, 0)}
-                  onChange={(e) => {
-                    const num = Math.max(0, Math.round(parseViNumberInput(e.target.value)));
-                    updateField("late_penalty_amount", num);
-                    updateField("penalty_fixed_block", num);
-                  }}
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-                />
-              </div>
-            )}
+          {config.late_policy_type === "PER_OCCURRENCE" && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Mức phạt mỗi lần đi muộn (VNĐ — nhập 0 nếu không phạt tiền)
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatViNumber(
+                  config.late_penalty_amount ?? config.penalty_fixed_block ?? 50000,
+                  0
+                )}
+                onChange={(e) => {
+                  const num = Math.max(0, Math.round(parseViNumberInput(e.target.value)));
+                  updateField("late_penalty_amount", num);
+                  updateField("penalty_fixed_block", num);
+                }}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
+              />
+            </div>
+          )}
 
-            {config.late_policy_type === "DEDUCT_WORKDAY" && (
+          {config.late_policy_type === "DEDUCT_WORKDAY" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                   Ngưỡng trễ tính nửa công (phút)
@@ -1409,51 +1498,213 @@ export default function CompanySettingsTab({ showToast }) {
                   className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                  Miễn hạ công trong số lần trễ cho phép
+                </label>
+                <select
+                  value={String(config.free_late_exempts_halfday ? 1 : 0)}
+                  onChange={(e) => updateField("free_late_exempts_halfday", Number(e.target.value))}
+                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
+                >
+                  <option value="0">Không miễn (Vẫn tính 0,5 công nếu trễ nặng)</option>
+                  <option value="1">Có miễn trong số lần trễ cho phép</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/70 dark:border-slate-700/70">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Mức hưởng lương thử việc (%)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={config.probation_salary_percent ?? 85}
+                onChange={(e) => updateField("probation_salary_percent", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Phụ cấp &amp; đơn giá tăng ca thử việc
+              </label>
+              <select
+                value={String(config.probation_allowance_full ?? 1)}
+                onChange={(e) => updateField("probation_allowance_full", Number(e.target.value))}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
+              >
+                <option value="1">Hưởng đủ 100% phụ cấp &amp; đơn giá tăng ca</option>
+                <option value="0">Nhân theo tỷ lệ lương thử việc</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* NHÓM 2: QUY TẮC TĂNG CA (OT) */}
+        <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
+          <h4 className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <span>Nhóm 2 — Quy tắc Tăng ca (OT)</span>
+          </h4>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Hệ số tăng ca ngày thường (VD: 1,5)
+              </label>
+              <input
+                data-testid="company-ot-weekday-input"
+                type="number"
+                min="1"
+                step="0.1"
+                value={config.ot_rate_weekday ?? 1.5}
+                onChange={(e) => updateField("ot_rate_weekday", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Hệ số tăng ca ngày Chủ nhật (VD: 2,0)
+              </label>
+              <input
+                data-testid="company-ot-weekend-input"
+                type="number"
+                min="1"
+                step="0.1"
+                value={config.ot_rate_weekend ?? 2.0}
+                onChange={(e) => updateField("ot_rate_weekend", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Đơn giá tăng ca cố định / giờ (VNĐ — nhập 0 để tính theo hệ số)
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatViNumber(config.custom_ot_hourly_rate ?? 0, 0)}
+                onChange={(e) =>
+                  updateField(
+                    "custom_ot_hourly_rate",
+                    Math.max(0, Math.round(parseViNumberInput(e.target.value)))
+                  )
+                }
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                Chế độ ghi nhận tăng ca
+              </label>
+              <select
+                value={config.ot_calculation_mode || "APPROVED_OR_AUTO"}
+                onChange={(e) => updateField("ot_calculation_mode", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
+              >
+                <option value="APPROVED_OR_AUTO">Ưu tiên đơn duyệt, tự tính theo bảng công</option>
+                <option value="REQUIRE_APPROVAL">Bắt buộc có đơn tăng ca đã duyệt</option>
+                <option value="AUTO_ACTUAL">Tính đủ theo giờ tăng ca trên bảng công</option>
+              </select>
+            </div>
+          </div>
+
+          <div
+            data-testid="holiday-multiplier-guidance-note"
+            className="p-3 rounded-xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/70 flex items-center gap-2 text-xs text-rose-900 dark:text-rose-200 font-semibold"
+          >
+            <Gift className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
+            <span>
+              Hệ số đi làm ngày lễ được thiết lập riêng cho từng dịp tại mục{" "}
+              <strong>Cài đặt → Ngày lễ</strong>.
+            </span>
+          </div>
+        </div>
+
+        {/* NHÓM 3: QUY TẮC BẢO HIỂM (BHXH / BHYT / BHTN) */}
+        <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-xs sm:text-sm font-extrabold text-[#111C2D] dark:text-white uppercase tracking-wide flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Nhóm 3 — Quy tắc Bảo hiểm (BHXH / BHYT / BHTN)</span>
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Khi Tắt (0%), tiền khấu trừ bảo hiểm = 0 đ và ẩn hoàn toàn dòng bảo hiểm trên Bảng lương &amp; Phiếu lương.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isInsuranceEnabled}
+              data-testid="company-insurance-toggle"
+              onClick={() => {
+                if (isInsuranceEnabled) {
+                  updateField("insurance_rate", 0);
+                } else {
+                  updateField("insurance_rate", lastPositiveInsuranceRateRef.current || 10.5);
+                }
+              }}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl border text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer ${
+                isInsuranceEnabled
+                  ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
+                  : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600"
+              }`}
+            >
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  isInsuranceEnabled ? "bg-white" : "bg-slate-400"
+                }`}
+              />
+              <span>{isInsuranceEnabled ? "Đang Bật khấu trừ Bảo hiểm" : "Đang Tắt khấu trừ Bảo hiểm"}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {isInsuranceEnabled && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                  Tỷ lệ đóng bảo hiểm người lao động (%)
+                </label>
+                <input
+                  data-testid="company-insurance-rate-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={config.insurance_rate ?? 10.5}
+                  onChange={(e) => updateField("insurance_rate", e.target.value)}
+                  className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
+                />
+              </div>
             )}
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Lưu lịch sử hoạt động (ngày)
+                Xử lý khi lương thực lĩnh âm
               </label>
-              <input
-                type="number"
-                min="7"
-                value={config.log_retention_days ?? 30}
-                onChange={(e) => updateField("log_retention_days", e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-800 dark:text-slate-100"
-              />
+              <select
+                value={config.negative_salary_policy || "CLAMP_ZERO"}
+                onChange={(e) => updateField("negative_salary_policy", e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100"
+              >
+                <option value="CLAMP_ZERO">Giữ 0 đ &amp; ghi nhận nợ chuyển kỳ sau</option>
+                <option value="SHOW_NEGATIVE">Hiển thị số âm trực tiếp trên phiếu lương</option>
+              </select>
             </div>
           </div>
         </div>
       </AccordionSection>
-
-      {/* Thanh hành động in-flow bên dưới — không dùng sticky bottom để tránh đè lên ô nhập liệu ở 200% font scale */}
-      <div
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 sm:px-5 py-3.5 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3"
-      >
-        <AppButton
-          variant="secondary"
-          icon={RotateCcw}
-          loading={resetting}
-          disabled={saving}
-          onClick={handleResetDefaults}
-          className="text-xs sm:text-sm"
-        >
-          Khôi phục mặc định
-        </AppButton>
-
-        <AppButton
-          variant="primary"
-          icon={Save}
-          loading={saving}
-          disabled={resetting}
-          loadingText="Đang lưu..."
-          onClick={handleSave}
-          className="flex-1 sm:flex-none px-6"
-        >
-          Lưu cấu hình
-        </AppButton>
-      </div>
 
       <ConfirmDialog
         open={confirmDeleteDept.open}
@@ -1520,7 +1771,10 @@ export default function CompanySettingsTab({ showToast }) {
               )}
               <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1 bg-slate-50 dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
                 <div>
-                  Hiệu lực đến: <strong className="text-[#111C2D] dark:text-white font-mono">{qrModalState.session?.expires_at_vn}</strong>
+                  Hiệu lực đến:{" "}
+                  <strong className="text-[#111C2D] dark:text-white font-mono">
+                    {qrModalState.session?.expires_at_vn}
+                  </strong>
                 </div>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400">
                   Múi giờ: {qrModalState.session?.timezone || "Asia/Ho_Chi_Minh"} • Dùng 1 lần chống quét lại

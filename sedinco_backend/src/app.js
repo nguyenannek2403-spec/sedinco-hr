@@ -180,10 +180,12 @@ app.use(cors(corsOptions));
 // Mặc định giới hạn nhỏ (100kb) để phòng chống DoS/Payload Too Large vào các route nhạy cảm (/api/login, /api/auth...)
 // Riêng route chấm công (/api/attendance) cho phép tới 3mb để nạp ảnh snapshot Base64
 const defaultJsonParser = express.json({ limit: '100kb' });
+const companyJsonParser = express.json({ limit: '1mb' });
 const requestsJsonParser = express.json({ limit: '512kb' });
 const attendanceJsonParser = express.json({ limit: '3mb' });
 const mediaJsonParser = express.json({ limit: '7mb' });
 const defaultUrlParser = express.urlencoded({ limit: '100kb', extended: true });
+const companyUrlParser = express.urlencoded({ limit: '1mb', extended: true });
 const requestsUrlParser = express.urlencoded({ limit: '512kb', extended: true });
 const attendanceUrlParser = express.urlencoded({ limit: '3mb', extended: true });
 const mediaUrlParser = express.urlencoded({ limit: '7mb', extended: true });
@@ -225,6 +227,12 @@ app.use((req, res, next) => {
         return attendanceJsonParser(req, res, (err) => {
             if (err) return next(err);
             attendanceUrlParser(req, res, done);
+        });
+    }
+    if (req.path.startsWith('/api/company')) {
+        return companyJsonParser(req, res, (err) => {
+            if (err) return next(err);
+            companyUrlParser(req, res, done);
         });
     }
     if (req.path.startsWith('/api/requests')) {

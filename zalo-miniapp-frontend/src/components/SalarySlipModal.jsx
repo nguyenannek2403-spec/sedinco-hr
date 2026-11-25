@@ -339,6 +339,7 @@ export default function SalarySlipModal({
         holidayMultiplier,
         holidayWorkCredit,
         dailyOtAmount,
+        otMultiplier: Number(log?.ot_multiplier) || 0,
         dailyPenaltyAmount,
         dailyPenaltyReason,
         dailyEarnedAmount,
@@ -1097,6 +1098,9 @@ export default function SalarySlipModal({
                       </span>
                       <span className="text-xs text-slate-500 dark:text-slate-400 block">
                         Tổng {formatViNumber(item.totalOtHours || 0)} giờ làm thêm
+                        {item.otRateWeekday
+                          ? ` (Ngày thường x${formatViNumber(item.otRateWeekday)} • CN x${formatViNumber(item.otRateWeekend || 2)})`
+                          : ""}
                       </span>
                     </div>
                     <span className="font-mono font-bold text-sm text-indigo-700 dark:text-indigo-300 whitespace-nowrap shrink-0">
@@ -1519,7 +1523,8 @@ export default function SalarySlipModal({
                           )}
                           {hasOt && (
                             <div className="text-indigo-700 dark:text-indigo-300 font-semibold">
-                              Tăng ca: +{formatViNumber(row.otHours)} giờ OT = +{formatCurrency(row.dailyOtAmount)}
+                              Tăng ca: +{formatViNumber(row.otHours)} giờ OT
+                              {row.otMultiplier > 0 ? ` (x${formatViNumber(row.otMultiplier)})` : ""} = +{formatCurrency(row.dailyOtAmount)}
                             </div>
                           )}
                           {hasPen && (

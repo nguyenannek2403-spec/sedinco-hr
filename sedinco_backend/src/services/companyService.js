@@ -41,7 +41,8 @@ function normalizeIp(rawIp) {
 
 function toFiniteNumber(val, fallback) {
     if (val === '' || val === null || val === undefined) return fallback;
-    const num = Number(val);
+    const normalized = typeof val === 'string' ? val.trim().replace(',', '.') : val;
+    const num = Number(normalized);
     return Number.isFinite(num) ? num : fallback;
 }
 
@@ -382,7 +383,7 @@ class CompanyService {
         if (payload.announcement_text !== undefined) {
             const cleanAnnouncement = payload.announcement_text === null
                 ? ''
-                : String(payload.announcement_text).trim().slice(0, 2000);
+                : String(payload.announcement_text).trim().slice(0, 50000);
             await query(
                 'UPDATE company_settings SET announcement_text = ?, announcement_updated_at = ? WHERE id = ?',
                 [cleanAnnouncement || null, cleanAnnouncement ? new Date() : null, savedCompanyId]

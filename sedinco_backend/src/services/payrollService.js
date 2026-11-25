@@ -181,6 +181,8 @@ class PayrollService {
                 unitDailyWage: calc.unitDailyWage,
                 probationPercent: calc.probationPercent,
                 insuranceRatePercent: calc.insuranceRatePercent,
+                otRateWeekday: calc.otRateWeekday,
+                otRateWeekend: calc.otRateWeekend,
                 congThuViec: calc.congThuViec,
                 congChinhThuc: calc.congChinhThuc,
                 workedDays: calc.workedDays,

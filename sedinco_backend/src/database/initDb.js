@@ -631,6 +631,7 @@ async function initDatabase() {
 
         // V39: Chuyển định mức nghỉ có lương từ phép năm (12 ngày) sang phép tháng (mặc định 1 lượt/tháng, không cộng dồn)
         await query("ALTER TABLE company_settings ADD COLUMN monthly_paid_leave_limit DECIMAL(4,1) NOT NULL DEFAULT 1.0").catch(() => {});
+        await query("ALTER TABLE company_settings MODIFY COLUMN announcement_text MEDIUMTEXT NULL").catch(() => {});
         await query("ALTER TABLE employees MODIFY COLUMN annual_leave_quota DECIMAL(4,1) DEFAULT 1.0").catch(() => {});
         await query("UPDATE company_settings SET monthly_paid_leave_limit = 1.0 WHERE monthly_paid_leave_limit IS NULL").catch(() => {});
         await query("UPDATE employees SET annual_leave_quota = 1.0 WHERE annual_leave_quota = 12.0 OR annual_leave_quota IS NULL").catch(() => {});
