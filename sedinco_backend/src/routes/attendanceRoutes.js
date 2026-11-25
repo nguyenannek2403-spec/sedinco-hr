@@ -42,7 +42,9 @@ const legacyQrGone = (_req, res) => res.status(410).json({
 router.get('/dynamic-qr', authenticateToken, requireAuth, legacyQrGone);
 router.get('/qr', authenticateToken, requireAuth, legacyQrGone);
 
-// 8. Chấm công đa lớp Multi-Factor (Mã QR động + GPS Geofencing + Camera Snapshot + Anti-Proxy + Idempotency)
+// 8. Smart Attendance Phase 1: Kiểm tra trước ca & vùng chi nhánh + Sinh QR động có hạn & chống replay
+router.post('/precheck', authenticateToken, requireAuth, (req, res, next) => attendanceController.precheckCheckIn(req, res, next));
+router.post('/qr-session', authenticateToken, requireRole(['admin', 'accountant']), (req, res, next) => attendanceController.generateQrSession(req, res, next));
 router.post('/check-in', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => attendanceController.checkInMultiFactor(req, res, next));
 
 // 9. Danh sách chấm công nghi vấn / phát hiện chấm công hộ (Yêu cầu permission: attendance_view_all)

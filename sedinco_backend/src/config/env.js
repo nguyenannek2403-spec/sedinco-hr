@@ -13,6 +13,14 @@ if (process.env.NODE_ENV === 'test') {
     dotenv.config();
 }
 
+const {
+    getCloudinaryCredentialsConfig,
+    getUploadSecurityConfig
+} = require('./cloudinaryConfig');
+
+const cloudinaryCfg = getCloudinaryCredentialsConfig();
+const uploadSecurityCfg = getUploadSecurityConfig();
+
 const env = {
     NODE_ENV: process.env.NODE_ENV || 'development',
     PORT: process.env.PORT ? Number(process.env.PORT) : 5000,
@@ -27,9 +35,26 @@ const env = {
     // TRUST_PROXY: số hop proxy tin cậy (1 = trực tiếp sau 1 reverse proxy như Nginx/Render)
     // false = không tin cậy X-Forwarded-For (default local), 1 = Render/Nginx, 'loopback' = chỉ local
     TRUST_PROXY: process.env.TRUST_PROXY !== undefined ? process.env.TRUST_PROXY : false,
+    ALLOW_RUNTIME_DDL: process.env.ALLOW_RUNTIME_DDL === 'true',
     ENABLE_CLIENT_ERROR_REPORTING: process.env.ENABLE_CLIENT_ERROR_REPORTING === 'true',
-    ENABLE_DIAGNOSTICS: process.env.ENABLE_DIAGNOSTICS === 'true'
+    ENABLE_DIAGNOSTICS: process.env.ENABLE_DIAGNOSTICS === 'true',
+    BCRYPT_WORKER_POOL_SIZE: process.env.BCRYPT_WORKER_POOL_SIZE ? Number(process.env.BCRYPT_WORKER_POOL_SIZE) : 2,
+    DEVICE_BINDING_MODE: process.env.DEVICE_BINDING_MODE || 'recording',
+    LOCATION_MODE: process.env.LOCATION_MODE || 'WARN',
+    REJECT_DOWNGRADE_TO_RAW: process.env.REJECT_DOWNGRADE_TO_RAW === 'true',
+    ZALO_APP_ID: process.env.ZALO_APP_ID || '',
+    ZALO_APP_SECRET: process.env.ZALO_APP_SECRET || '',
+    QR_SECRET: process.env.QR_SECRET || '',
+    CASSO_APP_ID: process.env.CASSO_APP_ID || '',
+    CASSO_APP_SECRET: process.env.CASSO_APP_SECRET || '',
+    CLOUDINARY_CLOUD_NAME: cloudinaryCfg.cloudName,
+    CLOUDINARY_API_KEY: cloudinaryCfg.apiKey,
+    CLOUDINARY_API_SECRET: cloudinaryCfg.apiSecret,
+    CLOUDINARY_API_KEY_NAME: cloudinaryCfg.apiKeyName,
+    CLOUDINARY_FOLDER: cloudinaryCfg.rootFolder,
+    CLOUDINARY_FOLDER_MODE: cloudinaryCfg.folderMode,
+    CLOUDINARY_PRIVATE_DELIVERY_TYPE: cloudinaryCfg.privateDeliveryType,
+    ...uploadSecurityCfg
 };
 
 module.exports = env;
-

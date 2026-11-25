@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { exportEmployeeSalaryExcel } from "../utils/salaryExcelExport";
-import { compressAndResizeImage, pickCompressedEvidencePhoto } from "../utils/imageHelper";
+import { zaloMediaService } from "../services/zalo-media.service";
+import { isZaloMiniAppRuntime } from "../services/zalo-sdk-core";
 import { formatViCurrency, formatViWorkday, formatViNumber } from "../utils/viNumberFormat";
 import {
   getMonthlyStandardWorkdays,
@@ -25,7 +26,7 @@ import {
   normalizePureIsoDate,
   resolveHeatmapCellMeta
 } from "../utils/workdayUtils";
-import { AppButton, AppModal, SkeletonList, UserAvatar } from "./ui";
+import { AppButton, AppModal, SkeletonList, UserAvatar, SecureMediaPreview } from "./ui";
 import PayslipActionFooter from "./PayslipActionFooter";
 import {
   formatDayWithWeekday,
@@ -371,56 +372,65 @@ export default function SalarySlipModal({
     if (!file) return;
 
     try {
-      if (file.type.startsWith("image/")) {
-        setMediaNotice("Đang nén ảnh minh chứng (< 50KB)...");
-        const rawDataUrl = await new Promise((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(r.result);
-          r.onerror = () => reject(new Error("Không đọc được file ảnh"));
-          r.readAsDataURL(file);
+      const mime = String(file.type || "").toLowerCase();
+      if (mime.startsWith("image/") || mime.startsWith("video/") || mime === "application/pdf") {
+        setMediaNotice(
+          mime.startsWith("video/")
+            ? "Đang tải video minh chứng lên Cloudinary an toàn..."
+            : "Đang kiểm tra & tải tệp minh chứng lên Cloudinary an toàn..."
+        );
+        const uploadRes = await zaloMediaService.uploadBrowserEvidenceFile(file, {
+          category: "accounting_attachment",
+          referenceDate: `${nam}-${String(thang).padStart(2, "0")}-01`,
+          maxWidth: 900,
+          maxHeight: 900,
+          quality: 0.72,
+          allowPdf: true,
+          allowVideo: true
         });
-        const compressedBase64 = await compressAndResizeImage(rawDataUrl, 640, 640, 0.55);
-        const sizeKB = Math.round((compressedBase64.length * 3) / 4 / 1024);
-        setEvidenceMedia(compressedBase64);
-        setMediaNotice(`Đã đính kèm ảnh nén (${sizeKB} KB)`);
-      } else if (file.type.startsWith("video/")) {
-        const sizeKB = Math.round(file.size / 1024);
-        if (sizeKB > 800) {
-          notify(`Video quá nặng (${sizeKB}KB). Vui lòng chọn video ngắn dưới 800KB!`, "error");
-          e.target.value = "";
-          return;
+        if (uploadRes.ok && uploadRes.data?.url) {
+          setEvidenceMedia(uploadRes.data.url);
+          setMediaNotice(uploadRes.message || "Đã đính kèm tệp minh chứng an toàn.");
+        } else {
+          notify(uploadRes.message || "Không thể xử lý tệp minh chứng.", "error");
+          setMediaNotice("");
         }
-        setMediaNotice("Đang nạp video ngắn...");
-        const reader = new FileReader();
-        reader.onload = () => {
-          setEvidenceMedia(reader.result);
-          setMediaNotice(`Đã đính kèm video ngắn (${sizeKB} KB)`);
-        };
-        reader.readAsDataURL(file);
       } else {
-        notify("Chỉ hỗ trợ file Hình ảnh hoặc Video ngắn.", "warning");
+        notify("Chỉ hỗ trợ hình ảnh (JPEG/PNG/WebP), PDF hoặc video MP4/WebM.", "warning");
       }
     } catch (err) {
       notify("Lỗi xử lý tệp đính kèm: " + err.message, "error");
+    } finally {
+      try {
+        e.target.value = "";
+      } catch {}
     }
   };
 
   const handlePickDisputeMedia = async (sourceType) => {
-    const res = await pickCompressedEvidencePhoto({
-      sourceType,
-      cameraType: "back",
-      maxWidth: 640,
-      maxHeight: 640,
-      quality: 0.55
-    });
-    if (res?.success && res?.photoUrl) {
-      const sizeKB = Math.round((res.photoUrl.length * 3) / 4 / 1024);
-      setEvidenceMedia(res.photoUrl);
-      setMediaNotice(`Đã đính kèm ảnh (${sizeKB} KB)`);
-      return;
+    const preferredSource = sourceType?.[0] === "camera" ? "camera" : "album";
+    if (isZaloMiniAppRuntime()) {
+      setMediaNotice("Đang mở trình chọn minh chứng Zalo...");
+      const res = await zaloMediaService.pickZaloMediaAndUpload({
+        preferredSource,
+        category: "accounting_attachment",
+        referenceDate: `${nam}-${String(thang).padStart(2, "0")}-01`,
+        maxWidth: 900,
+        maxHeight: 900,
+        quality: 0.72
+      });
+      if (res.ok && res.data?.url) {
+        setEvidenceMedia(res.data.url);
+        setMediaNotice(res.message || "Đã đính kèm ảnh minh chứng");
+        return;
+      }
+      if (res.message) {
+        notify(res.message, "warning");
+      }
+      setMediaNotice("");
     }
     if (fileInputRef.current) {
-      if (sourceType?.[0] === "camera") {
+      if (preferredSource === "camera") {
         fileInputRef.current.setAttribute("accept", "image/*");
         fileInputRef.current.setAttribute("capture", "environment");
       } else {
@@ -1264,7 +1274,7 @@ export default function SalarySlipModal({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*,video/*"
+                      accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/webm"
                       onChange={handleSelectEvidenceFile}
                       className="hidden"
                     />
@@ -1310,19 +1320,11 @@ export default function SalarySlipModal({
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">
                         Bằng chứng đính kèm:
                       </span>
-                      {(evidenceMedia || item.dispute_evidence_media).startsWith("data:video") ? (
-                        <video
-                          src={evidenceMedia || item.dispute_evidence_media}
-                          controls
-                          className="w-full max-h-56 rounded-xl border border-slate-300 dark:border-slate-700 bg-black"
-                        />
-                      ) : (
-                        <img
-                          src={evidenceMedia || item.dispute_evidence_media}
-                          alt="Minh chứng lương"
-                          className="w-full max-h-60 object-contain rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
-                        />
-                      )}
+                      <SecureMediaPreview
+                        src={evidenceMedia || item.dispute_evidence_media}
+                        alt="Minh chứng lương"
+                        className="w-full max-h-60 object-contain rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                      />
                     </div>
                   )}
 

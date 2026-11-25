@@ -12,6 +12,10 @@ function errorHandler(err, req, res, next) {
         res.locals.rejection_code = errorCode;
     }
 
+    if (err.retryAfterSeconds) {
+        res.setHeader('Retry-After', String(err.retryAfterSeconds));
+    }
+
     // Đảm bảo phản hồi lỗi luôn mang header CORS nếu origin hợp lệ (Mục B.2)
     if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
         req.app.setCorsHeadersIfAllowed(req, res);

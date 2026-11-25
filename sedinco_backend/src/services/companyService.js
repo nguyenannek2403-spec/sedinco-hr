@@ -50,17 +50,23 @@ function toSafeText(val, fallback = '') {
     return String(val).trim();
 }
 
+const VALID_ATTENDANCE_METHODS = new Set(['GPS', 'GPS_AND_QR', 'QR_ONLY']);
+
 function sanitizeLocationsList(items, defaultLat = 16.0544, defaultLng = 108.2022, defaultRadius = 500) {
     if (!Array.isArray(items) || items.length === 0) return null;
     const cleaned = items
         .filter((item) => item && typeof item === 'object')
-        .map((item, idx) => ({
-            id: toSafeText(item.id, `loc_${idx + 1}`) || `loc_${idx + 1}`,
-            name: toSafeText(item.name, `Địa điểm ${idx + 1}`) || `Địa điểm ${idx + 1}`,
-            lat: toFiniteNumber(item.lat, defaultLat),
-            lng: toFiniteNumber(item.lng, defaultLng),
-            radius: Math.max(20, toFiniteNumber(item.radius, defaultRadius))
-        }));
+        .map((item, idx) => {
+            const rawMethod = String(item.attendance_method || 'GPS').trim().toUpperCase();
+            return {
+                id: toSafeText(item.id, `loc_${idx + 1}`) || `loc_${idx + 1}`,
+                name: toSafeText(item.name, `Địa điểm ${idx + 1}`) || `Địa điểm ${idx + 1}`,
+                lat: toFiniteNumber(item.lat, defaultLat),
+                lng: toFiniteNumber(item.lng, defaultLng),
+                radius: Math.max(20, toFiniteNumber(item.radius, defaultRadius)),
+                attendance_method: VALID_ATTENDANCE_METHODS.has(rawMethod) ? rawMethod : 'GPS'
+            };
+        });
     return cleaned.length > 0 ? cleaned : null;
 }
 
@@ -74,7 +80,8 @@ function parseAllowedLocations(rawJson, fallbackLat = 16.0544, fallbackLng = 108
             name: 'Trụ sở chính Đà Nẵng',
             lat: safeLat,
             lng: safeLng,
-            radius: safeRadius
+            radius: safeRadius,
+            attendance_method: 'GPS'
         }
     ];
     if (!rawJson) return defaultList;
@@ -208,7 +215,16 @@ class CompanyService {
         const phone = payload.phone !== undefined ? (payload.phone === null ? null : String(payload.phone).trim()) : (current.phone ?? null);
         const address = payload.address !== undefined ? (payload.address === null ? null : String(payload.address).trim()) : (current.address ?? null);
         const tax_code = payload.tax_code !== undefined ? (payload.tax_code === null ? null : String(payload.tax_code).trim()) : (current.tax_code ?? null);
-        const logo_url = payload.logo_url !== undefined ? (payload.logo_url === null ? null : String(payload.logo_url).trim()) : (current.logo_url ?? null);
+        let logo_url = current.logo_url ?? null;
+        const previousLogoUrl = current.logo_url ?? null;
+        const logoChanged = payload.logo_url !== undefined && (payload.logo_url || null) !== (previousLogoUrl || null);
+        if (logoChanged) {
+            const { validateMediaReference } = require('../utils/mediaValidator');
+            logo_url = validateMediaReference(payload.logo_url, {
+                maxInlineBytes: 185 * 1024,
+                allowNull: true
+            });
+        }
 
         const work_start = toSafeText(payload.work_start, current.work_start || '08:00') || '08:00';
         const work_end = toSafeText(payload.work_end, current.work_end || '17:30') || '17:30';
@@ -288,7 +304,9 @@ class CompanyService {
         ];
 
         const existingRows = await query('SELECT id FROM company_settings LIMIT 1');
+        let savedCompanyId = 1;
         if (existingRows && existingRows.length > 0) {
+            savedCompanyId = existingRows[0].id;
             await query(
                 `UPDATE company_settings SET 
                     company_name=?, phone=?, address=?, tax_code=?, logo_url=?,
@@ -302,10 +320,10 @@ class CompanyService {
                     latitude=?, longitude=?, radius_meters=?,
                     allowed_locations=?, office_ip_whitelist=?
                 WHERE id=?`,
-                [...params, existingRows[0].id]
+                [...params, savedCompanyId]
             );
         } else {
-            await query(
+            const insRes = await query(
                 `INSERT INTO company_settings (
                     company_name, phone, address, tax_code, logo_url,
                     work_start, work_end, lunch_start, lunch_end,
@@ -320,6 +338,26 @@ class CompanyService {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 params
             );
+            savedCompanyId = insRes?.insertId || 1;
+        }
+
+        if (logoChanged) {
+            const mediaLifecycleService = require('./mediaLifecycleService');
+            if (logo_url) {
+                await mediaLifecycleService.bindAssetToEntity({
+                    mediaRef: logo_url,
+                    entityType: 'company_branding',
+                    entityId: String(savedCompanyId),
+                    employeeId: current_user?.username || current_user?.ma_nv || 'admin'
+                });
+            }
+            if (previousLogoUrl && previousLogoUrl !== logo_url) {
+                await mediaLifecycleService.handleMediaReplacement({
+                    oldMediaRef: previousLogoUrl,
+                    newMediaRef: logo_url,
+                    actor: current_user
+                });
+            }
         }
 
         if (current_user) {

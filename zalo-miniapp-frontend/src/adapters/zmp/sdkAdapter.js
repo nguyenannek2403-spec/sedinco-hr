@@ -1,14 +1,23 @@
 import { realSdkAdapter } from "./realSdkAdapter";
 
 /**
- * Production Zalo Mini App SDK Adapter
- * Luôn sử dụng realSdkAdapter (Zalo SDK thật), đã cô lập và loại bỏ hoàn toàn mockSdkAdapter.
+ * Unified Zalo Mini App SDK Adapter (Single Gateway)
+ * Toàn bộ lời gọi zmp-sdk đi qua realSdkAdapter & được bao bọc bởi tầng service trong src/services/.
  */
 export const zmpAdapter = {
   isMock: false,
+  isZaloRuntime: () => realSdkAdapter.isZaloRuntime(),
+  getSetting: (...args) => realSdkAdapter.getSetting(...args),
+  authorize: (...args) => realSdkAdapter.authorize(...args),
+  openPermissionSetting: (...args) => realSdkAdapter.openPermissionSetting(...args),
+  getUserID: (...args) => realSdkAdapter.getUserID(...args),
   getUserInfo: (...args) => realSdkAdapter.getUserInfo(...args),
   getAccessToken: (...args) => realSdkAdapter.getAccessToken(...args),
+  getPhoneNumber: (...args) => realSdkAdapter.getPhoneNumber(...args),
   getLocation: (...args) => realSdkAdapter.getLocation(...args),
+  checkCameraPermission: (...args) => realSdkAdapter.checkCameraPermission(...args),
+  requestCameraPermission: (...args) => realSdkAdapter.requestCameraPermission(...args),
+  openMediaPicker: (...args) => realSdkAdapter.openMediaPicker(...args),
   openBioAuthentication: (...args) => realSdkAdapter.openBioAuthentication(...args),
   checkStateBioAuthentication: (...args) => realSdkAdapter.checkStateBioAuthentication(...args),
   chooseImage: (...args) => realSdkAdapter.chooseImage(...args),

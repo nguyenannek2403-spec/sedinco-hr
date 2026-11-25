@@ -14,8 +14,8 @@ const TOKEN_TTL_MS = 14 * 60 * 1000; // 14 phút
 
 function getCassoCredentials() {
     return {
-        app_id: String(process.env.CASSO_APP_ID || 'trial-app_3c1e7aa6dabfbc3b9e51517e').trim(),
-        app_secret: String(process.env.CASSO_APP_SECRET || 'sec_JNc1O6gF313FJOiG6IfejyTcVkc7G3xI').trim()
+        app_id: String(process.env.CASSO_APP_ID || '').trim(),
+        app_secret: String(process.env.CASSO_APP_SECRET || '').trim()
     };
 }
 
@@ -69,6 +69,12 @@ async function getOAuthToken({ forceRefresh = false, fetchImpl = global.fetch } 
 
     const fetchPromise = (async () => {
         const { app_id, app_secret } = getCassoCredentials();
+        if (!app_id || !app_secret) {
+            const err = new Error('CASSO_NOT_CONFIGURED');
+            err.statusCode = 503;
+            err.code = 'CASSO_NOT_CONFIGURED';
+            throw err;
+        }
         const res = await fetchWithTimeout(
             CASSO_OAUTH_URL,
             {

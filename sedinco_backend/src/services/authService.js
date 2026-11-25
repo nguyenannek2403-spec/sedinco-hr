@@ -10,7 +10,7 @@ const {
     invalidateUserCache,
     SAFE_EMPLOYEE_FIELDS
 } = require('../middlewares/authMiddleware');
-const { verifyZaloAccessToken } = require('../utils/zaloAdapter');
+const { verifyZaloAccessToken, verifyZaloPhoneToken } = require('../utils/zaloAdapter');
 const {
     recordEmployeeDeviceActivity,
     sanitizeSingleDeviceModelName,
@@ -428,7 +428,7 @@ class AuthService {
         }
         await recordKnownLegitIp(ma_nv, normalizedIp);
 
-        // V6 Zero-Password Zalo Auto-Login: CHỈ liên kết zalo_user_id khi có access token đã được server Zalo xác thực
+        // V6 Zero-Password Zalo Auto-Login: CHỈ liên kết zalo_user_id khi có access token đã được server Zalo xác thực và chưa gắn cho nhân viên khác
         const loginZaloToken = zalo_access_token || zalo_token;
         let zaloLinked = false;
         if (loginZaloToken && typeof loginZaloToken === 'string' && loginZaloToken.trim().length > 0) {
@@ -436,10 +436,16 @@ class AuthService {
             if (verifiedZalo && verifiedZalo.id) {
                 const verifiedZaloId = String(verifiedZalo.id).trim().slice(0, 100);
                 if (!zalo_user_id || String(zalo_user_id).trim() === verifiedZaloId) {
-                    await query('UPDATE employees SET zalo_user_id = ?, zalo_id = ? WHERE ma_nv = ?', [verifiedZaloId, verifiedZaloId, emp.ma_nv]).catch(() => {});
-                    emp.zalo_user_id = verifiedZaloId;
-                    emp.zalo_id = verifiedZaloId;
-                    zaloLinked = true;
+                    const dupZalo = await query(
+                        'SELECT ma_nv FROM employees WHERE (zalo_user_id = ? OR zalo_id = ?) AND ma_nv != ? LIMIT 1',
+                        [verifiedZaloId, verifiedZaloId, emp.ma_nv]
+                    ).catch(() => []);
+                    if (!dupZalo || dupZalo.length === 0) {
+                        await query('UPDATE employees SET zalo_user_id = ?, zalo_id = ? WHERE ma_nv = ?', [verifiedZaloId, verifiedZaloId, emp.ma_nv]).catch(() => {});
+                        emp.zalo_user_id = verifiedZaloId;
+                        emp.zalo_id = verifiedZaloId;
+                        zaloLinked = true;
+                    }
                 }
             }
         }
@@ -543,7 +549,8 @@ class AuthService {
             return {
                 success: false,
                 statusCode: 404,
-                message: 'Thiết bị chưa được liên kết tài khoản Zalo. Vui lòng đăng nhập bằng Mã NV & Mật khẩu lần đầu để liên kết tự động!'
+                code: 'ZALO_NOT_LINKED',
+                message: 'Tài khoản Zalo này chưa liên kết với mã nhân viên Sedinco nào. Vui lòng đăng nhập bằng Mã NV & Mật khẩu để liên kết!'
             };
         }
 
@@ -1221,6 +1228,161 @@ class AuthService {
         return employeeService.bindZalo(ma_nv, zalo_token, current_user);
     }
 
+    async getZaloLinkStatus(current_user) {
+        if (!current_user) {
+            const err = new Error('Chưa đăng nhập!');
+            err.statusCode = 401;
+            throw err;
+        }
+        const zaloConfigured = Boolean(process.env.ZALO_APP_ID && process.env.ZALO_APP_SECRET);
+        if (!current_user.ma_nv) {
+            return {
+                ma_nv: current_user.username || null,
+                role: current_user.role || 'admin',
+                is_linked: false,
+                zalo_user_id_masked: null,
+                has_phone: Boolean(current_user.phone),
+                zalo_app_configured: zaloConfigured
+            };
+        }
+        const rows = await query(
+            'SELECT ma_nv, zalo_user_id, zalo_id, phone, dien_thoai FROM employees WHERE ma_nv = ? LIMIT 1',
+            [current_user.ma_nv]
+        );
+        const emp = rows && rows[0] ? rows[0] : null;
+        if (!emp) {
+            const err = new Error('Không tìm thấy hồ sơ nhân sự!');
+            err.statusCode = 404;
+            throw err;
+        }
+        const rawZaloId = String(emp.zalo_user_id || emp.zalo_id || '').trim();
+        const masked = rawZaloId.length > 6
+            ? `${rawZaloId.slice(0, 3)}***${rawZaloId.slice(-3)}`
+            : (rawZaloId ? '***' : null);
+
+        return {
+            ma_nv: emp.ma_nv,
+            is_linked: Boolean(rawZaloId),
+            zalo_user_id_masked: masked,
+            has_phone: Boolean(emp.phone || emp.dien_thoai),
+            phone: emp.phone || emp.dien_thoai || null,
+            zalo_app_configured: zaloConfigured
+        };
+    }
+
+    async unlinkZaloAccount(current_user) {
+        if (!current_user || !current_user.ma_nv) {
+            const err = new Error('Chỉ tài khoản nhân viên mới sử dụng liên kết Zalo!');
+            err.statusCode = 400;
+            throw err;
+        }
+        await query('UPDATE employees SET zalo_id = NULL, zalo_user_id = NULL WHERE ma_nv = ?', [current_user.ma_nv]);
+        invalidateUserCache(current_user.ma_nv);
+        await logAuditEvent({
+            actor_id: current_user.ma_nv,
+            actor_role: current_user.role || 'worker',
+            action: 'UNBIND_ZALO',
+            resource: 'employee_zalo',
+            details: { ma_nv: current_user.ma_nv }
+        });
+        return {
+            ma_nv: current_user.ma_nv,
+            is_linked: false
+        };
+    }
+
+    async verifyZaloPhone(current_user, { phone_token, zalo_access_token } = {}) {
+        if (!current_user || !current_user.ma_nv) {
+            const err = new Error('Yêu cầu đăng nhập tài khoản nhân viên để xác minh số điện thoại Zalo!');
+            err.statusCode = 401;
+            throw err;
+        }
+        const cleanPhoneToken = typeof phone_token === 'string' ? phone_token.trim() : '';
+        const cleanAccessToken = typeof zalo_access_token === 'string' ? zalo_access_token.trim() : '';
+        if (!cleanPhoneToken) {
+            const err = new Error('Thiếu mã token số điện thoại từ Zalo!');
+            err.statusCode = 400;
+            err.code = 'MISSING_PHONE_TOKEN';
+            throw err;
+        }
+
+        if (cleanAccessToken) {
+            const verifiedUser = await verifyZaloAccessToken(cleanAccessToken);
+            if (!verifiedUser || !verifiedUser.id) {
+                const err = new Error('Phiên xác thực Zalo không hợp lệ hoặc đã hết hạn!');
+                err.statusCode = 401;
+                throw err;
+            }
+        }
+
+        const verifiedPhone = await verifyZaloPhoneToken({
+            phoneToken: cleanPhoneToken,
+            userAccessToken: cleanAccessToken,
+            actorId: current_user.ma_nv
+        });
+
+        if (!verifiedPhone || !verifiedPhone.verified || !verifiedPhone.phone) {
+            const err = new Error('Không thể giải mã số điện thoại từ máy chủ Zalo (Zalo chưa cấp quyền hoặc token đã hết hạn).');
+            err.statusCode = 400;
+            err.code = 'ZALO_PHONE_VERIFY_FAILED';
+            throw err;
+        }
+
+        const rows = await query('SELECT ma_nv, phone, dien_thoai FROM employees WHERE ma_nv = ? LIMIT 1', [current_user.ma_nv]);
+        const emp = rows && rows[0] ? rows[0] : null;
+        if (!emp) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
+
+        const existingPhone = String(emp.phone || emp.dien_thoai || '').replace(/\s+/g, '');
+        if (existingPhone && existingPhone !== verifiedPhone.phone) {
+            await logAuditEvent({
+                actor_id: current_user.ma_nv,
+                actor_role: current_user.role || 'worker',
+                action: 'VERIFY_ZALO_PHONE_MISMATCH',
+                resource: 'employee_zalo',
+                details: { ma_nv: current_user.ma_nv, provider: verifiedPhone.provider }
+            });
+            return {
+                verified: true,
+                phone_matched: false,
+                zalo_phone: verifiedPhone.phone,
+                registered_phone: existingPhone,
+                provider: verifiedPhone.provider,
+                message: 'Số điện thoại Zalo không trùng khớp với SĐT đã đăng ký trên hồ sơ Nhân sự. Vui lòng liên hệ HR nếu cần cập nhật SĐT mới.'
+            };
+        }
+
+        if (!existingPhone) {
+            const { assertUniqueLoginIdentity } = require('./employeeService');
+            await assertUniqueLoginIdentity({ phone: verifiedPhone.phone, excludeMaNv: current_user.ma_nv });
+            await query('UPDATE employees SET phone = ?, dien_thoai = ? WHERE ma_nv = ?', [
+                verifiedPhone.phone,
+                verifiedPhone.phone,
+                current_user.ma_nv
+            ]);
+            invalidateUserCache(current_user.ma_nv);
+        }
+
+        await logAuditEvent({
+            actor_id: current_user.ma_nv,
+            actor_role: current_user.role || 'worker',
+            action: 'VERIFY_ZALO_PHONE',
+            resource: 'employee_zalo',
+            details: { ma_nv: current_user.ma_nv, provider: verifiedPhone.provider }
+        });
+
+        return {
+            verified: true,
+            phone_matched: true,
+            phone: verifiedPhone.phone,
+            provider: verifiedPhone.provider,
+            message: 'Đã xác minh số điện thoại chính chủ qua Zalo!'
+        };
+    }
+
     async updateSelfAvatar(current_user, rawAvatarUrl) {
         if (!current_user) {
             const err = new Error('Chưa đăng nhập!');
@@ -1228,23 +1390,59 @@ class AuthService {
             throw err;
         }
         const cleanAvatar = sanitizeAvatarInput(rawAvatarUrl);
+        const mediaLifecycleService = require('./mediaLifecycleService');
+        let prevAvatar = null;
 
         if (current_user.ma_nv) {
-            const updRes = await query('UPDATE employees SET avatar_url = ? WHERE ma_nv = ?', [cleanAvatar, current_user.ma_nv]);
-            if (!updRes || updRes.affectedRows === 0) {
+            const prevRows = await query('SELECT avatar_url FROM employees WHERE ma_nv = ? LIMIT 1', [current_user.ma_nv]).catch(() => []);
+            if (!prevRows || prevRows.length === 0) {
                 const err = new Error('Không tìm thấy tài khoản nhân viên!');
                 err.statusCode = 404;
                 throw err;
             }
+            prevAvatar = prevRows[0].avatar_url || null;
+            await query('UPDATE employees SET avatar_url = ? WHERE ma_nv = ?', [cleanAvatar, current_user.ma_nv]);
             invalidateUserCache(current_user.ma_nv);
+            if (cleanAvatar) {
+                await mediaLifecycleService.bindAssetToEntity({
+                    mediaRef: cleanAvatar,
+                    entityType: 'employee_avatar',
+                    entityId: current_user.ma_nv,
+                    employeeId: current_user.ma_nv
+                });
+            }
+            if (prevAvatar && prevAvatar !== cleanAvatar) {
+                await mediaLifecycleService.handleMediaReplacement({
+                    oldMediaRef: prevAvatar,
+                    newMediaRef: cleanAvatar,
+                    actor: current_user
+                });
+            }
         } else if (current_user.username) {
-            const updRes = await query('UPDATE admins SET avatar_url = ? WHERE username = ?', [cleanAvatar, current_user.username]);
-            if (!updRes || updRes.affectedRows === 0) {
+            const prevRows = await query('SELECT avatar_url FROM admins WHERE username = ? LIMIT 1', [current_user.username]).catch(() => []);
+            if (!prevRows || prevRows.length === 0) {
                 const err = new Error('Không tìm thấy tài khoản quản trị!');
                 err.statusCode = 404;
                 throw err;
             }
+            prevAvatar = prevRows[0].avatar_url || null;
+            await query('UPDATE admins SET avatar_url = ? WHERE username = ?', [cleanAvatar, current_user.username]);
             invalidateUserCache(current_user.username);
+            if (cleanAvatar) {
+                await mediaLifecycleService.bindAssetToEntity({
+                    mediaRef: cleanAvatar,
+                    entityType: 'admin_avatar',
+                    entityId: current_user.username,
+                    employeeId: current_user.username
+                });
+            }
+            if (prevAvatar && prevAvatar !== cleanAvatar) {
+                await mediaLifecycleService.handleMediaReplacement({
+                    oldMediaRef: prevAvatar,
+                    newMediaRef: cleanAvatar,
+                    actor: current_user
+                });
+            }
         } else {
             const err = new Error('Không xác định được tài khoản!');
             err.statusCode = 400;
@@ -1256,7 +1454,7 @@ class AuthService {
             actor_role: current_user.role || 'worker',
             action: cleanAvatar ? 'UPDATE_AVATAR' : 'DELETE_AVATAR',
             resource: current_user.ma_nv ? 'employees' : 'admins',
-            details: { has_avatar: Boolean(cleanAvatar), length: cleanAvatar ? cleanAvatar.length : 0 }
+            details: { has_avatar: Boolean(cleanAvatar), is_remote_url: Boolean(cleanAvatar && !cleanAvatar.startsWith('data:')) }
         });
 
         return {
@@ -1271,8 +1469,26 @@ class AuthService {
             return { success: false, message: 'Bạn không có quyền cập nhật ảnh đại diện của người khác!' };
         }
         const cleanAvatar = sanitizeAvatarInput(avatar_url);
+        const prevRows = await query('SELECT avatar_url FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]).catch(() => []);
+        const prevAvatar = prevRows?.[0]?.avatar_url || null;
         await query('UPDATE employees SET avatar_url = ? WHERE ma_nv = ?', [cleanAvatar, ma_nv]);
         invalidateUserCache(ma_nv);
+        const mediaLifecycleService = require('./mediaLifecycleService');
+        if (cleanAvatar) {
+            await mediaLifecycleService.bindAssetToEntity({
+                mediaRef: cleanAvatar,
+                entityType: 'employee_avatar',
+                entityId: ma_nv,
+                employeeId: ma_nv
+            });
+        }
+        if (prevAvatar && prevAvatar !== cleanAvatar) {
+            await mediaLifecycleService.handleMediaReplacement({
+                oldMediaRef: prevAvatar,
+                newMediaRef: cleanAvatar,
+                actor: current_user
+            });
+        }
         await logAuditEvent({
             actor_id: current_user ? (current_user.ma_nv || current_user.username) : ma_nv,
             actor_role: current_user ? current_user.role : 'worker',

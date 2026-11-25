@@ -22,10 +22,13 @@ import {
   ChevronUp,
   Camera,
   Trash2,
-  Loader2
+  Loader2,
+  FileText,
+  Upload
 } from "lucide-react";
 import { safeGet, safePost, safePut } from "../../utils/api";
 import { compressAvatarImage } from "../../utils/imageCompressor";
+import { zaloMediaService } from "../../services/zalo-media.service";
 import { useDebouncedValue } from "../../hooks/useDebounce";
 import useDepartments from "../../hooks/useDepartments";
 import { getShiftLabel } from "../../utils/viLabels";
@@ -46,7 +49,8 @@ import {
   FormRow,
   SkeletonList,
   EmptyState,
-  UserAvatar
+  UserAvatar,
+  SecureMediaPreview
 } from "../../components/ui";
 
 const SHIFT_OPTIONS = [
@@ -223,7 +227,11 @@ export default function EmployeeManagementTab({
   // Modal Chi tiết Nhân viên (mở khi bấm icon Con Mắt 👁️)
   const [detailEmp, setDetailEmp] = useState(null);
   const detailAvatarInputRef = useRef(null);
+  const detailDocInputRef = useRef(null);
   const [compressingDetailAvatar, setCompressingDetailAvatar] = useState(false);
+  const [employeeDocuments, setEmployeeDocuments] = useState([]);
+  const [loadingEmployeeDocs, setLoadingEmployeeDocs] = useState(false);
+  const [uploadingEmployeeDoc, setUploadingEmployeeDoc] = useState(false);
   const [detailForm, setDetailForm] = useState(null);
   const [savingDetail, setSavingDetail] = useState(false);
   const [resolvingDevice, setResolvingDevice] = useState(false);
@@ -322,8 +330,22 @@ export default function EmployeeManagementTab({
     }
   };
 
+  const loadEmployeeDocuments = useCallback(async (maNv) => {
+    if (!maNv) return;
+    setLoadingEmployeeDocs(true);
+    try {
+      const res = await zaloMediaService.getEmployeeDocuments(maNv);
+      setEmployeeDocuments(res?.success && Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setEmployeeDocuments([]);
+    } finally {
+      setLoadingEmployeeDocs(false);
+    }
+  }, []);
+
   const handleOpen360Modal = (emp) => {
     setDetailEmp(emp);
+    loadEmployeeDocuments(emp.ma_nv);
     setShowAllDevices(false);
     setIsAddingAllowance(false);
     setNewAllowanceName("");
@@ -1152,10 +1174,26 @@ export default function EmployeeManagementTab({
                             if (!file) return;
                             setCompressingDetailAvatar(true);
                             try {
-                              const compressed = await compressAvatarImage(file);
-                              setDetailForm((p) => ({ ...p, avatar_url: compressed.dataUrl }));
+                              let nextUrl = "";
+                              const uploadRes = await zaloMediaService.uploadAvatarFile(file, {
+                                targetEmployeeId: detailEmp?.ma_nv || ""
+                              });
+                              if (
+                                uploadRes.ok &&
+                                uploadRes.data?.url &&
+                                (uploadRes.data.storage === "cloudinary" || String(uploadRes.data.url).length <= 45000)
+                              ) {
+                                nextUrl = uploadRes.data.url;
+                              } else if (uploadRes.ok && uploadRes.data?.storage === "inline_compact_fallback") {
+                                const compressed = await compressAvatarImage(file);
+                                nextUrl = compressed.dataUrl;
+                              } else {
+                                throw new Error(uploadRes.message || "Không thể tải ảnh đại diện.");
+                              }
+                              setDetailForm((p) => ({ ...p, avatar_url: nextUrl }));
+                              if (showToast) showToast(uploadRes.message || "Đã chuẩn bị ảnh đại diện, nhấn Lưu để áp dụng!", "success");
                             } catch (err) {
-                              if (showToast) showToast(err?.message || "Không thể nén ảnh đại diện.", "error");
+                              if (showToast) showToast(err?.message || "Không thể tải ảnh đại diện.", "error");
                             } finally {
                               setCompressingDetailAvatar(false);
                               try { e.target.value = ""; } catch {}
@@ -1759,6 +1797,102 @@ export default function EmployeeManagementTab({
                       )}
                     </div>
                   </>
+                )}
+              </section>
+
+              {/* NHÓM 5 — HỒ SƠ & GIẤY TỜ ĐÍNH KÈM (CLOUDINARY RIÊNG TƯ) */}
+              <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-black text-[#0051CA] dark:text-blue-300 uppercase tracking-wider flex items-center gap-2">
+                    <FileText className="w-4 h-4 shrink-0" />
+                    <span>5. Hồ sơ &amp; Giấy tờ nhân sự</span>
+                  </h3>
+                  {canEditEmployees && (
+                    <>
+                      <input
+                        ref={detailDocInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setUploadingEmployeeDoc(true);
+                          try {
+                            const res = await zaloMediaService.uploadBrowserEvidenceFile(file, {
+                              category: "employee_document",
+                              targetEmployeeId: detailEmp.ma_nv,
+                              allowPdf: true
+                            });
+                            if (res.ok) {
+                              showToast?.(res.message || "Đã lưu giấy tờ nhân viên an toàn!", "success");
+                              loadEmployeeDocuments(detailEmp.ma_nv);
+                            } else {
+                              showToast?.(res.message || "Không thể tải lên giấy tờ.", "error");
+                            }
+                          } catch (err) {
+                            showToast?.(err?.message || "Lỗi tải lên giấy tờ.", "error");
+                          } finally {
+                            setUploadingEmployeeDoc(false);
+                            try { e.target.value = ""; } catch {}
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={uploadingEmployeeDoc}
+                        onClick={() => detailDocInputRef.current?.click()}
+                        className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white hover:bg-blue-50 dark:bg-slate-900 dark:hover:bg-blue-950/50 border border-blue-200 dark:border-blue-700 text-xs font-bold text-[#0051CA] dark:text-blue-300 inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                      >
+                        {uploadingEmployeeDoc ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        <span>Tải giấy tờ (Ảnh/PDF)</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {loadingEmployeeDocs ? (
+                  <div className="text-xs text-slate-500 dark:text-slate-400">Đang tải danh sách giấy tờ...</div>
+                ) : employeeDocuments.length === 0 ? (
+                  <div className="text-xs text-slate-500 dark:text-slate-400 bg-white/80 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2.5">
+                    Chưa có giấy tờ hồ sơ đính kèm (HĐLĐ, CCCD, bằng cấp...).
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {employeeDocuments.map((doc) => (
+                      <div key={doc.asset_uuid} className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="font-bold text-[#111C2D] dark:text-white truncate">
+                            {doc.original_filename || doc.asset_uuid}
+                          </span>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await zaloMediaService.deleteMediaAsset(doc.asset_uuid, "DETACH_EMPLOYEE_DOCUMENT");
+                                  showToast?.("Đã xóa tài liệu khỏi hồ sơ.", "success");
+                                  loadEmployeeDocuments(detailEmp.ma_nv);
+                                } catch (err) {
+                                  showToast?.(err?.message || "Không thể xóa tài liệu.", "error");
+                                }
+                              }}
+                              className="text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer shrink-0"
+                            >
+                              Xóa
+                            </button>
+                          )}
+                        </div>
+                        <SecureMediaPreview
+                          src={doc.url}
+                          mimeType={doc.mime_type}
+                          filename={doc.original_filename}
+                          className="w-full max-h-40 object-contain rounded-lg border border-slate-200 dark:border-slate-700"
+                          compact
+                        />
+                      </div>
+                    ))}
+                  </div>
                 )}
               </section>
 

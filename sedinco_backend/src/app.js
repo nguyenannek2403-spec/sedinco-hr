@@ -182,9 +182,11 @@ app.use(cors(corsOptions));
 const defaultJsonParser = express.json({ limit: '100kb' });
 const requestsJsonParser = express.json({ limit: '512kb' });
 const attendanceJsonParser = express.json({ limit: '3mb' });
+const mediaJsonParser = express.json({ limit: '7mb' });
 const defaultUrlParser = express.urlencoded({ limit: '100kb', extended: true });
 const requestsUrlParser = express.urlencoded({ limit: '512kb', extended: true });
 const attendanceUrlParser = express.urlencoded({ limit: '3mb', extended: true });
+const mediaUrlParser = express.urlencoded({ limit: '7mb', extended: true });
 
 app.use((req, res, next) => {
     const cleanInput = (val) => {
@@ -208,6 +210,17 @@ app.use((req, res, next) => {
         next();
     };
 
+    if (req.path.startsWith('/api/media')) {
+        const ct = String(req.headers['content-type'] || '').toLowerCase();
+        if (ct.startsWith('multipart/form-data')) {
+            // Để Busboy đọc trực tiếp luồng multipart/form-data mà không nạp toàn bộ payload vào RAM
+            return next();
+        }
+        return mediaJsonParser(req, res, (err) => {
+            if (err) return next(err);
+            mediaUrlParser(req, res, done);
+        });
+    }
     if (req.path.startsWith('/api/attendance') || req.path.startsWith('/api/payroll')) {
         return attendanceJsonParser(req, res, (err) => {
             if (err) return next(err);

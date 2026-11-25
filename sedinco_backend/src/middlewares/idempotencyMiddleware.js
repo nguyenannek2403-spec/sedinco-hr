@@ -52,6 +52,12 @@ function idempotencyMiddleware(options = {}) {
         if (explicitKey) {
             keyHash = sha256(`explicit|${actorId}|${endpoint}|${explicitKey}`);
         } else {
+            const contentType = String(req.headers['content-type'] || '').toLowerCase();
+            if (contentType.startsWith('multipart/form-data')) {
+                // Luồng multipart chưa parse req.body: không gom tất cả về '{}' để tránh chặn sai hai file khác nhau;
+                // trùng lặp nội dung đã được kiểm tra bằng checksum SHA-256 trong CloudinaryService.
+                return next();
+            }
             const payloadHash = sha256(stableStringify(req.body || {}));
             keyHash = sha256(`auto|${actorId}|${endpoint}|${payloadHash}`);
         }

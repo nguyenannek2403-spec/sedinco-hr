@@ -17,6 +17,7 @@ const {
     isSundayIsoDate
 } = require('../utils/timeHelper');
 const { findHolidayForDate, buildHolidayDateMap } = require('../utils/vnHolidaysCatalog');
+const { generateAttendanceQrToken, verifyAttendanceQrToken } = require('../utils/qrTokenHelper');
 
 function computeTodayEffectiveStatus({ todayStr, todayLog = null, holidays = [] } = {}) {
     const holidayMatch = findHolidayForDate(holidays, todayStr);
@@ -1037,7 +1038,179 @@ class AttendanceService {
         return null;
     }
 
-    async checkInMultiFactor({ lat, lng, zalo_location_token, zalo_access_token = '', image_snapshot, device_info, device_name = null, user_agent = '', is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
+    async generateDynamicBranchQr({ branch_id = null, ttl_seconds = 90, current_user = null } = {}) {
+        const { getVietnamDateString, getVietnamTimeString } = require('../utils/timeHelper');
+        const companySettingsRows = await query('SELECT allowed_locations, latitude, longitude, radius_meters FROM company_settings LIMIT 1');
+        const cs = (companySettingsRows && companySettingsRows[0]) ? companySettingsRows[0] : {};
+        const allowedLocations = parseAllowedLocations(
+            cs.allowed_locations,
+            cs.latitude,
+            cs.longitude,
+            cs.radius_meters
+        );
+
+        const targetBranch = branch_id
+            ? allowedLocations.find((loc) => String(loc.id) === String(branch_id).trim())
+            : allowedLocations[0];
+
+        if (!targetBranch) {
+            const err = new Error('Không tìm thấy chi nhánh / điểm chấm công hợp lệ để tạo mã QR!');
+            err.statusCode = 404;
+            err.code = 'BRANCH_NOT_FOUND';
+            throw err;
+        }
+
+        const actorId = current_user ? (current_user.ma_nv || current_user.username || 'admin') : 'admin';
+        const qrData = generateAttendanceQrToken({
+            branchId: targetBranch.id,
+            branchName: targetBranch.name,
+            ttlSeconds: ttl_seconds,
+            issuedBy: actorId
+        });
+
+        await logAuditEvent({
+            actor_id: actorId,
+            actor_role: current_user ? current_user.role : 'admin',
+            action: 'GENERATE_ATTENDANCE_QR_SESSION',
+            resource: 'attendance_qr',
+            details: {
+                branch_id: targetBranch.id,
+                branch_name: targetBranch.name,
+                ttl_seconds: qrData.ttl_seconds,
+                exp: qrData.exp,
+                server_date_vn: getVietnamDateString(new Date()),
+                server_time_vn: getVietnamTimeString(new Date())
+            }
+        });
+
+        return {
+            ...qrData,
+            attendance_method: targetBranch.attendance_method || 'GPS'
+        };
+    }
+
+    async precheckAttendanceBranch({ lat = null, lng = null, work_location_type = 'OFFICE', current_user = null, ip_address = '', currentTime = null } = {}) {
+        if (!current_user || !current_user.ma_nv) {
+            const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để kiểm tra chấm công!');
+            error.statusCode = 401;
+            throw error;
+        }
+
+        const ma_nv = current_user.ma_nv;
+        const { getVietnamDateString, getVietnamTimeString } = require('../utils/timeHelper');
+        const today = currentTime instanceof Date ? currentTime : new Date();
+        const dateStr = getVietnamDateString(today);
+        const timeStr = getVietnamTimeString(today);
+        const [currentYear, currentMonth] = dateStr.split('-').map(Number);
+
+        const [empRows, companyRows, todayLogRows, holRows, isLocked] = await Promise.all([
+            query(
+                "SELECT ma_nv, ho_ten, role, is_locked, status, COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ? LIMIT 1",
+                [ma_nv]
+            ),
+            query('SELECT allowed_locations, latitude, longitude, radius_meters, office_ip_whitelist, work_start, lunch_start, lunch_end, work_end FROM company_settings LIMIT 1'),
+            query('SELECT * FROM attendance_logs WHERE employee_id = ? AND record_date = ? LIMIT 1', [ma_nv, dateStr]),
+            query(
+                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays WHERE start_date <= ? AND end_date >= ? LIMIT 1",
+                [dateStr, dateStr]
+            ).catch(() => []),
+            this.isPeriodLocked(currentMonth, currentYear)
+        ]);
+
+        const emp = empRows && empRows[0];
+        if (!emp) {
+            const err = new Error('Mã nhân viên không tồn tại!');
+            err.statusCode = 404;
+            throw err;
+        }
+
+        const cs = (companyRows && companyRows[0]) ? companyRows[0] : {};
+        const allowedLocations = parseAllowedLocations(
+            cs.allowed_locations,
+            cs.latitude,
+            cs.longitude,
+            cs.radius_meters
+        );
+
+        const cleanClientIp = normalizeIp(ip_address);
+        const ipWhitelist = String(cs.office_ip_whitelist || '')
+            .split(',')
+            .map((s) => normalizeIp(s))
+            .filter(Boolean);
+        const matchedWifi = Boolean(cleanClientIp && ipWhitelist.includes(cleanClientIp));
+
+        const numLat = lat !== null && lat !== undefined && lat !== '' && Number.isFinite(Number(lat)) ? Number(lat) : null;
+        const numLng = lng !== null && lng !== undefined && lng !== '' && Number.isFinite(Number(lng)) ? Number(lng) : null;
+
+        let matchedBranch = null;
+        let nearestBranch = allowedLocations[0] || { id: 'loc_hq_1', name: 'Trụ sở chính Đà Nẵng', lat: 16.0544, lng: 108.2022, radius: 500, attendance_method: 'GPS' };
+        let minDistanceMeters = Infinity;
+
+        if (numLat !== null && numLng !== null) {
+            for (const loc of allowedLocations) {
+                const dist = calculateDistanceMeters(numLat, numLng, Number(loc.lat), Number(loc.lng));
+                if (dist < minDistanceMeters) {
+                    minDistanceMeters = dist;
+                    nearestBranch = loc;
+                }
+                if (dist <= (Number(loc.radius) || 500) && !matchedBranch) {
+                    matchedBranch = loc;
+                }
+            }
+        }
+
+        const todayLog = todayLogRows && todayLogRows[0] ? todayLogRows[0] : null;
+        const todayHoliday = holRows && holRows[0] ? holRows[0] : null;
+        const effToday = computeTodayEffectiveStatus({
+            todayStr: dateStr,
+            todayLog,
+            holidays: todayHoliday ? [todayHoliday] : []
+        });
+
+        const isAdmin = emp.role === 'admin' || current_user.role === 'admin';
+        const isAccountLocked = emp.status === 'inactive' || emp.is_locked === 1 || emp.is_locked === true;
+        const lockedCodes = ['P', 'L', 'KL', 'OT', '1+OT'];
+        const isStatusLocked = lockedCodes.includes(effToday.effective_code) || (effToday.effective_code === '1' && effToday.is_admin_adjusted);
+        const alreadyCheckedOut = Boolean(todayLog && todayLog.check_in_time && todayLog.check_out_time);
+
+        let blockReason = null;
+        if (isAdmin) blockReason = 'Tài khoản Quản trị viên không tham gia chấm công cá nhân.';
+        else if (isAccountLocked) blockReason = 'Tài khoản nhân sự đang bị tạm khóa.';
+        else if (isLocked) blockReason = `Kỳ công Tháng ${currentMonth}/${currentYear} đã bị khóa sổ.`;
+        else if (isStatusLocked) blockReason = effToday.note || 'Trạng thái công hôm nay đã được chốt.';
+        else if (alreadyCheckedOut) blockReason = 'Bạn đã hoàn tất cả vào ca và tan ca hôm nay.';
+
+        const checkType = (todayLog && todayLog.check_in_time && !todayLog.check_out_time) ? 'OUT' : 'IN';
+        const activeShiftCode = (emp.shift_type && SHIFT_DEFINITIONS[String(emp.shift_type).trim().toUpperCase()])
+            ? String(emp.shift_type).trim().toUpperCase()
+            : 'FULL_DAY';
+        const activeBranch = matchedBranch || nearestBranch;
+        const isFieldWork = String(work_location_type || '').toUpperCase() === 'FIELD_WORK';
+        const requiredMethod = isFieldWork ? 'GPS' : (activeBranch?.attendance_method || 'GPS');
+
+        return {
+            ready: !blockReason,
+            can_check_in: !blockReason,
+            block_reason: blockReason,
+            check_type: checkType,
+            shift_type: activeShiftCode,
+            shift_label: (SHIFT_DEFINITIONS[activeShiftCode] || SHIFT_DEFINITIONS.FULL_DAY).label,
+            today_effective_status: effToday,
+            matched_branch: matchedBranch ? { id: matchedBranch.id, name: matchedBranch.name, radius: matchedBranch.radius, attendance_method: matchedBranch.attendance_method || 'GPS' } : null,
+            nearest_branch: nearestBranch ? { id: nearestBranch.id, name: nearestBranch.name, radius: nearestBranch.radius, attendance_method: nearestBranch.attendance_method || 'GPS' } : null,
+            distance_meters: Number.isFinite(minDistanceMeters) ? Math.round(minDistanceMeters) : null,
+            in_geofence: Boolean(matchedBranch),
+            matched_wifi: matchedWifi,
+            required_method: requiredMethod,
+            requires_qr: requiredMethod === 'GPS_AND_QR' || requiredMethod === 'QR_ONLY',
+            period_locked: Boolean(isLocked),
+            server_date_vn: dateStr,
+            server_time_vn: timeStr,
+            timezone: 'Asia/Ho_Chi_Minh'
+        };
+    }
+
+    async checkInMultiFactor({ lat, lng, zalo_location_token, zalo_access_token = '', qr_token = null, client_nonce = null, attendance_mode = null, image_snapshot, device_info, device_name = null, user_agent = '', is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
             error.statusCode = 401;
@@ -1069,9 +1242,24 @@ class AttendanceService {
             throw error;
         }
 
-        // 2. Kiểm tra ảnh chụp nếu có
-        if (image_snapshot) {
-            this.validateImageSnapshot(image_snapshot);
+        // 2. Xác thực / định tuyến ảnh minh chứng chấm công qua hệ thống Media tập trung (Cloudinary / Protected Access)
+        let resolvedCheckInImageRef = null;
+        if (image_snapshot && typeof image_snapshot === 'string' && image_snapshot.trim()) {
+            const trimmedImg = image_snapshot.trim();
+            if (trimmedImg.startsWith('/api/media/') || trimmedImg.startsWith('https://res.cloudinary.com/')) {
+                const { validateMediaReference } = require('../utils/mediaValidator');
+                resolvedCheckInImageRef = validateMediaReference(trimmedImg, { maxInlineBytes: 155 * 1024, allowNull: true });
+            } else {
+                const cloudinaryService = require('./cloudinaryService');
+                const uploaded = await cloudinaryService.uploadEvidenceMedia({
+                    file_data_url: trimmedImg,
+                    category: 'attendance_evidence',
+                    reference_date: currentTime ? undefined : getVietnamDateString(new Date()),
+                    current_user,
+                    ip_address
+                });
+                resolvedCheckInImageRef = uploaded?.url || null;
+            }
         }
 
         // Chuẩn hóa chuỗi định danh & tên thương mại thiết bị
@@ -1192,8 +1380,52 @@ class AttendanceService {
         const hasRawCoords = finalLat !== null && finalLat !== undefined && finalLat !== '' &&
             finalLng !== null && finalLng !== undefined && finalLng !== '';
 
-        if (!hasRawCoords && !matchedWifiIp) {
-            const error = new Error('Không thể xác định tọa độ GPS hiện tại. Vui lòng bật GPS trên điện thoại hoặc kết nối Wi-Fi Công ty và thử lại!');
+        // 3.0 Kiểm tra Nonce chống Replay Request & Dynamic QR Token (nếu có)
+        let verifiedQrInfo = null;
+        let qrVerifiedBranch = null;
+        let qrNonceHash = null;
+        let clientNonceHash = null;
+
+        if (client_nonce && typeof client_nonce === 'string' && client_nonce.trim()) {
+            const cleanNonce = client_nonce.trim().slice(0, 128);
+            clientNonceHash = `CLI_NONCE_${crypto.createHash('sha256').update(`${ma_nv}:${cleanNonce}`).digest('hex').slice(0, 50)}`;
+            const existingClientNonce = await query(
+                'SELECT key_hash FROM idempotency_keys WHERE key_hash = ? AND created_at >= NOW() - INTERVAL 15 MINUTE LIMIT 1',
+                [clientNonceHash]
+            ).catch(() => []);
+            if (existingClientNonce && existingClientNonce.length > 0) {
+                const err = new Error('Yêu cầu chấm công trùng lặp hoặc có dấu hiệu gửi lại (Replay Request). Vui lòng thử lại!');
+                err.statusCode = 409;
+                err.code = 'NONCE_REPLAYED';
+                throw err;
+            }
+        }
+
+        if (qr_token && typeof qr_token === 'string' && qr_token.trim()) {
+            const qrEpoch = Math.floor(today.getTime() / 1000);
+            verifiedQrInfo = verifyAttendanceQrToken(qr_token, qrEpoch);
+            qrNonceHash = `QR_NONCE_${crypto.createHash('sha256').update(verifiedQrInfo.nonce).digest('hex').slice(0, 52)}`;
+            const existingQrNonce = await query(
+                'SELECT key_hash FROM idempotency_keys WHERE key_hash = ? AND created_at >= NOW() - INTERVAL 15 MINUTE LIMIT 1',
+                [qrNonceHash]
+            ).catch(() => []);
+            if (existingQrNonce && existingQrNonce.length > 0) {
+                const err = new Error('Mã QR chấm công này đã được sử dụng trước đó (chống replay attack). Vui lòng quét mã QR mới nhất!');
+                err.statusCode = 403;
+                err.code = 'QR_TOKEN_REPLAYED';
+                throw err;
+            }
+            qrVerifiedBranch = allowedLocations.find((loc) => String(loc.id) === String(verifiedQrInfo.branch_id)) || null;
+            if (!qrVerifiedBranch) {
+                const err = new Error('Mã QR không thuộc chi nhánh hoặc địa điểm hợp lệ của Sedinco!');
+                err.statusCode = 400;
+                err.code = 'INVALID_QR_BRANCH';
+                throw err;
+            }
+        }
+
+        if (!hasRawCoords && !matchedWifiIp && !qrVerifiedBranch) {
+            const error = new Error('Không thể xác định tọa độ GPS hiện tại. Vui lòng bật GPS trên điện thoại, kết nối Wi-Fi Công ty hoặc quét mã QR chi nhánh và thử lại!');
             error.statusCode = 400;
             throw error;
         }
@@ -1311,13 +1543,53 @@ class AttendanceService {
         let finalLocationType = 'OFFICE';
         let locationName = nearestLocation.name || 'Trụ sở chính';
         let cleanFieldNote = field_note ? String(field_note).trim().slice(0, 400) : '';
+        const targetBranchPolicy = String((qrVerifiedBranch || matchedLocation || nearestLocation)?.attendance_method || 'GPS').toUpperCase();
+
+        if (!isFieldWork && targetBranchPolicy === 'GPS_AND_QR' && !qrVerifiedBranch) {
+            const err = new Error(`Chi nhánh ${(matchedLocation || nearestLocation)?.name || 'hiện tại'} yêu cầu quét mã QR động kết hợp định vị GPS để chấm công!`);
+            err.statusCode = 400;
+            err.code = 'QR_REQUIRED';
+            throw err;
+        }
+        if (!isFieldWork && targetBranchPolicy === 'QR_ONLY' && !qrVerifiedBranch) {
+            const err = new Error(`Chi nhánh ${(matchedLocation || nearestLocation)?.name || 'hiện tại'} yêu cầu quét mã QR động tại điểm chấm công!`);
+            err.statusCode = 400;
+            err.code = 'QR_REQUIRED';
+            throw err;
+        }
 
         if (matchedLocation) {
+            if (targetBranchPolicy === 'GPS_AND_QR' && qrVerifiedBranch && String(matchedLocation.id) !== String(qrVerifiedBranch.id)) {
+                const err = new Error('Vị trí GPS và mã QR động không khớp cùng một chi nhánh!');
+                err.statusCode = 400;
+                err.code = 'QR_BRANCH_MISMATCH';
+                throw err;
+            }
             finalLocationType = 'OFFICE';
-            locationName = matchedLocation.name;
+            locationName = qrVerifiedBranch ? `${qrVerifiedBranch.name} (QR + GPS)` : matchedLocation.name;
+            if (qrVerifiedBranch) {
+                location_source = location_source === 'token' ? 'token_and_qr' : 'qr_verified';
+                is_low_trust = 0;
+            }
+        } else if (qrVerifiedBranch && (targetBranchPolicy === 'QR_ONLY' || String(attendance_mode || '').toUpperCase() === 'QR_FALLBACK')) {
+            if (targetBranchPolicy === 'GPS_AND_QR') {
+                const err = new Error(
+                    `Chi nhánh ${qrVerifiedBranch.name} yêu cầu ở trong vùng GPS (Cách ${distanceMeters}m, cho phép ${qrVerifiedBranch.radius}m) cùng với mã QR!`
+                );
+                err.statusCode = 400;
+                err.code = 'OUT_OF_GEOFENCE';
+                throw err;
+            }
+            finalLocationType = 'QR_BRANCH';
+            locationName = `${qrVerifiedBranch.name} (QR Động)`;
+            location_source = 'qr_verified';
+            is_low_trust = 0;
         } else if (matchedWifiIp) {
             finalLocationType = 'WIFI_OFFICE';
-            locationName = `Wi-Fi Nội bộ (${cleanClientIp})`;
+            locationName = qrVerifiedBranch
+                ? `${qrVerifiedBranch.name} (QR + Wi-Fi Nội bộ)`
+                : `Wi-Fi Nội bộ (${cleanClientIp})`;
+            is_low_trust = 0;
         } else if (isFieldWork) {
             // V23: Đi Công Trình / Thị Trường chỉ xác thực GPS + ghi chú tùy chọn (không yêu cầu chụp ảnh)
             if (numLat === null || numLng === null) {
@@ -1410,6 +1682,8 @@ class AttendanceService {
             ? 'field_checkin'
             : finalLocationType === 'WIFI_OFFICE'
             ? 'wifi_office'
+            : qrVerifiedBranch
+            ? 'dynamic_qr'
             : 'one_touch_gps';
 
         const txOutcome = await withTransaction(async (txQuery) => {
@@ -1581,7 +1855,7 @@ class AttendanceService {
                     numLat,
                     numLng,
                     checkInMethod,
-                    null,
+                    resolvedCheckInImageRef,
                     is_suspicious ? 1 : 0,
                     suspicious_reason || null,
                     deviceStr,
@@ -1593,6 +1867,16 @@ class AttendanceService {
                     finalLocationType,
                     activeShiftCode
                 ]);
+                if (resolvedCheckInImageRef) {
+                    const mediaLifecycleService = require('./mediaLifecycleService');
+                    await mediaLifecycleService.bindAssetToEntity({
+                        mediaRef: resolvedCheckInImageRef,
+                        entityType: 'attendance_log',
+                        entityId: `${ma_nv}_${targetRecordDate}`,
+                        employeeId: ma_nv,
+                        txQuery
+                    });
+                }
             } else {
                 // LẦN BẤM 2 TRỞ ĐI TRONG NGÀY -> CHECK-OUT (ĐỘNG CƠ MISA 8H: SÁNG 0,5 + CHIỀU 0,5)
                 const logShiftCode = (existingLog.shift_type && SHIFT_DEFINITIONS[existingLog.shift_type]) ? existingLog.shift_type : activeShiftCode;
@@ -1678,13 +1962,59 @@ class AttendanceService {
                     locationName,
                     cleanFieldNote || null,
                     finalLocationType,
-                    null,
+                    resolvedCheckInImageRef,
                     is_suspicious ? 1 : 0,
                     suspicious_reason || null,
                     deviceStr,
                     ma_nv,
                     targetRecordDate
                 ]);
+                if (resolvedCheckInImageRef) {
+                    const mediaLifecycleService = require('./mediaLifecycleService');
+                    await mediaLifecycleService.bindAssetToEntity({
+                        mediaRef: resolvedCheckInImageRef,
+                        entityType: 'attendance_log',
+                        entityId: `${ma_nv}_${targetRecordDate}`,
+                        employeeId: ma_nv,
+                        txQuery
+                    });
+                }
+            }
+
+            // Ghi nhận atomic QR nonce & client nonce sau khi xử lý chấm công thành công (tránh tiêu thụ nonce nếu bị từ chối ở bước trên)
+            if (qrNonceHash) {
+                try {
+                    await txQuery(
+                        `INSERT INTO idempotency_keys (key_hash, actor_id, endpoint, response_status, response_body)
+                         VALUES (?, ?, 'QR_NONCE_REPLAY_GUARD', 200, NULL)`,
+                        [qrNonceHash, ma_nv.slice(0, 50)]
+                    );
+                } catch (nonceErr) {
+                    if (nonceErr && (nonceErr.code === 'ER_DUP_ENTRY' || nonceErr.errno === 1062)) {
+                        const err = new Error('Mã QR chấm công này đã được sử dụng trước đó (chống replay attack). Vui lòng quét mã QR mới!');
+                        err.statusCode = 403;
+                        err.code = 'QR_TOKEN_REPLAYED';
+                        throw err;
+                    }
+                    throw nonceErr;
+                }
+            }
+            if (clientNonceHash) {
+                try {
+                    await txQuery(
+                        `INSERT INTO idempotency_keys (key_hash, actor_id, endpoint, response_status, response_body)
+                         VALUES (?, ?, 'CLIENT_NONCE_GUARD', 200, NULL)`,
+                        [clientNonceHash, ma_nv.slice(0, 50)]
+                    );
+                } catch (cErr) {
+                    if (cErr && (cErr.code === 'ER_DUP_ENTRY' || cErr.errno === 1062)) {
+                        const err = new Error('Yêu cầu chấm công bị trùng nonce. Vui lòng thử lại!');
+                        err.statusCode = 409;
+                        err.code = 'NONCE_REPLAYED';
+                        throw err;
+                    }
+                    throw cErr;
+                }
             }
 
             return {

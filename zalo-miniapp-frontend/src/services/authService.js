@@ -1,53 +1,31 @@
-import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
-import {
-  safeGet,
-  safePost,
-  setAuthToken,
-  cancelInflightRequests,
-  generateIdempotencyKey
-} from "../utils/api";
+import { safePost, setAuthToken, cancelInflightRequests } from "../utils/api";
 import { ROLES } from "../constants/roles";
+import { zaloAuthService } from "./zalo-auth.service";
 
 const SESSION_STORAGE_KEY = "sedinco_auth_session";
 
-// Danh sách mã demo mẫu phục vụ thử nghiệm F1
-const MOCK_LINK_CODES = {
-  "SED-NV01": { ma_nv: "NV001", ho_ten: "Nguyễn Văn An", chuc_danh: "Kỹ sư công trường", role: ROLES.WORKER },
-  "SED-HR02": { ma_nv: "NV005", ho_ten: "Trần Thị Mai", chuc_danh: "Chuyên viên Nhân sự", role: ROLES.ACCOUNTANT },
-  "SED-KT03": { ma_nv: "NV002", ho_ten: "Lê Thị Bích", chuc_danh: "Kế toán tiền lương", role: ROLES.ACCOUNTANT },
-  "SED-AD04": { ma_nv: "ADMIN", ho_ten: "Ban Giám Đốc", chuc_danh: "Giám Đốc Điều Hành", role: ROLES.ADMIN }
-};
-
 /**
- * Đăng ký mã liên kết mới được cấp bởi HR hoặc Admin
- */
-export const registerIssuedLinkCode = (code, userInfo) => {
-  if (code && userInfo) {
-    const key = code.toUpperCase();
-    MOCK_LINK_CODES[key] = userInfo;
-    try {
-      const stored = JSON.parse(localStorage.getItem("sedinco_issued_link_codes") || "{}");
-      stored[key] = userInfo;
-      localStorage.setItem("sedinco_issued_link_codes", JSON.stringify(stored));
-    } catch (e) {}
-  }
-};
-
-/**
- * F0: Xác định phiên đăng nhập tự động khi mở Mini App (kiểm tra cache cục bộ hợp lệ)
+ * F0: Xác định phiên đăng nhập hợp lệ đã lưu cục bộ khi mở app.
+ * Không tự động xin quyền Zalo và tuyệt đối không cấp phát tài khoản demo cục bộ.
  */
 export const resolveSession = async () => {
   try {
-    // Kiểm tra phiên lưu trữ cục bộ (Web hoặc đã đăng nhập trước đó; Zalo Auto-Login đã được xử lý qua /zalo-auto-login)
     const saved = localStorage.getItem(SESSION_STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.ma_nv && parsed.token && parsed.token !== "mock_jwt_token") {
+        if (
+          parsed &&
+          parsed.ma_nv &&
+          parsed.token &&
+          parsed.token !== "mock_jwt_token" &&
+          !String(parsed.token).startsWith("local_token_")
+        ) {
           return {
             isDetermined: true,
             isLinked: true,
             role: parsed.role || ROLES.WORKER,
+            user: parsed,
             employee: parsed,
             token: parsed.token
           };
@@ -55,7 +33,6 @@ export const resolveSession = async () => {
       } catch (e) {}
     }
 
-    // Nếu chưa đăng nhập / chưa liên kết
     return {
       isDetermined: true,
       isLinked: false,
@@ -64,67 +41,24 @@ export const resolveSession = async () => {
   } catch (err) {
     return {
       isDetermined: false,
-      error: err.message || "Lỗi xác định phiên đăng nhập Zalo."
+      error: err.message || "Lỗi xác định phiên đăng nhập."
     };
   }
 };
 
 /**
- * F1: Tra cứu thông tin nhân viên theo mã liên kết cục bộ
+ * Liên kết tài khoản Zalo với tài khoản nhân viên đang đăng nhập thông qua zalo-auth.service.
  */
-export const previewLinkCode = async (code) => {
-  const cleanCode = String(code).trim().toUpperCase();
-  if (cleanCode.length < 6) {
-    throw new Error("Mã liên kết phải có tối thiểu 6-8 ký tự.");
+export const confirmLinkAccount = async () => {
+  const res = await zaloAuthService.linkZaloToCurrentEmployee();
+  if (res.ok) {
+    return { success: true, data: res.data };
   }
-
-  if (MOCK_LINK_CODES[cleanCode]) {
-    return MOCK_LINK_CODES[cleanCode];
-  }
-  try {
-    const stored = JSON.parse(localStorage.getItem("sedinco_issued_link_codes") || "{}");
-    if (stored[cleanCode]) return stored[cleanCode];
-  } catch (e) {}
-
-  throw new Error("Mã liên kết không tồn tại hoặc đã hết hạn. Vui lòng đăng nhập bằng Mã NV & Mật khẩu.");
+  throw new Error(res.message || "Không thể liên kết tài khoản Zalo. Vui lòng đăng nhập bằng Mã nhân viên & Mật khẩu.");
 };
 
 /**
- * F1: Liên kết tài khoản Zalo qua tài khoản nhân viên đang hoạt động
- */
-export const confirmLinkAccount = async (code, zaloAccessToken) => {
-  const cleanCode = String(code).trim().toUpperCase();
-  const resolvedZaloToken =
-    zaloAccessToken || (await zmpAdapter.getAccessToken({ silent: true }).catch(() => ""));
-  if (resolvedZaloToken) {
-    const res = await safePost("/employees/bind-zalo", {
-      zalo_token: resolvedZaloToken,
-      zalo_access_token: resolvedZaloToken
-    }, {
-      idempotencyKey: generateIdempotencyKey("link")
-    });
-    if (res?.success) {
-      return { success: true, data: res.data };
-    }
-  }
-
-  let mockUser = MOCK_LINK_CODES[cleanCode];
-  if (!mockUser) {
-    try {
-      const stored = JSON.parse(localStorage.getItem("sedinco_issued_link_codes") || "{}");
-      if (stored[cleanCode]) mockUser = stored[cleanCode];
-    } catch (e) {}
-  }
-  if (mockUser) {
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(mockUser));
-    return { success: true, user: mockUser, role: mockUser.role, token: "" };
-  }
-
-  throw new Error("Không thể liên kết tài khoản. Vui lòng đăng nhập bằng Mã nhân viên & Mật khẩu.");
-};
-
-/**
- * Đăng nhập truyền thống (Dành cho Web hoặc Quản trị viên)
+ * Đăng nhập truyền thống (Dành cho Web hoặc lần đầu liên kết Zalo ID)
  */
 export const loginWithCredentials = async (maNv, password) => {
   const cleanMaNv = String(maNv).trim().toUpperCase();
@@ -138,7 +72,6 @@ export const loginWithCredentials = async (maNv, password) => {
   const payload = res?.data || res;
   const user = payload?.user || (payload?.ma_nv ? payload : null);
   if (user) {
-    // Chuẩn hóa role từ chức danh hoặc role trả về (Hệ thống 3 vai trò: admin, accountant, worker)
     let role = ROLES.WORKER;
     const cd = (user.chuc_danh || "").toLowerCase();
     if (cd.includes("giám đốc") || cd.includes("admin") || user.role === "admin") {

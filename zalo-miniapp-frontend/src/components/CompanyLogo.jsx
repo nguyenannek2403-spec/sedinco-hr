@@ -10,11 +10,16 @@ export default function CompanyLogo({
   theme = "dark",
   layout = "vertical",
   showSubtitle = true,
-  iconOnly = false
+  iconOnly = false,
+  logoUrl = null
 }) {
   const isLarge = size === "large";
   const isSmall = size === "small";
   const isHorizontal = layout === "horizontal";
+  const resolvedLogoSrc =
+    logoUrl && typeof logoUrl === "string" && (logoUrl.startsWith("https://res.cloudinary.com/") || logoUrl.startsWith("data:image/"))
+      ? logoUrl
+      : sedincoLogo;
 
   return (
     <div
@@ -35,7 +40,7 @@ export default function CompanyLogo({
         }`}
       >
         <img
-          src={sedincoLogo}
+          src={resolvedLogoSrc}
           alt="SEDINCO Logo"
           className="w-full h-full object-contain drop-shadow-sm select-none"
         />

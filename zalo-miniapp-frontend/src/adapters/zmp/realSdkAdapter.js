@@ -1,10 +1,18 @@
 import {
   getAccessToken as zmpGetAccessToken,
   getUserInfo as zmpGetUserInfo,
+  getUserID as zmpGetUserID,
+  getPhoneNumber as zmpGetPhoneNumber,
+  getSetting as zmpGetSetting,
+  authorize as zmpAuthorize,
+  openPermissionSetting as zmpOpenPermissionSetting,
   getLocation as zmpGetLocation,
   openBioAuthentication as zmpOpenBioAuthentication,
   checkStateBioAuthentication as zmpCheckStateBioAuthentication,
   chooseImage as zmpChooseImage,
+  openMediaPicker as zmpOpenMediaPicker,
+  checkZaloCameraPermission as zmpCheckCameraPermission,
+  requestCameraPermission as zmpRequestCameraPermission,
   getSystemInfo as zmpGetSystemInfo,
   scanQRCode as zmpScanQRCode,
   vibrate as zmpVibrate,
@@ -60,11 +68,54 @@ function encodeUtf8ToDataUrl(content, mimeType = "text/plain;charset=utf-8") {
  */
 export const realSdkAdapter = {
   isMock: false,
+  isZaloRuntime: () => isInsideZaloRuntime(),
 
-  async getUserInfo() {
+  async getSetting() {
+    if (!isInsideZaloRuntime() || typeof zmpGetSetting !== "function") {
+      return { authSetting: {}, source: "fallback" };
+    }
+    const res = await zmpGetSetting({});
+    return {
+      authSetting: res?.authSetting || {},
+      source: "zmp",
+      raw: res
+    };
+  },
+
+  async authorize({ scopes = [] } = {}) {
+    if (!isInsideZaloRuntime() || typeof zmpAuthorize !== "function") {
+      const err = new Error("Zalo Mini App runtime không khả dụng ngoài ứng dụng Zalo.");
+      err.code = "NOT_IN_ZALO_RUNTIME";
+      throw err;
+    }
+    return await zmpAuthorize({ scopes });
+  },
+
+  async openPermissionSetting() {
+    if (!isInsideZaloRuntime() || typeof zmpOpenPermissionSetting !== "function") {
+      return { opened: false, source: "fallback" };
+    }
+    await zmpOpenPermissionSetting({});
+    return { opened: true, source: "zmp" };
+  },
+
+  async getUserID() {
+    if (!isInsideZaloRuntime() || typeof zmpGetUserID !== "function") {
+      return "";
+    }
     try {
+      const uid = await zmpGetUserID({});
+      return typeof uid === "string" ? uid : (uid?.userID || uid?.id || "");
+    } catch {
+      return "";
+    }
+  },
+
+  async getUserInfo({ autoRequestPermission = false, avatarType = "normal" } = {}) {
+    try {
+      if (!isInsideZaloRuntime()) return null;
       if (typeof zmpGetUserInfo === "function") {
-        const res = await zmpGetUserInfo({ autoRequestPermission: false });
+        const res = await zmpGetUserInfo({ autoRequestPermission: Boolean(autoRequestPermission), avatarType });
         if (res?.userInfo?.id) {
           return {
             id: String(res.userInfo.id),
@@ -75,15 +126,22 @@ export const realSdkAdapter = {
       }
       return null;
     } catch (err) {
+      if (autoRequestPermission) {
+        throw err;
+      }
       return null;
     }
   },
 
   async getAccessToken({ silent = false } = {}) {
+    if (!isInsideZaloRuntime() || typeof zmpGetAccessToken !== "function") {
+      if (silent) return "";
+      throw {
+        code: "NOT_IN_ZALO_RUNTIME",
+        message: "Chức năng chỉ khả dụng khi mở từ ứng dụng Zalo."
+      };
+    }
     try {
-      if (typeof zmpGetAccessToken !== "function") {
-        return "";
-      }
       const res = await zmpGetAccessToken({});
       const token = typeof res === "string" ? res : (res?.accessToken || res?.token || "");
       return token || "";
@@ -93,44 +151,126 @@ export const realSdkAdapter = {
       }
       console.warn("[RealSDK] getAccessToken error:", err);
       throw {
-        code: "AUTH_TOKEN_FAILED",
+        code: err?.code ?? "AUTH_TOKEN_FAILED",
         message: "Chưa kết nối được phiên Zalo trên máy này. Vui lòng mở lại ứng dụng hoặc đăng nhập bằng Mã nhân viên.",
         raw: err
       };
     }
   },
 
+  async getPhoneNumber() {
+    if (!isInsideZaloRuntime() || typeof zmpGetPhoneNumber !== "function") {
+      throw {
+        code: "NOT_IN_ZALO_RUNTIME",
+        message: "Xác minh số điện thoại Zalo chỉ khả dụng trong Zalo Mini App."
+      };
+    }
+    const res = await zmpGetPhoneNumber({});
+    return {
+      token: res?.token || "",
+      number: res?.number || "",
+      raw: res
+    };
+  },
+
+  async checkCameraPermission() {
+    if (!isInsideZaloRuntime()) {
+      return { userAllow: true, source: "browser" };
+    }
+    if (typeof zmpCheckCameraPermission !== "function") {
+      return { userAllow: true, source: "fallback" };
+    }
+    const res = await zmpCheckCameraPermission({});
+    return { userAllow: Boolean(res?.userAllow), source: "zmp", raw: res };
+  },
+
+  async requestCameraPermission() {
+    if (!isInsideZaloRuntime()) {
+      return { userAllow: true, source: "browser" };
+    }
+    if (typeof zmpRequestCameraPermission !== "function") {
+      return { userAllow: false, source: "unsupported" };
+    }
+    const res = await zmpRequestCameraPermission({});
+    return { userAllow: Boolean(res?.userAllow), source: "zmp", raw: res };
+  },
+
+  async openMediaPicker({
+    type = "photo",
+    serverUploadUrl = "",
+    maxItemSize = 5 * 1024 * 1024,
+    maxSelectItem = 1
+  } = {}) {
+    if (!isInsideZaloRuntime() || typeof zmpOpenMediaPicker !== "function") {
+      throw {
+        code: "NOT_IN_ZALO_RUNTIME",
+        message: "openMediaPicker chỉ khả dụng bên trong ứng dụng Zalo."
+      };
+    }
+    const payload = {
+      type,
+      maxItemSize,
+      maxSelectItem,
+      ...(serverUploadUrl ? { serverUploadUrl } : {})
+    };
+    const res = await zmpOpenMediaPicker(payload);
+    return {
+      data: res?.data ?? [],
+      raw: res
+    };
+  },
+
   async getLocation() {
     let token = "";
     let sdkError = null;
+    const insideZalo = isInsideZaloRuntime();
 
-    try {
-      // getLocation của Zalo SDK chỉ trả về token vị trí (sống trong 2 phút)
-      const data = await zmpGetLocation({});
-      if (data && data.token) {
-        token = data.token;
-      } else if (typeof data === "string") {
-        token = data;
+    if (insideZalo && typeof zmpGetLocation === "function") {
+      try {
+        const data = await zmpGetLocation({});
+        if (data && data.token) {
+          token = data.token;
+        } else if (typeof data === "string") {
+          token = data;
+        }
+        if (data && typeof data === "object" && data.latitude && data.longitude) {
+          return {
+            token,
+            latitude: Number(data.latitude),
+            longitude: Number(data.longitude),
+            accuracy: data.accuracy !== undefined ? Number(data.accuracy) : null,
+            source: "zmp"
+          };
+        }
+      } catch (err) {
+        sdkError = err;
+        const rawCode = Number(err?.code);
+        const msg = String(err?.message || "").toLowerCase();
+        // Nếu người dùng từ chối quyền (-201, -1401, -1004) hoặc chưa được Zalo cấp quyền API, trả lỗi rõ để service xử lý
+        if (
+          rawCode === -201 ||
+          rawCode === -1401 ||
+          rawCode === -1004 ||
+          msg.includes("denied") ||
+          msg.includes("permission")
+        ) {
+          throw {
+            code: rawCode || "LOCATION_PERMISSION_DENIED",
+            sdkCode: rawCode,
+            message: "Ứng dụng chưa được cấp quyền truy cập vị trí. Vui lòng bật quyền Vị trí trong cài đặt Zalo.",
+            raw: err
+          };
+        }
+        console.warn("[RealSDK] zmpGetLocation error:", err);
       }
-      if (data && typeof data === "object" && data.latitude && data.longitude) {
-        return {
-          token,
-          latitude: Number(data.latitude),
-          longitude: Number(data.longitude),
-          accuracy: data.accuracy !== undefined ? Number(data.accuracy) : null
-        };
-      }
-    } catch (err) {
-      sdkError = err;
-      console.warn("[RealSDK] zmpGetLocation error:", err);
     }
 
-    // Luôn cố gắng lấy thêm tọa độ GPS thực từ thiết bị/trình duyệt để fallback khi token hết hạn hoặc Zalo API gặp sự cố
+    // Trong môi trường web / fallback khi Zalo chưa bật native token: dùng Web Geolocation API của trình duyệt (CHỈ khi được gọi từ hành động người dùng)
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       try {
         const pos = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
-            timeout: 4500,
+            timeout: 5000,
             enableHighAccuracy: true,
             maximumAge: 15000
           });
@@ -139,26 +279,37 @@ export const realSdkAdapter = {
           ...(token ? { token } : {}),
           latitude: Number(pos.coords.latitude),
           longitude: Number(pos.coords.longitude),
-          accuracy: pos.coords.accuracy !== undefined ? Number(pos.coords.accuracy) : null
+          accuracy: pos.coords.accuracy !== undefined ? Number(pos.coords.accuracy) : null,
+          source: token ? "zmp_with_geo" : "browser_geolocation"
         };
       } catch (geoErr) {
-        console.warn("[RealSDK] navigator.geolocation fallback failed:", geoErr);
+        if (!sdkError) sdkError = geoErr;
+        if (geoErr?.code === 1) {
+          throw {
+            code: "LOCATION_PERMISSION_DENIED",
+            message: "Trình duyệt hoặc thiết bị đã từ chối quyền truy cập vị trí.",
+            raw: geoErr
+          };
+        }
+        console.warn("[RealSDK] navigator.geolocation failed:", geoErr);
       }
     }
 
     if (token) {
-      return { token };
+      return { token, source: "zmp_token_only" };
     }
 
-    const msg = sdkError?.message || String(sdkError || "");
-    if (msg.includes("permission") || msg.includes("denied") || sdkError?.code === -1004) {
+    const rawCode = Number(sdkError?.code);
+    const msg = String(sdkError?.message || sdkError || "").toLowerCase();
+    if (rawCode === -201 || rawCode === -1401 || rawCode === -1004 || msg.includes("permission") || msg.includes("denied")) {
       throw {
-        code: "LOCATION_PERMISSION_DENIED",
+        code: rawCode || "LOCATION_PERMISSION_DENIED",
+        sdkCode: rawCode,
         message: "Ứng dụng chưa được cấp quyền vị trí. Vui lòng cho phép quyền truy cập vị trí trong cài đặt Zalo.",
         raw: sdkError
       };
     }
-    if (msg.includes("disabled") || msg.includes("gps") || sdkError?.code === -1005) {
+    if (rawCode === -1005 || msg.includes("disabled") || msg.includes("gps")) {
       throw {
         code: "GPS_DISABLED",
         message: "Định vị GPS trên thiết bị đang tắt. Vui lòng bật GPS trên điện thoại để chấm công.",
@@ -166,8 +317,9 @@ export const realSdkAdapter = {
       };
     }
     throw {
-      code: "LOCATION_FAILED",
-      message: "Không thể xác định vị trí hiện tại. Vui lòng kiểm tra kết nối mạng và thử lại.",
+      code: Number.isFinite(rawCode) ? rawCode : "LOCATION_FAILED",
+      sdkCode: Number.isFinite(rawCode) ? rawCode : undefined,
+      message: "Không thể xác định vị trí hiện tại. Vui lòng kiểm tra kết nối mạng / quyền vị trí và thử lại.",
       raw: sdkError
     };
   },

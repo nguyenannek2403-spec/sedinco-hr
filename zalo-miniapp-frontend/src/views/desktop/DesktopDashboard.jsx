@@ -11,6 +11,7 @@ import SalarySlipModal from "../../components/SalarySlipModal";
 import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from "../../constants/roles";
 import { safeGet, safePut } from "../../utils/api";
 import { compressAvatarImage } from "../../utils/imageCompressor";
+import { zaloMediaService } from "../../services/zalo-media.service";
 import { AppButton, UserAvatar } from "../../components/ui";
 import { FontScaleSelector } from "../../context/FontScaleContext";
 import {
@@ -18,6 +19,7 @@ import {
   Building2,
   ShieldCheck,
   Gift,
+  HardDrive,
   Key,
   LogOut,
   Camera,
@@ -29,6 +31,7 @@ import {
 const AttendanceMatrixTable = lazy(() => import("../../components/AttendanceMatrixTable"));
 const PayrollGridTable = lazy(() => import("../../components/PayrollGridTable"));
 const AccountantPermissionView = lazy(() => import("../../components/AccountantPermissionView"));
+const MediaStorageManagementTab = lazy(() => import("./MediaStorageManagementTab"));
 
 export default function DesktopDashboard({
   currentUser,
@@ -146,7 +149,7 @@ export default function DesktopDashboard({
     } else if (nextTab === "devices" || nextTab === "audit_logs") {
       nextTab = "employees";
     } else if (
-      (nextTab === "company" || nextTab === "permissions" || nextTab === "holidays") &&
+      (nextTab === "company" || nextTab === "permissions" || nextTab === "holidays" || nextTab === "media_storage") &&
       resolvedRole === ROLES.ADMIN
     ) {
       nextSubTab = nextTab;
@@ -387,6 +390,20 @@ export default function DesktopDashboard({
                       <Gift size={16} className="shrink-0" />
                       <span>Lịch nghỉ lễ</span>
                     </button>
+                    <button
+                      type="button"
+                      data-subtab="media_storage"
+                      data-active={settingsSubTab === "media_storage" ? "true" : "false"}
+                      onClick={() => setSettingsSubTab("media_storage")}
+                      className={`min-h-[44px] flex-1 min-w-[150px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                        settingsSubTab === "media_storage"
+                          ? "bg-[#E11D48] text-white shadow-sm dark:bg-rose-600 dark:text-white"
+                          : "bg-transparent text-slate-600 hover:text-[#111C2D] dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/70 dark:hover:bg-slate-800/70"
+                      }`}
+                    >
+                      <HardDrive size={16} className="shrink-0" />
+                      <span>Quản lý Media</span>
+                    </button>
                   </div>
                 </div>
 
@@ -404,6 +421,12 @@ export default function DesktopDashboard({
                 )}
                 {settingsSubTab === "holidays" && (
                   <HolidaysTab
+                    currentUser={currentUser}
+                    showToast={showToast}
+                  />
+                )}
+                {settingsSubTab === "media_storage" && (
+                  <MediaStorageManagementTab
                     currentUser={currentUser}
                     showToast={showToast}
                   />
@@ -435,10 +458,25 @@ export default function DesktopDashboard({
                               if (!file) return;
                               setAdminAvatarSaving(true);
                               try {
-                                const compressed = await compressAvatarImage(file);
-                                const res = await safePut("/account/avatar", { avatar_url: compressed.dataUrl });
+                                let nextAvatarValue = "";
+                                const uploadRes = await zaloMediaService.uploadAvatarFile(file, {
+                                  targetEmployeeId: currentUser?.username || "admin"
+                                });
+                                if (
+                                  uploadRes.ok &&
+                                  uploadRes.data?.url &&
+                                  (uploadRes.data.storage === "cloudinary" || String(uploadRes.data.url).length <= 45000)
+                                ) {
+                                  nextAvatarValue = uploadRes.data.url;
+                                } else if (uploadRes.ok && uploadRes.data?.storage === "inline_compact_fallback") {
+                                  const compressed = await compressAvatarImage(file);
+                                  nextAvatarValue = compressed.dataUrl;
+                                } else {
+                                  throw new Error(uploadRes.message || "Không thể tải lên ảnh đại diện.");
+                                }
+                                const res = await safePut("/account/avatar", { avatar_url: nextAvatarValue });
                                 if (res?.success) {
-                                  const finalUrl = res?.data?.avatar_url ?? compressed.dataUrl;
+                                  const finalUrl = res?.data?.avatar_url ?? nextAvatarValue;
                                   onUserUpdated?.({ avatar_url: finalUrl });
                                   showToast?.(res.message || "Đã cập nhật ảnh đại diện!", "success");
                                 }

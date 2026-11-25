@@ -9,62 +9,31 @@ import {
   Clock,
   Camera,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  Loader2,
+  Settings
 } from "lucide-react";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
-import { pickCompressedEvidencePhoto } from "../utils/imageHelper";
+import { zaloMediaService } from "../services/zalo-media.service";
+import { SDK_STATES, isZaloMiniAppRuntime, openZaloPermissionSettings } from "../services/zalo-sdk-core";
 import { analyzeLeaveRequest, formatDateKey } from "../utils/holidayUtils";
 import { CORRECTION_MODES, getRequestTypeLabel } from "../utils/viLabels";
 import { formatViCurrency, formatViNumber, parseViNumberInput } from "../utils/viNumberFormat";
-import { AppButton, AppModal, FormRow } from "./ui";
+import { AppButton, AppModal, FormRow, SecureMediaPreview } from "./ui";
 
 const LEAVE_TYPES = [
   { id: "P", label: "Nghỉ phép có lương (Tối đa 1 lượt/tháng)" },
   { id: "KP", label: "Nghỉ không lương (Việc riêng)" },
   { id: "Bổ sung công / Quên chấm giờ ra", label: "Giải trình Bổ sung công (Quên chấm / Đổi ca)" },
   { id: "OT", label: "Đăng ký Tăng ca (Làm thêm giờ)" },
+  { id: "CONG_TAC", label: "Đi công tác / Ra ngoài công trình" },
   { id: "SALARY_ADVANCE", label: "Xin ứng lương (Tạm ứng trước kỳ)" },
-  { id: "OM", label: "Nghỉ ốm đau (Hưởng chế độ BHXH)" },
-  { id: "CT", label: "Đi công tác / Ra ngoài công trình" }
+  { id: "OM", label: "Nghỉ ốm đau (Hưởng chế độ BHXH)" }
 ];
 
 const QUICK_ADVANCE_AMOUNTS = [500000, 1000000, 2000000, 5000000];
 
 const formatVnd = (n) => formatViCurrency(n, true);
-
-const compressProofImage = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Không đọc được file ảnh"));
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Định dạng ảnh không hợp lệ"));
-      img.onload = () => {
-        const maxWidth = 720;
-        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, w, h);
-        let quality = 0.65;
-        let dataUrl = canvas.toDataURL("image/jpeg", quality);
-        while (dataUrl.length > 180000 && quality > 0.35) {
-          quality -= 0.1;
-          dataUrl = canvas.toDataURL("image/jpeg", quality);
-        }
-        if (dataUrl.length > 240000) {
-          reject(new Error("Ảnh quá lớn, vui lòng chọn ảnh nhẹ hơn."));
-          return;
-        }
-        resolve(dataUrl);
-      };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
 
 /**
  * Modal Tạo Đơn Xin Nghỉ / Tăng Ca / Bổ Sung Công / Xin Ứng Lương
@@ -100,6 +69,9 @@ export default function SmartLeaveRequestModal({
   const [checkInTime, setCheckInTime] = useState(initialCheckInTime || "07:30");
   const [checkOutTime, setCheckOutTime] = useState(initialCheckOutTime || "17:30");
   const [evidenceImage, setEvidenceImage] = useState("");
+  const [evidenceMeta, setEvidenceMeta] = useState({ mime: "", filename: "" });
+  const [mediaUploadStatus, setMediaUploadStatus] = useState(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [reason, setReason] = useState(initialReason || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -109,9 +81,20 @@ export default function SmartLeaveRequestModal({
   const proofInputRef = useRef(null);
   const isSalaryAdvance = requestType === "SALARY_ADVANCE";
   const isOt = requestType === "OT";
+  const isBusinessTrip = requestType === "CONG_TAC";
   const isCompensation =
     requestType === "Bổ sung công / Quên chấm giờ ra" ||
     requestType === "ATTENDANCE_COMPENSATION";
+  const supportsEvidenceAttachment = !isSalaryAdvance;
+  const mediaCategory = isCompensation
+    ? (correctionMode === "SHIFT_CHANGE" ? "shift_change_evidence" : "attendance_adjustment")
+    : isOt
+      ? "overtime_evidence"
+      : isBusinessTrip
+        ? "business_trip_document"
+        : requestType === "P" || requestType === "KP" || requestType === "OM"
+          ? "leave_evidence"
+          : "employee_attachment";
   const needsCheckIn = isCompensation && (correctionMode === "CHECK_IN" || correctionMode === "BOTH" || correctionMode === "SHIFT_CHANGE");
   const needsCheckOut = isCompensation && (correctionMode === "CHECK_OUT" || correctionMode === "BOTH" || correctionMode === "SHIFT_CHANGE");
 
@@ -228,35 +211,80 @@ export default function SmartLeaveRequestModal({
 
   const parsedAdvanceNum = Math.max(0, Math.round(parseViNumberInput(advanceAmount)));
 
-  // Xử lý chọn ảnh chứng minh (nén nhẹ <= 180KB)
+  // Xử lý chọn & xác thực ảnh / PDF minh chứng qua Backend (/api/media/upload -> Cloudinary / Protected Access)
   const handlePickEvidence = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setErrorMessage("");
+    setMediaUploadStatus(null);
+    setIsUploadingMedia(true);
     try {
-      const compressed = await compressProofImage(file);
-      setEvidenceImage(compressed);
+      const res = await zaloMediaService.uploadBrowserEvidenceFile(file, {
+        category: mediaCategory,
+        referenceDate: startDate,
+        allowPdf: true
+      });
+      if (res.ok && res.data?.url) {
+        setEvidenceImage(res.data.url);
+        setEvidenceMeta({
+          mime: res.data.mime || file.type || "",
+          filename: res.data.original_filename || file.name || ""
+        });
+        setMediaUploadStatus({
+          state: "success",
+          message: res.message || "Đã đính kèm tài liệu minh chứng an toàn."
+        });
+      } else {
+        setErrorMessage(res.message || "Không thể xử lý tệp đính kèm.");
+        setMediaUploadStatus({ state: res.state, message: res.message });
+      }
     } catch (err) {
-      setErrorMessage(err.message || "Không thể xử lý ảnh đính kèm.");
+      setErrorMessage(err.message || "Không thể xử lý tệp đính kèm.");
+    } finally {
+      setIsUploadingMedia(false);
+      e.target.value = "";
     }
-    e.target.value = "";
   };
 
   const handlePickEvidenceSdk = async (sourceType) => {
     setErrorMessage("");
-    const res = await pickCompressedEvidencePhoto({
-      sourceType,
-      cameraType: "back",
-      maxWidth: 720,
-      maxHeight: 720,
-      quality: 0.65
-    });
-    if (res?.success && res?.photoUrl) {
-      setEvidenceImage(res.photoUrl);
-      return;
+    setMediaUploadStatus(null);
+    const preferredSource = sourceType?.[0] === "camera" ? "camera" : "album";
+
+    if (isZaloMiniAppRuntime()) {
+      setIsUploadingMedia(true);
+      try {
+        const res = await zaloMediaService.pickZaloMediaAndUpload({
+          preferredSource,
+          category: mediaCategory,
+          referenceDate: startDate
+        });
+        if (res.ok && res.data?.url) {
+          setEvidenceImage(res.data.url);
+          setMediaUploadStatus({
+            state: "success",
+            message: res.message || "Đã đính kèm ảnh minh chứng an toàn."
+          });
+          return;
+        }
+        if (
+          res.state === SDK_STATES.PERMISSION_DENIED ||
+          res.state === SDK_STATES.PENDING_ZALO_APPROVAL
+        ) {
+          setMediaUploadStatus({
+            state: res.state,
+            message: res.message,
+            canOpenSettings: res.canOpenSettings
+          });
+          return;
+        }
+      } finally {
+        setIsUploadingMedia(false);
+      }
     }
+
     if (proofInputRef.current) {
-      if (sourceType?.[0] === "camera") {
+      if (preferredSource === "camera") {
         proofInputRef.current.setAttribute("capture", "environment");
       } else {
         proofInputRef.current.removeAttribute("capture");
@@ -357,13 +385,13 @@ export default function SmartLeaveRequestModal({
         reason: finalReason,
         advance_amount: isSalaryAdvance ? parsedAdvanceNum : 0,
         ot_hours: isOt ? otHoursNum : undefined,
-        calculated_days: isSalaryAdvance || isCompensation || isOt ? 0 : analysis.actualDeductedDays,
+        calculated_days: isSalaryAdvance || isCompensation || isOt || isBusinessTrip ? 0 : analysis.actualDeductedDays,
+        evidence_image: supportsEvidenceAttachment ? (evidenceImage || null) : null,
         ...(isCompensation
           ? {
               correction_mode: correctionMode,
               check_in_time: needsCheckIn ? checkInTime : null,
-              check_out_time: needsCheckOut ? checkOutTime : null,
-              evidence_image: evidenceImage || null
+              check_out_time: needsCheckOut ? checkOutTime : null
             }
           : {})
       };
@@ -393,12 +421,16 @@ export default function SmartLeaveRequestModal({
     ? "Đề nghị xin ứng lương"
     : isCompensation
       ? "Giải trình Bổ sung công"
-      : "Tạo đơn xin phép / tăng ca";
+      : isBusinessTrip
+        ? "Đăng ký Đi công tác"
+        : "Tạo đơn xin phép / tăng ca";
   const modalSubtitle = isSalaryAdvance
     ? "Khấu trừ tự động vào kỳ lương tháng"
     : isCompensation
       ? "Quên chấm vào/ra hoặc đổi ca làm việc"
-      : "Hệ thống tự động đối soát lịch nghỉ lễ";
+      : isBusinessTrip
+        ? "Công tác ngoài công trình • Đính kèm giấy đi đường / minh chứng"
+        : "Hệ thống tự động đối soát lịch nghỉ lễ";
   const modalIcon = (
     <div
       className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border shrink-0 ${
@@ -680,60 +712,6 @@ export default function SmartLeaveRequestModal({
                   </FormRow>
                 )}
               </div>
-
-              {/* Ảnh chứng minh (tùy chọn) */}
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    Ảnh chứng minh (nếu có)
-                  </span>
-                  {evidenceImage && (
-                    <button
-                      type="button"
-                      onClick={() => setEvidenceImage("")}
-                      className="text-xs font-semibold text-rose-600 dark:text-rose-300 flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60"
-                    >
-                      <Trash2 size={13} />
-                      <span>Xóa ảnh</span>
-                    </button>
-                  )}
-                </div>
-                {evidenceImage ? (
-                  <img
-                    src={evidenceImage}
-                    alt="Ảnh minh chứng giải trình công"
-                    className="w-full max-h-40 object-cover rounded-xl border border-slate-300 dark:border-slate-600"
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <AppButton
-                      type="button"
-                      variant="secondary"
-                      icon={Camera}
-                      onClick={() => handlePickEvidenceSdk(["camera"])}
-                      className="text-xs font-semibold"
-                    >
-                      📷 Chụp ảnh Camera
-                    </AppButton>
-                    <AppButton
-                      type="button"
-                      variant="secondary"
-                      icon={ImageIcon}
-                      onClick={() => handlePickEvidenceSdk(["album"])}
-                      className="text-xs font-semibold"
-                    >
-                      🖼️ Chọn từ thư viện
-                    </AppButton>
-                  </div>
-                )}
-                <input
-                  ref={proofInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePickEvidence}
-                  className="hidden"
-                />
-              </div>
             </div>
           ) : (
             <>
@@ -855,6 +833,100 @@ export default function SmartLeaveRequestModal({
                 )}
               </div>
             </>
+          )}
+
+          {/* Smart Media: Đính kèm ảnh minh chứng cho Đơn xin nghỉ, Điều chỉnh công, Đơn công tác & Hồ sơ minh chứng */}
+          {supportsEvidenceAttachment && (
+            <div
+              data-testid="smart-media-evidence-box"
+              className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 space-y-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  Ảnh minh chứng / Giấy tờ đính kèm (tùy chọn)
+                </span>
+                {evidenceImage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEvidenceImage("");
+                      setEvidenceMeta({ mime: "", filename: "" });
+                      setMediaUploadStatus(null);
+                    }}
+                    className="text-xs font-semibold text-rose-600 dark:text-rose-300 flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    <span>Xóa tệp</span>
+                  </button>
+                )}
+              </div>
+
+              {isUploadingMedia ? (
+                <div className="py-3 flex items-center justify-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#E11D48]" />
+                  <span>Đang kiểm tra &amp; tải tệp minh chứng an toàn...</span>
+                </div>
+              ) : evidenceImage ? (
+                <SecureMediaPreview
+                  src={evidenceImage}
+                  alt="Tài liệu minh chứng đơn từ"
+                  mimeType={evidenceMeta.mime}
+                  filename={evidenceMeta.filename}
+                  className="w-full max-h-40 object-cover rounded-xl border border-slate-300 dark:border-slate-600"
+                />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    icon={Camera}
+                    onClick={() => handlePickEvidenceSdk(["camera"])}
+                    className="text-xs font-semibold"
+                  >
+                    Chụp ảnh Camera
+                  </AppButton>
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    icon={ImageIcon}
+                    onClick={() => handlePickEvidenceSdk(["album"])}
+                    className="text-xs font-semibold"
+                  >
+                    Chọn từ thư viện
+                  </AppButton>
+                </div>
+              )}
+
+              {mediaUploadStatus?.message && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs border space-y-1.5 ${
+                    mediaUploadStatus.state === "success"
+                      ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 font-semibold"
+                      : "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200"
+                  }`}
+                >
+                  <p>{mediaUploadStatus.message}</p>
+                  {mediaUploadStatus.canOpenSettings && isZaloMiniAppRuntime() && (
+                    <button
+                      type="button"
+                      onClick={() => openZaloPermissionSettings()}
+                      className="inline-flex items-center gap-1 font-bold underline text-[#0051CA] dark:text-blue-300 cursor-pointer"
+                    >
+                      <Settings size={12} />
+                      <span>Mở cài đặt quyền Zalo</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <input
+                ref={proofInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                onChange={handlePickEvidence}
+                className="hidden"
+              />
+            </div>
           )}
 
           {/* Lý do */}

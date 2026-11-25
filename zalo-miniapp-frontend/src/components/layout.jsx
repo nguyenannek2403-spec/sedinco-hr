@@ -1,5 +1,5 @@
 import React from "react";
-import { getSystemInfo } from "zmp-sdk/apis";
+import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import {
   AnimationRoutes,
   App,
@@ -170,7 +170,7 @@ const ThemedApp = () => {
       try {
         const hasSaved = typeof localStorage !== "undefined" && localStorage.getItem("sedinco_theme_mode");
         if (!hasSaved) {
-          const info = getSystemInfo();
+          const info = zmpAdapter.getSystemInfo();
           if (info?.zaloTheme === "dark" || info?.zaloTheme === "light") {
             setTheme(info.zaloTheme, { persistRemote: false });
           }

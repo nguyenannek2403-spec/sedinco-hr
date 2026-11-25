@@ -44,6 +44,9 @@ export function getRequestTypeLabel(type) {
   if (upper === 'SALARY_ADVANCE' || upper === 'ADVANCE' || lower.includes('ứng lương') || lower.includes('tạm ứng')) {
     return 'Xin ứng lương';
   }
+  if (upper === 'CONG_TAC' || upper === 'BUSINESS_TRIP' || lower.includes('công tác')) {
+    return 'Đi công tác / Ngoài công trình';
+  }
   if (
     upper === 'ATTENDANCE_COMPENSATION' ||
     upper === 'ATTENDANCE_SUPPLEMENT' ||
@@ -64,14 +67,14 @@ export function getRequestTypeLabel(type) {
   if (upper === 'KP' || upper === 'UNPAID' || upper === 'UNPAID_LEAVE' || lower.includes('không lương')) {
     return 'Nghỉ không lương';
   }
+  if (upper === 'OM' || lower.includes('ốm đau')) {
+    return 'Nghỉ ốm đau (Chế độ BHXH)';
+  }
   if (upper === '0.5' || lower.includes('nửa ngày') || lower.includes('buổi')) {
     return 'Nghỉ phép nửa ngày';
   }
   if (upper === 'P' || upper === 'PAID_LEAVE' || upper === 'NGHI_PHEP' || upper === 'LEAVE' || upper === 'LEAVE_ANNUAL' || lower.includes('nghỉ phép') || lower.includes('phép năm') || lower.includes('có lương')) {
     return 'Nghỉ phép có lương';
-  }
-  if (lower.includes('công tác')) {
-    return 'Đi công tác / Ngoài công trình';
   }
   // Nếu chuỗi gốc không chứa ký tự kỹ thuật viết liền bằng gạch dưới hoặc toàn chữ hoa tiếng Anh thì giữ lại
   if (/^[A-Z0-9_]+$/.test(raw)) {

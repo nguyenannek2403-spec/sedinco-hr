@@ -665,6 +665,8 @@ async function initDatabase() {
         }
 
         // V23 + V29: Composite Indexes & Auto-Prune để tối ưu hiệu năng và dung lượng TiDB Cloud
+        const { ensureMediaSchema } = require('./mediaSchema');
+        await ensureMediaSchema(query);
         await query("CREATE INDEX idx_att_logs_emp_date ON attendance_logs (employee_id, record_date)").catch(() => {});
         await query("CREATE INDEX idx_att_emp_period ON attendance (ma_nv, nam, thang)").catch(() => {});
         await query("CREATE INDEX idx_att_confirm_status ON attendance (salary_confirm_status, nam, thang)").catch(() => {});

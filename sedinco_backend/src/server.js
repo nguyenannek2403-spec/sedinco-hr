@@ -62,6 +62,10 @@ pool.getConnection(async (err, conn) => {
 
 const server = app.listen(env.PORT, () => {
     console.log(`🚀 Sedinco HR Backend API đang chạy tại cổng ${env.PORT} [${env.NODE_ENV}]`);
+    try {
+        const cloudinaryUsageMonitor = require('./services/cloudinaryUsageMonitor');
+        cloudinaryUsageMonitor.startBackgroundSyncScheduler();
+    } catch {}
 });
 
 module.exports = server;

@@ -16,7 +16,7 @@ import { useDebouncedValue } from "../../hooks/useDebounce";
 import useDepartments from "../../hooks/useDepartments";
 import { getRequestTypeLabel, getCorrectionModeLabel } from "../../utils/viLabels";
 import { formatViCurrency } from "../../utils/viNumberFormat";
-import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "../../components/ui";
+import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState, UserAvatar, SecureMediaPreview } from "../../components/ui";
 
 function formatTimestampVi(isoOrRaw, preformattedVn = null) {
   if (preformattedVn && /^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/.test(String(preformattedVn).trim())) {
@@ -637,7 +637,7 @@ export default function RequestsManagementTab({
 
                     {req.evidence_image && (
                       <div className="pt-1">
-                        <img
+                        <SecureMediaPreview
                           src={req.evidence_image}
                           alt="Minh chứng đính kèm"
                           className="max-h-40 rounded-xl border border-slate-200 dark:border-slate-700 object-contain"

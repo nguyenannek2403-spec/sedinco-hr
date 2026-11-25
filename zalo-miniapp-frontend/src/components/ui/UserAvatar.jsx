@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useResolvedMediaSrc } from "./SecureMediaPreview";
 
 const SIZE_CLASSES = {
   xs: "w-7 h-7 text-xs",
@@ -49,13 +50,14 @@ export default function UserAvatar({
   className = ""
 }) {
   const [imgError, setImgError] = useState(false);
+  const { src: resolvedAvatarSrc } = useResolvedMediaSrc(avatarUrl);
 
   useEffect(() => {
     setImgError(false);
   }, [avatarUrl]);
 
   const sizeClass = SIZE_CLASSES[size] || SIZE_CLASSES.md;
-  const trimmedUrl = typeof avatarUrl === "string" ? avatarUrl.trim() : "";
+  const trimmedUrl = typeof resolvedAvatarSrc === "string" ? resolvedAvatarSrc.trim() : "";
   const hasValidSrc = Boolean(trimmedUrl && !imgError);
 
   if (hasValidSrc) {

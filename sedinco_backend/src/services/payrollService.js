@@ -499,13 +499,15 @@ class PayrollService {
             throw err;
         }
 
-        // Bảo vệ dung lượng TiDB Cloud: Giới hạn media minh chứng <= 800KB binary (~1.1MB chuỗi Base64)
+        // Bảo vệ dung lượng TiDB Cloud & xác thực tệp minh chứng:
+        // Video / ảnh / tài liệu phải đi qua /api/media/upload (Cloudinary hoặc compact image fallback), không lưu data:video thô vào DB.
+        let validatedDisputeMedia = null;
         if (dispute_evidence_media && typeof dispute_evidence_media === 'string') {
-            if (dispute_evidence_media.length > 1150000) {
-                const err = new Error('Tệp hình ảnh / video minh chứng vượt quá giới hạn 800KB cho phép! Vui lòng chọn tệp ngắn hơn hoặc nén ảnh.');
-                err.statusCode = 400;
-                throw err;
-            }
+            const { validateMediaReference } = require('../utils/mediaValidator');
+            validatedDisputeMedia = validateMediaReference(dispute_evidence_media, {
+                maxInlineBytes: 185 * 1024,
+                allowNull: true
+            });
         }
 
         const stdDays = getMonthlyStandardWorkdays(m, y);
@@ -595,9 +597,20 @@ class PayrollService {
                 normalizedStatus !== 'DISPUTED' && existing && resolveIsOpenDispute(existing) ? 'Nhân viên đã xác nhận lại bảng lương' : null,
                 cleanDisputeNote,
                 cleanDisputeNote,
-                normalizedStatus === 'DISPUTED' ? (dispute_evidence_media || null) : null,
+                normalizedStatus === 'DISPUTED' ? (validatedDisputeMedia || null) : null,
                 normalizedStatus === 'RECEIVED' ? savedReceivedAt : null
             ]);
+
+            if (normalizedStatus === 'DISPUTED' && validatedDisputeMedia) {
+                const mediaLifecycleService = require('./mediaLifecycleService');
+                await mediaLifecycleService.bindAssetToEntity({
+                    mediaRef: validatedDisputeMedia,
+                    entityType: 'salary_dispute',
+                    entityId: `${ma_nv}_${y}_${m}`,
+                    employeeId: ma_nv,
+                    txQuery
+                });
+            }
 
             if (normalizedStatus !== 'DISPUTED' && existing?.id) {
                 await txQuery(

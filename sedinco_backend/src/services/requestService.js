@@ -3,6 +3,7 @@ const attendanceService = require('./attendanceService');
 const { logAuditEvent } = require('../middlewares/authMiddleware');
 const { getVietnamDateString, formatVietnamDateTime } = require('../utils/timeHelper');
 const { evaluateMisaDailyAttendance } = require('../utils/misaWorkdayEngine');
+const { validateMediaReference } = require('../utils/mediaValidator');
 
 function serializeRequestTimestamps(row) {
     if (!row) return row;
@@ -35,12 +36,14 @@ function extractIsoDateStr(val) {
 function classifyRequestCategory(requestType) {
     const t = String(requestType || '').trim().toLowerCase();
     if (!t) return 'OTHER';
+    if (t === 'cong_tac' || t === 'business_trip' || t.includes('công tác')) {
+        return 'BUSINESS_TRIP';
+    }
     if (
         t === 'ot' ||
         t.includes('overtime') ||
         t.includes('tăng ca') ||
-        t.includes('làm thêm') ||
-        t.includes('công tác')
+        t.includes('làm thêm')
     ) {
         return 'OVERTIME';
     }
@@ -539,17 +542,10 @@ class RequestService {
         const cleanCheckIn = reqCategory === 'ATTENDANCE_COMPENSATION' ? normalizeOptionalReqTime(check_in_time) : null;
         const cleanCheckOut = reqCategory === 'ATTENDANCE_COMPENSATION' ? normalizeOptionalReqTime(check_out_time) : null;
 
-        let cleanEvidenceImage = null;
-        if (evidence_image && typeof evidence_image === 'string') {
-            if (evidence_image.length > 260000) {
-                const error = new Error('Ảnh minh chứng đính kèm vượt quá dung lượng 150KB cho phép! Vui lòng chọn ảnh khác nhẹ hơn.');
-                error.statusCode = 400;
-                throw error;
-            }
-            if (evidence_image.startsWith('data:image/')) {
-                cleanEvidenceImage = evidence_image;
-            }
-        }
+        const cleanEvidenceImage = validateMediaReference(evidence_image, {
+            maxInlineBytes: 185 * 1024,
+            allowNull: true
+        });
         if (reqCategory === 'SALARY_ADVANCE') {
             if (!Number.isFinite(parsedAdvanceAmount) || parsedAdvanceAmount < 10000 || parsedAdvanceAmount > 500000000) {
                 const error = new Error('Vui lòng nhập số tiền xin ứng lương hợp lệ (tối thiểu 10.000 đ)!');
@@ -690,6 +686,17 @@ class RequestService {
                 }
             }
 
+            if (cleanEvidenceImage && insertedIds.length > 0) {
+                const mediaLifecycleService = require('./mediaLifecycleService');
+                await mediaLifecycleService.bindAssetToEntity({
+                    mediaRef: cleanEvidenceImage,
+                    entityType: 'request',
+                    entityId: String(insertedIds[0]),
+                    employeeId: targetId,
+                    txQuery
+                });
+            }
+
             return {
                 id: insertedIds[0] || null,
                 ids: insertedIds,
@@ -797,6 +804,7 @@ class RequestService {
             }
 
             const type = (row.request_type || '').toLowerCase();
+            const reqCategoryApproved = classifyRequestCategory(row.request_type);
             const isSalaryAdvance = type === 'salary_advance' || type.includes('ứng lương') || type.includes('tạm ứng');
             const isUnpaidLeave = type === 'kp' || type.includes('không lương') || type.includes('unpaid');
 
@@ -818,7 +826,21 @@ class RequestService {
                             [row.employee_id, month, year, stdDays, advAmt, `Ứng lương (${dateStr}): ${advAmt.toLocaleString('vi-VN')}đ`]
                         );
                     }
-                } else if (type.includes('làm thêm') || type.includes('tăng ca') || type.includes('công tác') || type.includes('ot') || type.includes('overtime')) {
+                } else if (reqCategoryApproved === 'BUSINESS_TRIP') {
+                    await txQuery(
+                        `INSERT INTO attendance_logs (employee_id, record_date, status, work_credit, work_location_type, field_note, location_name, is_suspicious, is_low_trust)
+                         VALUES (?, ?, '1', 1, 'FIELD_WORK', ?, 'Đi công tác (Đơn đã duyệt)', 0, 0)
+                         ON DUPLICATE KEY UPDATE
+                            status = CASE WHEN status IN ('1/OT', 'P', 'L') THEN status ELSE '1' END,
+                            work_credit = GREATEST(COALESCE(work_credit, 0), 1),
+                            work_location_type = 'FIELD_WORK',
+                            field_note = COALESCE(NULLIF(?, ''), field_note),
+                            location_name = COALESCE(NULLIF(location_name, ''), 'Đi công tác (Đơn đã duyệt)'),
+                            is_suspicious = 0,
+                            is_low_trust = 0`,
+                        [row.employee_id, dateStr, String(row.reason || 'Đi công tác').slice(0, 350), String(row.reason || '').slice(0, 350)]
+                    );
+                } else if (reqCategoryApproved === 'OVERTIME') {
                     const logRes = await txQuery(
                         'SELECT status FROM attendance_logs WHERE employee_id = ? AND record_date = ? FOR UPDATE',
                         [row.employee_id, dateStr]

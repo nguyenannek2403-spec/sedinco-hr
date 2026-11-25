@@ -6,37 +6,30 @@ import {
   AlertTriangle,
   RotateCcw,
   ShieldAlert,
-  HardHat
+  HardHat,
+  QrCode,
+  Settings
 } from "lucide-react";
-import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
-import { safePost, safeGet, generateIdempotencyKey } from "../utils/api";
-import { getDeviceIdentity } from "../utils/deviceIdentity";
+import { safeGet } from "../utils/api";
 import { formatViWorkday } from "../utils/viNumberFormat";
 import { getVietnamTodayIso } from "../utils/workdayUtils";
 import { useSpamClickGuard, SPAM_WARNING_MESSAGE } from "../hooks/useAttendanceCheckIn";
 import { useTheme } from "../context/ThemeContext";
+import { attendanceService } from "../services/attendance.service";
+import { zaloLocationService } from "../services/zalo-location.service";
+import { SDK_STATES, isZaloMiniAppRuntime, openZaloPermissionSettings } from "../services/zalo-sdk-core";
 import { AppButton, AppModal, SedincoMascot } from "./ui";
 
 const STAGES = {
   IDLE: "idle",
   PERM_EXPLAIN: "perm_explain",
+  PERM_DENIED: "perm_denied",
   LOCATING: "locating",
   SUBMITTING: "submitting",
   SUCCESS: "success",
   ERROR: "error",
   SECURITY_FRAUD: "security_fraud"
 };
-
-function haversineMeters(lat1, lng1, lat2, lng2) {
-  const R = 6371000;
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 let globalCheckInLockTimestamp = 0;
 
@@ -112,9 +105,9 @@ export default function OneTouchCheckIn({
 
   const isLockedRef = useRef(false);
   const timeoutIdRef = useRef(null);
-  const lastIdempotencyKeyRef = useRef("");
+  const [canOpenPermSetting, setCanOpenPermSetting] = useState(false);
 
-  const evaluateFriendlyLocation = useCallback((compData) => {
+  const evaluateFriendlyLocation = useCallback(async (compData) => {
     if (!compData) return;
     if (compData.is_matching_office_wifi) {
       setLocationFriendlyBadge({
@@ -126,54 +119,27 @@ export default function OneTouchCheckIn({
 
     const locs = Array.isArray(compData.allowed_locations) && compData.allowed_locations.length > 0
       ? compData.allowed_locations
-      : [{ name: "Trụ sở chính", lat: Number(compData.latitude || 16.0544), lng: Number(compData.longitude || 108.2022), radius: Number(compData.radius_meters || 500) }];
+      : [{ name: "Trụ sở chính", lat: Number(compData.latitude || 16.0544), lng: Number(compData.longitude || 108.2022), radius: Number(compData.radius_meters || 500), attendance_method: "GPS" }];
 
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const curLat = Number(pos.coords.latitude);
-          const curLng = Number(pos.coords.longitude);
-          let nearest = locs[0];
-          let minDist = Infinity;
-          let matched = null;
+    // Kiểm tra trạng thái quyền Zalo IM LẶNG qua getSetting() — KHÔNG tự kích hoạt định vị hay hiện popup khi mở app
+    const permRes = await zaloLocationService.getLocationPermissionStatus().catch(() => null);
+    const primaryMethod = String(locs[0]?.attendance_method || "GPS").toUpperCase();
+    const methodHint = primaryMethod === "GPS_AND_QR"
+      ? " • Yêu cầu GPS + Quét QR"
+      : primaryMethod === "QR_ONLY"
+        ? " • Quét mã QR"
+        : "";
 
-          locs.forEach((loc) => {
-            const d = haversineMeters(curLat, curLng, Number(loc.lat), Number(loc.lng));
-            if (d < minDist) {
-              minDist = d;
-              nearest = loc;
-            }
-            if (d <= (Number(loc.radius) || 500) && !matched) {
-              matched = { loc, dist: Math.round(d) };
-            }
-          });
-
-          if (matched) {
-            setLocationFriendlyBadge({
-              mode: "in_range",
-              text: `🟢 Đang tại: ${matched.loc.name} (Cách ${matched.dist}m) — Sẵn sàng chấm công`
-            });
-          } else if (Number.isFinite(minDist)) {
-            const distLabel = minDist >= 1000 ? `${(minDist / 1000).toFixed(1)}km` : `${Math.round(minDist)}m`;
-            setLocationFriendlyBadge({
-              mode: "out_of_range",
-              text: `🟠 Ngoài phạm vi ${nearest.name} (Cách ${distLabel}) — Có thể chọn chế độ Đi Công Trình`
-            });
-          } else {
-            setLocationFriendlyBadge({
-              mode: "checking",
-              text: `📍 Chi nhánh mặc định: ${nearest?.name || "Trụ sở chính"} — Bấm nút để định vị`
-            });
-          }
-        },
-        () => {
-          setLocationFriendlyBadge({
-            mode: "checking",
-            text: `📍 Chi nhánh mặc định: ${locs[0]?.name || "Trụ sở chính"} — Bấm nút để định vị`
-          });
-        },
-        { enableHighAccuracy: true, timeout: 4500 }
-      );
+    if (permRes?.ok && permRes?.data?.granted) {
+      setLocationFriendlyBadge({
+        mode: "checking",
+        text: `📍 Đã cấp quyền vị trí • Chi nhánh: ${locs[0]?.name || "Trụ sở chính"}${methodHint}`
+      });
+    } else {
+      setLocationFriendlyBadge({
+        mode: "checking",
+        text: `📍 Chi nhánh mặc định: ${locs[0]?.name || "Trụ sở chính"}${methodHint} — Bấm Chấm công để xác thực`
+      });
     }
   }, []);
 
@@ -260,12 +226,12 @@ export default function OneTouchCheckIn({
     let active = true;
     const refreshNetwork = async () => {
       try {
-        const net = await zmpAdapter.getNetworkType();
+        const net = await attendanceService.getAttendanceNetworkStatus();
         if (active && net) setNetworkBadge(net);
       } catch {}
     };
     refreshNetwork();
-    zmpAdapter.keepScreenOn(true).catch(() => {});
+    attendanceService.setAttendanceKeepScreen(true).catch(() => {});
 
     if (typeof window !== "undefined") {
       window.addEventListener("online", refreshNetwork);
@@ -274,7 +240,7 @@ export default function OneTouchCheckIn({
 
     return () => {
       active = false;
-      zmpAdapter.keepScreenOn(false).catch(() => {});
+      attendanceService.setAttendanceKeepScreen(false).catch(() => {});
       if (typeof window !== "undefined") {
         window.removeEventListener("online", refreshNetwork);
         window.removeEventListener("offline", refreshNetwork);
@@ -304,11 +270,7 @@ export default function OneTouchCheckIn({
     };
   }, []);
 
-  const handleStartCheckIn = async (bypassPermExplain = false) => {
-    const resolvedFieldNote = isFieldWorkMode
-      ? (fieldNote.trim().length >= 2 ? fieldNote.trim() : "Đi công trình / Thị trường (GPS)")
-      : "";
-
+  const handleStartCheckIn = async (bypassPermExplain = false, { forceQrScan = false } = {}) => {
     if (isLockedPeriod) {
       isLockedRef.current = false;
       globalCheckInLockTimestamp = 0;
@@ -319,7 +281,7 @@ export default function OneTouchCheckIn({
     }
 
     const hasSeenPerm = localStorage.getItem("sedinco_has_seen_location_perm");
-    if (!hasSeenPerm && !bypassPermExplain) {
+    if (!hasSeenPerm && !bypassPermExplain && !forceQrScan) {
       isLockedRef.current = false;
       globalCheckInLockTimestamp = 0;
       setIsDebounceLocked(false);
@@ -329,12 +291,12 @@ export default function OneTouchCheckIn({
     }
 
     if (!beginCheckInTap(showToast)) {
-      zmpAdapter.vibrate("medium").catch(() => {});
+      attendanceService.triggerAttendanceHaptic("medium").catch(() => {});
       return;
     }
     const nowMs = Date.now();
     if (isLockedRef.current || isDebounceLocked || (nowMs - globalCheckInLockTimestamp < 1200)) {
-      zmpAdapter.vibrate("medium").catch(() => {});
+      attendanceService.triggerAttendanceHaptic("medium").catch(() => {});
       showFriendlySpamAlert(SPAM_WARNING_MESSAGE, showToast);
       return;
     }
@@ -348,90 +310,33 @@ export default function OneTouchCheckIn({
     setErrorMessage("");
     setErrorDetails("");
     setFraudDetails("");
+    setCanOpenPermSetting(false);
 
     if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
     timeoutIdRef.current = setTimeout(() => {
       if (isLockedRef.current) {
         setStage(STAGES.ERROR);
-        setErrorMessage("Quá thời gian xử lý 20 giây. Vui lòng kiểm tra kết nối mạng và thử lại.");
+        setErrorMessage("Quá thời gian xử lý 25 giây. Vui lòng kiểm tra kết nối mạng và thử lại.");
         isLockedRef.current = false;
         setIsDebounceLocked(false);
         globalCheckInLockTimestamp = 0;
       }
-    }, 20000);
+    }, 25000);
 
     try {
       setStage(STAGES.LOCATING);
-      setStatusMessage("Đang xác định vị trí & kiểm tra bảo mật...");
-
-      let accessToken = "";
-      try {
-        accessToken = await zmpAdapter.getAccessToken().catch(() => "");
-      } catch {}
-
-      let locationToken = "";
-      let rawLat = null;
-      let rawLng = null;
-      let gpsAccuracy = null;
-      let isFakeGpsDetected = false;
-
-      try {
-        const locationRes = await zmpAdapter.getLocation();
-        locationToken = locationRes?.token || "";
-        if (locationRes?.latitude && locationRes?.longitude) {
-          rawLat = Number(locationRes.latitude);
-          rawLng = Number(locationRes.longitude);
-        }
-        if (locationRes?.accuracy !== undefined && locationRes?.accuracy !== null) {
-          gpsAccuracy = Number(locationRes.accuracy);
-        }
-        if (locationRes?.mocked === true || locationRes?.isMock === true) {
-          isFakeGpsDetected = true;
-        }
-      } catch {}
-
-      // Luôn cố gắng lấy tọa độ GPS thiết bị nếu SDK chỉ trả về location_token (tránh gửi null khi fallback)
-      if ((rawLat === null || rawLng === null) && typeof navigator !== "undefined" && navigator.geolocation) {
-        try {
-          const pos = await new Promise((res, rej) =>
-            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000, enableHighAccuracy: true })
-          );
-          rawLat = Number(pos.coords.latitude);
-          rawLng = Number(pos.coords.longitude);
-          gpsAccuracy = Number(pos.coords.accuracy);
-          if (pos.coords.accuracy !== undefined && pos.coords.accuracy <= 0) {
-            isFakeGpsDetected = true;
-          }
-        } catch {}
-      }
-
-      setStage(STAGES.SUBMITTING);
       setStatusMessage(
-        isFieldWorkMode
-          ? "Đang gửi chấm công Đi Công Trình qua GPS..."
-          : checkinType === "in"
-          ? "Đang ghi nhận Giờ Vào Ca trên máy chủ Sedinco..."
-          : "Đang ghi nhận Giờ Ra Ca & tính giờ làm việc..."
+        forceQrScan
+          ? "Đang mở máy ảnh quét mã QR chi nhánh & xác thực..."
+          : "Đang kiểm tra quyền vị trí & vùng chi nhánh..."
       );
 
-      lastIdempotencyKeyRef.current = generateIdempotencyKey("checkin");
-      const devIdentity = await getDeviceIdentity();
-
-      let result = null;
+      let flowOutcome = null;
       try {
-        result = await safePost("/attendance/check-in", {
-          lat: rawLat,
-          lng: rawLng,
-          zalo_location_token: locationToken || undefined,
-          zalo_access_token: accessToken || undefined,
-          device_name: devIdentity.device_model_name,
-          device_info: devIdentity.device_info,
-          gps_accuracy: gpsAccuracy,
-          is_fake_gps: isFakeGpsDetected,
-          work_location_type: isFieldWorkMode ? "FIELD_WORK" : "OFFICE",
-          field_note: resolvedFieldNote
-        }, {
-          idempotencyKey: lastIdempotencyKeyRef.current
+        flowOutcome = await attendanceService.executeSmartAttendanceFlow({
+          isFieldWorkMode,
+          fieldNote,
+          forceQrScan
         });
       } catch (postErr) {
         const errCode = postErr.code || postErr.data?.code || postErr.response?.data?.code || "";
@@ -447,7 +352,7 @@ export default function OneTouchCheckIn({
           errText.includes("giả mạo") ||
           errText.includes("thiết bị chưa được cấp phép")
         ) {
-          await zmpAdapter.vibrate("heavy").catch(() => {});
+          await attendanceService.triggerAttendanceHaptic("heavy").catch(() => {});
           setStage(STAGES.SECURITY_FRAUD);
           setErrorMessage(
             "⚠️ Không thể xác nhận chấm công: Hệ thống nhận thấy vị trí hoặc thiết bị chưa khớp với thông tin đã đăng ký. Vui lòng tắt ứng dụng giả lập (nếu có) hoặc liên hệ Quản lý để được hỗ trợ."
@@ -456,7 +361,6 @@ export default function OneTouchCheckIn({
           return;
         }
 
-        // Nếu báo ngoài vùng chấm công -> tự động mở gợi ý chế độ Đi Công Trình
         if (errCode === "OUT_OF_GEOFENCE" || errText.includes("ngoài phạm vi")) {
           setIsFieldWorkMode(true);
         }
@@ -467,8 +371,33 @@ export default function OneTouchCheckIn({
         return;
       }
 
+      if (!flowOutcome?.ok) {
+        isLockedRef.current = false;
+        globalCheckInLockTimestamp = 0;
+        if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+
+        if (
+          flowOutcome?.state === SDK_STATES.PERMISSION_DENIED ||
+          flowOutcome?.state === SDK_STATES.PENDING_ZALO_APPROVAL
+        ) {
+          setCanOpenPermSetting(Boolean(flowOutcome.canOpenSettings));
+          setStage(STAGES.PERM_DENIED);
+          setErrorMessage(flowOutcome.message || "Chưa được cấp quyền vị trí/camera trên Zalo.");
+          setErrorDetails(
+            "Phương án dự phòng: Kết nối Wi-Fi nội bộ Công ty, dùng nút Quét QR Chi nhánh hoặc gửi Đơn bổ sung công."
+          );
+          return;
+        }
+
+        setStage(STAGES.ERROR);
+        setErrorMessage(flowOutcome?.message || "Chưa hoàn tất kiểm tra chấm công.");
+        setErrorDetails("Vui lòng kiểm tra GPS/Camera/Wi-Fi công ty hoặc thử lại.");
+        return;
+      }
+
+      const result = flowOutcome.data?.response;
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
-      await zmpAdapter.vibrate("light");
+      await attendanceService.triggerAttendanceHaptic("light");
 
       const serverTime =
         result?.server_time ||
@@ -494,7 +423,7 @@ export default function OneTouchCheckIn({
 
       if (result?.is_spam_warning || result?.data?.is_spam_warning) {
         const warnText = result?.message || SPAM_WARNING_MESSAGE;
-        zmpAdapter.vibrate("medium").catch(() => {});
+        attendanceService.triggerAttendanceHaptic("medium").catch(() => {});
         setStatusMessage(warnText);
         showFriendlySpamAlert(warnText, showToast);
         endCheckInTap(true);
@@ -976,14 +905,33 @@ export default function OneTouchCheckIn({
         </button>
       </div>
 
+      {/* Nút phụ gọn nhẹ: Quét QR Chi nhánh (khi cần / chi nhánh bật GPS+QR) & Trạng thái kết nối */}
+      {!isDayLockedByEffective && !hasCheckedOut && !isLockedPeriod && (
+        <div className="flex items-center justify-between gap-2 px-1">
+          <button
+            type="button"
+            disabled={isActionBusy}
+            onClick={() => handleStartCheckIn(true, { forceQrScan: true })}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-[#0051CA] dark:text-blue-300 hover:bg-[#F0F3FF] dark:hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
+          >
+            <QrCode className="w-4 h-4 shrink-0" />
+            <span>Quét mã QR chấm công</span>
+          </button>
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate text-right">
+            {networkBadge?.online ? (networkBadge.networkType === "wifi" ? "Wi-Fi sẵn sàng" : "Mạng di động") : "Mất kết nối"}
+          </span>
+        </div>
+      )}
+
       {/* Cảnh báo & Thông báo trạng thái xử lý (chỉ hiện khi đang xử lý hoặc có cảnh báo/lỗi) */}
       {(isFieldWorkMode ||
         Boolean(spamWarning) ||
         stage === STAGES.LOCATING ||
         stage === STAGES.SUBMITTING ||
+        stage === STAGES.PERM_DENIED ||
         stage === STAGES.ERROR ||
         stage === STAGES.SECURITY_FRAUD ||
-        (errorMessage && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD)) && (
+        (errorMessage && stage !== STAGES.ERROR && stage !== STAGES.PERM_DENIED && stage !== STAGES.SECURITY_FRAUD)) && (
         <div className="space-y-2 text-center">
           {isFieldWorkMode && (
             <div className="bg-amber-50 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-500/40 rounded-2xl p-3 space-y-2 text-xs text-left">
@@ -1029,10 +977,47 @@ export default function OneTouchCheckIn({
             </div>
           )}
 
-          {errorMessage && stage !== STAGES.ERROR && stage !== STAGES.SECURITY_FRAUD && (
+          {errorMessage && stage !== STAGES.ERROR && stage !== STAGES.PERM_DENIED && stage !== STAGES.SECURITY_FRAUD && (
             <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 text-left flex items-start gap-2.5">
               <AlertTriangle size={18} className="text-rose-600 dark:text-rose-300 shrink-0 mt-0.5" />
               <p className="font-semibold text-xs text-rose-900 dark:text-rose-200">{errorMessage}</p>
+            </div>
+          )}
+
+          {stage === STAGES.PERM_DENIED && (
+            <div
+              data-testid="checkin-perm-denied-card"
+              className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-left space-y-2.5"
+            >
+              <div className="flex items-start gap-2.5">
+                <MapPin size={18} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-sm text-amber-950 dark:text-amber-100">{errorMessage}</h4>
+                  {errorDetails && <p className="text-xs text-amber-900 dark:text-amber-200 mt-1 leading-relaxed">{errorDetails}</p>}
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {(canOpenPermSetting || isZaloMiniAppRuntime()) && (
+                  <AppButton
+                    type="button"
+                    variant="primary"
+                    fullWidth
+                    icon={Settings}
+                    onClick={() => openZaloPermissionSettings()}
+                  >
+                    Mở cài đặt quyền Zalo
+                  </AppButton>
+                )}
+                <AppButton
+                  type="button"
+                  variant="secondary"
+                  fullWidth
+                  icon={QrCode}
+                  onClick={() => handleStartCheckIn(true, { forceQrScan: true })}
+                >
+                  Thử Quét QR dự phòng
+                </AppButton>
+              </div>
             </div>
           )}
 

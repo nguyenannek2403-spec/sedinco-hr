@@ -106,6 +106,37 @@ class AttendanceController {
         }
     }
 
+    async generateQrSession(req, res, next) {
+        try {
+            const { branch_id, ttl_seconds } = req.body || {};
+            const data = await attendanceService.generateDynamicBranchQr({
+                branch_id,
+                ttl_seconds,
+                current_user: req.user
+            });
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async precheckCheckIn(req, res, next) {
+        try {
+            const { lat, lng, work_location_type } = req.body || {};
+            const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '';
+            const data = await attendanceService.precheckAttendanceBranch({
+                lat,
+                lng,
+                work_location_type,
+                current_user: req.user,
+                ip_address: ip
+            });
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async checkInMultiFactor(req, res, next) {
         try {
             const {
@@ -115,6 +146,9 @@ class AttendanceController {
                 location_token,
                 zalo_access_token,
                 access_token,
+                qr_token,
+                client_nonce,
+                attendance_mode,
                 image_snapshot,
                 device_info,
                 device_name,
@@ -132,6 +166,9 @@ class AttendanceController {
                 lng,
                 zalo_location_token: zalo_location_token || location_token,
                 zalo_access_token: zalo_access_token || access_token,
+                qr_token,
+                client_nonce,
+                attendance_mode,
                 image_snapshot,
                 device_info,
                 device_name,

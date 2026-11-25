@@ -60,7 +60,11 @@ class AuthController {
                 ma_nv_hint: ma_nv
             }, ip);
             if (!result.success) {
-                return res.status(result.statusCode || 401).json({ success: false, message: result.message });
+                return res.status(result.statusCode || 401).json({
+                    success: false,
+                    code: result.code || undefined,
+                    message: result.message
+                });
             }
             return res.json({ success: true, data: result.data });
         } catch (err) {
@@ -246,6 +250,48 @@ class AuthController {
             }
             const data = await authService.getProfile(req.user);
             return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getZaloStatus(req, res, next) {
+        try {
+            const data = await authService.getZaloLinkStatus(req.user);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async linkZalo(req, res, next) {
+        try {
+            const zalo_token = req.body?.zalo_access_token || req.body?.zalo_token || req.headers['x-zalo-access-token'];
+            if (!req.user || !req.user.ma_nv) {
+                return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên để liên kết Zalo!' });
+            }
+            const data = await authService.bindZalo(req.user.ma_nv, zalo_token, req.user);
+            return res.json({ success: true, message: 'Đã liên kết tài khoản Zalo với mã nhân viên!', data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async unlinkZalo(req, res, next) {
+        try {
+            const data = await authService.unlinkZaloAccount(req.user);
+            return res.json({ success: true, message: 'Đã hủy liên kết tài khoản Zalo!', data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async verifyZaloPhone(req, res, next) {
+        try {
+            const phone_token = req.body?.phone_token || req.body?.code || '';
+            const zalo_access_token = req.body?.zalo_access_token || req.body?.access_token || req.headers['x-zalo-access-token'] || '';
+            const data = await authService.verifyZaloPhone(req.user, { phone_token, zalo_access_token });
+            return res.json({ success: true, message: data.message, data });
         } catch (err) {
             next(err);
         }

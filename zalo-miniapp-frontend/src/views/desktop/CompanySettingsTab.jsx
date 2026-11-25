@@ -19,12 +19,19 @@ import {
   Pencil,
   Check,
   X,
+  QrCode,
+  RefreshCw,
+  Upload,
+  Loader2
 } from "lucide-react";
+import QRCode from "qrcode";
 import { safeGet, safePut, safePost, safeDelete, generateIdempotencyKey } from "../../utils/api";
-import { zmpAdapter } from "../../adapters/zmp/sdkAdapter";
+import { zaloLocationService } from "../../services/zalo-location.service";
+import { zaloMediaService } from "../../services/zalo-media.service";
+import { attendanceService } from "../../services/attendance.service";
 import { formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
 import { getMonthlyStandardWorkdays, getVietnamTodayIso } from "../../utils/workdayUtils";
-import { AppButton, FormRow, SkeletonList } from "../../components/ui";
+import { AppButton, AppModal, FormRow, SkeletonList } from "../../components/ui";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import useDepartments, { notifyDepartmentsChanged } from "../../hooks/useDepartments";
 
@@ -79,7 +86,17 @@ export default function CompanySettingsTab({ showToast }) {
   const [saving, setSaving] = useState(false);
   const [savingWifi, setSavingWifi] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = React.useRef(null);
   const [detectingLocIdx, setDetectingLocIdx] = useState(null);
+  const [qrModalState, setQrModalState] = useState({
+    open: false,
+    loading: false,
+    branch: null,
+    session: null,
+    qrDataUrl: "",
+    error: ""
+  });
   const [statusBanner, setStatusBanner] = useState(null);
   const [openSections, setOpenSections] = useState({
     schedule: true,
@@ -319,11 +336,11 @@ export default function CompanySettingsTab({ showToast }) {
   const handleUseCurrentGps = async (idx) => {
     setDetectingLocIdx(idx);
     try {
-      const pos = await zmpAdapter.getLocation();
-      const rawLat = Number(pos?.latitude);
-      const rawLng = Number(pos?.longitude);
-      if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) {
-        notify("Thiết bị chưa trả về được tọa độ vị trí hiện tại. Vui lòng nhập tay hoặc thử lại.", "error");
+      const locRes = await zaloLocationService.acquireVerifiedLocation({ requestPermissionIfNeeded: true, timeoutMs: 10000 });
+      const rawLat = Number(locRes?.data?.latitude);
+      const rawLng = Number(locRes?.data?.longitude);
+      if (!locRes.ok || !Number.isFinite(rawLat) || !Number.isFinite(rawLng)) {
+        notify(locRes?.message || "Thiết bị chưa trả về được tọa độ vị trí hiện tại. Vui lòng nhập tay hoặc thử lại.", "error");
         return;
       }
       const lat = Number(rawLat.toFixed(6));
@@ -338,6 +355,44 @@ export default function CompanySettingsTab({ showToast }) {
       notify(err?.message || "Không thể lấy vị trí. Hãy kiểm tra quyền truy cập vị trí trên thiết bị.", "error");
     } finally {
       setDetectingLocIdx(null);
+    }
+  };
+
+  const handleOpenBranchQr = async (branch) => {
+    setQrModalState({
+      open: true,
+      loading: true,
+      branch,
+      session: null,
+      qrDataUrl: "",
+      error: ""
+    });
+    try {
+      const session = await attendanceService.fetchDynamicBranchQr({
+        branchId: branch?.id || "loc_hq_1",
+        ttlSeconds: 90
+      });
+      if (!session?.qr_token) {
+        throw new Error("Không nhận được mã QR từ máy chủ.");
+      }
+      const qrDataUrl = await QRCode.toDataURL(session.qr_token, {
+        width: 260,
+        margin: 2
+      });
+      setQrModalState({
+        open: true,
+        loading: false,
+        branch,
+        session,
+        qrDataUrl,
+        error: ""
+      });
+    } catch (err) {
+      setQrModalState((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.message || "Không thể khởi tạo mã QR động cho chi nhánh này."
+      }));
     }
   };
 
@@ -367,6 +422,9 @@ export default function CompanySettingsTab({ showToast }) {
         lat: toNum(loc.lat, 16.0544),
         lng: toNum(loc.lng, 108.2022),
         radius: Math.max(20, Math.round(toNum(loc.radius, 300))),
+        attendance_method: ["GPS", "GPS_AND_QR", "QR_ONLY"].includes(String(loc.attendance_method || "").toUpperCase())
+          ? String(loc.attendance_method).toUpperCase()
+          : "GPS"
       }));
 
       const primary = cleanedLocations[0] || { lat: 16.0544, lng: 108.2022, radius: 500 };
@@ -376,6 +434,7 @@ export default function CompanySettingsTab({ showToast }) {
         phone: config.phone ? String(config.phone).trim() : "",
         address: config.address ? String(config.address).trim() : "",
         tax_code: config.tax_code ? String(config.tax_code).trim() : "",
+        logo_url: config.logo_url !== undefined ? config.logo_url : undefined,
         work_start: config.work_start || "08:00",
         lunch_start: config.lunch_start || "12:00",
         lunch_end: config.lunch_end || "13:30",
@@ -694,6 +753,77 @@ export default function CompanySettingsTab({ showToast }) {
               />
             </div>
           </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                <img
+                  src={config.logo_url && (String(config.logo_url).startsWith("https://res.cloudinary.com/") || String(config.logo_url).startsWith("data:image/")) ? config.logo_url : "/sedinco-logo.png"}
+                  alt="Logo công ty"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-[#111C2D] dark:text-white">Logo nhận diện công ty (Cloudinary)</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Hỗ trợ PNG, JPEG, WebP. Sau khi tải lên hãy bấm "Lưu Cấu Hình".
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploadingLogo(true);
+                  try {
+                    const uploadRes = await zaloMediaService.uploadBrowserEvidenceFile(file, {
+                      category: "company_branding",
+                      maxWidth: 512,
+                      maxHeight: 512,
+                      quality: 0.85
+                    });
+                    if (uploadRes.ok && uploadRes.data?.url) {
+                      updateField("logo_url", uploadRes.data.url);
+                      notify(uploadRes.message || "Đã tải logo công ty lên Cloudinary!");
+                    } else {
+                      notify(uploadRes.message || "Không thể tải lên logo công ty.", "error");
+                    }
+                  } catch (err) {
+                    notify(err?.message || "Lỗi tải logo công ty.", "error");
+                  } finally {
+                    setUploadingLogo(false);
+                    try { e.target.value = ""; } catch {}
+                  }
+                }}
+              />
+              <AppButton
+                type="button"
+                variant="secondary"
+                icon={uploadingLogo ? Loader2 : Upload}
+                loading={uploadingLogo}
+                onClick={() => logoInputRef.current?.click()}
+                className="text-xs px-3 py-2"
+              >
+                Tải Logo mới
+              </AppButton>
+              {config.logo_url && (
+                <AppButton
+                  type="button"
+                  variant="ghost"
+                  icon={Trash2}
+                  onClick={() => updateField("logo_url", null)}
+                  className="text-xs px-2.5 py-2 text-rose-600 dark:text-rose-400"
+                >
+                  Đặt lại
+                </AppButton>
+              )}
+            </div>
+          </div>
         </div>
       </AccordionSection>
 
@@ -930,6 +1060,31 @@ export default function CompanySettingsTab({ showToast }) {
                     className="w-full min-h-[44px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    Phương thức chấm công tại điểm
+                  </label>
+                  <select
+                    value={loc.attendance_method || "GPS"}
+                    onChange={(e) => handleLocationChange(idx, "attendance_method", e.target.value)}
+                    className="w-full min-h-[44px] px-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:border-[#E11D48] focus:outline-none"
+                  >
+                    <option value="GPS">GPS định vị / Wi-Fi nội bộ</option>
+                    <option value="GPS_AND_QR">Kết hợp GPS + Quét mã QR động</option>
+                    <option value="QR_ONLY">Chỉ Quét mã QR động (dự phòng khi tắt GPS)</option>
+                  </select>
+                </div>
+                <AppButton
+                  variant="secondary"
+                  icon={QrCode}
+                  onClick={() => handleOpenBranchQr(loc)}
+                  className="min-h-[44px] text-xs font-bold"
+                >
+                  Hiển thị QR Động Chi nhánh
+                </AppButton>
               </div>
             </div>
           ))}
@@ -1316,6 +1471,65 @@ export default function CompanySettingsTab({ showToast }) {
         }}
         onConfirm={handleExecuteDeleteDepartment}
       />
+
+      {/* Modal QR Động Chấm công Chi nhánh (Có thời hạn & chống replay) */}
+      <AppModal
+        open={qrModalState.open}
+        onClose={() => setQrModalState((prev) => ({ ...prev, open: false }))}
+        title="Mã QR Chấm Công Động"
+        subtitle={qrModalState.branch?.name || "Điểm chấm công Sedinco"}
+        maxWidthClass="max-w-sm"
+        footer={
+          <div className="flex gap-2">
+            <AppButton
+              variant="secondary"
+              onClick={() => setQrModalState((prev) => ({ ...prev, open: false }))}
+              className="flex-1"
+            >
+              Đóng
+            </AppButton>
+            <AppButton
+              variant="primary"
+              icon={RefreshCw}
+              loading={qrModalState.loading}
+              onClick={() => handleOpenBranchQr(qrModalState.branch)}
+              className="flex-1"
+            >
+              Cấp mã QR mới
+            </AppButton>
+          </div>
+        }
+      >
+        <div className="p-4 text-center space-y-3">
+          {qrModalState.loading ? (
+            <div className="py-10 text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Đang sinh mã QR ký HMAC có hiệu lực 90 giây...
+            </div>
+          ) : qrModalState.error ? (
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-700 text-xs font-semibold text-rose-700 dark:text-rose-200">
+              {qrModalState.error}
+            </div>
+          ) : (
+            <>
+              {qrModalState.qrDataUrl && (
+                <img
+                  src={qrModalState.qrDataUrl}
+                  alt="Mã QR chấm công động"
+                  className="w-56 h-56 mx-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white p-2"
+                />
+              )}
+              <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1 bg-slate-50 dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
+                <div>
+                  Hiệu lực đến: <strong className="text-[#111C2D] dark:text-white font-mono">{qrModalState.session?.expires_at_vn}</strong>
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Múi giờ: {qrModalState.session?.timezone || "Asia/Ho_Chi_Minh"} • Dùng 1 lần chống quét lại
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </AppModal>
     </div>
   );
 }

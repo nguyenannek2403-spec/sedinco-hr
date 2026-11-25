@@ -540,7 +540,45 @@ class PermissionService {
             });
         });
 
-        const totalRedAlerts = fraudAlerts.length + salaryDisputes.length + pendingDevicesCount;
+        let mediaQuotaAlert = null;
+        if (!currentUser || currentUser.role === 'admin') {
+            try {
+                const cloudinaryUsageMonitor = require('./cloudinaryUsageMonitor');
+                const quotaEval = await cloudinaryUsageMonitor.getBudgetEvaluation();
+                if (quotaEval && quotaEval.budget_bytes !== null &&
+                    ['CRITICAL', 'RESTRICTED', 'EXHAUSTED'].includes(quotaEval.threshold_state)) {
+                    mediaQuotaAlert = {
+                        threshold_state: quotaEval.threshold_state,
+                        current_percent: quotaEval.current_percent,
+                        effective_used_bytes: quotaEval.effective_used_bytes,
+                        budget_bytes: quotaEval.budget_bytes
+                    };
+                    actionableAlerts.unshift({
+                        id: `media_quota_${quotaEval.threshold_state}`,
+                        notification_id: null,
+                        is_read: 0,
+                        read_at: null,
+                        category: 'media_storage',
+                        severity: 'critical',
+                        title: `Cảnh báo dung lượng Cloudinary đạt ${quotaEval.current_percent}%`,
+                        description: quotaEval.threshold_state === 'EXHAUSTED'
+                            ? 'Kho lưu trữ media đã chạm ngưỡng 100%, tạm ngừng tiếp nhận tệp mới.'
+                            : quotaEval.threshold_state === 'RESTRICTED'
+                                ? 'Đã vượt 95% hạn mức — tạm hạn chế ảnh đại diện & tệp không thiết yếu.'
+                                : 'Dung lượng lưu trữ đã vượt ngưỡng cảnh báo nghiêm trọng (>= 85%). Vui lòng kiểm tra mục Quản lý Media.',
+                        created_at: new Date().toISOString(),
+                        target_tab: 'settings',
+                        target_subtab: 'media_storage',
+                        target_ma_nv: null,
+                        target_id: 'media_storage',
+                        month: null,
+                        year: null
+                    });
+                }
+            } catch {}
+        }
+
+        const totalRedAlerts = fraudAlerts.length + salaryDisputes.length + pendingDevicesCount + (mediaQuotaAlert ? 1 : 0);
 
         return {
             fraud_count: fraudAlerts.length,
@@ -549,6 +587,7 @@ class PermissionService {
             salary_disputes: salaryDisputes,
             pending_device_count: pendingDevicesCount,
             pending_device_alerts: deviceAlerts,
+            media_quota_alert: mediaQuotaAlert,
             pending_requests_count: pendingRequestsCount,
             pending_ot_count: pendingOtCount,
             pending_requests: pendingRequests,

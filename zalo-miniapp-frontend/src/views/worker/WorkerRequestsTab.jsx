@@ -8,7 +8,7 @@ import {
 import { safeGet, safePut } from "../../utils/api";
 import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 import ConfirmDialog from "../../components/ConfirmDialog";
-import { AppButton, StatusBadge, SkeletonList, EmptyState } from "../../components/ui";
+import { AppButton, StatusBadge, SkeletonList, EmptyState, SecureMediaPreview } from "../../components/ui";
 import {
   getRequestTypeLabel,
   getCorrectionModeLabel
@@ -263,9 +263,9 @@ export default function WorkerRequestsTab({
 
                 {req.evidence_image && (
                   <div>
-                    <img
+                    <SecureMediaPreview
                       src={req.evidence_image}
-                      alt="Ảnh chứng minh đơn từ"
+                      alt="Tài liệu chứng minh đơn từ"
                       className="max-h-36 rounded-xl border border-slate-200 dark:border-slate-700 object-cover"
                     />
                   </div>

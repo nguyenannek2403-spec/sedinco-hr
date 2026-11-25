@@ -26,10 +26,10 @@ export function resolveApiBase() {
   if (envUrl && typeof envUrl === "string" && envUrl.trim()) {
     return normalizeApiUrl(envUrl);
   }
-  if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+  if (typeof window !== "undefined" && window.location?.origin) {
     return `${window.location.origin}/api`;
   }
-  return "https://sedinco-backend.onrender.com/api";
+  return "/api";
 }
 
 export const API_BASE = resolveApiBase();
@@ -78,6 +78,9 @@ apiClient.interceptors.request.use(
     if (config.idempotencyKey) {
       config.headers["Idempotency-Key"] = config.idempotencyKey;
       config.headers["X-Idempotency-Key"] = config.idempotencyKey;
+    }
+    if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
     }
     return config;
   },
