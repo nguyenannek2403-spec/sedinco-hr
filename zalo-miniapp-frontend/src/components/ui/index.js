@@ -1,5 +1,6 @@
 export { default as AppButton } from "./AppButton";
 export { default as AppModal } from "./AppModal";
+export { default as Switch } from "./Switch";
 export { default as StatusBadge } from "./StatusBadge";
 export { default as FormRow } from "./FormRow";
 export { default as MonthYearPicker } from "./MonthYearPicker";

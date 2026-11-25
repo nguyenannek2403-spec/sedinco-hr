@@ -22,7 +22,7 @@ import {
   ADMIN_SOD_EXCLUSIVE_ITEMS
 } from "../utils/viLabels";
 import { ACCOUNTANT_ENFORCED_PERMISSION_KEYS } from "../constants/roles";
-import { SkeletonList } from "./ui";
+import { SkeletonList, Switch } from "./ui";
 
 const GROUP_ICONS = {
   attendance_requests: Calendar,
@@ -383,28 +383,12 @@ export default function AccountantPermissionView({ showToast }) {
                           )}
                         </div>
 
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={Boolean(isChecked)}
-                          aria-label={item.name}
-                          onClick={() => handleToggle(item.key)}
-                          className="shrink-0 inline-flex items-center justify-end rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E11D48] cursor-pointer"
-                        >
-                          <span
-                            className={`w-10 h-5.5 flex items-center rounded-full p-0.5 transition-colors duration-200 ${
-                              isChecked
-                                ? "bg-[#E11D48] dark:bg-rose-600"
-                                : "bg-slate-300 dark:bg-slate-700"
-                            }`}
-                          >
-                            <span
-                              className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${
-                                isChecked ? "translate-x-4.5" : "translate-x-0"
-                              }`}
-                            />
-                          </span>
-                        </button>
+                        <Switch
+                          checked={Boolean(isChecked)}
+                          ariaLabel={item.name}
+                          testId={`permission-switch-${item.key}`}
+                          onChange={() => handleToggle(item.key)}
+                        />
                       </div>
                     );
                   })}

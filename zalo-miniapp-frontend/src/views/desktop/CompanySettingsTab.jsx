@@ -29,7 +29,7 @@ import { zaloMediaService } from "../../services/zalo-media.service";
 import { attendanceService } from "../../services/attendance.service";
 import { formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
 import { getMonthlyStandardWorkdays, getVietnamTodayIso } from "../../utils/workdayUtils";
-import { AppModal, SkeletonList } from "../../components/ui";
+import { AppModal, SkeletonList, Switch } from "../../components/ui";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import useDepartments, { notifyDepartmentsChanged } from "../../hooks/useDepartments";
 
@@ -1051,15 +1051,14 @@ export default function CompanySettingsTab({ showToast }) {
       >
         <div className="space-y-2.5">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-100">
+            <span className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-100 flex-1 min-w-0">
               Hiển thị bảng tin cho nhân viên
             </span>
-            <button
-              type="button"
-              role="switch"
-              data-testid="company-announcement-toggle"
-              aria-checked={announcementEnabled}
-              onClick={() => {
+            <Switch
+              testId="company-announcement-toggle"
+              ariaLabel="Hiển thị bảng tin cho nhân viên"
+              checked={announcementEnabled}
+              onChange={() => {
                 if (announcementEnabled) {
                   if (String(config.announcement_text || "").trim()) {
                     lastAnnouncementTextRef.current = String(config.announcement_text);
@@ -1075,22 +1074,7 @@ export default function CompanySettingsTab({ showToast }) {
                   setConfig((prev) => ({ ...prev, announcement_text: restored }));
                 }
               }}
-              className="shrink-0 inline-flex items-center cursor-pointer focus:outline-none"
-            >
-              <span
-                className={`w-10 h-5.5 flex items-center rounded-full p-0.5 transition-colors duration-200 ${
-                  announcementEnabled
-                    ? "bg-[#E11D48] dark:bg-rose-600"
-                    : "bg-slate-300 dark:bg-slate-700"
-                }`}
-              >
-                <span
-                  className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${
-                    announcementEnabled ? "translate-x-4.5" : "translate-x-0"
-                  }`}
-                />
-              </span>
-            </button>
+            />
           </div>
 
           <div className={`relative transition-opacity ${announcementEnabled ? "opacity-100" : "opacity-55"}`}>
@@ -1747,37 +1731,21 @@ export default function CompanySettingsTab({ showToast }) {
             </h4>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-100">
+              <span className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-100 flex-1 min-w-0">
                 Khấu trừ bảo hiểm tự động
               </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isInsuranceEnabled}
-                data-testid="company-insurance-toggle"
-                onClick={() => {
+              <Switch
+                testId="company-insurance-toggle"
+                ariaLabel="Khấu trừ bảo hiểm tự động"
+                checked={isInsuranceEnabled}
+                onChange={() => {
                   if (isInsuranceEnabled) {
                     updateField("insurance_rate", 0);
                   } else {
                     updateField("insurance_rate", lastPositiveInsuranceRateRef.current || 10.5);
                   }
                 }}
-                className="shrink-0 inline-flex items-center cursor-pointer focus:outline-none"
-              >
-                <span
-                  className={`w-10 h-5.5 flex items-center rounded-full p-0.5 transition-colors duration-200 ${
-                    isInsuranceEnabled
-                      ? "bg-[#E11D48] dark:bg-rose-600"
-                      : "bg-slate-300 dark:bg-slate-700"
-                  }`}
-                >
-                  <span
-                    className={`bg-white w-4.5 h-4.5 rounded-full shadow-xs transform transition-transform duration-200 ${
-                      isInsuranceEnabled ? "translate-x-4.5" : "translate-x-0"
-                    }`}
-                  />
-                </span>
-              </button>
+              />
             </div>
 
             {isInsuranceEnabled && (
