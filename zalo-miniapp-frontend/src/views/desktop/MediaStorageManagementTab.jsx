@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { zaloMediaService } from "../../services/zalo-media.service";
 import { formatViNumber } from "../../utils/viNumberFormat";
-import { AppButton, AppModal, SkeletonList, EmptyState, SecureMediaPreview } from "../../components/ui";
+import { AppButton, AppModal, SkeletonList, EmptyState, SecureMediaPreview, CollapsibleFilterBar } from "../../components/ui";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
 function formatBytes(raw) {
@@ -179,8 +179,16 @@ export default function MediaStorageManagementTab({ showToast }) {
   const badge = THRESHOLD_BADGES[quota.threshold_state] || THRESHOLD_BADGES.UNBOUNDED_MONITORING;
   const percentBar = Math.min(100, Math.max(0, Number(quota.current_percent || 0)));
 
+  const activeAdvancedFilterCount = [
+    filters.startDate,
+    filters.endDate,
+    filters.resourceType,
+    filters.status
+  ].filter(Boolean).length;
+  const totalActiveFilterCount = Object.values(filters).filter(Boolean).length;
+
   return (
-    <div data-testid="admin-media-storage-management" className="max-w-5xl mx-auto pb-24 space-y-4">
+    <div data-testid="admin-media-storage-management" className="max-w-5xl mx-auto pb-6 space-y-4">
       {/* Header card */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -385,83 +393,88 @@ export default function MediaStorageManagementTab({ showToast }) {
         </div>
       </div>
 
-      {/* Filters & Asset Explorer */}
+      {/* Filters & Asset Explorer (Progressive Disclosure) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-extrabold text-[#111C2D] dark:text-white">
             <Filter className="w-4 h-4 text-[#E11D48]" />
             <span>Danh sách Tài nguyên Media ({assetsData.total || 0})</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setFilters({ startDate: "", endDate: "", category: "", ma_nv: "", resourceType: "", status: "" })}
-            className="text-xs font-bold text-[#0051CA] dark:text-blue-400 underline cursor-pointer"
-          >
-            Đặt lại bộ lọc
-          </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-          <input
-            type="date"
-            value={filters.startDate}
-            onChange={(e) => setFilters((p) => ({ ...p, startDate: e.target.value }))}
-            aria-label="Từ ngày"
-            className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-          />
-          <input
-            type="date"
-            value={filters.endDate}
-            onChange={(e) => setFilters((p) => ({ ...p, endDate: e.target.value }))}
-            aria-label="Đến ngày"
-            className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-          />
-          <select
-            value={filters.category}
-            onChange={(e) => setFilters((p) => ({ ...p, category: e.target.value }))}
-            className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-          >
-            <option value="">Tất cả module</option>
-            <option value="employee_avatar">Ảnh đại diện</option>
-            <option value="employee_document">Hồ sơ nhân viên</option>
-            <option value="attendance_evidence">Chấm công</option>
-            <option value="leave_evidence">Đơn xin nghỉ</option>
-            <option value="attendance_adjustment">Điều chỉnh công</option>
-            <option value="overtime_evidence">Tăng ca</option>
-            <option value="shift_change_evidence">Đổi ca</option>
-            <option value="business_trip_document">Công tác</option>
-            <option value="accounting_attachment">Kế toán / Khiếu nại lương</option>
-            <option value="company_branding">Logo công ty</option>
-          </select>
-          <input
-            type="text"
-            value={filters.ma_nv}
-            onChange={(e) => setFilters((p) => ({ ...p, ma_nv: e.target.value.toUpperCase() }))}
-            placeholder="Mã NV (VD: NV001)"
-            className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-          />
-          <select
-            value={filters.resourceType}
-            onChange={(e) => setFilters((p) => ({ ...p, resourceType: e.target.value }))}
-            className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-          >
-            <option value="">Mọi loại tệp</option>
-            <option value="image">Hình ảnh</option>
-            <option value="raw">Tài liệu (PDF/Excel)</option>
-            <option value="video">Video</option>
-          </select>
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}
-            className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-          >
-            <option value="">Mọi trạng thái</option>
-            <option value="active">Đang sử dụng (active)</option>
-            <option value="orphan_candidate">Mồ côi chờ dọn</option>
-            <option value="deleted">Đã xóa</option>
-            <option value="failed">Lỗi</option>
-          </select>
-        </div>
+        <CollapsibleFilterBar
+          activeFilterCount={totalActiveFilterCount}
+          onReset={() =>
+            setFilters({ startDate: "", endDate: "", category: "", ma_nv: "", resourceType: "", status: "" })
+          }
+          primaryControls={
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+              <input
+                type="text"
+                value={filters.ma_nv}
+                onChange={(e) => setFilters((p) => ({ ...p, ma_nv: e.target.value.toUpperCase() }))}
+                placeholder="Tìm theo Mã NV (VD: NV001)..."
+                className="min-h-[40px] px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+              />
+              <select
+                value={filters.category}
+                onChange={(e) => setFilters((p) => ({ ...p, category: e.target.value }))}
+                className="min-h-[40px] px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+              >
+                <option value="">Tất cả module nghiệp vụ</option>
+                <option value="employee_avatar">Ảnh đại diện</option>
+                <option value="employee_document">Hồ sơ nhân viên</option>
+                <option value="attendance_evidence">Chấm công</option>
+                <option value="leave_evidence">Đơn xin nghỉ</option>
+                <option value="attendance_adjustment">Điều chỉnh công</option>
+                <option value="overtime_evidence">Tăng ca</option>
+                <option value="shift_change_evidence">Đổi ca</option>
+                <option value="business_trip_document">Công tác</option>
+                <option value="accounting_attachment">Kế toán / Khiếu nại lương</option>
+                <option value="company_branding">Logo công ty</option>
+              </select>
+            </div>
+          }
+          advancedControls={
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => setFilters((p) => ({ ...p, startDate: e.target.value }))}
+                aria-label="Từ ngày"
+                className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+              />
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => setFilters((p) => ({ ...p, endDate: e.target.value }))}
+                aria-label="Đến ngày"
+                className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+              />
+              <select
+                value={filters.resourceType}
+                onChange={(e) => setFilters((p) => ({ ...p, resourceType: e.target.value }))}
+                className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+              >
+                <option value="">Mọi loại tệp</option>
+                <option value="image">Hình ảnh</option>
+                <option value="raw">Tài liệu (PDF/Excel)</option>
+                <option value="video">Video</option>
+              </select>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}
+                className="min-h-[40px] px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+              >
+                <option value="">Mọi trạng thái</option>
+                <option value="active">Đang sử dụng (active)</option>
+                <option value="orphan_candidate">Mồ côi chờ dọn</option>
+                <option value="deleted">Đã xóa</option>
+                <option value="failed">Lỗi</option>
+              </select>
+            </div>
+          }
+        />
 
         {assetsLoading ? (
           <SkeletonList rows={3} label="Đang lọc danh sách tài nguyên..." />

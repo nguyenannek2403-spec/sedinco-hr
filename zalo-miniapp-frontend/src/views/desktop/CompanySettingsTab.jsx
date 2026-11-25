@@ -521,7 +521,7 @@ export default function CompanySettingsTab({ showToast }) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto pb-28 space-y-4">
+    <div className="max-w-3xl mx-auto pb-8 space-y-4">
       <div className="bg-gradient-to-r from-[#E11D48] via-[#D81441] to-[#B80035] dark:from-[#9F1239] dark:via-[#881337] dark:to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0">

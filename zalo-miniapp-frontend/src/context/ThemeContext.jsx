@@ -39,7 +39,7 @@ function applyThemeToDom(mode) {
     }
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) {
-      meta.setAttribute("content", isDark ? "#0b1120" : "#f1f5f9");
+      meta.setAttribute("content", isDark ? "#090d16" : "#f9f9ff");
     }
   } catch (e) {}
 }

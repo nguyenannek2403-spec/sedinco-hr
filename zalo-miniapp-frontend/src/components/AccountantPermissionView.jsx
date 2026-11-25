@@ -147,7 +147,7 @@ export default function AccountantPermissionView({ showToast }) {
   }, {});
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-28">
+    <div className="space-y-6 max-w-5xl mx-auto pb-8">
       {/* Header card */}
       <div className="bg-gradient-to-r from-[#111C2D] via-[#2A1120] to-[#B80035] dark:from-slate-900 dark:via-[#23101B] dark:to-rose-950 rounded-2xl p-5 sm:p-6 text-white shadow-xl border border-rose-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

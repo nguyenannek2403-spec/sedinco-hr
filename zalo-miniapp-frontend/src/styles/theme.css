@@ -1,0 +1,28 @@
+/* ==========================================================================
+   SEDINCO HR — THEME & SURFACE ARCHITECTURE (4-Level Surfaces)
+   ========================================================================== */
+
+.ds-surface-canvas {
+  background-color: var(--surface-canvas);
+  color: var(--text-primary);
+}
+
+.ds-surface-panel {
+  background-color: var(--surface-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.ds-surface-card {
+  background-color: var(--surface-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+
+.ds-surface-elevated {
+  background-color: var(--surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-elevated);
+}

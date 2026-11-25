@@ -1,256 +1,277 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useId, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, X } from "lucide-react";
-import { useModalStack } from "../../hooks/useLockBodyScroll";
-import AppButton from "./AppButton";
-import { useTheme } from "../../context/ThemeContext";
+import { X, ArrowLeft } from "lucide-react";
+import useLockBodyScroll from "../../hooks/useLockBodyScroll";
 
 /**
- * Hộp thoại chuẩn Design System cho Zalo Mini App & Desktop:
- * - Render qua ReactDOM.createPortal(..., document.body) tách hoàn toàn khỏi DOM nền
- * - Tự khóa cuộn đa tầng (inert + bg-scroll-locked) & cách ly sự kiện wheel/touchmove
- * - Tự động quản lý Z-Index ngăn xếp khi mở Modal lồng nhau (100 -> 110 -> 120)
- * - Tự tính safe-area tránh cụm nút Zalo phía trên & luôn có nút "< Trở về" + "Đóng / Quay lại"
+ * AppModal — V53 Unified Enterprise Overlay Engine (Dialog / BottomSheet / FullScreenSheet / Drawer)
+ *
+ * Kiến trúc chuẩn hóa theo Phase 4 (Modal, Dialog, Bottom Sheet, Drawer & Safe Area):
+ * 1. Single Safe-Area Engine:
+ *    - Với non-fullscreen (dialog / sheet / drawer): Backdrop luôn chừa khoảng trống phía trên
+ *      `max(calc(var(--safe-area-top, 0px) + var(--overlay-top-gap, 12px)), calc(var(--safe-area-top, 0px) + var(--zalo-capsule-h, 0px) + 8px))`
+ *      đảm bảo khung Modal không bao giờ chạm vào Tai thỏ / Dynamic Island hay bị cụm nút Zalo Capsule che khuất.
+ *    - Với fullscreen (`variant="fullscreen"` hoặc `fullScreenSheet={true}`): Header áp dụng đúng 1 lần
+ *      `pt-[max(var(--safe-area-top,0px),12px)]` và chừa hành lang phải `pr-[max(16px,calc(var(--zalo-capsule-w,0px)+12px))]`
+ *      trên mobile để tuyệt đối không đụng cụm nút Zalo Capsule.
+ * 2. Single-Responsibility Header Controls (Chống trùng lặp nút Đóng / Trở về):
+ *    - Chỉ hiển thị đồng thời nút Back (trái) và nút Close (phải) khi truyền `onBack` riêng cho luồng nhiều bước (multi-step).
+ *    - Khi KHÔNG có `onBack`:
+ *      + Ở chế độ `fullscreen`: Hiển thị duy nhất 1 nút Quay lại/Đóng ở bên trái (`<ArrowLeft />`, >= 44x44px) trên mobile
+ *        để nhường góc phải trên cho Zalo Capsule.
+ *      + Ở chế độ `dialog` / `sheet` / `drawer`: Hiển thị duy nhất 1 nút `<X />` (44x44px) ở bên phải, giải phóng toàn bộ
+ *        bên trái cho Icon + Tiêu đề + Phụ đề, giúp màn hình 320px–375px hiển thị rộng rãi, không bị ép chữ.
+ * 3. Keyboard-Aware & Scroll-Isolated:
+ *    - Khóa cuộn nền đa tầng (`useLockBodyScroll`).
+ *    - Tự động co chiều cao theo `--visual-vh` khi bàn phím ảo iOS/Android bật lên và tự cuộn ô input vào vùng nhìn thấy.
  */
 export default function AppModal({
-  isOpen = true,
   open,
   onClose,
+  onBack,
   title,
-  subtitle = "",
-  icon = null,
-  headerExtra = null,
-  subHeader = null,
-  stickyTabs = null,
-  footer = null,
-  closeLabel = "Đóng / Quay lại",
-  theme = "auto",
-  fullScreenSheet = false,
-  nested = false,
-  customHeader = null,
+  subtitle,
+  icon,
   maxWidthClass = "max-w-lg",
-  maxHeightClass = "",
-  zIndexClass = "",
-  closeOnBackdrop = true,
+  align = "bottom", // "bottom" | "center"
+  variant, // "dialog" | "sheet" | "fullscreen" | "drawer"
+  fullScreenSheet = false,
+  zIndex = "var(--z-modal, 70)",
   disableClose = false,
-  showCloseX = true,
+  hideCloseButton = false,
+  closeLabel = "Đóng / Quay lại",
+  headerExtra,
+  footer,
+  bodyClassName = "",
+  panelClassName = "",
+  showDragHandle = false,
+  testId,
   children
 }) {
-  const { isDark: globalDark } = useTheme();
-  const visible = open !== undefined ? Boolean(open) : Boolean(isOpen);
-  const { zIndex, isTopModal } = useModalStack(visible, nested ? 70 : 60);
-  const dialogCardRef = useRef(null);
-  const previousFocusRef = useRef(null);
+  const titleId = useId();
+  const resolvedVariant = variant || (fullScreenSheet ? "fullscreen" : align === "center" ? "dialog" : "sheet");
+  const isFullScreen = resolvedVariant === "fullscreen" || Boolean(fullScreenSheet);
+  const isDrawer = resolvedVariant === "drawer";
+  const isDialog = resolvedVariant === "dialog";
+  const isBottomSheet = resolvedVariant === "sheet";
+
+  useLockBodyScroll(Boolean(open));
+
+  const handleSafeClose = useCallback(() => {
+    if (!disableClose && typeof onClose === "function") {
+      onClose();
+    }
+  }, [disableClose, onClose]);
+
+  const handleSafeBack = useCallback(() => {
+    if (disableClose) return;
+    if (typeof onBack === "function") {
+      onBack();
+    } else if (typeof onClose === "function") {
+      onClose();
+    }
+  }, [disableClose, onBack, onClose]);
 
   useEffect(() => {
-    if (visible) {
-      previousFocusRef.current = typeof document !== "undefined" ? document.activeElement : null;
-      return undefined;
-    }
-    const prevEl = previousFocusRef.current;
-    previousFocusRef.current = null;
-    if (prevEl && prevEl.isConnected && typeof prevEl.focus === "function") {
-      try {
-        prevEl.focus({ preventScroll: true });
-      } catch {
-        // ignore focus error
-      }
-    }
-    return undefined;
-  }, [visible]);
-
-  useEffect(() => {
-    if (!visible || !isTopModal || disableClose || typeof window === "undefined") return undefined;
+    if (!open) return undefined;
     const handleKeyDown = (e) => {
-      if (e.key === "Escape" && typeof onClose === "function") {
-        e.preventDefault();
-        onClose();
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        handleSafeClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [visible, isTopModal, disableClose, onClose]);
+  }, [open, handleSafeClose]);
 
-  useEffect(() => {
-    if (dialogCardRef.current) {
-      dialogCardRef.current.inert = Boolean(visible && !isTopModal);
+  const handleBodyFocusCapture = useCallback((e) => {
+    const target = e.target;
+    if (
+      target &&
+      (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT")
+    ) {
+      setTimeout(() => {
+        try {
+          target.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        } catch {
+          // ignore on legacy webviews
+        }
+      }, 140);
     }
-  }, [visible, isTopModal]);
+  }, []);
 
-  if (!visible || typeof document === "undefined") return null;
+  if (!open || typeof document === "undefined") return null;
 
-  const isDark = theme === "auto" ? globalDark : theme === "dark";
-  const zMatch = String(zIndexClass || "").match(/z-\[(\d+)\]/);
-  const minExplicitZ = zMatch ? Number(zMatch[1]) : 0;
-  const effectiveZIndex = Math.max(zIndex, minExplicitZ);
+  const hasMultiStepBack = typeof onBack === "function";
+  const showHeader = Boolean(title || subtitle || icon || headerExtra || (!hideCloseButton && onClose));
 
-  const handleSafeClose = () => {
-    if (!disableClose && isTopModal && typeof onClose === "function") {
-      onClose();
-    }
+  // Alignment classes for backdrop
+  const backdropAlignClass = isFullScreen
+    ? "items-end sm:items-center justify-center p-0 sm:p-4"
+    : isDrawer
+      ? "items-end sm:items-stretch justify-center sm:justify-end p-0"
+      : isDialog || align === "center"
+        ? "items-center justify-center p-3 sm:p-4"
+        : "items-end sm:items-center justify-center p-0 sm:p-4";
+
+  // Safe top offset for backdrop
+  const backdropStyle = {
+    zIndex,
+    paddingTop: isFullScreen
+      ? "0px"
+      : "max(calc(var(--safe-area-top, 0px) + var(--overlay-top-gap, 12px)), calc(var(--safe-area-top, 0px) + var(--zalo-capsule-h, 0px) + 8px))"
   };
+
+  // Panel classes & max-height
+  const panelShapeClass = isFullScreen
+    ? `w-full ${maxWidthClass} h-[var(--visual-vh,100dvh)] max-h-[var(--visual-vh,100dvh)] sm:h-auto sm:max-h-[90dvh] rounded-none sm:rounded-3xl border-0 sm:border`
+    : isDrawer
+      ? `w-full ${maxWidthClass} sm:h-full max-h-[calc(var(--visual-vh,100dvh)-var(--safe-area-top,0px)-var(--zalo-capsule-h,0px)-12px)] sm:max-h-full rounded-t-3xl sm:rounded-l-3xl sm:rounded-tr-none border-t sm:border-t-0 sm:border-l`
+      : isDialog || align === "center"
+        ? `w-full ${maxWidthClass} rounded-2xl sm:rounded-3xl border`
+        : `w-full ${maxWidthClass} rounded-t-3xl sm:rounded-3xl border-t sm:border`;
+
+  const panelStyle = isFullScreen
+    ? undefined
+    : isDrawer
+      ? undefined
+      : {
+          maxHeight:
+            "calc(var(--visual-vh, 100dvh) - max(calc(var(--safe-area-top, 0px) + var(--overlay-top-gap, 12px)), calc(var(--safe-area-top, 0px) + var(--zalo-capsule-h, 0px) + 8px)) - 12px)"
+        };
 
   return createPortal(
     <div
-      data-modal-root="true"
-      role="dialog"
-      aria-modal="true"
-      className={`fixed top-0 left-0 right-0 flex ${
-        fullScreenSheet ? "items-stretch sm:items-center" : "items-end sm:items-center"
-      } justify-center bg-slate-900/55 backdrop-blur-[3px] transition-opacity duration-200 p-0 sm:p-4 animate-fade-in`}
-      style={{
-        zIndex: effectiveZIndex,
-        height: "var(--visual-vh, 100dvh)",
-        paddingTop: fullScreenSheet ? "0px" : "calc(var(--sat, 0px) + 12px)",
-        paddingBottom: "0px"
-      }}
-      onClick={(e) => {
-        if (closeOnBackdrop && e.target === e.currentTarget) {
-          handleSafeClose();
-        }
-      }}
+      className={`fixed inset-0 bg-slate-900/65 dark:bg-black/75 backdrop-blur-sm flex ${backdropAlignClass} animate-fade-in`}
+      style={backdropStyle}
+      onClick={handleSafeClose}
+      role="presentation"
     >
       <div
-        ref={dialogCardRef}
-        className={`flex flex-col w-full ${maxWidthClass} ${
-          fullScreenSheet
-            ? "h-full max-h-full sm:h-auto sm:max-h-[92dvh] rounded-none sm:rounded-[24px]"
-            : `${maxHeightClass || ""} rounded-t-[28px] sm:rounded-[24px]`
-        } overflow-hidden shadow-2xl animate-sheet-up border ${
-          isDark
-            ? "bg-slate-900 text-slate-100 border-slate-700/80"
-            : "bg-white text-slate-800 border-slate-200/90 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700/80"
-        } ${!isTopModal ? "pointer-events-none select-none" : ""}`}
-        style={
-          !fullScreenSheet && !maxHeightClass
-            ? { maxHeight: "calc(var(--visual-vh, 100dvh) - var(--sat, 0px) - 16px)" }
-            : undefined
-        }
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        data-testid={testId}
+        data-overlay-variant={resolvedVariant}
         onClick={(e) => e.stopPropagation()}
+        style={panelStyle}
+        className={`bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden transition-all ${panelShapeClass} ${panelClassName}`}
       >
-        {!fullScreenSheet && (
-          <div
-            className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mt-2.5 mb-1 shrink-0"
-            aria-hidden="true"
-          />
+        {/* Thanh kéo (Drag Handle) tinh tế cho Bottom Sheet trên Mobile */}
+        {(showDragHandle || isBottomSheet) && !isFullScreen && (
+          <div className="sm:hidden flex justify-center pt-2 pb-0.5 shrink-0" aria-hidden="true">
+            <span className="w-10 h-1.5 rounded-full bg-slate-300/90 dark:bg-slate-700" />
+          </div>
         )}
 
-        {/* Thanh tiêu đề cố định: fullScreenSheet áp dụng u-modal-header-safe (1 lần --sat + capsule guard); Sheet thu gọn chỉ chừa capsule ngang để không nhân đôi --sat */}
-        {customHeader ? (
-          customHeader({ handleSafeClose, isDark })
-        ) : (
+        {/* Header chuẩn hoá: Không bao giờ trùng lặp 2 nút đóng cùng chức năng */}
+        {showHeader && (
           <div
-            className={`${
-              fullScreenSheet
-                ? "u-modal-header-safe"
-                : "pl-3.5 pr-[calc(var(--zalo-capsule-w)+8px)] sm:pr-4 py-2 min-h-[52px]"
-            } border-b flex items-center justify-between gap-2 shrink-0 ${
-              isDark
-                ? "bg-slate-900 border-slate-800"
-                : "bg-white border-slate-100 dark:bg-slate-900 dark:border-slate-800"
+            className={`px-4 py-2.5 sm:px-5 sm:py-3.5 min-h-[var(--overlay-header-height,56px)] border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2.5 bg-slate-50/90 dark:bg-slate-900/95 shrink-0 ${
+              isFullScreen
+                ? "pt-[calc(var(--safe-area-top)+8px)] sm:pt-3.5 pr-[max(16px,calc(var(--zalo-capsule-w,0px)+12px))] sm:pr-5"
+                : ""
             }`}
           >
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <button
-                type="button"
-                disabled={disableClose}
-                onClick={handleSafeClose}
-                className={`min-h-[44px] px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
-                  isDark
-                    ? "bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700"
-                    : "bg-rose-50/90 hover:bg-rose-100 text-[#B80035] border border-rose-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-rose-300 dark:border-slate-700"
-                }`}
-              >
-                <ArrowLeft className="w-4 h-4 shrink-0" />
-                <span>Trở về</span>
-              </button>
+              {/* Nút Back bên trái CHỈ hiển thị khi:
+                  1. Có hàm `onBack` (luồng nhiều bước), HOẶC
+                  2. Đang ở chế độ `fullscreen` (vì góc phải trên mobile đã dành cho Zalo Capsule) */}
+              {!hideCloseButton && (hasMultiStepBack || (isFullScreen && onClose)) && (
+                <button
+                  type="button"
+                  onClick={hasMultiStepBack ? handleSafeBack : handleSafeClose}
+                  disabled={disableClose}
+                  data-testid="modal-back-btn"
+                  aria-label={hasMultiStepBack ? "Quay lại bước trước" : "Đóng hộp thoại"}
+                  title={hasMultiStepBack ? "Quay lại bước trước" : "Quay lại / Đóng"}
+                  className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 text-xs font-extrabold text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition cursor-pointer shrink-0 disabled:opacity-50 shadow-sm"
+                >
+                  <ArrowLeft className="w-4 h-4 shrink-0 text-[#E11D48] dark:text-rose-400" />
+                  <span>{hasMultiStepBack ? "Trở về" : "Quay lại"}</span>
+                </button>
+              )}
 
-              {icon && <div className="shrink-0">{icon}</div>}
+              {icon && <div className="shrink-0 flex items-center justify-center">{icon}</div>}
 
               <div className="min-w-0 flex-1">
-                <h3
-                  className={`font-bold text-sm sm:text-base leading-snug break-words ${
-                    isDark ? "text-white" : "text-slate-900 dark:text-white"
-                  }`}
-                >
-                  {title}
-                </h3>
-                {subtitle && (
-                  <p
-                    className={`text-xs mt-0.5 leading-snug break-words ${
-                      isDark ? "text-slate-300" : "text-slate-500 dark:text-slate-300"
-                    }`}
+                {title && (
+                  <h3
+                    id={titleId}
+                    className="font-extrabold text-sm sm:text-base text-[#111C2D] dark:text-white leading-snug break-words line-clamp-2"
                   >
+                    {title}
+                  </h3>
+                )}
+                {subtitle && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug break-words line-clamp-2">
                     {subtitle}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <div className="flex items-center gap-1.5 shrink-0">
               {headerExtra}
-              {showCloseX && (
+
+              {/* Nút [X] bên phải:
+                  - Hiển thị trên mọi Dialog / BottomSheet / Drawer (vì hộp thoại đã nằm dưới Zalo Capsule).
+                  - Với FullScreenSheet: ẩn trên mobile (đã có nút Quay lại bên trái) và chỉ hiện trên màn hình >= sm (nơi không có Zalo Capsule). */}
+              {!hideCloseButton && onClose && (
                 <button
                   type="button"
-                  disabled={disableClose}
                   onClick={handleSafeClose}
-                  aria-label="Đóng"
-                  className={`min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-transform duration-150 active:scale-[0.98] disabled:opacity-50 ${
-                    isDark
-                      ? "bg-slate-800 hover:bg-slate-700 text-slate-200"
-                      : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200"
-                  }`}
+                  disabled={disableClose}
+                  data-testid="modal-close-btn"
+                  aria-label="Đóng hộp thoại"
+                  title="Đóng (ESC)"
+                  className={`${
+                    isFullScreen && !hasMultiStepBack ? "hidden sm:inline-flex" : "inline-flex"
+                  } min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 items-center justify-center text-slate-600 dark:text-slate-300 transition cursor-pointer shrink-0 disabled:opacity-50`}
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               )}
             </div>
           </div>
         )}
 
-        {/* Thanh tab hoặc bộ lọc ghim cố định ngay dưới Header (nếu có) */}
-        {stickyTabs}
-
-        {/* Thanh điều khiển phụ cố định dưới tiêu đề (nếu có) */}
-        {subHeader && (
-          <div
-            className={`px-4 py-2 border-b shrink-0 ${
-              isDark
-                ? "bg-slate-900/95 border-slate-800"
-                : "bg-slate-50/90 border-slate-200/80 dark:bg-slate-900/95 dark:border-slate-800"
-            }`}
-          >
-            {subHeader}
-          </div>
-        )}
-
-        {/* DUY NHẤT 1 vùng cuộn mượt trên iOS/Android Zalo WebView */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y modal-scroll-area">
+        {/* Vùng nội dung cuộn mượt độc lập */}
+        <div
+          onFocusCapture={handleBodyFocusCapture}
+          className={`flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] ${
+            !showHeader && isFullScreen ? "pt-[calc(var(--safe-area-top)+8px)]" : ""
+          } ${
+            footer === null
+              ? "pb-[max(var(--safe-area-bottom),12px)]"
+              : ""
+          } ${bodyClassName}`}
+        >
           {children}
         </div>
 
-        {/* Đáy Modal cố định: 1 lần safe-area-inset-bottom qua .u-footer-safe */}
-        <div
-          className={`px-4 u-footer-safe border-t shrink-0 ${
-            isDark
-              ? "bg-slate-900 border-slate-800"
-              : "bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800"
-          }`}
-        >
-          {footer ? (
-            footer
-          ) : (
-            <AppButton
-              variant="secondary"
-              tone={isDark ? "dark" : "light"}
-              fullWidth
-              disabled={disableClose}
-              onClick={handleSafeClose}
-            >
-              {closeLabel}
-            </AppButton>
-          )}
-        </div>
+        {/* Footer cố định với Safe Area Bottom */}
+        {footer !== undefined ? (
+          footer !== null && (
+            <div className="px-4 py-3 sm:px-5 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 shrink-0 pb-[max(var(--safe-area-bottom),12px)]">
+              {footer}
+            </div>
+          )
+        ) : (
+          !hideCloseButton &&
+          onClose && (
+            <div className="px-4 py-2.5 sm:px-5 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 shrink-0 pb-[max(var(--safe-area-bottom),12px)] flex justify-end">
+              <button
+                type="button"
+                onClick={handleSafeClose}
+                disabled={disableClose}
+                className="w-full sm:w-auto min-h-[44px] px-5 py-2 rounded-xl bg-slate-200/80 hover:bg-slate-300/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-extrabold transition cursor-pointer disabled:opacity-50"
+              >
+                {closeLabel}
+              </button>
+            </div>
+          )
+        )}
       </div>
     </div>,
     document.body

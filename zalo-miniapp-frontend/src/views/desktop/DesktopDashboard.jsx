@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import DesktopSidebar, { DesktopMobileBottomNav } from "../../components/DesktopSidebar";
 import DesktopHeader from "../../components/DesktopHeader";
-import UniversalAppShell from "../../components/layout/UniversalAppShell";
+import AdminLayout from "../../layouts/AdminLayout";
+import AccountantLayout from "../../layouts/AccountantLayout";
 import RequestsManagementTab from "./RequestsManagementTab";
 import EmployeeManagementTab from "./EmployeeManagementTab";
 import CompanySettingsTab from "./CompanySettingsTab";
@@ -202,10 +203,11 @@ export default function DesktopDashboard({
   }, [navigateToTarget]);
 
   const mgmtInitialFilter = focusTarget?.category === "device" ? "alerts" : "all";
+  const RoleLayout = resolvedRole === ROLES.ACCOUNTANT ? AccountantLayout : AdminLayout;
 
   return (
     <>
-      <UniversalAppShell
+      <RoleLayout
         role={resolvedRole}
         dataScrollContainer="desktop"
         mainClassName="p-3 sm:p-5 pb-8 bg-[#F1F5F9] dark:bg-[#0B1120]"
@@ -589,7 +591,7 @@ export default function DesktopDashboard({
             )}
           </Suspense>
         </div>
-      </UniversalAppShell>
+      </RoleLayout>
 
       {personalPayslipModal.open && resolvedRole !== ROLES.ADMIN && (
         <SalarySlipModal

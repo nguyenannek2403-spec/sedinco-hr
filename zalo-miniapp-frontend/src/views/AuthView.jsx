@@ -26,8 +26,10 @@ export default function AuthView({
       className="bg-[#F1F5F9] dark:bg-[#0B1120] flex flex-col px-4 overflow-x-hidden transition-colors duration-200 relative"
       style={{
         minHeight: "var(--visual-vh)",
-        paddingTop: "calc(var(--sat, 0px) + 10px)",
-        paddingBottom: "calc(var(--sab, 0px) + 16px)"
+        paddingTop: "calc(var(--safe-area-top) + 8px)",
+        paddingBottom: "max(var(--safe-area-bottom), 12px)",
+        paddingLeft: "max(var(--safe-area-left, 0px), 16px)",
+        paddingRight: "max(var(--safe-area-right, 0px), 16px)"
       }}
     >
       {/* Nút chuyển Sáng/Tối gọn ở góc trên bên trái (chừa vùng nút Zalo Capsule bên phải) */}

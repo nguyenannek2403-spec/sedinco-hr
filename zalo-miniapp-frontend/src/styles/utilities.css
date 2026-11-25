@@ -1,0 +1,32 @@
+/* ==========================================================================
+   SEDINCO HR — OVERLAY, SAFE-AREA & ACCESSIBILITY UTILITIES
+   ========================================================================== */
+
+/* Focus-visible ring chuẩn Accessibility cho bàn phím & thiết bị trợ năng */
+:focus-visible {
+  outline: 2px solid var(--brand-primary, #E11D48);
+  outline-offset: 2px;
+}
+
+/* Chạm mượt trên cảm ứng, không chớp highlight xám */
+button,
+[role="button"],
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Tôn trọng cài đặt giảm chuyển động của hệ điều hành */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

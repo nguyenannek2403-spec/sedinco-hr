@@ -34,15 +34,6 @@ export default function HomePage() {
 
   const [showAccountModal, setShowAccountModal] = useState(false);
 
-  // Responsive Device & Viewport State
-  const [screenWidth, setScreenWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 390));
-
-  useEffect(() => {
-    const handleResize = () => setScreenWidth(window.innerWidth);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
   const isManagementView = activeRole === ROLES.ADMIN || activeRole === ROLES.ACCOUNTANT;
 
   // Toast notification
@@ -109,7 +100,6 @@ export default function HomePage() {
         <DesktopDashboard
           currentUser={currentUser}
           activeRole={activeRole}
-          screenWidth={screenWidth}
           onLogout={handleLogout}
           onClearCache={clearCache}
           onUserUpdated={updateCurrentUser}

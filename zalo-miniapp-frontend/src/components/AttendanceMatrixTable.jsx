@@ -323,7 +323,7 @@ export default function AttendanceMatrixTable({
     : null;
 
   return (
-    <div className="space-y-4 mb-24">
+    <div className="space-y-4 mb-6">
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
         {/* Header Điều Khiển Tinh Gọn: MonthYearPicker + Bộ phận + Công chuẩn + Tìm kiếm */}
         <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/90 space-y-2.5">

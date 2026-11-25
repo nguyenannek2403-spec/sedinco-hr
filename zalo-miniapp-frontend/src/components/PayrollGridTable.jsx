@@ -501,7 +501,7 @@ export default function PayrollGridTable({
   const totalNetSalary = filteredList.reduce((acc, cur) => acc + (Number(cur.netSalary) || 0), 0);
 
   return (
-    <div className="space-y-4 pb-28">
+    <div className="space-y-4 pb-8">
       {/* Khung Bảng Lương Tinh Gọn: Tìm kiếm, Kỳ lương, Chốt kỳ & Hành động */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06)] overflow-hidden">
         {/* Header Tìm Kiếm & Tác Vụ Siêu Gọn */}

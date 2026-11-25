@@ -10,7 +10,9 @@ import CompanyLogo from "../../components/CompanyLogo";
 import { ThemeToggleButton, useTheme } from "../../context/ThemeContext";
 import { useNotifications } from "../../hooks/useNotifications";
 import NotificationCenterPanel from "../../components/NotificationCenterPanel";
-import UniversalAppShell, { UnifiedAppHeader, UnifiedBottomNav } from "../../components/layout/UniversalAppShell";
+import { UnifiedBottomNav } from "../../components/layout/UniversalAppShell";
+import MobileAppShell from "../../layouts/MobileAppShell";
+import WorkerHeader from "../../layouts/WorkerHeader";
 
 const TAB_TITLES = {
   checkin: "Chấm Công",
@@ -114,12 +116,12 @@ export default function WorkerDashboard({
 
   return (
     <>
-      <UniversalAppShell
+      <MobileAppShell
         role="worker"
         dataScrollContainer="worker"
         containerClassName="max-w-md mx-auto shadow-2xl"
         header={
-          <UnifiedAppHeader
+          <WorkerHeader
             title={TAB_TITLES[activeTab] || "Chấm Công"}
             leftAddon={
               <div className="hidden min-[360px]:block shrink-0">
@@ -212,7 +214,7 @@ export default function WorkerDashboard({
             </div>
           )}
         </div>
-      </UniversalAppShell>
+      </MobileAppShell>
 
       {/* Portal Notification Center (Stitch Screen 14) */}
       <NotificationCenterPanel

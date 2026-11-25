@@ -20,6 +20,19 @@ export default ({ mode }) => {
     plugins: [zaloMiniApp(), react()],
     build: {
       assetsInlineLimit: 0,
+      chunkSizeWarningLimit: 650,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes("node_modules")) return undefined;
+            if (id.includes("xlsx")) return "vendor-xlsx";
+            if (id.includes("qrcode") || id.includes("jsqr")) return "vendor-qr";
+            if (id.includes("lucide-react")) return "vendor-icons";
+            if (id.includes("zmp-ui") || id.includes("zmp-sdk")) return "vendor-zmp";
+            return undefined;
+          }
+        }
+      }
     },
   });
 };

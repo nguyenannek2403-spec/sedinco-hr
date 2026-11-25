@@ -110,7 +110,7 @@ export default function MonthYearPicker({
       {open && (
         <div
           data-testid={`${testIdPrefix}-popover`}
-          className="absolute left-0 top-full mt-2 z-50 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-3.5 space-y-3"
+          className="absolute left-0 top-full mt-2 z-50 w-72 max-w-[calc(100vw-24px)] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-3.5 space-y-3"
         >
           <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
             <button

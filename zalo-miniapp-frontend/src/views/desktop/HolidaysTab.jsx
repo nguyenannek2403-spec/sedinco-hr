@@ -166,7 +166,7 @@ export default function HolidaysTab({ showToast }) {
   };
 
   return (
-    <div className="space-y-4 max-w-4xl pb-28">
+    <div className="space-y-4 max-w-4xl pb-6">
       {/* Header — Google Stitch Sedinco Pulse Holiday Multiplier Hub */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -227,52 +227,46 @@ export default function HolidaysTab({ showToast }) {
             />
           </div>
         ) : (
-          <div className="overflow-x-auto touch-scroll-x">
-            <table className="w-full min-w-[680px] text-left text-xs">
-              <thead className="bg-[#F0F3FF] dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
-                <tr>
-                  <th className="p-3.5 pl-5 min-w-[200px] whitespace-nowrap">Tên dịp lễ</th>
-                  <th className="p-3.5 whitespace-nowrap">Từ ngày</th>
-                  <th className="p-3.5 whitespace-nowrap">Đến ngày</th>
-                  <th className="p-3.5 whitespace-nowrap">Số ngày</th>
-                  <th className="p-3.5 whitespace-nowrap">Hệ số lương</th>
-                  <th className="p-3.5 text-right pr-5 whitespace-nowrap">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
-                {holidays.map((h) => {
-                  const daysCount = getHolidayDaysCount(h.start_date, h.end_date);
-                  const multVal = Number(h.salary_multiplier ?? h.multiplier ?? 3.0) || 3.0;
-                  const multLabel = formatMultiplierValue(multVal);
-                  return (
-                  <tr key={h.id} className="perf-list-item hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
-                    <td className="p-3.5 pl-5 min-w-[200px] font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
-                      <span>{h.holiday_name || h.name}</span>
-                    </td>
-                    <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.start_date}</td>
-                    <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.end_date}</td>
-                    <td className="p-3.5 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-bold text-xs">
+          <>
+            {/* Mobile Card List (< 768px) — Hiển thị rõ ràng trên màn 320px-430px không cần cuộn ngang */}
+            <div className="md:hidden divide-y divide-slate-200/80 dark:divide-slate-800">
+              {holidays.map((h) => {
+                const daysCount = getHolidayDaysCount(h.start_date, h.end_date);
+                const multVal = Number(h.salary_multiplier ?? h.multiplier ?? 3.0) || 3.0;
+                const multLabel = formatMultiplierValue(multVal);
+                return (
+                  <div key={h.id} className="p-3.5 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2 min-w-0 flex-1">
+                        <Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <div className="font-extrabold text-sm text-[#111C2D] dark:text-white leading-snug break-words">
+                            {h.holiday_name || h.name}
+                          </div>
+                          <div className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                            {h.start_date === h.end_date ? h.start_date : `${h.start_date} → ${h.end_date}`}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-bold text-xs shrink-0">
                         {daysCount} ngày
                       </span>
-                    </td>
-                    <td className="p-3.5 whitespace-nowrap" data-testid={`holiday-multiplier-badge-${h.id}`}>
-                      <StatusBadge
-                        type="attendance"
-                        status="L"
-                        labelOverride={`Đi làm: x${multLabel}`}
-                      />
-                    </td>
-                    <td className="p-3.5 text-right pr-5 whitespace-nowrap">
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <div data-testid={`holiday-multiplier-mobile-${h.id}`}>
+                        <StatusBadge
+                          type="attendance"
+                          status="L"
+                          labelOverride={`Đi làm: x${multLabel}`}
+                        />
+                      </div>
                       <div className="inline-flex items-center gap-1.5">
                         <AppButton
-                          variant="ghost"
+                          variant="secondary"
                           icon={Pencil}
-                          data-testid={`edit-holiday-btn-${h.id}`}
                           onClick={() => handleOpenEdit(h)}
-                          className="min-w-[44px] px-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          title="Sửa ngày lễ"
+                          className="min-h-[40px] px-3 py-1.5 text-xs"
                           aria-label={`Sửa ngày lễ ${h.holiday_name || h.name}`}
                         >
                           Sửa
@@ -280,20 +274,86 @@ export default function HolidaysTab({ showToast }) {
                         <AppButton
                           variant="ghost"
                           icon={Trash2}
-                          data-testid={`delete-holiday-btn-${h.id}`}
                           onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
-                          className="min-w-[44px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
-                          title="Xóa"
+                          className="min-w-[40px] min-h-[40px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
                           aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
                         />
                       </div>
-                    </td>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Tablet & Desktop Table (>= 768px) */}
+            <div className="hidden md:block overflow-x-auto touch-scroll-x">
+              <table className="w-full min-w-[680px] text-left text-xs">
+                <thead className="bg-[#F0F3FF] dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
+                  <tr>
+                    <th className="p-3.5 pl-5 min-w-[200px] whitespace-nowrap">Tên dịp lễ</th>
+                    <th className="p-3.5 whitespace-nowrap">Từ ngày</th>
+                    <th className="p-3.5 whitespace-nowrap">Đến ngày</th>
+                    <th className="p-3.5 whitespace-nowrap">Số ngày</th>
+                    <th className="p-3.5 whitespace-nowrap">Hệ số lương</th>
+                    <th className="p-3.5 text-right pr-5 whitespace-nowrap">Thao tác</th>
                   </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
+                  {holidays.map((h) => {
+                    const daysCount = getHolidayDaysCount(h.start_date, h.end_date);
+                    const multVal = Number(h.salary_multiplier ?? h.multiplier ?? 3.0) || 3.0;
+                    const multLabel = formatMultiplierValue(multVal);
+                    return (
+                    <tr key={h.id} className="perf-list-item hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                      <td className="p-3.5 pl-5 min-w-[200px] font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
+                        <span>{h.holiday_name || h.name}</span>
+                      </td>
+                      <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.start_date}</td>
+                      <td className="p-3.5 font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">{h.end_date}</td>
+                      <td className="p-3.5 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-500/40 text-[#E11D48] dark:text-rose-300 font-bold text-xs">
+                          {daysCount} ngày
+                        </span>
+                      </td>
+                      <td className="p-3.5 whitespace-nowrap" data-testid={`holiday-multiplier-badge-${h.id}`}>
+                        <StatusBadge
+                          type="attendance"
+                          status="L"
+                          labelOverride={`Đi làm: x${multLabel}`}
+                        />
+                      </td>
+                      <td className="p-3.5 text-right pr-5 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <AppButton
+                            variant="ghost"
+                            icon={Pencil}
+                            data-testid={`edit-holiday-btn-${h.id}`}
+                            onClick={() => handleOpenEdit(h)}
+                            className="min-w-[44px] px-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            title="Sửa ngày lễ"
+                            aria-label={`Sửa ngày lễ ${h.holiday_name || h.name}`}
+                          >
+                            Sửa
+                          </AppButton>
+                          <AppButton
+                            variant="ghost"
+                            icon={Trash2}
+                            data-testid={`delete-holiday-btn-${h.id}`}
+                            onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
+                            className="min-w-[44px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
+                            title="Xóa"
+                            aria-label={`Xóa ngày lễ ${h.holiday_name || h.name}`}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

@@ -1,19 +1,154 @@
-:root {
-  --sat: env(safe-area-inset-top, 0px);
-  --sab: env(safe-area-inset-bottom, 0px);
-  --zalo-capsule-w: clamp(96px, 26vw, 112px);
-  --header-min-h: 52px;
-  --bottom-nav-h: 62px;
-  --visual-vh: 100vh;
+/* ==========================================================================
+   SEDINCO HR — V53.1 UNIFIED DESIGN SYSTEM & IOS ZALO WEBVIEW SAFE-AREA ENGINE
+   Kiến trúc CSS Custom Properties chuẩn hoá cho toàn bộ 3 vai trò:
+   worker | accountant | admin + mọi Modal / Bottom Sheet / Drawer / Popover
+   ========================================================================== */
 
-  /* Strict Layering Hierarchy */
+:root {
+  /* 1. Safe Area Insets chuẩn iOS WKWebView / Android WebView / Zalo Mini App (ZaUI) */
+  --safe-area-top: max(env(safe-area-inset-top, 0px), var(--zaui-safe-area-inset-top, 0px));
+  --safe-area-bottom: max(env(safe-area-inset-bottom, 0px), var(--zaui-safe-area-inset-bottom, 0px));
+  --safe-area-left: max(env(safe-area-inset-left, 0px), var(--zaui-safe-area-inset-left, 0px));
+  --safe-area-right: max(env(safe-area-inset-right, 0px), var(--zaui-safe-area-inset-right, 0px));
+
+  /* Bí danh tương thích toàn hệ thống (tự động cập nhật khi --safe-area-top thay đổi) */
+  --sat: var(--safe-area-top);
+  --sab: var(--safe-area-bottom);
+  --sal: var(--safe-area-left);
+  --sar: var(--safe-area-right);
+
+  /* 2. Cụm nút điều khiển cố định góc phải trên của Zalo Mini App (Capsule: _[ - ] ( X )_)
+     - Trên mobile (< 640px): chừa 96px chiều ngang để không đè lên nút Zalo
+     - Trên tablet/desktop (>= 640px): không cần chừa (0px) */
+  --zalo-capsule-w: 96px;
+  --zalo-capsule-h: 36px;
+
+  /* 3. Kích thước chuẩn của Khung Ứng Dụng (App Shell) */
+  --header-min-h: 56px;
+  --bottom-nav-h: 64px;
+
+  /* 4. Kích thước chuẩn của Hệ thống Overlay / Modal / Sheet / Drawer */
+  --overlay-header-height: 56px;
+  --overlay-footer-height: 64px;
+  --overlay-top-gap: 12px;
+  --overlay-side-gap: 16px;
+
+  /* 5. Chiều cao khung nhìn động (Dynamic Viewport Height) - được cập nhật thêm bởi visualViewport */
+  --visual-vh: 100vh;
+  --keyboard-inset-h: 0px;
+
+  /* 6. Hệ thống phân tầng Z-Index thống nhất toàn cục */
   --z-content: 1;
+  --z-sticky-cell: 10;
+  --z-sticky-header: 20;
   --z-sticky-sub: 20;
+  --z-app-header: 30;
   --z-header: 40;
   --z-bottom-nav: 45;
-  --z-modal: 60;
-  --z-nested-modal: 70;
+  --z-drawer: 60;
+  --z-modal: 70;
+  --z-nested-modal: 75;
+  --z-confirm: 80;
   --z-toast: 90;
+  --z-fatal: 100;
+
+  /* 7. Spacing Scale chuẩn (4px - 40px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* 8. Border Radius Tokens */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* 9. Typography Scale Tokens (tương thích font-scale 100% -> 200%) */
+  --font-display: 1.75rem;
+  --font-h1: 1.5rem;
+  --font-h2: 1.25rem;
+  --font-h3: 1.125rem;
+  --font-body: 0.9375rem;
+  --font-secondary: 0.8125rem;
+  --font-caption: 0.75rem;
+
+  /* 10. Sedinco Pulse Brand & Semantic Color Tokens (Light Mode Default) */
+  --brand-primary: #E11D48;
+  --brand-primary-hover: #BE123C;
+  --brand-primary-deep: #B80035;
+  --brand-primary-tint: #FFE4E6;
+  --brand-zalo: #0068FF;
+  --brand-cobalt: #0051CA;
+
+  /* 4-Level Surface Architecture */
+  --surface-canvas: #F9F9FF;
+  --surface-panel: #F0F3FF;
+  --surface-card: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+
+  /* Text Hierarchy */
+  --text-primary: #111C2D;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+  --text-disabled: #94A3B8;
+
+  /* Borders & Dividers */
+  --border-subtle: rgba(226, 232, 240, 0.85);
+  --border-default: #CBD5E1;
+  --border-strong: #94A3B8;
+
+  /* Semantic Status Colors */
+  --status-success: #16A34A;
+  --status-success-bg: #F0FDF4;
+  --status-warning: #D97706;
+  --status-warning-bg: #FFFBEB;
+  --status-danger: #E11D48;
+  --status-danger-bg: #FFF1F2;
+  --status-info: #0051CA;
+  --status-info-bg: #EFF6FF;
+
+  /* Elevation Shadows */
+  --shadow-card: 0 2px 10px -2px rgba(17, 28, 45, 0.05), 0 1px 3px 0 rgba(17, 28, 45, 0.03);
+  --shadow-elevated: 0 12px 28px -6px rgba(17, 28, 45, 0.10), 0 4px 10px -2px rgba(17, 28, 45, 0.05);
+  --shadow-modal: 0 20px 45px -10px rgba(15, 23, 42, 0.28), 0 8px 18px -6px rgba(15, 23, 42, 0.14);
+}
+
+html.dark,
+html[zaui-theme="dark"],
+body.dark {
+  --surface-canvas: #090D16;
+  --surface-panel: #111827;
+  --surface-card: #161F33;
+  --surface-elevated: #1E293B;
+
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-disabled: #64748B;
+
+  --border-subtle: rgba(51, 65, 85, 0.75);
+  --border-default: #334155;
+  --border-strong: #475569;
+
+  --status-success: #34D399;
+  --status-success-bg: rgba(6, 78, 59, 0.45);
+  --status-warning: #FBBF24;
+  --status-warning-bg: rgba(120, 53, 15, 0.45);
+  --status-danger: #FB7185;
+  --status-danger-bg: rgba(136, 19, 55, 0.45);
+  --status-info: #60A5FA;
+  --status-info-bg: rgba(30, 58, 138, 0.45);
+
+  --shadow-card: 0 4px 14px -2px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 14px 32px -6px rgba(0, 0, 0, 0.55);
+  --shadow-modal: 0 24px 52px -12px rgba(0, 0, 0, 0.75);
 }
 
 @supports (height: 100dvh) {
@@ -27,41 +162,60 @@ html[data-keyboard-open="true"] [data-unified-bottom-nav="true"] {
   display: none !important;
 }
 
-/* Reusable Safe-Area Layout Helpers */
+/* Reusable Safe-Area Layout Helpers (4-Corner & Notch Protection) */
 .u-app-shell {
   height: var(--visual-vh);
   max-height: var(--visual-vh);
 }
 
 .u-header-safe {
-  min-height: calc(var(--sat) + var(--header-min-h));
-  padding-top: calc(var(--sat) + 8px);
+  min-height: calc(var(--safe-area-top) + var(--header-min-h));
+  padding-top: calc(var(--safe-area-top) + 8px);
   padding-bottom: 8px;
 }
 
 .u-modal-header-safe {
-  min-height: calc(var(--sat) + var(--header-min-h) + 8px);
-  padding-top: calc(var(--sat) + 10px);
-  padding-bottom: 10px;
-  padding-left: 10px;
-  padding-right: calc(var(--zalo-capsule-w) + 8px);
+  min-height: calc(var(--safe-area-top) + var(--overlay-header-height));
+  padding-top: calc(var(--safe-area-top) + 8px);
+  padding-bottom: 8px;
+  padding-left: 12px;
+  padding-right: calc(var(--zalo-capsule-w) + 12px);
 }
 
 @media (min-width: 640px) {
   .u-modal-header-safe {
     min-height: 60px;
-    padding-top: 10px;
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-top: 12px;
+    padding-left: 20px;
+    padding-right: 20px;
   }
 }
 
 .u-footer-safe {
   padding-top: 10px;
-  padding-bottom: calc(var(--sab) + 10px);
+  padding-bottom: max(var(--safe-area-bottom), 12px);
 }
 
 .u-bottom-nav-safe {
-  min-height: calc(var(--bottom-nav-h) + max(var(--sab), 8px));
-  padding-bottom: max(var(--sab), 8px);
+  min-height: calc(var(--bottom-nav-h) + max(var(--safe-area-bottom), 12px));
+  padding-bottom: max(var(--safe-area-bottom), 12px);
+}
+
+/* Màn hình cực nhỏ (<= 359px: iPhone SE1, Galaxy Fold ngoài, Android mini):
+   Thu gọn khoảng chừa Zalo Capsule hợp lý để không ép nghẹt tiêu đề */
+@media (max-width: 359px) {
+  :root {
+    --zalo-capsule-w: 84px;
+    --overlay-side-gap: 10px;
+  }
+}
+
+/* Từ 640px trở lên (Tablet / Desktop Web): không có Zalo Capsule đè góc phải */
+@media (min-width: 640px) {
+  :root {
+    --zalo-capsule-w: 0px;
+    --zalo-capsule-h: 0px;
+    --overlay-top-gap: 20px;
+    --overlay-side-gap: 24px;
+  }
 }

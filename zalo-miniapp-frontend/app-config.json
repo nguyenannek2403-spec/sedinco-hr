@@ -1,14 +1,20 @@
 {
   "app": {
     "title": "SEDINCO HR",
+    "headerColor": "#f9f9ff",
+    "statusBarColor": "#f9f9ff",
     "textColor": {
       "light": "black",
       "dark": "white"
     },
-    "statusBar": "transparent",
+    "statusBar": "default",
     "actionBarHidden": true,
-    "hideIOSSafeAreaBottom": true,
+    "hideIOSSafeAreaBottom": false,
     "hideAndroidBottomNavigationBar": false
+  },
+  "window": {
+    "statusBar": "default",
+    "statusBarColor": "#f9f9ff"
   },
   "listCSS": [],
   "listSyncJS": [],

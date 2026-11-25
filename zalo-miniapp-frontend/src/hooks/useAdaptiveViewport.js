@@ -1,21 +1,12 @@
 import { useEffect } from "react";
+import { getSystemInfo } from "zmp-sdk/apis";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 
-function isZaloRuntime() {
-  if (typeof window === "undefined") return false;
-  return Boolean(
-    window.ZaloJavaScriptInterface ||
-      window.__ZMP__ ||
-      (typeof navigator !== "undefined" && /Zalo|ZMP/i.test(navigator.userAgent || ""))
-  );
-}
-
-function measureCssEnvTopPx() {
+function measureCssVarPx(cssExpr) {
   if (typeof document === "undefined" || !document.body) return 0;
   try {
     const probe = document.createElement("div");
-    probe.style.cssText =
-      "position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none;";
+    probe.style.cssText = `position:fixed;top:0;left:0;width:0;height:${cssExpr};visibility:hidden;pointer-events:none;`;
     document.body.appendChild(probe);
     const h = probe.getBoundingClientRect().height || 0;
     document.body.removeChild(probe);
@@ -26,10 +17,13 @@ function measureCssEnvTopPx() {
 }
 
 /**
- * Engine đồng bộ Viewport & Bàn phím ảo dùng chung toàn app:
- * - Đồng bộ --visual-vh theo visualViewport khi bàn phím ảo đóng/mở (dùng rAF, cleanup sạch)
- * - Tự động đặt data-keyboard-open="true" khi chiều cao co > 150px để ẩn BottomNav & cuộn input đang focus
- * - Fallback --sat theo statusBarHeight của zmp-sdk CHỈ KHI env(safe-area-inset-top) trả về 0px trong Zalo Runtime
+ * Engine đồng bộ Viewport, Safe Area 4 góc & Bàn phím ảo dùng chung toàn app:
+ * - Định nghĩa --safe-area-top: max(env(safe-area-inset-top, 0px), var(--zaui-safe-area-inset-top, 0px))
+ * - Khi chạy trong Zalo Mini App, gọi getSystemInfo từ zmp-sdk: nếu statusBarHeight > 0 và --safe-area-top
+ *   đang tính ra 0px (lỗi thường gặp trên iOS WKWebView), tự động gán
+ *   document.documentElement.style.setProperty('--safe-area-top', statusBarHeight + 'px')
+ *   (chỉ gán khi --safe-area-top == 0px và WebView chưa bị statusBar native đẩy xuống để không cộng trùng 2 lần).
+ * - Đồng bộ --visual-vh theo visualViewport khi bàn phím ảo đóng/mở.
  */
 export function useAdaptiveViewport() {
   useEffect(() => {
@@ -43,19 +37,61 @@ export function useAdaptiveViewport() {
     let lastAppliedVh = "";
     let lastKeyboardOpen = false;
 
-    // Tránh cộng trùng safe-area-inset-top: chỉ dùng statusBarHeight của SDK nếu CSS env() trả về 0 trong Zalo Runtime
-    if (isZaloRuntime()) {
+    const applyZaloSafeAreaFallback = () => {
       try {
-        const cssTop = measureCssEnvTopPx();
-        const sysInfo = zmpAdapter.getSystemInfo();
-        const sdkStatusBar = Number(sysInfo?.statusBarHeight || 0);
-        if (cssTop <= 0 && sdkStatusBar > 0 && sdkStatusBar < 100) {
-          root.style.setProperty("--sat", `${Math.round(sdkStatusBar)}px`);
+        const currentSafeTop = measureCssVarPx("var(--safe-area-top, 0px)");
+        const currentSafeBottom = measureCssVarPx("var(--safe-area-bottom, 0px)");
+
+        const rawSysInfo =
+          (typeof getSystemInfo === "function" ? getSystemInfo() : null) ||
+          zmpAdapter.getSystemInfo();
+
+        const processSysInfo = (sysInfo) => {
+          if (!sysInfo || typeof sysInfo !== "object") return;
+          const statusBarHeight = Number(
+            sysInfo.statusBarHeight ?? sysInfo.safeArea?.top ?? 0
+          );
+
+          // Kiểm tra xem native statusBar đã đẩy khung WebView xuống chưa (tránh cộng trùng 2 lần)
+          const screenH = Number(window.screen?.height || 0);
+          const innerH = Number(window.innerHeight || 0);
+          const isWebViewAlreadyShiftedByNativeBar =
+            screenH > 0 &&
+            innerH > 0 &&
+            statusBarHeight > 0 &&
+            screenH - innerH >= statusBarHeight &&
+            Number(window.screenTop || window.screenY || 0) >= statusBarHeight;
+
+          if (
+            statusBarHeight > 0 &&
+            statusBarHeight < 120 &&
+            currentSafeTop <= 0 &&
+            !isWebViewAlreadyShiftedByNativeBar
+          ) {
+            const topPx = `${Math.round(statusBarHeight)}px`;
+            root.style.setProperty("--safe-area-top", topPx);
+            root.style.setProperty("--sat", topPx);
+          }
+
+          const safeBottom = Number(sysInfo.safeArea?.bottom ?? 0);
+          if (safeBottom > 0 && safeBottom < 80 && currentSafeBottom <= 0) {
+            const bottomPx = `${Math.round(safeBottom)}px`;
+            root.style.setProperty("--safe-area-bottom", bottomPx);
+            root.style.setProperty("--sab", bottomPx);
+          }
+        };
+
+        if (rawSysInfo && typeof rawSysInfo.then === "function") {
+          rawSysInfo.then(processSysInfo).catch(() => {});
+        } else if (rawSysInfo) {
+          processSysInfo(rawSysInfo);
         }
       } catch {
-        // Bỏ qua nếu môi trường không hỗ trợ getSystemInfo
+        // Bỏ qua nếu môi trường trình duyệt ngoài Zalo không hỗ trợ getSystemInfo
       }
-    }
+    };
+
+    applyZaloSafeAreaFallback();
 
     const syncViewportMetrics = () => {
       rafId = null;

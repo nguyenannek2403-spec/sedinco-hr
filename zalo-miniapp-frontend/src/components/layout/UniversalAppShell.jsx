@@ -19,13 +19,19 @@ export function UnifiedAppHeader({
   centerContent = null,
   actions = null,
   reserveCapsuleOnDesktop = false,
-  className = ""
+  className = "",
+  style
 }) {
   return (
     <header
       data-unified-header="true"
       className={`row-start-1 w-full min-w-0 max-w-full overflow-hidden shrink-0 sedinco-glass-header border-b border-slate-200/80 dark:border-slate-800 pl-3 sm:pl-5 pr-2 sm:pr-4 u-header-safe flex items-center justify-between gap-2 select-none transition-colors duration-200 ${className}`}
-      style={{ zIndex: "var(--z-header, 40)" }}
+      style={{
+        zIndex: "var(--z-header, 40)",
+        paddingTop: "calc(var(--safe-area-top) + 8px)",
+        paddingBottom: "8px",
+        ...style
+      }}
     >
       {/* Khu vực trái: Back (nếu có) + Addon + Avatar + Title/Role (truncate an toàn mọi chiều rộng) */}
       <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-2.5">
@@ -139,7 +145,10 @@ export function UnifiedBottomNav({
       className={`row-start-3 shrink-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800 px-1.5 pt-1.5 u-bottom-nav-safe shadow-[0_-4px_20px_rgba(17,28,45,0.06)] transition-colors duration-200 ${
         hideOnDesktop ? "lg:hidden" : ""
       }`}
-      style={{ zIndex: "var(--z-bottom-nav, 45)" }}
+      style={{
+        zIndex: "var(--z-bottom-nav, 45)",
+        paddingBottom: "max(var(--safe-area-bottom), 12px)"
+      }}
     >
       <div className={`max-w-lg mx-auto grid ${colsClass} gap-1`}>
         {items.map((item) => {
