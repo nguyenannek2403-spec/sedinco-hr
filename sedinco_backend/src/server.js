@@ -11,6 +11,7 @@ const REQUIRED_TABLES = [
     'requests',
     'public_holidays',
     'admins',
+    'departments',
     'period_locks',
     'accountant_permissions',
     'audit_logs',

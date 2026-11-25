@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { useDebouncedValue } from "../hooks/useDebounce";
-import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
+import useDepartments from "../hooks/useDepartments";
 import { formatViWorkday } from "../utils/viNumberFormat";
 import { getMonthlyStandardWorkdays, isSundayDay } from "../utils/workdayUtils";
 import { ROLES } from "../constants/roles";
@@ -163,13 +163,24 @@ export default function AttendanceMatrixTable({
   const stdWorkdays = getMonthlyStandardWorkdays(month, year);
 
   const sourceList = Array.isArray(attendanceData) ? attendanceData : internalData;
+  const { departmentNames, defaultDepartmentName } = useDepartments();
 
   const availableDepartments = Array.from(
     new Set([
-      ...DEPARTMENT_OPTIONS,
+      ...departmentNames,
       ...(sourceList || []).map((item) => item.department).filter(Boolean)
     ])
   );
+
+  useEffect(() => {
+    if (
+      selectedDepartment !== "ALL" &&
+      availableDepartments.length > 0 &&
+      !availableDepartments.includes(selectedDepartment)
+    ) {
+      setSelectedDepartment("ALL");
+    }
+  }, [selectedDepartment, availableDepartments]);
 
   // Lọc nhân sự theo từ khóa tìm kiếm + khối/bộ phận
   const filteredData = (sourceList || []).filter((item) => {
@@ -180,7 +191,7 @@ export default function AttendanceMatrixTable({
       item.ho_ten?.toLowerCase().includes(q) ||
       item.ma_nv?.toLowerCase().includes(q) ||
       item.department?.toLowerCase().includes(q);
-    const empDept = item.department || "Khối Công trình";
+    const empDept = item.department || defaultDepartmentName;
     const matchDept = selectedDepartment === "ALL" || empDept === selectedDepartment;
     return matchText && matchDept;
   });
@@ -415,7 +426,7 @@ export default function AttendanceMatrixTable({
               {filteredData.map((emp, empIdx) => {
                 const days = emp.days || [];
                 const stats = computeEmployeeMonthlyStats(emp, month, year, daysInMonth);
-                const deptLabel = emp.department || "Khối Công trình";
+                const deptLabel = emp.department || defaultDepartmentName;
 
                 const preview7Days = dayNumbers.slice(0, 7).map((dNum) => {
                   const rawVal = days[dNum - 1] || "";
@@ -516,7 +527,7 @@ export default function AttendanceMatrixTable({
         {activeDetailEmp && (() => {
           const days = activeDetailEmp.days || [];
           const activeStats = computeEmployeeMonthlyStats(activeDetailEmp, month, year, daysInMonth);
-          const deptLabel = activeDetailEmp.department || "Khối Công trình";
+          const deptLabel = activeDetailEmp.department || defaultDepartmentName;
           return (
             <AppModal
               isOpen={true}
@@ -613,7 +624,7 @@ export default function AttendanceMatrixTable({
             isOpen={true}
             onClose={() => setEditingCell(null)}
             title={`Sửa công ngày ${editingCell.dayNum}/${month}`}
-            subtitle={`${editingCell.emp.ho_ten} • ${editingCell.emp.department || "Khối Công trình"}`}
+            subtitle={`${editingCell.emp.ho_ten} • ${editingCell.emp.department || defaultDepartmentName}`}
             maxWidthClass="max-w-md"
             disableClose={isSubmitting}
             footer={

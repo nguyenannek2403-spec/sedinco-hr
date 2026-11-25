@@ -5,6 +5,7 @@ const { sanitizeBankCardInput } = require('../utils/bankValidator');
 const { sanitizeAvatarInput } = require('../utils/avatarValidator');
 const { verifyZaloUserToken } = require('../utils/zaloAdapter');
 const { hashPassword, validatePasswordPolicy } = require('../utils/passwordHelper');
+const departmentService = require('./departmentService');
 const {
     computeDeviceShortTag,
     resolveFriendlyDeviceName,
@@ -399,7 +400,9 @@ class EmployeeService {
                 status, is_locked, password, must_change_password, custom_start_time, custom_end_time
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
-        const cleanDepartment = (department && String(department).trim()) ? String(department).trim().slice(0, 100) : 'Khối Công trình';
+        const cleanDepartment = (department && String(department).trim())
+            ? String(department).trim().slice(0, 120)
+            : await departmentService.getDefaultDepartmentName();
         const values = [
             finalMaNv, ho_ten, ngay_sinh || null, cleanPhone || '', cleanPhone, finalLoginUsername, email || '', chuc_danh || '', cleanDepartment, normalizedRole,
             ngay_bat_dau_lam || null, ngay_chinh_thuc || null, luong_cb || 0,
@@ -509,7 +512,10 @@ class EmployeeService {
         if (has_insurance !== undefined) addField('has_insurance', has_insurance ? 1 : 0);
 
         if (department !== undefined) {
-            addField('department', department && String(department).trim() ? String(department).trim().slice(0, 100) : 'Khối Công trình');
+            const cleanDeptVal = department && String(department).trim()
+                ? String(department).trim().slice(0, 120)
+                : await departmentService.getDefaultDepartmentName();
+            addField('department', cleanDeptVal);
         }
         if ((current_user && current_user.role === 'admin') && role !== undefined && ['worker', 'accountant', 'admin'].includes(role)) {
             addField('role', role);

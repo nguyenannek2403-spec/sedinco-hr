@@ -25,6 +25,11 @@ const ALLOWANCE_DEFINITIONS = [
     { key: 'tiep_khach', label: 'Phụ cấp điện thoại / tiếp khách' }
 ];
 
+function formatViMultiplier(m) {
+    const n = Math.round((Number(m) || 3) * 100) / 100;
+    return String(n).replace('.', ',');
+}
+
 function buildDailyStatusLabelVi({ status, workCredit = 0, isSunday = false } = {}) {
     const st = String(status || '').trim().toUpperCase();
     const credit = Number(workCredit) || 0;
@@ -57,6 +62,7 @@ function reconcileDailyRoundingDelta(rows, field, targetTotal) {
             rows[i][field] = Math.max(0, (Number(rows[i][field]) || 0) + delta);
             rows[i].daily_earned_amount =
                 (Number(rows[i].daily_base_amount) || 0) +
+                (Number(rows[i].daily_holiday_amount) || 0) +
                 (Number(rows[i].daily_ot_amount) || 0) -
                 (Number(rows[i].daily_penalty_amount) || 0);
             break;
@@ -115,6 +121,8 @@ function calculateEmployeeSalary({
 
     let congThuViec = 0;
     let congChinhThuc = 0;
+    let tienLamNgayLe = 0;
+    let congLamNgayLe = 0;
     let tienOt = 0;
     let totalLateMinutes = 0;
     let lateOccurrences = 0;
@@ -216,30 +224,72 @@ function calculateEmployeeSalary({
         const isSunday = cleanIsoDate ? isSundayIsoDate(cleanIsoDate) : (log.dow === 1);
         const matchedHoliday = findHolidayForDate(holidays, cleanIsoDate || logDate);
         const isHoliday = Boolean(matchedHoliday);
+        const holidayMultiplier = isHoliday
+            ? Math.max(1, Number(matchedHoliday?.salary_multiplier ?? matchedHoliday?.multiplier ?? otHoliday ?? 3.0) || 3.0)
+            : 0;
 
         const isProbation = ngayChinhThuc && (logDate < ngayChinhThuc);
+        const unitDailyRateForDay = (!probationAllowanceFull && isProbation)
+            ? ((luongCb / congChuan) * probationRatio)
+            : (luongCb / congChuan);
         const dayCredit = (unit) => (isExcessiveLateHalfDay && unit > 0.5 ? 0.5 : unit);
         const hasExplicitCredit = log.work_credit !== undefined && log.work_credit !== null && log.work_credit !== '';
         let appliedDayCredit = 0;
         let appliedOtHours = 0;
         let dailyOtMultiplier = 0;
         let dailyOtAmount = 0;
+        let dailyHolidayWorkCredit = 0;
+        let dailyHolidayAmount = 0;
 
         let effectiveStatus = log.status;
         let customAttendanceNote = null;
 
+        const matchedReg = Array.isArray(otRegistrations)
+            ? otRegistrations.find(r => {
+                const rDate = new Date(r.work_date);
+                rDate.setHours(0, 0, 0, 0);
+                return rDate.getTime() === logDate.getTime() && r.status === 'approved';
+            })
+            : null;
+        const resolveAllowedOtHours = (rawHrs) => {
+            if (otCalculationMode === 'REQUIRE_APPROVAL') {
+                return matchedReg ? Math.min(rawHrs, Number(matchedReg.expected_hours)) : 0;
+            }
+            if (otCalculationMode === 'APPROVED_OR_AUTO' && matchedReg) {
+                return Math.min(rawHrs, Number(matchedReg.expected_hours));
+            }
+            return rawHrs;
+        };
+        const otBaseHourly = (!probationAllowanceFull && isProbation && customOtHourly <= 0)
+            ? (luong1Gio * probationRatio)
+            : luong1Gio;
+
         if (log.status === '0' || log.duration_status === 'INVALID_SHORT_DURATION') {
             appliedDayCredit = 0;
-        } else if (log.status === '1') {
-            const credit = hasExplicitCredit ? dayCredit(Math.max(0, Number(log.work_credit) || 0)) : dayCredit(1);
-            appliedDayCredit = credit;
-            workedDays += credit;
-            if (isProbation) congThuViec += credit; else congChinhThuc += credit;
-        } else if (log.status === '0.5') {
-            const credit = hasExplicitCredit ? Math.max(0, Number(log.work_credit) || 0) : 0.5;
-            appliedDayCredit = credit;
-            workedDays += credit;
-            if (isProbation) congThuViec += credit; else congChinhThuc += credit;
+        } else if (log.status === '1' || log.status === '0.5') {
+            const credit = log.status === '1'
+                ? (hasExplicitCredit ? dayCredit(Math.max(0, Number(log.work_credit) || 0)) : dayCredit(1))
+                : (hasExplicitCredit ? Math.max(0, Number(log.work_credit) || 0) : 0.5);
+            if (!isHoliday) {
+                appliedDayCredit = credit;
+                workedDays += credit;
+                if (isProbation) congThuViec += credit; else congChinhThuc += credit;
+            } else {
+                appliedDayCredit = !isSunday ? Math.max(1, credit) : credit;
+                workedDays += credit;
+                if (!isSunday) {
+                    holidayDays += Math.max(0, 1 - credit);
+                }
+                if (isProbation) congThuViec += appliedDayCredit; else congChinhThuc += appliedDayCredit;
+                if (credit > 0) {
+                    dailyHolidayWorkCredit = credit;
+                    congLamNgayLe += credit;
+                    const rawHolExtra = Math.max(0, holidayMultiplier - 1) * credit * unitDailyRateForDay;
+                    tienLamNgayLe += rawHolExtra;
+                    dailyHolidayAmount = Math.round(rawHolExtra);
+                    customAttendanceNote = `Đi làm ngày lễ (x${formatViMultiplier(holidayMultiplier)}) • ${matchedHoliday.holiday_name}`;
+                }
+            }
         } else if (log.status === 'P') {
             // V39: Tối đa 1 công nghỉ phép có lương/tháng; phát sinh vượt hạn mức tính là nghỉ không lương (KL)
             if (paidLeaveDays < monthlyPaidLeaveLimit) {
@@ -259,42 +309,82 @@ function calculateEmployeeSalary({
             holidayDays += 1;
             if (isProbation) congThuViec += 1; else congChinhThuc += 1;
         } else if (log.status === 'OT' || log.status === '1/OT') {
-            if (log.status === '1/OT') {
+            if (!isHoliday) {
+                if (log.status === '1/OT') {
+                    const credit = hasExplicitCredit ? dayCredit(Math.max(0, Number(log.work_credit) || 0)) : dayCredit(1);
+                    appliedDayCredit = credit;
+                    workedDays += credit;
+                    if (isProbation) congThuViec += credit; else congChinhThuc += credit;
+                }
+                const heSo = isSunday ? otWeekend : otWeekday;
+                const rawSoGioOT = Number(log.ot_hours) > 0 ? Number(log.ot_hours) : (isSunday ? 8 : 4);
+                const soGioOT = resolveAllowedOtHours(rawSoGioOT);
+
+                appliedOtHours = soGioOT;
+                totalOtHours += soGioOT;
+
+                const rawDayOt = otBaseHourly * soGioOT * heSo;
+                tienOt += rawDayOt;
+                dailyOtMultiplier = soGioOT > 0 ? heSo : 0;
+                dailyOtAmount = Math.round(rawDayOt);
+            } else if (log.status === '1/OT') {
                 const credit = hasExplicitCredit ? dayCredit(Math.max(0, Number(log.work_credit) || 0)) : dayCredit(1);
-                appliedDayCredit = credit;
+                appliedDayCredit = !isSunday ? Math.max(1, credit) : credit;
                 workedDays += credit;
-                if (isProbation) congThuViec += credit; else congChinhThuc += credit;
-            }
-            const heSo = isHoliday ? otHoliday : (isSunday ? otWeekend : otWeekday);
-            let soGioOT = Number(log.ot_hours) > 0 ? Number(log.ot_hours) : ((isHoliday || isSunday) ? 8 : 4);
+                if (!isSunday) {
+                    holidayDays += Math.max(0, 1 - credit);
+                }
+                if (isProbation) congThuViec += appliedDayCredit; else congChinhThuc += appliedDayCredit;
 
-            // Kiểm soát OT theo chính sách công ty: APPROVED_OR_AUTO | REQUIRE_APPROVAL | AUTO_ACTUAL
-            const matchedReg = Array.isArray(otRegistrations)
-                ? otRegistrations.find(r => {
-                    const rDate = new Date(r.work_date);
-                    rDate.setHours(0, 0, 0, 0);
-                    return rDate.getTime() === logDate.getTime() && r.status === 'approved';
-                })
-                : null;
+                if (credit > 0) {
+                    dailyHolidayWorkCredit = credit;
+                    congLamNgayLe += credit;
+                    const rawHolExtra = Math.max(0, holidayMultiplier - 1) * credit * unitDailyRateForDay;
+                    tienLamNgayLe += rawHolExtra;
+                    dailyHolidayAmount = Math.round(rawHolExtra);
+                    customAttendanceNote = `Đi làm ngày lễ (x${formatViMultiplier(holidayMultiplier)}) • ${matchedHoliday.holiday_name}`;
+                }
 
-            if (otCalculationMode === 'REQUIRE_APPROVAL') {
-                soGioOT = matchedReg ? Math.min(soGioOT, Number(matchedReg.expected_hours)) : 0;
-            } else if (otCalculationMode === 'APPROVED_OR_AUTO') {
-                if (matchedReg) {
-                    soGioOT = Math.min(soGioOT, Number(matchedReg.expected_hours));
+                const extraOtHrs = resolveAllowedOtHours(Math.max(0, Number(log.ot_hours) || 0));
+                if (extraOtHrs > 0) {
+                    appliedOtHours = extraOtHrs;
+                    totalOtHours += extraOtHrs;
+                    const rawDayOt = otBaseHourly * extraOtHrs * holidayMultiplier;
+                    tienOt += rawDayOt;
+                    dailyOtMultiplier = holidayMultiplier;
+                    dailyOtAmount = Math.round(rawDayOt);
+                }
+            } else {
+                const rawSoGioOT = Number(log.ot_hours) > 0 ? Number(log.ot_hours) : 8;
+                const soGioOT = resolveAllowedOtHours(rawSoGioOT);
+                const credit = Math.min(1, Math.max(0, Number((soGioOT / 8).toFixed(4))));
+                const extraOtHrs = Math.max(0, soGioOT - 8);
+
+                appliedDayCredit = !isSunday ? 1 : credit;
+                workedDays += credit;
+                if (!isSunday) {
+                    holidayDays += Math.max(0, 1 - credit);
+                }
+                if (isProbation) congThuViec += appliedDayCredit; else congChinhThuc += appliedDayCredit;
+
+                if (credit > 0) {
+                    dailyHolidayWorkCredit = credit;
+                    congLamNgayLe += credit;
+                    const rawHolExtra = Math.max(0, holidayMultiplier - 1) * credit * unitDailyRateForDay;
+                    tienLamNgayLe += rawHolExtra;
+                    dailyHolidayAmount = Math.round(rawHolExtra);
+                    customAttendanceNote = `Đi làm ngày lễ (x${formatViMultiplier(holidayMultiplier)}) • ${matchedHoliday.holiday_name}`;
+                }
+
+                if (extraOtHrs > 0) {
+                    appliedOtHours = extraOtHrs;
+                    totalOtHours += extraOtHrs;
+                    const rawDayOt = otBaseHourly * extraOtHrs * holidayMultiplier;
+                    tienOt += rawDayOt;
+                    dailyOtMultiplier = holidayMultiplier;
+                    dailyOtAmount = Math.round(rawDayOt);
                 }
             }
-
-            appliedOtHours = soGioOT;
-            totalOtHours += soGioOT;
-
-            const otBaseHourly = (!probationAllowanceFull && isProbation && customOtHourly <= 0)
-                ? (luong1Gio * probationRatio)
-                : luong1Gio;
-            const rawDayOt = otBaseHourly * soGioOT * heSo;
-            tienOt += rawDayOt;
-            dailyOtMultiplier = soGioOT > 0 ? heSo : 0;
-            dailyOtAmount = Math.round(rawDayOt);
         }
 
         const dailyBaseAmount = calculateDailyEarnedAmount({
@@ -303,26 +393,35 @@ function calculateEmployeeSalary({
             probationRatio: isProbation ? probationRatio : 1,
             workCredit: appliedDayCredit
         });
-        const dailyEarnedAmount = dailyBaseAmount + dailyOtAmount - dailyPenaltyAmount;
+        const dailyEarnedAmount = dailyBaseAmount + dailyHolidayAmount + dailyOtAmount - dailyPenaltyAmount;
 
         const recordDateIso = cleanIsoDate || normalizePureIsoDate(log.record_date_iso || log.record_date);
-        daily_breakdown.push({
-            ...log,
-            status: effectiveStatus,
-            status_label_vi: buildDailyStatusLabelVi({
+        const computedStatusLabelVi = dailyHolidayWorkCredit > 0
+            ? (dailyHolidayWorkCredit >= 1
+                ? `Đi làm ngày lễ (x${formatViMultiplier(holidayMultiplier)})`
+                : `Làm ngày lễ ${String(Number(dailyHolidayWorkCredit.toFixed(2))).replace('.', ',')} công (x${formatViMultiplier(holidayMultiplier)})`)
+            : buildDailyStatusLabelVi({
                 status: effectiveStatus,
                 workCredit: appliedDayCredit,
                 isSunday
-            }),
+            });
+
+        daily_breakdown.push({
+            ...log,
+            status: effectiveStatus,
+            status_label_vi: computedStatusLabelVi,
             record_date_iso: recordDateIso,
             date_label: formatViDateWithWeekday(recordDateIso),
             holiday_name: matchedHoliday ? matchedHoliday.holiday_name : null,
+            holiday_multiplier: isHoliday ? holidayMultiplier : null,
+            holiday_work_credit: dailyHolidayWorkCredit,
             attendance_note: customAttendanceNote || (matchedHoliday && effectiveStatus === 'L' ? `Nghỉ lễ hưởng nguyên lương (${matchedHoliday.holiday_name})` : buildDailyAttendanceNote({ ...log, status: effectiveStatus }, companySettings)),
             work_credit: appliedDayCredit,
             ot_hours_applied: appliedOtHours,
             ot_multiplier: dailyOtMultiplier,
             is_probation_day: Boolean(isProbation),
             daily_base_amount: dailyBaseAmount,
+            daily_holiday_amount: dailyHolidayAmount,
             daily_ot_amount: dailyOtAmount,
             daily_penalty_amount: dailyPenaltyAmount,
             daily_penalty_reason: dailyPenaltyAmount > 0 ? dailyPenaltyReason : null,
@@ -362,11 +461,14 @@ function calculateEmployeeSalary({
                     ot_hours_applied: 0,
                     ot_multiplier: 0,
                     holiday_name: hol.holiday_name,
+                    holiday_multiplier: Number(hol.salary_multiplier) || 3.0,
+                    holiday_work_credit: 0,
                     date_label: formatViDateWithWeekday(iso),
                     attendance_note: `Nghỉ lễ hưởng nguyên lương (${hol.holiday_name})`,
                     is_probation_day: isProbHol,
                     is_auto_holiday: true,
                     daily_base_amount: earnedAmt,
+                    daily_holiday_amount: 0,
                     daily_ot_amount: 0,
                     daily_penalty_amount: 0,
                     daily_penalty_reason: null,
@@ -444,7 +546,7 @@ function calculateEmployeeSalary({
     const allowanceByWork = (tongPhuCapCoDinh / congChuan) * allowanceWorkDays;
     const totalAllowance = activeAllowances.length === 0 ? 0 : Math.round(allowanceByWork);
 
-    const grossSalary = salaryByWork + allowanceByWork + tienOt;
+    const grossSalary = salaryByWork + allowanceByWork + tienLamNgayLe + tienOt;
     const cleanBonus = Math.max(0, Math.round(Number(bonusAmount) || 0));
     const cleanPenalty = Math.max(0, Math.round(Number(penaltyAmount) || 0));
     const cleanAdvance = Math.max(0, Math.round(Number(advanceDeduction) || 0));
@@ -457,8 +559,23 @@ function calculateEmployeeSalary({
     }
 
     reconcileDailyRoundingDelta(daily_breakdown, 'daily_base_amount', salaryByWork);
+    reconcileDailyRoundingDelta(daily_breakdown, 'daily_holiday_amount', tienLamNgayLe);
     reconcileDailyRoundingDelta(daily_breakdown, 'daily_ot_amount', tienOt);
     reconcileDailyRoundingDelta(daily_breakdown, 'daily_penalty_amount', latePenaltyAmount);
+
+    const holidayWorkBreakdown = daily_breakdown
+        .filter((r) => (Number(r.holiday_work_credit) || 0) > 0 || (Number(r.daily_holiday_amount) || 0) > 0)
+        .map((r) => {
+            const mult = Number(r.holiday_multiplier) || 3.0;
+            return {
+                date: r.record_date_iso,
+                holiday_name: r.holiday_name || 'Ngày nghỉ lễ',
+                work_credit: Number(r.holiday_work_credit) || 0,
+                multiplier: mult,
+                multiplier_label: `x${formatViMultiplier(mult)}`,
+                amount: Number(r.daily_holiday_amount) || 0
+            };
+        });
 
     // Nếu nhân viên không đi làm ngày nào (0 ngày công), không trích trừ BHXH và chỉ tính các khoản thưởng/trừ phát sinh
     let baoHiem = 0;
@@ -505,6 +622,9 @@ function calculateEmployeeSalary({
         total_allowance: totalAllowance,
         allowances: activeAllowances,
         allowances_breakdown,
+        holidayWorkAmount: Math.round(tienLamNgayLe),
+        holidayWorkDays: Number(congLamNgayLe.toFixed(2)),
+        holidayWorkBreakdown,
         otAmount: Math.round(tienOt),
         bonusAmount: cleanBonus,
         penaltyAmount: cleanPenalty,

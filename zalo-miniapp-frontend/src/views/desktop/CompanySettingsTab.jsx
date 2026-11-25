@@ -15,12 +15,18 @@ import {
   AlertCircle,
   Building2,
   CalendarDays,
+  Layers,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
-import { safeGet, safePut, safePost, generateIdempotencyKey } from "../../utils/api";
+import { safeGet, safePut, safePost, safeDelete, generateIdempotencyKey } from "../../utils/api";
 import { zmpAdapter } from "../../adapters/zmp/sdkAdapter";
 import { formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
 import { getMonthlyStandardWorkdays, getVietnamTodayIso } from "../../utils/workdayUtils";
 import { AppButton, FormRow, SkeletonList } from "../../components/ui";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import useDepartments, { notifyDepartmentsChanged } from "../../hooks/useDepartments";
 
 const toNum = (val, fallback) => {
   if (val === "" || val === null || val === undefined) return fallback;
@@ -77,9 +83,24 @@ export default function CompanySettingsTab({ showToast }) {
   const [statusBanner, setStatusBanner] = useState(null);
   const [openSections, setOpenSections] = useState({
     schedule: true,
+    departments: true,
     locations: false,
     payroll: false,
   });
+
+  const {
+    departments,
+    defaultDepartmentName,
+    loading: loadingDepartments,
+    refreshDepartments,
+  } = useDepartments();
+  const [newDeptName, setNewDeptName] = useState("");
+  const [addingDept, setAddingDept] = useState(false);
+  const [editingDeptId, setEditingDeptId] = useState(null);
+  const [editingDeptName, setEditingDeptName] = useState("");
+  const [savingDept, setSavingDept] = useState(false);
+  const [confirmDeleteDept, setConfirmDeleteDept] = useState({ open: false, dept: null });
+  const [deletingDept, setDeletingDept] = useState(false);
 
   const [config, setConfig] = useState({
     company_name: "CÔNG TY CỔ PHẦN VẬT LIỆU XÂY DỰNG SEDINCO",
@@ -173,6 +194,88 @@ export default function CompanySettingsTab({ showToast }) {
 
   const updateField = (key, value) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleAddDepartment = async (e) => {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    const cleanName = String(newDeptName || "").trim();
+    if (!cleanName) {
+      notify("Vui lòng nhập tên khối / bộ phận mới!", "error");
+      return;
+    }
+    setAddingDept(true);
+    try {
+      const res = await safePost("/departments", { name: cleanName });
+      if (res?.success) {
+        setNewDeptName("");
+        await refreshDepartments();
+        notifyDepartmentsChanged();
+        notify(`Đã thêm khối "${cleanName}" thành công!`);
+      } else {
+        notify(res?.message || "Không thể thêm khối mới", "error");
+      }
+    } catch (err) {
+      notify(err?.message || "Không thể thêm khối mới", "error");
+    } finally {
+      setAddingDept(false);
+    }
+  };
+
+  const handleSaveRenameDepartment = async (deptId) => {
+    const cleanName = String(editingDeptName || "").trim();
+    if (!cleanName) {
+      notify("Tên khối / bộ phận không được để trống!", "error");
+      return;
+    }
+    setSavingDept(true);
+    try {
+      const res = await safePut(`/departments/${deptId}`, { name: cleanName });
+      if (res?.success) {
+        const moved = Number(res?.data?.updated_employees || 0);
+        setEditingDeptId(null);
+        setEditingDeptName("");
+        await refreshDepartments();
+        notifyDepartmentsChanged();
+        notify(
+          moved > 0
+            ? `Đã đổi tên thành "${cleanName}" và đồng bộ ${moved} nhân viên!`
+            : `Đã đổi tên khối thành "${cleanName}"!`
+        );
+      } else {
+        notify(res?.message || "Không thể đổi tên khối", "error");
+      }
+    } catch (err) {
+      notify(err?.message || "Không thể đổi tên khối", "error");
+    } finally {
+      setSavingDept(false);
+    }
+  };
+
+  const handleExecuteDeleteDepartment = async () => {
+    const target = confirmDeleteDept.dept;
+    if (!target || deletingDept) return;
+    setDeletingDept(true);
+    try {
+      const res = await safeDelete(`/departments/${target.id}`);
+      if (res?.success) {
+        setConfirmDeleteDept({ open: false, dept: null });
+        await refreshDepartments();
+        notifyDepartmentsChanged();
+        const moved = Number(res.moved_employees || 0);
+        const defName = res.default_department || defaultDepartmentName;
+        notify(
+          moved > 0
+            ? `Đã xóa khối "${target.name}" và chuyển ${moved} nhân viên về "${defName}"!`
+            : `Đã xóa khối "${target.name}"!`
+        );
+      } else {
+        notify(res?.message || "Không thể xóa khối này", "error");
+      }
+    } catch (err) {
+      notify(err?.message || "Không thể xóa khối này", "error");
+    } finally {
+      setDeletingDept(false);
+    }
   };
 
   const handleLocationChange = (idx, field, value) => {
@@ -594,10 +697,150 @@ export default function CompanySettingsTab({ showToast }) {
         </div>
       </AccordionSection>
 
-      {/* Mục 2: Địa điểm chấm công & Wi-Fi công ty */}
+      {/* Mục 2: Quản lý Khối / Bộ phận làm việc */}
+      <AccordionSection
+        id="departments"
+        title="2. Quản lý Khối / Bộ phận làm việc"
+        subtitle={`${departments.length} khối / bộ phận • Mặc định: ${defaultDepartmentName}`}
+        icon={Layers}
+        iconColor="text-[#0051CA] dark:text-blue-300"
+        iconBg="bg-blue-50 dark:bg-blue-950/60"
+        isOpen={openSections.departments}
+        onToggle={toggleSection}
+      >
+        <form onSubmit={handleAddDepartment} className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            data-testid="new-department-input"
+            value={newDeptName}
+            onChange={(e) => setNewDeptName(e.target.value)}
+            placeholder="Nhập tên khối / bộ phận mới..."
+            className="flex-1 min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none"
+          />
+          <AppButton
+            type="submit"
+            variant="primary"
+            icon={Plus}
+            loading={addingDept}
+            data-testid="add-department-btn"
+            className="min-h-[44px] px-4 text-xs sm:text-sm whitespace-nowrap shrink-0"
+          >
+            Thêm khối
+          </AppButton>
+        </form>
+
+        {loadingDepartments && departments.length === 0 ? (
+          <SkeletonList rows={3} label="Đang tải danh sách khối / bộ phận..." />
+        ) : (
+          <div data-testid="departments-list" className="divide-y divide-slate-200 dark:divide-slate-700/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl bg-slate-50/70 dark:bg-slate-800/60 overflow-hidden">
+            {departments.map((dept) => {
+              const isDefault = Number(dept.is_default) === 1;
+              const isEditing = editingDeptId === dept.id;
+              return (
+                <div
+                  key={dept.id}
+                  data-testid={`department-row-${dept.id}`}
+                  className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white dark:bg-slate-900/70"
+                >
+                  {isEditing ? (
+                    <div className="flex-1 flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        data-testid={`rename-dept-input-${dept.id}`}
+                        value={editingDeptName}
+                        onChange={(e) => setEditingDeptName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleSaveRenameDepartment(dept.id);
+                          } else if (e.key === "Escape") {
+                            setEditingDeptId(null);
+                            setEditingDeptName("");
+                          }
+                        }}
+                        autoFocus
+                        className="flex-1 min-w-[160px] min-h-[44px] px-3 py-1.5 rounded-xl border border-rose-400 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none"
+                      />
+                      <AppButton
+                        variant="success"
+                        icon={Check}
+                        loading={savingDept}
+                        data-testid={`save-rename-dept-btn-${dept.id}`}
+                        onClick={() => handleSaveRenameDepartment(dept.id)}
+                        className="min-h-[44px] px-3 text-xs"
+                      >
+                        Lưu
+                      </AppButton>
+                      <AppButton
+                        variant="secondary"
+                        icon={X}
+                        disabled={savingDept}
+                        onClick={() => {
+                          setEditingDeptId(null);
+                          setEditingDeptName("");
+                        }}
+                        className="min-h-[44px] px-3 text-xs"
+                      >
+                        Hủy
+                      </AppButton>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="min-w-0 flex-1 flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-[#111C2D] dark:text-white break-words">
+                          {dept.name}
+                        </span>
+                        {isDefault && (
+                          <span
+                            data-testid="default-department-badge"
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300 text-xs font-extrabold whitespace-nowrap"
+                          >
+                            Khối chính • Mặc định
+                          </span>
+                        )}
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold whitespace-nowrap">
+                          {dept.employee_count || 0} nhân viên
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <AppButton
+                          variant="secondary"
+                          icon={Pencil}
+                          data-testid={`rename-dept-btn-${dept.id}`}
+                          onClick={() => {
+                            setEditingDeptId(dept.id);
+                            setEditingDeptName(dept.name);
+                          }}
+                          className="min-h-[44px] px-3 text-xs font-bold whitespace-nowrap"
+                        >
+                          Đổi tên
+                        </AppButton>
+                        {!isDefault && (
+                          <AppButton
+                            variant="ghost"
+                            icon={Trash2}
+                            data-testid={`delete-dept-btn-${dept.id}`}
+                            onClick={() => setConfirmDeleteDept({ open: true, dept })}
+                            className="min-h-[44px] px-3 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 whitespace-nowrap"
+                          >
+                            Xóa
+                          </AppButton>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </AccordionSection>
+
+      {/* Mục 3: Địa điểm chấm công & Wi-Fi công ty */}
       <AccordionSection
         id="locations"
-        title="2. Địa điểm chấm công & Wi-Fi công ty"
+        title="3. Địa điểm chấm công & Wi-Fi công ty"
         subtitle={`${config.allowed_locations?.length || 1} địa điểm được phép chấm công`}
         icon={MapPin}
         iconColor="text-emerald-600 dark:text-emerald-300"
@@ -737,10 +980,10 @@ export default function CompanySettingsTab({ showToast }) {
         </div>
       </AccordionSection>
 
-      {/* Mục 3: Quy tắc tính công, Tăng ca & Bảo hiểm */}
+      {/* Mục 4: Quy tắc tính công, Tăng ca & Bảo hiểm */}
       <AccordionSection
         id="payroll"
-        title="3. Quy tắc tính công, Tăng ca & Bảo hiểm"
+        title="4. Quy tắc tính công, Tăng ca & Bảo hiểm"
         subtitle={`Công chuẩn tự động theo tháng (${getMonthlyStandardWorkdays()} ngày) • Phép tháng ${config.monthly_paid_leave_limit ?? 1} lượt • Bảo hiểm ${config.insurance_rate ?? 10.5}%`}
         icon={Calculator}
         iconColor="text-[#E11D48] dark:text-rose-300"
@@ -1056,6 +1299,23 @@ export default function CompanySettingsTab({ showToast }) {
           Lưu cấu hình
         </AppButton>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteDept.open}
+        title="Xác nhận xóa khối / bộ phận"
+        message={
+          confirmDeleteDept.dept
+            ? `Xóa khối "${confirmDeleteDept.dept.name}"? Toàn bộ ${confirmDeleteDept.dept.employee_count || 0} nhân viên đang thuộc khối này sẽ tự động chuyển về khối chính "${defaultDepartmentName}".`
+            : ""
+        }
+        confirmLabel="Xóa khối & Chuyển nhân viên"
+        variant="danger"
+        loading={deletingDept}
+        onCancel={() => {
+          if (!deletingDept) setConfirmDeleteDept({ open: false, dept: null });
+        }}
+        onConfirm={handleExecuteDeleteDepartment}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 import { formatViCurrency, formatViWorkday, formatViNumber } from "./viNumberFormat";
-import { formatDayWithWeekday, getPositiveAllowances, resolveLogNote } from "./payslipHelpers";
+import { formatDayWithWeekday, getPositiveAllowances, resolveLogNote, buildHolidayWorkSummaryLabel } from "./payslipHelpers";
 import { getMonthlyStandardWorkdays } from "./workdayUtils";
 
 function sanitizeSheetCell(val) {
@@ -97,7 +97,7 @@ export function buildEmployeeSalaryWorkbook(item, { month, year, dailyRows = nul
     ["Mã nhân viên", sanitizeSheetCell(maNv)],
     ["Họ và tên", sanitizeSheetCell(item.ho_ten || "")],
     ["Chức danh", sanitizeSheetCell(item.chuc_danh || "Nhân viên")],
-    ["Bộ phận", sanitizeSheetCell(item.department || "Khối Công trình")],
+    ["Bộ phận", sanitizeSheetCell(item.department || "Khối Văn phòng")],
     [
       "Ngày công thực tế / chuẩn",
       `${formatViWorkday(item.totalWorkDays || 0)} / ${formatViWorkday(item.standardWorkDays || item.standardDays || getMonthlyStandardWorkdays(m, y))} công`
@@ -130,6 +130,14 @@ export function buildEmployeeSalaryWorkbook(item, { month, year, dailyRows = nul
         formatViCurrency(alw.amount || 0)
       ]);
     });
+  }
+
+  if (Number(item.holidayWorkAmount || 0) > 0) {
+    slipAoa.push([
+      buildHolidayWorkSummaryLabel(item),
+      Math.round(Number(item.holidayWorkAmount || 0)),
+      `${formatViWorkday(item.holidayWorkDays || 0)} công ngày lễ`
+    ]);
   }
 
   slipAoa.push(

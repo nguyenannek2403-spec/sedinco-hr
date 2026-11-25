@@ -3,13 +3,6 @@
  * Tuyệt đối không hiển thị mã lập trình tiếng Anh lên màn hình người dùng.
  */
 
-export const DEPARTMENT_OPTIONS = [
-  'Khối Văn phòng',
-  'Khối Kho bãi',
-  'Khối Kinh doanh - Showroom',
-  'Khối Công trình'
-];
-
 export const SHIFT_OPTIONS = [
   { value: 'FULL_DAY', label: 'Ca hành chính' },
   { value: 'MORNING_SHIFT', label: 'Ca sáng' },

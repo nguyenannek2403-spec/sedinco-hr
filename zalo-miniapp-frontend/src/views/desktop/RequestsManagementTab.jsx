@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { safeGet, safePut, generateIdempotencyKey } from "../../utils/api";
 import { useDebouncedValue } from "../../hooks/useDebounce";
+import useDepartments from "../../hooks/useDepartments";
 import { getRequestTypeLabel, getCorrectionModeLabel } from "../../utils/viLabels";
 import { formatViCurrency } from "../../utils/viNumberFormat";
 import { AppButton, AppModal, StatusBadge, SkeletonList, EmptyState, UserAvatar } from "../../components/ui";
@@ -158,10 +159,34 @@ export default function RequestsManagementTab({
     }
   };
 
+  const { departmentNames, defaultDepartmentName } = useDepartments();
+  const [selectedDepartment, setSelectedDepartment] = useState("ALL");
+
   const selectedEmployee = useMemo(
     () => employeeGroups.find((g) => g.ma_nv === selectedEmpMaNv) || null,
     [employeeGroups, selectedEmpMaNv]
   );
+
+  const availableDepartments = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...departmentNames,
+          ...employeeGroups.map((e) => e.department).filter(Boolean)
+        ])
+      ),
+    [departmentNames, employeeGroups]
+  );
+
+  useEffect(() => {
+    if (
+      selectedDepartment !== "ALL" &&
+      availableDepartments.length > 0 &&
+      !availableDepartments.includes(selectedDepartment)
+    ) {
+      setSelectedDepartment("ALL");
+    }
+  }, [selectedDepartment, availableDepartments]);
 
   const stats = useMemo(() => {
     let withPending = 0;
@@ -190,13 +215,17 @@ export default function RequestsManagementTab({
       if (filterMode === "processed" && (emp.pending_count > 0 || emp.total_requests === 0)) {
         return false;
       }
+      const empDept = emp.department || defaultDepartmentName;
+      if (selectedDepartment !== "ALL" && empDept !== selectedDepartment) {
+        return false;
+      }
       if (!q) return true;
       const haystack = normalizeSearchStr(
-        `${emp.ma_nv} ${emp.ho_ten} ${emp.department || ""} ${emp.chuc_danh || ""}`
+        `${emp.ma_nv} ${emp.ho_ten} ${empDept} ${emp.chuc_danh || ""}`
       );
       return haystack.includes(q);
     });
-  }, [employeeGroups, filterMode, debouncedSearch]);
+  }, [employeeGroups, filterMode, debouncedSearch, selectedDepartment, defaultDepartmentName]);
 
   const myMaNv = currentUser?.ma_nv || currentUser?.username;
   const managerCanAct = canApproveRequest();
@@ -246,6 +275,21 @@ export default function RequestsManagementTab({
               className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl bg-[#F4F6F9] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-medium text-[#111C2D] dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#E11D48]"
             />
           </div>
+
+          <select
+            value={selectedDepartment}
+            data-testid="requests-department-filter"
+            aria-label="Lọc theo bộ phận"
+            onChange={(e) => setSelectedDepartment(e.target.value)}
+            className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#E11D48]"
+          >
+            <option value="ALL">🏢 Tất cả bộ phận</option>
+            {availableDepartments.map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
+          </select>
 
           <div
             data-filter-group="requests-employee-filter"
@@ -320,7 +364,7 @@ export default function RequestsManagementTab({
             const latestProcessedLabel = latest
               ? formatTimestampVi(latest.processed_at, latest.processed_at_vn)
               : null;
-            const deptLabel = emp.department || "Khối Công trình";
+            const deptLabel = emp.department || defaultDepartmentName;
 
             return (
               <div
@@ -466,7 +510,7 @@ export default function RequestsManagementTab({
         title={selectedEmployee ? selectedEmployee.ho_ten : "Chi tiết đơn từ"}
         subtitle={
           selectedEmployee
-            ? `${selectedEmployee.department || "Khối Công trình"} • Phép có lương tháng này: ${selectedEmployee.current_month_paid_leave_used || 0}/${selectedEmployee.monthly_paid_leave_limit || 1} lượt`
+            ? `${selectedEmployee.department || defaultDepartmentName} • Phép có lương tháng này: ${selectedEmployee.current_month_paid_leave_used || 0}/${selectedEmployee.monthly_paid_leave_limit || 1} lượt`
             : ""
         }
         footer={

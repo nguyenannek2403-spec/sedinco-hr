@@ -32,7 +32,8 @@ import {
   formatFullDateWithWeekday,
   resolveDailyStatusLabelVi,
   getPositiveAllowances,
-  resolveLogNote
+  resolveLogNote,
+  buildHolidayWorkSummaryLabel
 } from "../utils/payslipHelpers";
 
 const VI_SHORT_WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -274,6 +275,9 @@ export default function SalarySlipModal({
         : meta.credit > 0
           ? Math.round(unitDailyWage * meta.credit)
           : 0;
+      const dailyHolidayAmount = Number(log?.daily_holiday_amount) || 0;
+      const holidayMultiplier = Number(log?.holiday_multiplier) || 0;
+      const holidayWorkCredit = Number(log?.holiday_work_credit) || 0;
       const hasBackendOt = log && log.daily_ot_amount !== undefined && log.daily_ot_amount !== null;
       const dailyOtAmount = hasBackendOt ? Number(log.daily_ot_amount) || 0 : 0;
       const dailyPenaltyAmount = Number(log?.daily_penalty_amount) || 0;
@@ -281,7 +285,7 @@ export default function SalarySlipModal({
       const dailyEarnedAmount =
         log && log.daily_earned_amount !== undefined && log.daily_earned_amount !== null
           ? Number(log.daily_earned_amount) || 0
-          : dailyBaseAmount + dailyOtAmount - dailyPenaltyAmount;
+          : dailyBaseAmount + dailyHolidayAmount + dailyOtAmount - dailyPenaltyAmount;
 
       const checkWindow =
         log?.check_in_time || log?.check_out_time
@@ -290,18 +294,22 @@ export default function SalarySlipModal({
             }`
           : null;
 
-      const compactStatus = resolveCompactDailyStatus({
-        status: log ? (log.status || "0") : isSunday ? "CN" : isFutureOrTodayEmpty ? "" : "KL",
-        credit: meta.credit,
-        otHours,
-        isSunday,
-        isFutureOrTodayEmpty
-      });
+      const compactStatus = holidayWorkCredit > 0 && holidayMultiplier > 0
+        ? `Đi làm lễ (x${formatViNumber(holidayMultiplier)})`
+        : resolveCompactDailyStatus({
+            status: log ? (log.status || "0") : isSunday ? "CN" : isFutureOrTodayEmpty ? "" : "KL",
+            credit: meta.credit,
+            otHours,
+            isSunday,
+            isFutureOrTodayEmpty
+          });
 
       const hasDetails = Boolean(
         checkWindow ||
           otHours > 0 ||
           dailyOtAmount > 0 ||
+          dailyHolidayAmount > 0 ||
+          holidayWorkCredit > 0 ||
           dailyPenaltyAmount > 0 ||
           log?.holiday_name ||
           log?.location_name ||
@@ -326,6 +334,9 @@ export default function SalarySlipModal({
         compactStatus,
         statusLabelVi,
         dailyBaseAmount,
+        dailyHolidayAmount,
+        holidayMultiplier,
+        holidayWorkCredit,
         dailyOtAmount,
         dailyPenaltyAmount,
         dailyPenaltyReason,
@@ -345,11 +356,12 @@ export default function SalarySlipModal({
       displayedDailyRows.reduce(
         (acc, row) => ({
           base: acc.base + (row.dailyBaseAmount || 0),
+          holiday: acc.holiday + (row.dailyHolidayAmount || 0),
           ot: acc.ot + (row.dailyOtAmount || 0),
           penalty: acc.penalty + (row.dailyPenaltyAmount || 0),
           earned: acc.earned + (row.dailyEarnedAmount || 0)
         }),
-        { base: 0, ot: 0, penalty: 0, earned: 0 }
+        { base: 0, holiday: 0, ot: 0, penalty: 0, earned: 0 }
       ),
     [displayedDailyRows]
   );
@@ -748,6 +760,8 @@ export default function SalarySlipModal({
   const hasAdvance = Number(item?.advanceDeduction) > 0;
   const hasInsurance = Number(item?.totalInsurance || item?.insuranceDeduction || 0) > 0;
   const hasBonus = Number(item?.bonusAmount) > 0;
+  const hasHolidayWork = Number(item?.holidayWorkAmount) > 0;
+  const holidayBreakdownList = Array.isArray(item?.holidayWorkBreakdown) ? item.holidayWorkBreakdown : [];
   const hasOt = Number(item?.totalOtHours) > 0 || Number(item?.otAmount) > 0;
   const hasSalaryByWork = Number(item?.salaryByWork) > 0;
   const canDoSendReport = Boolean(isAdminUser || (isAdminOrAccountant && typeof onSendReport === "function"));
@@ -1007,6 +1021,38 @@ export default function SalarySlipModal({
                     <span className="font-mono font-bold text-sm text-slate-900 dark:text-white whitespace-nowrap shrink-0">
                       {formatCurrency(item.salaryByWork)}
                     </span>
+                  </div>
+                )}
+
+                {hasHolidayWork && (
+                  <div data-testid="payslip-holiday-work-row" className="px-4 py-3 space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="text-xs sm:text-sm font-semibold text-purple-800 dark:text-purple-200 block">
+                          {buildHolidayWorkSummaryLabel(item)}
+                        </span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                          Đi làm {formatViWorkday(item.holidayWorkDays || 0)} công vào ngày nghỉ lễ
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-sm text-purple-700 dark:text-purple-300 whitespace-nowrap shrink-0">
+                        +{formatCurrency(item.holidayWorkAmount)}
+                      </span>
+                    </div>
+                    {holidayBreakdownList.length > 0 && (
+                      <div className="pl-3 border-l-2 border-purple-200 dark:border-purple-800 space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                        {holidayBreakdownList.map((hb, hbIdx) => (
+                          <div key={`${hb.date || hbIdx}-${hbIdx}`} className="flex justify-between gap-2">
+                            <span className="truncate">
+                              • {hb.holiday_name} ({hb.multiplier_label}, {formatViWorkday(hb.work_credit)} công)
+                            </span>
+                            <span className="font-mono font-semibold text-purple-700 dark:text-purple-300 whitespace-nowrap shrink-0">
+                              +{formatCurrency(hb.amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1334,6 +1380,7 @@ export default function SalarySlipModal({
               <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
                 {displayedDailyRows.map((row) => {
                   const hasOt = row.otHours > 0 || row.dailyOtAmount > 0;
+                  const hasHolWork = row.dailyHolidayAmount > 0 || row.holidayWorkCredit > 0;
                   const hasPen = row.dailyPenaltyAmount > 0;
                   const isExpanded = expandedDayIso === row.iso;
                   const RowTag = row.hasDetails ? "button" : "div";
@@ -1390,6 +1437,14 @@ export default function SalarySlipModal({
                           >
                             {row.compactStatus}
                           </span>
+                          {hasHolWork && row.holidayMultiplier > 0 && (
+                            <span
+                              data-testid={`payslip-day-holiday-${row.iso}`}
+                              className="px-1.5 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/70 border border-purple-200 dark:border-purple-700 text-purple-800 dark:text-purple-200 text-[11px] font-bold whitespace-nowrap"
+                            >
+                              Đi làm lễ x{formatViNumber(row.holidayMultiplier, 2)}
+                            </span>
+                          )}
                           {hasOt && (
                             <span
                               data-testid={`payslip-day-ot-${row.iso}`}
@@ -1448,8 +1503,17 @@ export default function SalarySlipModal({
                               </span>
                             )}
                           </div>
-                          {row.dailyBaseAmount > 0 && (hasOt || hasPen) && (
-                            <div>Lương công ngày: {formatCurrency(row.dailyBaseAmount)}</div>
+                          {row.dailyBaseAmount > 0 && (hasOt || hasPen || hasHolWork) && (
+                            <div>
+                              {hasHolWork
+                                ? `Lương ngày lễ hưởng nguyên lương (1x): ${formatCurrency(row.dailyBaseAmount)}`
+                                : `Lương công ngày: ${formatCurrency(row.dailyBaseAmount)}`}
+                            </div>
+                          )}
+                          {hasHolWork && (
+                            <div className="text-purple-700 dark:text-purple-300 font-semibold">
+                              Đi làm ngày lễ (x{formatViNumber(row.holidayMultiplier || 3, 2)}): +{formatCurrency(row.dailyHolidayAmount)}
+                            </div>
                           )}
                           {hasOt && (
                             <div className="text-indigo-700 dark:text-indigo-300 font-semibold">

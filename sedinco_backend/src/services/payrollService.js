@@ -97,7 +97,7 @@ class PayrollService {
         ).catch(() => []);
         const periodRow = (periodRows && periodRows[0]) ? periodRows[0] : null;
 
-        const holidays = await query("SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC");
+        const holidays = await query("SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays ORDER BY start_date ASC");
         const safeHolidays = holidays || [];
 
         const { startDateStr, endDateStr } = getMonthDateBounds(m, y);
@@ -200,6 +200,9 @@ class PayrollService {
                 total_allowance: calc.total_allowance ?? calc.totalAllowance ?? 0,
                 allowances: calc.allowances || [],
                 allowances_breakdown: calc.allowances_breakdown,
+                holidayWorkAmount: calc.holidayWorkAmount || 0,
+                holidayWorkDays: calc.holidayWorkDays || 0,
+                holidayWorkBreakdown: calc.holidayWorkBreakdown || [],
                 otAmount: calc.otAmount,
                 bonusAmount,
                 penaltyAmount,
@@ -281,7 +284,7 @@ class PayrollService {
 
         const emp = emps[0];
         if (emp.role === 'admin') return null;
-        const holidays = await query("SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC");
+        const holidays = await query("SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays ORDER BY start_date ASC");
         const safeHolidays = holidays || [];
 
         const { startDateStr, endDateStr } = getMonthDateBounds(m, y);
@@ -383,6 +386,9 @@ class PayrollService {
             total_allowance: calc.total_allowance ?? calc.totalAllowance ?? 0,
             allowances: calc.allowances || [],
             allowances_breakdown: calc.allowances_breakdown,
+            holidayWorkAmount: calc.holidayWorkAmount || 0,
+            holidayWorkDays: calc.holidayWorkDays || 0,
+            holidayWorkBreakdown: calc.holidayWorkBreakdown || [],
             period_locked: Boolean(lockRow && lockRow.is_locked),
             payroll_period_status: periodRow?.status || 'DRAFT',
             payment_status: periodRow?.payment_status || 'UNPAID',

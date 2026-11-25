@@ -27,7 +27,8 @@ import {
 import { safeGet, safePost, safePut } from "../../utils/api";
 import { compressAvatarImage } from "../../utils/imageCompressor";
 import { useDebouncedValue } from "../../hooks/useDebounce";
-import { DEPARTMENT_OPTIONS, getShiftLabel } from "../../utils/viLabels";
+import useDepartments from "../../hooks/useDepartments";
+import { getShiftLabel } from "../../utils/viLabels";
 import { formatViCurrency, formatViNumber, parseViNumberInput } from "../../utils/viNumberFormat";
 import { ROLES } from "../../constants/roles";
 import {
@@ -193,13 +194,15 @@ export default function EmployeeManagementTab({
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
 
+  const { departmentNames, defaultDepartmentName } = useDepartments();
+
   // Modal thêm nhân viên
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [form, setForm] = useState({
     ma_nv: "",
     ho_ten: "",
     chuc_danh: "",
-    department: "Khối Công trình",
+    department: defaultDepartmentName,
     phone: "",
     dien_thoai: "",
     login_username: "",
@@ -269,6 +272,21 @@ export default function EmployeeManagementTab({
     fetchEmployees();
   }, [fetchEmployees]);
 
+  useEffect(() => {
+    setForm((prev) =>
+      prev.department && departmentNames.includes(prev.department)
+        ? prev
+        : { ...prev, department: defaultDepartmentName }
+    );
+  }, [defaultDepartmentName, departmentNames]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const handleDeptSync = () => fetchEmployees();
+    window.addEventListener("sedinco:departments-changed", handleDeptSync);
+    return () => window.removeEventListener("sedinco:departments-changed", handleDeptSync);
+  }, [fetchEmployees]);
+
   const allowancePresetOptions = useMemo(() => {
     const names = new Set(DEFAULT_ALLOWANCE_PRESETS);
     employees.forEach((emp) => {
@@ -314,7 +332,7 @@ export default function EmployeeManagementTab({
       ho_ten: emp.ho_ten || "",
       avatar_url: emp.avatar_url || null,
       chuc_danh: emp.chuc_danh || "",
-      department: emp.department || "Khối Công trình",
+      department: emp.department || defaultDepartmentName,
       phone: emp.phone || emp.dien_thoai || "",
       dien_thoai: emp.phone || emp.dien_thoai || "",
       login_username: emp.login_username || emp.phone || emp.ma_nv || "",
@@ -418,7 +436,7 @@ export default function EmployeeManagementTab({
           ma_nv: "",
           ho_ten: "",
           chuc_danh: "",
-          department: "Khối Công trình",
+          department: defaultDepartmentName,
           phone: "",
           dien_thoai: "",
           login_username: "",
@@ -679,7 +697,7 @@ export default function EmployeeManagementTab({
 
   const availableDepartments = Array.from(
     new Set([
-      ...DEPARTMENT_OPTIONS,
+      ...(departmentNames.length > 0 ? departmentNames : [defaultDepartmentName]),
       ...employees.map((e) => e.department).filter(Boolean)
     ])
   );
@@ -987,11 +1005,12 @@ export default function EmployeeManagementTab({
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Khối / Bộ phận</label>
               <select
-                value={form.department || "Khối Công trình"}
+                data-testid="add-emp-department-select"
+                value={form.department || defaultDepartmentName}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
                 className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               >
-                {DEPARTMENT_OPTIONS.map((dept) => (
+                {(departmentNames.length > 0 ? departmentNames : [defaultDepartmentName]).map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
                   </option>

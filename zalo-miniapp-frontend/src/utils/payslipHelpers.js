@@ -1,6 +1,21 @@
 import { sanitizeFormula } from "./api";
-import { formatViWorkday } from "./viNumberFormat";
+import { formatViNumber, formatViWorkday } from "./viNumberFormat";
 import { getMonthlyStandardWorkdays } from "./workdayUtils";
+
+export function buildHolidayWorkSummaryLabel(slip) {
+  const breakdown = Array.isArray(slip?.holidayWorkBreakdown) ? slip.holidayWorkBreakdown : [];
+  const multLabels = Array.from(
+    new Set(
+      breakdown
+        .map((b) => b?.multiplier_label || (b?.multiplier ? `x${formatViNumber(b.multiplier, 2)}` : ""))
+        .filter(Boolean)
+    )
+  );
+  if (multLabels.length > 0) {
+    return `Đi làm ngày lễ (${multLabels.join(" • ")})`;
+  }
+  return "Đi làm ngày lễ";
+}
 
 export const ALLOWANCE_DEFS = [
   { key: "an_trua", alt: "an_ca", label: "Phụ cấp ăn trưa" },
@@ -129,7 +144,7 @@ export function getNoteBadgeClass(noteText) {
   if (lower.includes("không lương") || lower.includes("vắng") || lower.includes("chưa đủ")) {
     return "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/70";
   }
-  if (lower.includes("nghỉ phép") || lower.includes("nghỉ lễ")) {
+  if (lower.includes("nghỉ phép") || lower.includes("nghỉ lễ") || lower.includes("ngày lễ")) {
     return "bg-purple-50 text-purple-800 border-purple-200 dark:bg-purple-950/60 dark:text-purple-200 dark:border-purple-800/70";
   }
   return "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70";
@@ -159,6 +174,9 @@ export function buildSingleSlipCsv({
           ["Tổng phụ cấp", Number(totalPositiveAllowance || 0)],
           ...positiveAllowances.map((a) => [a.label, a.amount])
         ]
+      : []),
+    ...(Number(item.holidayWorkAmount || 0) > 0
+      ? [[buildHolidayWorkSummaryLabel(item), Number(item.holidayWorkAmount || 0)]]
       : []),
     ["Lương tăng ca (OT)", Number(item.otAmount || 0)],
     ["Thưởng thêm", Number(item.bonusAmount || 0)],

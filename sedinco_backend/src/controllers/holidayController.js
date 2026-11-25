@@ -12,9 +12,14 @@ class HolidayController {
 
     async createHoliday(req, res, next) {
         try {
-            const { holiday_name, name, start_date, end_date } = req.body;
-            const result = await holidayService.createHoliday(holiday_name || name, start_date, end_date, req.user);
-            return res.status(201).json({ success: true, id: result?.id || null });
+            const { holiday_name, name, start_date, end_date, salary_multiplier, multiplier } = req.body;
+            const rawMult = salary_multiplier !== undefined ? salary_multiplier : multiplier;
+            const result = await holidayService.createHoliday(holiday_name || name, start_date, end_date, rawMult, req.user);
+            return res.status(201).json({
+                success: true,
+                id: result?.id || null,
+                salary_multiplier: result?.salary_multiplier ?? 3.0
+            });
         } catch (err) {
             next(err);
         }
@@ -22,9 +27,13 @@ class HolidayController {
 
     async updateHoliday(req, res, next) {
         try {
-            const { holiday_name, name, start_date, end_date } = req.body;
-            await holidayService.updateHoliday(req.params.id, holiday_name || name, start_date, end_date, req.user);
-            return res.json({ success: true });
+            const { holiday_name, name, start_date, end_date, salary_multiplier, multiplier } = req.body;
+            const rawMult = salary_multiplier !== undefined ? salary_multiplier : multiplier;
+            const result = await holidayService.updateHoliday(req.params.id, holiday_name || name, start_date, end_date, rawMult, req.user);
+            return res.json({
+                success: true,
+                salary_multiplier: result?.salary_multiplier ?? 3.0
+            });
         } catch (err) {
             next(err);
         }

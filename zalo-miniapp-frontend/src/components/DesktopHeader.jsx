@@ -104,7 +104,7 @@ export default function DesktopHeader({
         return "Bảng Lương & Phiếu Lương";
       case "settings":
         if (settingsSubTab === "permissions") return "Cài Đặt • Phân Quyền Kế Toán";
-        if (settingsSubTab === "holidays") return "Cài Đặt • Lịch Nghỉ Lễ (x3)";
+        if (settingsSubTab === "holidays") return "Cài Đặt • Lịch Nghỉ Lễ";
         if (settingsSubTab === "audit_logs") return "Cài Đặt • Nhật Ký & An Ninh";
         return "Cài Đặt • Công Ty & GPS";
       case "profile":

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const companyController = require('../controllers/companyController');
 const permissionController = require('../controllers/permissionController');
+const departmentRoutes = require('./departmentRoutes');
 const { 
     authenticateToken, 
     requireAuth,
@@ -27,5 +28,8 @@ router.put('/audit-logs/keep-employee/:ma_nv', authenticateToken, requireRole(['
 router.post('/audit-logs/keep-employee/:ma_nv', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.toggleEmployeeKeepLogs(req, res, next));
 router.post('/audit-logs/cleanup', authenticateToken, requireRole(['admin']), (req, res, next) => permissionController.cleanupAuditLogs(req, res, next));
 router.get('/alerts-summary', authenticateToken, requireRole(['admin', 'accountant']), (req, res, next) => permissionController.getAlertsSummary(req, res, next));
+
+// 4. Quản lý Khối / Bộ phận (/api/settings/departments)
+router.use('/departments', departmentRoutes);
 
 module.exports = router;

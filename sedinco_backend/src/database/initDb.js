@@ -179,8 +179,11 @@ async function initDatabase() {
             id INT AUTO_INCREMENT PRIMARY KEY,
             holiday_name VARCHAR(150) NOT NULL,
             start_date DATE NOT NULL,
-            end_date DATE NOT NULL
+            end_date DATE NOT NULL,
+            salary_multiplier DECIMAL(4,2) NOT NULL DEFAULT 3.00
         )`);
+        await query("ALTER TABLE public_holidays ADD COLUMN salary_multiplier DECIMAL(4,2) NOT NULL DEFAULT 3.00").catch(() => {});
+        await query("UPDATE public_holidays SET salary_multiplier = 3.00 WHERE salary_multiplier IS NULL OR salary_multiplier < 1.00").catch(() => {});
         await query("ALTER TABLE company_settings ADD COLUMN holidays_v47_synced TINYINT(1) DEFAULT 0").catch(() => {});
         const holSyncRow = await query('SELECT holidays_v47_synced FROM company_settings LIMIT 1').catch(() => []);
         const alreadySyncedHolidays = holSyncRow && holSyncRow[0] && Number(holSyncRow[0].holidays_v47_synced) === 1;
@@ -204,8 +207,8 @@ async function initDatabase() {
                 ).catch(() => []);
                 if (!dup || dup.length === 0) {
                     await query(
-                        'INSERT INTO public_holidays (holiday_name, start_date, end_date) VALUES (?, ?, ?)',
-                        [h.holiday_name, h.start_date, h.end_date]
+                        'INSERT INTO public_holidays (holiday_name, start_date, end_date, salary_multiplier) VALUES (?, ?, ?, ?)',
+                        [h.holiday_name, h.start_date, h.end_date, h.salary_multiplier || 3.00]
                     ).catch(() => {});
                 }
             }
@@ -418,7 +421,60 @@ async function initDatabase() {
         await query("ALTER TABLE company_settings ADD COLUMN negative_salary_policy VARCHAR(30) DEFAULT 'CLAMP_ZERO'").catch(() => {});
 
         // V12 MISA Parity & Comprehensive Requests: Department, Explanation Times/Evidence, Proxy Check-in
-        await query("ALTER TABLE employees ADD COLUMN department VARCHAR(100) NULL DEFAULT 'Khối Công trình'").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN department VARCHAR(120) NULL DEFAULT 'Khối Công trình'").catch(() => {});
+        await query("ALTER TABLE employees MODIFY COLUMN department VARCHAR(120) NULL DEFAULT 'Khối Công trình'").catch(() => {});
+        await query(`CREATE TABLE IF NOT EXISTS departments (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(120) NOT NULL UNIQUE,
+            is_default TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+        try {
+            const existingDepts = await query('SELECT id, name, is_default FROM departments ORDER BY id ASC');
+            const empDeptRows = await query("SELECT DISTINCT TRIM(department) AS dept FROM employees WHERE department IS NOT NULL AND TRIM(department) != ''").catch(() => []);
+            if (!existingDepts || existingDepts.length === 0) {
+                const seedNames = ['Khối Văn phòng', 'Khối Công trình', 'Khối Kho bãi', 'Khối Kinh doanh - Showroom'];
+                const seenLower = new Set(seedNames.map((n) => n.toLowerCase()));
+                for (const r of empDeptRows || []) {
+                    const clean = String(r.dept || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+                    if (clean && !seenLower.has(clean.toLowerCase())) {
+                        seenLower.add(clean.toLowerCase());
+                        seedNames.push(clean);
+                    }
+                }
+                for (let idx = 0; idx < seedNames.length; idx++) {
+                    await query(
+                        'INSERT IGNORE INTO departments (name, is_default) VALUES (?, ?)',
+                        [seedNames[idx], idx === 0 ? 1 : 0]
+                    ).catch(() => {});
+                }
+            } else {
+                const seenLower = new Set(existingDepts.map((d) => String(d.name || '').trim().toLowerCase()));
+                for (const r of empDeptRows || []) {
+                    const clean = String(r.dept || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+                    if (clean && !seenLower.has(clean.toLowerCase())) {
+                        seenLower.add(clean.toLowerCase());
+                        await query('INSERT IGNORE INTO departments (name, is_default) VALUES (?, 0)', [clean]).catch(() => {});
+                    }
+                }
+            }
+            const refreshedDepts = await query('SELECT id, name, is_default FROM departments ORDER BY id ASC');
+            const defaultDepts = (refreshedDepts || []).filter((d) => Number(d.is_default) === 1);
+            let defaultDeptName = 'Khối Văn phòng';
+            if (defaultDepts.length === 0 && refreshedDepts && refreshedDepts.length > 0) {
+                await query('UPDATE departments SET is_default = 1 WHERE id = ?', [refreshedDepts[0].id]);
+                defaultDeptName = refreshedDepts[0].name;
+            } else if (defaultDepts.length > 1) {
+                const keepId = defaultDepts[0].id;
+                defaultDeptName = defaultDepts[0].name;
+                await query('UPDATE departments SET is_default = 0 WHERE id != ? AND is_default = 1', [keepId]);
+            } else if (defaultDepts.length === 1) {
+                defaultDeptName = defaultDepts[0].name;
+            }
+            await query("UPDATE employees SET department = ? WHERE department IS NULL OR TRIM(department) = ''", [defaultDeptName]).catch(() => {});
+        } catch (deptMigErr) {
+            console.warn('⚠️ Lỗi khởi tạo bảng departments:', deptMigErr.message);
+        }
         await query("ALTER TABLE requests ADD COLUMN correction_mode VARCHAR(30) NULL").catch(() => {});
         await query("ALTER TABLE requests ADD COLUMN check_in_time VARCHAR(10) NULL").catch(() => {});
         await query("ALTER TABLE requests ADD COLUMN check_out_time VARCHAR(10) NULL").catch(() => {});

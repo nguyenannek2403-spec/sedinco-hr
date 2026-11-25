@@ -198,7 +198,7 @@ class AttendanceService {
                 [month, year]
             ),
             query(
-                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC"
+                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays ORDER BY start_date ASC"
             ).catch(() => [])
         ]);
         const safeLogs = logs || [];
@@ -336,7 +336,7 @@ class AttendanceService {
             [ma_nv, todayStr]
         );
         const holidays = await query(
-            "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC"
+            "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays ORDER BY start_date ASC"
         ).catch(() => []);
         const holidayMap = buildHolidayDateMap(holidays || [], m, y);
         const todayRaw = todayLogRows && todayLogRows.length > 0 ? todayLogRows[0] : null;
@@ -540,7 +540,7 @@ class AttendanceService {
                 [ma_nv, todayStr]
             ),
             query(
-                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays ORDER BY start_date ASC"
+                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays ORDER BY start_date ASC"
             ).catch(() => []),
             query(
                 'SELECT work_start, work_end, lunch_start, lunch_end, grace_period_minutes FROM company_settings LIMIT 1'
@@ -1428,7 +1428,7 @@ class AttendanceService {
             let existingLog = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
             const holRows = await txQuery(
-                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays WHERE start_date <= ? AND end_date >= ? LIMIT 1",
+                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays WHERE start_date <= ? AND end_date >= ? LIMIT 1",
                 [targetRecordDate, targetRecordDate]
             ).catch(() => []);
             const todayHoliday = holRows && holRows[0] ? holRows[0] : null;

@@ -1,8 +1,28 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Gift, Plus, Pencil, Trash2, Calendar, RefreshCw, AlertCircle } from "lucide-react";
 import { safeGet, safePost, safePut, safeDelete } from "../../utils/api";
+import { formatViNumber } from "../../utils/viNumberFormat";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { AppButton, AppModal, FormRow, StatusBadge, SkeletonList, EmptyState } from "../../components/ui";
+
+const MULTIPLIER_PRESETS = [
+  { value: 1.5, label: "x1,5" },
+  { value: 2.0, label: "x2" },
+  { value: 3.0, label: "x3" }
+];
+
+function parseMultiplierInput(raw) {
+  if (raw === undefined || raw === null) return NaN;
+  const cleaned = String(raw).trim().replace(",", ".");
+  if (!cleaned) return NaN;
+  return Number(cleaned);
+}
+
+function formatMultiplierValue(raw) {
+  const num = parseMultiplierInput(raw);
+  const safe = Number.isFinite(num) && num >= 1 ? Math.round(num * 100) / 100 : 3.0;
+  return formatViNumber(safe, 2);
+}
 
 export default function HolidaysTab({ showToast }) {
   const [holidays, setHolidays] = useState([]);
@@ -14,7 +34,7 @@ export default function HolidaysTab({ showToast }) {
     name: "",
     start_date: "",
     end_date: "",
-    multiplier: 3.0
+    salary_multiplier: "3"
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, name: "" });
@@ -45,17 +65,18 @@ export default function HolidaysTab({ showToast }) {
 
   const handleOpenAdd = () => {
     setEditingHolidayId(null);
-    setForm({ name: "", start_date: "", end_date: "", multiplier: 3.0 });
+    setForm({ name: "", start_date: "", end_date: "", salary_multiplier: "3" });
     setIsAddOpen(true);
   };
 
   const handleOpenEdit = (h) => {
     setEditingHolidayId(h.id);
+    const mult = Number(h.salary_multiplier ?? h.multiplier ?? 3.0) || 3.0;
     setForm({
       name: h.holiday_name || h.name || "",
       start_date: String(h.start_date || "").slice(0, 10),
       end_date: String(h.end_date || h.start_date || "").slice(0, 10),
-      multiplier: h.multiplier || 3.0
+      salary_multiplier: formatMultiplierValue(mult)
     });
     setIsAddOpen(true);
   };
@@ -67,13 +88,22 @@ export default function HolidaysTab({ showToast }) {
       if (showToast) showToast("Vui lòng nhập đầy đủ tên và ngày nghỉ lễ.", "error");
       return;
     }
+    const parsedMultiplier = parseMultiplierInput(form.salary_multiplier);
+    if (!Number.isFinite(parsedMultiplier) || parsedMultiplier < 1 || parsedMultiplier > 10) {
+      if (showToast) showToast("Hệ số lương ngày lễ phải nằm trong khoảng từ 1,0 đến 10,0!", "error");
+      return;
+    }
+    const cleanMultiplier = Math.round(parsedMultiplier * 100) / 100;
 
     addInFlightRef.current = true;
     setIsSubmitting(true);
     try {
       const payload = {
-        ...form,
-        holiday_name: form.name
+        name: String(form.name).trim(),
+        holiday_name: String(form.name).trim(),
+        start_date: form.start_date,
+        end_date: form.end_date,
+        salary_multiplier: cleanMultiplier
       };
       const res = editingHolidayId
         ? await safePut(`/holidays/${editingHolidayId}`, payload)
@@ -82,14 +112,14 @@ export default function HolidaysTab({ showToast }) {
         if (showToast) {
           showToast(
             editingHolidayId
-              ? `Đã cập nhật ngày lễ "${form.name}"!`
-              : `Đã thêm ngày lễ "${form.name}"!`,
+              ? `Đã cập nhật ngày lễ "${form.name}" (x${formatMultiplierValue(cleanMultiplier)})!`
+              : `Đã thêm ngày lễ "${form.name}" (x${formatMultiplierValue(cleanMultiplier)})!`,
             "success"
           );
         }
         setIsAddOpen(false);
         setEditingHolidayId(null);
-        setForm({ name: "", start_date: "", end_date: "", multiplier: 3.0 });
+        setForm({ name: "", start_date: "", end_date: "", salary_multiplier: "3" });
         fetchHolidays();
       } else {
         if (showToast) showToast(res?.message || "Không thể lưu ngày lễ.", "error");
@@ -141,14 +171,14 @@ export default function HolidaysTab({ showToast }) {
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div>
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#B80035] dark:text-rose-300 text-xs font-extrabold uppercase tracking-wider mb-1">
-            <span>● SEDINCO HOLIDAYS &amp; OT MULTIPLIER (3,0X)</span>
+            <span>● LỊCH NGHỈ LỄ &amp; HỆ SỐ LƯƠNG TÙY CHỈNH</span>
           </span>
           <h2 className="text-lg font-extrabold leading-snug text-[#111C2D] dark:text-white flex items-center gap-2">
             <Gift className="w-5 h-5 text-[#E11D48] dark:text-rose-400 shrink-0" />
             <span>Danh mục lịch nghỉ lễ quốc gia</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">
-            Ngày nghỉ lễ hưởng nguyên lương (1,0 công) và nhân hệ số 3,0x khi tăng ca (OT)
+            Nghỉ lễ hưởng nguyên lương (1,0 công) và nhân hệ số tùy chỉnh (x1,5 • x2 • x3...) khi đi làm
           </p>
         </div>
 
@@ -212,6 +242,8 @@ export default function HolidaysTab({ showToast }) {
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
                 {holidays.map((h) => {
                   const daysCount = getHolidayDaysCount(h.start_date, h.end_date);
+                  const multVal = Number(h.salary_multiplier ?? h.multiplier ?? 3.0) || 3.0;
+                  const multLabel = formatMultiplierValue(multVal);
                   return (
                   <tr key={h.id} className="perf-list-item hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
                     <td className="p-3.5 pl-5 min-w-[200px] font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -225,26 +257,30 @@ export default function HolidaysTab({ showToast }) {
                         {daysCount} ngày
                       </span>
                     </td>
-                    <td className="p-3.5 whitespace-nowrap">
+                    <td className="p-3.5 whitespace-nowrap" data-testid={`holiday-multiplier-badge-${h.id}`}>
                       <StatusBadge
                         type="attendance"
                         status="L"
-                        labelOverride={`Nghỉ lễ x${h.multiplier || 3.0}`}
+                        labelOverride={`Đi làm: x${multLabel}`}
                       />
                     </td>
                     <td className="p-3.5 text-right pr-5 whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex items-center gap-1.5">
                         <AppButton
                           variant="ghost"
                           icon={Pencil}
+                          data-testid={`edit-holiday-btn-${h.id}`}
                           onClick={() => handleOpenEdit(h)}
-                          className="min-w-[44px] px-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          className="min-w-[44px] px-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                           title="Sửa ngày lễ"
                           aria-label={`Sửa ngày lễ ${h.holiday_name || h.name}`}
-                        />
+                        >
+                          Sửa
+                        </AppButton>
                         <AppButton
                           variant="ghost"
                           icon={Trash2}
+                          data-testid={`delete-holiday-btn-${h.id}`}
                           onClick={() => handleDeleteHoliday(h.id, h.holiday_name || h.name)}
                           className="min-w-[44px] px-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20"
                           title="Xóa"
@@ -280,7 +316,7 @@ export default function HolidaysTab({ showToast }) {
         onClose={() => !isSubmitting && setIsAddOpen(false)}
         disableClose={isSubmitting}
         title={editingHolidayId ? "Cập nhật dịp nghỉ lễ" : "Thêm dịp nghỉ lễ"}
-        subtitle="Thiết lập ngày lễ hưởng nguyên lương (3.0x khi OT)"
+        subtitle="Thiết lập ngày nghỉ lễ & hệ số lương khi đi làm"
         icon={<Gift className="w-5 h-5 text-rose-500 dark:text-rose-400" />}
         maxWidthClass="max-w-sm"
         footer={
@@ -338,6 +374,50 @@ export default function HolidaysTab({ showToast }) {
                 className="w-36 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-base font-semibold text-slate-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
             </FormRow>
+          </div>
+
+          <div className="space-y-2 pt-1">
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Hệ số lương khi đi làm ngày lễ
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {MULTIPLIER_PRESETS.map((preset) => {
+                const currentNum = parseMultiplierInput(form.salary_multiplier);
+                const isSelected = Number.isFinite(currentNum) && Math.abs(currentNum - preset.value) < 0.001;
+                return (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    data-testid={`holiday-preset-${preset.value}`}
+                    onClick={() => setForm({ ...form, salary_multiplier: formatMultiplierValue(preset.value) })}
+                    className={`min-h-[44px] px-3 rounded-xl text-sm font-extrabold border transition cursor-pointer ${
+                      isSelected
+                        ? "bg-[#E11D48] text-white border-[#E11D48] shadow-sm"
+                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:border-rose-400"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0">
+                Hoặc tự nhập (x):
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                data-testid="holiday-multiplier-input"
+                placeholder="VD: 1,5 hoặc 2,5"
+                value={form.salary_multiplier}
+                onChange={(e) => setForm({ ...form, salary_multiplier: e.target.value })}
+                className="flex-1 min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-bold text-slate-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Ví dụ: Hệ số <strong>x1,5</strong> trả thêm <strong>0,5x</strong> khi đi làm (tổng 1,5x); <strong>x3</strong> trả thêm <strong>2,0x</strong> (tổng 3x).
+            </p>
           </div>
         </form>
       </AppModal>

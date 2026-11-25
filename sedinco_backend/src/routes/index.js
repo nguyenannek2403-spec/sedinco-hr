@@ -7,6 +7,7 @@ const payrollRoutes = require('./payrollRoutes');
 const requestRoutes = require('./requestRoutes');
 const employeeRoutes = require('./employeeRoutes');
 const companyRoutes = require('./companyRoutes');
+const departmentRoutes = require('./departmentRoutes');
 const holidayRoutes = require('./holidayRoutes');
 const settingsRoutes = require('./settingsRoutes');
 const diagnosticsRoutes = require('./diagnosticsRoutes');
@@ -22,6 +23,7 @@ router.use('/payroll', payrollRoutes); // /api/payroll
 router.use('/requests', requestRoutes); // /api/requests
 router.use('/employees', employeeRoutes); // /api/employees
 router.use('/company', companyRoutes); // /api/company
+router.use('/departments', departmentRoutes); // /api/departments
 router.use('/holidays', holidayRoutes); // /api/holidays
 router.use('/settings', settingsRoutes); // /api/settings (penalties, etc.)
 router.use('/permissions', settingsRoutes); // /api/permissions (alias cho audit-logs & accountant-permissions)

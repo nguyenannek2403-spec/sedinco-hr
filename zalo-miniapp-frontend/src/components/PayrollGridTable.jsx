@@ -20,7 +20,8 @@ import ConfirmDialog from "./ConfirmDialog";
 import { AppButton, AppModal, FormRow, MonthYearPicker, SkeletonList, EmptyState, UserAvatar } from "./ui";
 import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { ROLES, hasPermission } from "../constants/roles";
-import { DEPARTMENT_OPTIONS } from "../utils/viLabels";
+import useDepartments from "../hooks/useDepartments";
+import { buildHolidayWorkSummaryLabel } from "../utils/payslipHelpers";
 import {
   formatViNumber,
   formatViCurrency,
@@ -427,13 +428,24 @@ export default function PayrollGridTable({
 
   const isLoading = propIsLoading || loadingPayroll;
   const sourceList = Array.isArray(payrollData) ? payrollData : internalPayroll;
+  const { departmentNames, defaultDepartmentName } = useDepartments();
 
   const availableDepartments = Array.from(
     new Set([
-      ...DEPARTMENT_OPTIONS,
+      ...departmentNames,
       ...(sourceList || []).map((item) => item.department).filter(Boolean)
     ])
   );
+
+  useEffect(() => {
+    if (
+      selectedDepartment !== "ALL" &&
+      availableDepartments.length > 0 &&
+      !availableDepartments.includes(selectedDepartment)
+    ) {
+      setSelectedDepartment("ALL");
+    }
+  }, [selectedDepartment, availableDepartments]);
 
   const normalizeSearchText = (val) =>
     String(val || "")
@@ -457,7 +469,7 @@ export default function PayrollGridTable({
     const id = normalizeSearchText(item.ma_nv || item.id_nhan_vien || "");
     const name = normalizeSearchText(item.ho_ten || "");
     const role = normalizeSearchText(item.chuc_danh || "");
-    const deptRaw = item.department || "Khối Công trình";
+    const deptRaw = item.department || defaultDepartmentName;
     const dept = normalizeSearchText(deptRaw);
     const matchText =
       !normalizedSearchQuery ||
@@ -770,7 +782,7 @@ export default function PayrollGridTable({
                               <span className="font-mono font-semibold text-[#E11D48] dark:text-rose-300">
                                 {empId}
                               </span>
-                              <span> • {item.department || "Khối Công trình"}</span>
+                              <span> • {item.department || defaultDepartmentName}</span>
                             </div>
                           </div>
                         </div>
@@ -785,6 +797,7 @@ export default function PayrollGridTable({
 
                       {/* Chỉ hiển thị các khoản phát sinh thực tế > 0; ẩn hoàn toàn giá trị 0 / trống */}
                       {(salaryByWork > 0 ||
+                        Number(item.holidayWorkAmount) > 0 ||
                         otHours > 0 ||
                         otPay > 0 ||
                         totalAllowance > 0 ||
@@ -801,6 +814,19 @@ export default function PayrollGridTable({
                               </span>
                               <span className="font-mono font-bold text-[#111C2D] dark:text-white whitespace-nowrap">
                                 {formatViCurrency(salaryByWork)}
+                              </span>
+                            </div>
+                          )}
+                          {Number(item.holidayWorkAmount) > 0 && (
+                            <div
+                              data-testid={`payroll-card-holiday-${empId}`}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <span className="text-purple-700 dark:text-purple-300 font-semibold">
+                                {buildHolidayWorkSummaryLabel(item)}
+                              </span>
+                              <span className="font-mono font-bold text-purple-700 dark:text-purple-300 whitespace-nowrap">
+                                +{formatViCurrency(item.holidayWorkAmount)}
                               </span>
                             </div>
                           )}
