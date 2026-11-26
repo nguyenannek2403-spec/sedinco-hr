@@ -416,7 +416,10 @@ export function getAuditActionLabel(action) {
     CRITICAL_FRAUD: 'Cảnh báo chấm công bất thường',
     CONFIRM_SALARY: 'Nhân viên xác nhận phiếu lương',
     DISPUTE_SALARY: 'Nhân viên phản hồi sai lương',
-    ADJUST_PAYROLL: 'Điều chỉnh thưởng/phạt/ứng lương'
+    ADJUST_PAYROLL: 'Điều chỉnh thưởng/phạt/ứng lương',
+    ZALO_REVOKE_CONSENT: 'Người dùng rút quyền Mini App',
+    ZALO_APP_REVIEW_EVENT: 'Kết quả xét duyệt Zalo Mini App',
+    ZALO_WEBHOOK_EVENT: 'Sự kiện Webhook từ Zalo'
   };
   const key = String(action || '').trim().toUpperCase();
   if (map[key]) return map[key];

@@ -44,6 +44,8 @@ const env = {
     REJECT_DOWNGRADE_TO_RAW: process.env.REJECT_DOWNGRADE_TO_RAW === 'true',
     ZALO_APP_ID: process.env.ZALO_APP_ID || '',
     ZALO_APP_SECRET: process.env.ZALO_APP_SECRET || '',
+    ZALO_OPEN_API_KEY: process.env.ZALO_OPEN_API_KEY || '',
+    ZALO_WEBHOOK_SECRET: process.env.ZALO_WEBHOOK_SECRET || '',
     QR_SECRET: process.env.QR_SECRET || '',
     CASSO_APP_ID: process.env.CASSO_APP_ID || '',
     CASSO_APP_SECRET: process.env.CASSO_APP_SECRET || '',
