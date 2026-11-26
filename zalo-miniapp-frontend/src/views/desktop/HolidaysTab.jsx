@@ -33,6 +33,12 @@ const INPUT_PAIRED_BTN_BASE =
 const ROW_ACTION_BTN_BASE =
   "w-fit h-[32px] min-h-[32px] px-2.5 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer disabled:opacity-60 shrink-0";
 
+const LABEL_CLASS =
+  "block text-[12.5px] font-semibold text-slate-700 dark:text-slate-200 mb-1 whitespace-normal break-words overflow-visible leading-snug";
+
+const HELPER_TEXT_CLASS =
+  "text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug mt-1";
+
 function parseMultiplierInput(raw) {
   if (raw === undefined || raw === null) return NaN;
   const cleaned = String(raw).trim().replace(/^x/i, "").replace(",", ".");
@@ -54,6 +60,9 @@ function formatDateDdMmYyyy(isoStr) {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+/**
+ * SmartAccordion V63 — Bố cục 2 tầng không bao giờ cắt chữ (Zero-Truncation)
+ */
 function SmartAccordion({
   id,
   title,
@@ -70,48 +79,52 @@ function SmartAccordion({
     <div
       data-testid={`holidays-accordion-${id}`}
       data-open={isOpen ? "true" : "false"}
-      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs overflow-hidden transition-all"
+      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs transition-all"
     >
       <button
         type="button"
         data-testid={`holidays-accordion-header-${id}`}
         onClick={() => onToggle(id)}
         aria-expanded={isOpen}
-        className="w-full flex items-center justify-between gap-2.5 py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer"
+        className="w-full min-h-[58px] py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer rounded-xl"
       >
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div
-            className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
-          >
-            <Icon className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate">
+        {/* Tầng 1: Icon + Tiêu đề chức năng bên trái, Mũi tên bên phải */}
+        <div className="flex items-start justify-between gap-2.5 w-full">
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            <div
+              className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
+            >
+              <Icon className="w-4 h-4" />
+            </div>
+            <h3 className="flex-1 min-w-0 text-[14px] font-semibold text-slate-900 dark:text-slate-100 whitespace-normal break-words overflow-visible leading-snug pt-0.5">
               {title}
             </h3>
-            <p
-              data-testid={`holidays-accordion-summary-${id}`}
-              className="text-[12px] text-slate-500 dark:text-slate-400 truncate mt-0.5 leading-snug"
-            >
-              {summary}
-            </p>
           </div>
+
+          <ChevronDown
+            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 mt-1 ${
+              isOpen ? "rotate-180" : "rotate-0"
+            }`}
+          />
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Tầng 2: Dòng mô tả / tóm tắt động trải trọn 100% chiều rộng */}
+        <div className="w-full mt-1.5 flex flex-wrap items-center justify-between gap-2">
+          <p
+            data-testid={`holidays-accordion-summary-${id}`}
+            className="flex-1 min-w-0 text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug"
+          >
+            {summary}
+          </p>
+
           {isDirty && (
             <span
               data-testid={`unsaved-badge-${id}`}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap shrink-0"
             >
               ● Chưa lưu
             </span>
           )}
-          <ChevronDown
-            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 ${
-              isOpen ? "rotate-180" : "rotate-0"
-            }`}
-          />
         </div>
       </button>
 
@@ -143,7 +156,6 @@ export default function HolidaysTab({ showToast }) {
   const addInFlightRef = useRef(false);
   const deleteInFlightRef = useRef(false);
 
-  // Khối 2 (Danh sách ngày nghỉ lễ) mặc định mở sẵn để Quản trị viên xem ngay
   const [openSections, setOpenSections] = useState({
     holiday_form: false,
     holiday_list: true
@@ -348,9 +360,7 @@ export default function HolidaysTab({ showToast }) {
           {/* Hàng 1 (grid grid-cols-2 gap-2.5 items-end): Cột trái Ngày lễ (h-[40px]) | Cột phải Hệ số lương (h-[40px] có hậu tố x) */}
           <div className="grid grid-cols-2 gap-2.5 items-end">
             <div>
-              <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                Ngày lễ
-              </label>
+              <label className={LABEL_CLASS}>Ngày lễ</label>
               <input
                 type="date"
                 required
@@ -361,7 +371,10 @@ export default function HolidaysTab({ showToast }) {
                   setForm((prev) => ({
                     ...prev,
                     start_date: val,
-                    end_date: !prev.end_date || prev.end_date === prev.start_date || prev.end_date < val ? val : prev.end_date
+                    end_date:
+                      !prev.end_date || prev.end_date === prev.start_date || prev.end_date < val
+                        ? val
+                        : prev.end_date
                   }));
                 }}
                 className={COMPACT_INPUT_CLASS}
@@ -369,9 +382,7 @@ export default function HolidaysTab({ showToast }) {
             </div>
 
             <div>
-              <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                Hệ số lương
-              </label>
+              <label className={LABEL_CLASS}>Hệ số lương</label>
               <div className="relative flex items-center w-full">
                 <input
                   type="text"
@@ -391,7 +402,7 @@ export default function HolidaysTab({ showToast }) {
 
           {/* Hàng chọn nhanh hệ số: Dãy chip 1 chạm gọn gàng (h-[30px] px-3 text-[12.5px] font-semibold w-fit): x1,5, x2, x3 */}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[12px] text-slate-500 dark:text-slate-400 mr-0.5">
                 Chọn nhanh:
               </span>
@@ -410,7 +421,7 @@ export default function HolidaysTab({ showToast }) {
                         salary_multiplier: formatMultiplierValue(preset.value)
                       }))
                     }
-                    className={`w-fit h-[30px] min-h-[30px] px-3 text-[12.5px] font-semibold rounded-lg border transition cursor-pointer ${
+                    className={`w-fit h-[30px] min-h-[30px] px-3 text-[12.5px] font-semibold rounded-lg whitespace-nowrap shrink-0 border transition cursor-pointer ${
                       isSelected
                         ? "bg-[#E11D48] text-white border-[#E11D48] shadow-xs"
                         : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-rose-400"
@@ -431,60 +442,63 @@ export default function HolidaysTab({ showToast }) {
                   min={form.start_date}
                   value={form.end_date || form.start_date}
                   onChange={(e) => setForm((prev) => ({ ...prev, end_date: e.target.value }))}
-                  className="h-[30px] px-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[12px] font-medium text-slate-700 dark:text-slate-200 focus:outline-none"
+                  className="h-[32px] px-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[12px] font-medium text-slate-700 dark:text-slate-200 focus:outline-none"
                 />
               </div>
             )}
           </div>
 
           {/* Hàng 2 (flex items-end gap-2): Ô nhập Tên dịp lễ (flex-1 h-[40px]) + nút [+ Thêm] (hoặc [Lưu] + [Hủy]) */}
-          <div className="flex items-end gap-2">
-            <div className="flex-1 min-w-0">
-              <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                Tên dịp lễ
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="VD: Tết Dương Lịch, Giỗ Tổ Hùng Vương..."
-                value={form.name}
-                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                className={COMPACT_INPUT_CLASS}
-              />
-            </div>
+          <div>
+            <div className="flex items-end gap-2">
+              <div className="flex-1 min-w-0">
+                <label className={LABEL_CLASS}>Tên dịp lễ</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="VD: Tết Dương Lịch"
+                  value={form.name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                  className={COMPACT_INPUT_CLASS}
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              data-testid="submit-holiday-btn"
-              className={`${INPUT_PAIRED_BTN_BASE} bg-[#E11D48] hover:bg-[#BE123C] text-white shadow-xs`}
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-              ) : editingHolidayId ? (
-                <Check className="w-3.5 h-3.5 shrink-0" />
-              ) : (
-                <Plus className="w-3.5 h-3.5 shrink-0" />
-              )}
-              <span>{isSubmitting ? "Đang lưu..." : editingHolidayId ? "Lưu" : "+ Thêm"}</span>
-            </button>
-
-            {editingHolidayId && (
               <button
-                type="button"
+                type="submit"
                 disabled={isSubmitting}
-                onClick={handleResetForm}
-                className={`${INPUT_PAIRED_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}
+                data-testid="submit-holiday-btn"
+                className={`${INPUT_PAIRED_BTN_BASE} bg-[#E11D48] hover:bg-[#BE123C] text-white shadow-xs`}
               >
-                <X className="w-3.5 h-3.5 shrink-0" />
-                <span>Hủy</span>
+                {isSubmitting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                ) : editingHolidayId ? (
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                ) : (
+                  <Plus className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span>{isSubmitting ? "Đang lưu..." : editingHolidayId ? "Lưu" : "+ Thêm"}</span>
               </button>
-            )}
+
+              {editingHolidayId && (
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={handleResetForm}
+                  className={`${INPUT_PAIRED_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700`}
+                >
+                  <X className="w-3.5 h-3.5 shrink-0" />
+                  <span>Hủy</span>
+                </button>
+              )}
+            </div>
+            <p className={HELPER_TEXT_CLASS}>
+              Nhập tên dịp nghỉ lễ quốc gia hoặc ngày nghỉ lễ doanh nghiệp (hưởng nguyên lương 1,0 công và nhân hệ số khi đi làm).
+            </p>
           </div>
         </form>
       </SmartAccordion>
 
-      {/* KHỐI ACCORDION 2: DANH SÁCH NGÀY NGHỈ LỄ (Mặc định mở sẵn) */}
+      {/* KHỐI ACCORDION 2: DANH SÁCH NGÀY NGHỈ LỄ */}
       <SmartAccordion
         id="holiday_list"
         title="Danh sách ngày nghỉ lễ"
@@ -497,7 +511,7 @@ export default function HolidaysTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="space-y-2.5">
-          {/* Hàng lọc năm nhỏ gọn (h-[36px], chọn năm 2026-2030 + bộ tìm nhanh) nằm gọn trên 1 hàng */}
+          {/* Hàng lọc năm nhỏ gọn + bộ tìm nhanh */}
           <div className="flex items-center gap-2">
             <select
               aria-label="Lọc theo năm"
@@ -519,7 +533,7 @@ export default function HolidaysTab({ showToast }) {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm tên ngày lễ..."
+                placeholder="Tìm ngày lễ..."
                 className="w-full h-[36px] min-h-[36px] pl-8 pr-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-[13px] text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#E11D48] focus:outline-none"
               />
             </div>
@@ -539,8 +553,8 @@ export default function HolidaysTab({ showToast }) {
             <SkeletonList rows={3} label="Đang tải dữ liệu ngày lễ..." />
           ) : error ? (
             <div className="py-4 text-center text-rose-600 dark:text-rose-300 text-xs flex flex-col items-center justify-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4" />
+              <div className="flex items-center gap-1.5 whitespace-normal break-words">
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{error}</span>
               </div>
               <button
@@ -567,30 +581,30 @@ export default function HolidaysTab({ showToast }) {
                 const dateLabel =
                   !h.end_date || h.start_date === h.end_date
                     ? startFormatted
-                    : `${startFormatted} → ${endFormatted.slice(0, 5)}`;
+                    : `${startFormatted} → ${endFormatted}`;
 
                 return (
                   <div
                     key={h.id}
-                    className="py-2.5 flex items-center justify-between gap-2"
+                    className="py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
                   >
-                    {/* Cột trái: Ngày (DD/MM/YYYY) gọn in đậm + Tên dịp lễ */}
-                    <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
-                      <span className="inline-flex items-center gap-1 text-[12.5px] font-bold font-mono text-slate-700 dark:text-slate-200 whitespace-nowrap shrink-0">
+                    {/* Hàng trên (Mobile) / Cột trái (Desktop): Ngày (DD/MM/YYYY) + Tên dịp lễ hiển thị trọn vẹn 100% */}
+                    <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+                      <span className="inline-flex items-center gap-1 text-[12.5px] font-bold font-mono text-slate-700 dark:text-slate-200 whitespace-normal break-words">
                         <Calendar className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
                         <span>{dateLabel}</span>
                       </span>
                       <span className="hidden sm:inline text-slate-300 dark:text-slate-600">•</span>
-                      <span className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate">
+                      <div className="text-[14px] font-semibold text-slate-900 dark:text-white whitespace-normal break-words overflow-visible leading-snug">
                         {h.holiday_name || h.name}
-                      </span>
+                      </div>
                     </div>
 
-                    {/* Cột phải: Huy hiệu hệ số nhỏ gọn (x3, x1,5) + 2 nút Sửa & Xóa (w-fit h-[32px] px-2.5 text-[12.5px] font-semibold) */}
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Hàng dưới (Mobile) / Cột phải (Desktop): Huy hiệu hệ số + 2 nút Sửa & Xóa */}
+                    <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                       <span
                         data-testid={`holiday-multiplier-badge-${h.id}`}
-                        className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-[#E11D48] dark:text-rose-300 text-[12px] font-bold whitespace-nowrap"
+                        className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-[#E11D48] dark:text-rose-300 text-[12px] font-bold whitespace-nowrap shrink-0"
                       >
                         x{multLabel}
                       </span>

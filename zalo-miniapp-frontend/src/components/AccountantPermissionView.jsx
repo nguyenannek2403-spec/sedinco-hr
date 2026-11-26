@@ -41,6 +41,9 @@ const DEFAULT_PRESETS = ACCOUNTANT_PERMISSION_GROUPS.reduce((acc, g) => {
 const COMPACT_BTN_BASE =
   "w-fit h-[36px] min-h-[36px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-60 shrink-0";
 
+/**
+ * SmartAccordion V63 — Bố cục 2 tầng không bao giờ cắt chữ (Zero-Truncation)
+ */
 function SmartAccordion({
   id,
   title,
@@ -57,48 +60,52 @@ function SmartAccordion({
     <div
       data-testid={`permission-accordion-${id}`}
       data-open={isOpen ? "true" : "false"}
-      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs overflow-hidden transition-all"
+      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs transition-all"
     >
       <button
         type="button"
         data-testid={`permission-accordion-header-${id}`}
         onClick={() => onToggle(id)}
         aria-expanded={isOpen}
-        className="w-full flex items-center justify-between gap-2.5 py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer"
+        className="w-full min-h-[58px] py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer rounded-xl"
       >
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div
-            className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
-          >
-            <Icon className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate">
+        {/* Tầng 1: Icon + Tiêu đề nhóm quyền bên trái, Mũi tên bên phải */}
+        <div className="flex items-start justify-between gap-2.5 w-full">
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            <div
+              className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
+            >
+              <Icon className="w-4 h-4" />
+            </div>
+            <h3 className="flex-1 min-w-0 text-[14px] font-semibold text-slate-900 dark:text-slate-100 whitespace-normal break-words overflow-visible leading-snug pt-0.5">
               {title}
             </h3>
-            <p
-              data-testid={`permission-accordion-summary-${id}`}
-              className="text-[12px] text-slate-500 dark:text-slate-400 truncate mt-0.5 leading-snug"
-            >
-              {summary}
-            </p>
           </div>
+
+          <ChevronDown
+            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 mt-1 ${
+              isOpen ? "rotate-180" : "rotate-0"
+            }`}
+          />
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Tầng 2: Dòng mô tả / tóm tắt động trải trọn 100% chiều rộng */}
+        <div className="w-full mt-1.5 flex flex-wrap items-center justify-between gap-2">
+          <p
+            data-testid={`permission-accordion-summary-${id}`}
+            className="flex-1 min-w-0 text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug"
+          >
+            {summary}
+          </p>
+
           {isDirty && (
             <span
               data-testid={`unsaved-badge-${id}`}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap shrink-0"
             >
               ● Chưa lưu
             </span>
           )}
-          <ChevronDown
-            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 ${
-              isOpen ? "rotate-180" : "rotate-0"
-            }`}
-          />
         </div>
       </button>
 
@@ -122,7 +129,6 @@ export default function AccountantPermissionView({ showToast }) {
   const [message, setMessage] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
 
-  // Mobile (< 768px): Single-Open; Desktop (>= 768px): Multi-Open
   const [openSections, setOpenSections] = useState(() => {
     const initial = {};
     ACCOUNTANT_PERMISSION_GROUPS.forEach((g, idx) => {
@@ -217,7 +223,6 @@ export default function AccountantPermissionView({ showToast }) {
     if (showToast) showToast(infoMsg, "info");
   };
 
-  // Lưu cục bộ riêng 1 nhóm quyền (Merge cục bộ: không ghi đè các nhóm khác và bảo toàn bản nháp chưa lưu ở các nhóm khác)
   const handleSaveGroup = async (group) => {
     if (savingRef.current) return;
     savingRef.current = true;
@@ -289,29 +294,26 @@ export default function AccountantPermissionView({ showToast }) {
 
   return (
     <div className="max-w-3xl mx-auto pb-6 space-y-2.5 sm:space-y-3">
-      {/* 1. Thanh chọn đối tượng / bộ công cụ đầu mục: đúng 1 hàng ngang cao 40px */}
-      <div className="h-[40px] min-h-[40px] px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/85 dark:border-slate-800 shadow-xs flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+      {/* 1. Thanh công cụ đầu mục chiều cao linh hoạt min-h-[40px], không cắt chữ */}
+      <div className="min-h-[40px] py-2 px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/85 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
           <ShieldCheck className="w-4 h-4 text-[#E11D48] dark:text-rose-400 shrink-0" />
-          <span className="text-[13.5px] font-semibold text-slate-900 dark:text-slate-100 truncate">
-            Phân quyền Kế toán
-          </span>
-          <span className="text-[12px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
-            • Bật {totalEnabledCount}/{ACCOUNTANT_ENFORCED_PERMISSION_KEYS.length}
+          <span className="text-[13.5px] font-semibold text-slate-900 dark:text-slate-100 whitespace-normal break-words overflow-visible leading-snug">
+            Phân quyền Kế toán • Đang bật {totalEnabledCount}/{ACCOUNTANT_ENFORCED_PERMISSION_KEYS.length} quyền
           </span>
           {isAnyDirty && (
-            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap shrink-0">
               ● Chưa lưu
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
           <button
             type="button"
             disabled={saving || loading}
             onClick={handleApplyPreset}
-            className="w-fit h-[30px] min-h-[30px] px-2.5 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition cursor-pointer disabled:opacity-60"
+            className="w-fit h-[32px] min-h-[32px] px-2.5 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition cursor-pointer disabled:opacity-60 shrink-0"
           >
             <RotateCcw className="w-3 h-3 shrink-0" />
             <span>Mặc định</span>
@@ -321,23 +323,23 @@ export default function AccountantPermissionView({ showToast }) {
               type="button"
               disabled={saving || loading}
               onClick={handleSave}
-              className="w-fit h-[30px] min-h-[30px] px-2.5 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center gap-1 bg-[#E11D48] hover:bg-[#BE123C] text-white shadow-xs transition cursor-pointer disabled:opacity-60"
+              className="w-fit h-[32px] min-h-[32px] px-2.5 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center gap-1 bg-[#E11D48] hover:bg-[#BE123C] text-white shadow-xs transition cursor-pointer disabled:opacity-60 shrink-0"
             >
               {saving ? (
                 <Loader2 className="w-3 h-3 animate-spin shrink-0" />
               ) : (
                 <Save className="w-3 h-3 shrink-0" />
               )}
-              <span>{saving ? "Đang lưu..." : "Lưu phân quyền"}</span>
+              <span>{saving ? "Đang lưu..." : "Lưu tất cả"}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Thông báo kết quả gọn */}
+      {/* Thông báo kết quả đầy đủ không cắt chữ */}
       {message && (
         <div
-          className={`px-3 py-2.5 rounded-xl flex items-center gap-2 text-[13px] font-medium ${
+          className={`px-3 py-2.5 rounded-xl flex items-start gap-2 text-[13px] font-medium whitespace-normal break-words overflow-visible ${
             message.type === "success"
               ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70"
               : message.type === "error"
@@ -346,11 +348,13 @@ export default function AccountantPermissionView({ showToast }) {
           }`}
         >
           {message.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
           ) : (
-            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
           )}
-          <span className="leading-snug break-words">{message.text}</span>
+          <span className="flex-1 min-w-0 leading-snug whitespace-normal break-words overflow-visible">
+            {message.text}
+          </span>
         </div>
       )}
 
@@ -383,43 +387,45 @@ export default function AccountantPermissionView({ showToast }) {
                     const srvMeta = serverDescMap[item.key];
                     const displayDesc = item.desc || srvMeta?.description;
                     return (
-                      <div
-                        key={item.key}
-                        className="py-2.5 flex items-center justify-between gap-3"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[14px] font-medium text-slate-900 dark:text-slate-100 leading-snug">
+                      <div key={item.key} className="py-2.5">
+                        {/* Tầng 1: Tên quyền (flex-1 min-w-0) bên trái + Switch (shrink-0) bên phải */}
+                        <div className="flex items-start justify-between gap-3 w-full">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[14px] font-medium text-slate-900 dark:text-slate-100 whitespace-normal break-words overflow-visible leading-snug">
                               {item.name}
                             </span>
                             {item.sodWarning && (
-                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/70 font-semibold leading-none">
+                              <span className="inline-block ml-1.5 text-[11px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/70 font-semibold whitespace-normal break-words leading-snug">
                                 {item.sodWarning}
                               </span>
                             )}
                           </div>
-                          {displayDesc && (
-                            <p className="text-[12px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                              {displayDesc}
-                            </p>
-                          )}
+
+                          <Switch
+                            checked={Boolean(isChecked)}
+                            ariaLabel={item.name}
+                            testId={`permission-switch-${item.key}`}
+                            onChange={() => handleToggle(item.key)}
+                          />
                         </div>
 
-                        <Switch
-                          checked={Boolean(isChecked)}
-                          ariaLabel={item.name}
-                          testId={`permission-switch-${item.key}`}
-                          onChange={() => handleToggle(item.key)}
-                        />
+                        {/* Tầng 2: Dòng mô tả chức năng trải trọn 100% chiều rộng thẻ */}
+                        {displayDesc && (
+                          <p className="w-full mt-1 text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-relaxed">
+                            {displayDesc}
+                          </p>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
                 {/* Thanh lưu phân quyền gọn ở góc phải cuối khối */}
-                <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-                  <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
-                    {groupDirty ? "Có thay đổi chưa lưu trong nhóm này" : "Áp dụng tức thì 1:1 với máy chủ"}
+                <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex-1 min-w-0 text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug">
+                    {groupDirty
+                      ? "Có thay đổi chưa lưu trong nhóm này"
+                      : "Áp dụng tức thì 1:1 với máy chủ"}
                   </span>
                   <button
                     type="button"
@@ -449,7 +455,7 @@ export default function AccountantPermissionView({ showToast }) {
             );
           })}
 
-          {/* Lịch sử thay đổi quyền gần đây (Accordion gọn) */}
+          {/* Lịch sử thay đổi quyền gần đây (Hiển thị trọn vẹn không cắt chữ) */}
           {auditLogs && auditLogs.length > 0 && (
             <SmartAccordion
               id="audit_history"
@@ -466,9 +472,9 @@ export default function AccountantPermissionView({ showToast }) {
                 {auditLogs.map((log) => (
                   <div
                     key={log.id}
-                    className="py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[12px]"
+                    className="py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-[12.5px]"
                   >
-                    <div className="min-w-0 truncate">
+                    <div className="min-w-0 flex-1 whitespace-normal break-words overflow-visible leading-snug">
                       <span className="font-semibold text-slate-800 dark:text-slate-100">
                         {log.actor_id}
                       </span>{" "}
@@ -499,7 +505,7 @@ export default function AccountantPermissionView({ showToast }) {
                         })()}
                       </span>
                     </div>
-                    <span className="text-slate-400 shrink-0 whitespace-nowrap text-[11px]">
+                    <span className="text-slate-400 shrink-0 text-[11.5px]">
                       {log.created_at ? new Date(log.created_at).toLocaleString("vi-VN") : ""}
                     </span>
                   </div>
@@ -508,13 +514,13 @@ export default function AccountantPermissionView({ showToast }) {
             </SmartAccordion>
           )}
 
-          {/* Ghi chú bảo vệ cốt lõi dạng 1 dòng chú thích mảnh tinh tế */}
+          {/* Ghi chú bảo vệ cốt lõi hiển thị trọn vẹn từng chữ */}
           <p
             data-testid="sod-core-protection-note"
-            className="text-[12px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 px-1 leading-snug"
+            className="text-[12.5px] text-slate-500 dark:text-slate-400 flex items-start gap-1.5 px-1 whitespace-normal break-words overflow-visible leading-relaxed"
           >
-            <Lock className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0" />
-            <span className="truncate">
+            <Lock className="w-3.5 h-3.5 text-[#E11D48] dark:text-rose-400 shrink-0 mt-0.5" />
+            <span className="flex-1 min-w-0 whitespace-normal break-words overflow-visible">
               Chốt chặn bảo vệ: Kế toán không thể tự sửa lương, phụ cấp hoặc vai trò của chính mình (
               {ADMIN_SOD_EXCLUSIVE_ITEMS.map((item) => item.name).join(" • ")} — độc quyền Giám đốc).
             </span>

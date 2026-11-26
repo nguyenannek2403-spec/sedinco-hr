@@ -95,6 +95,15 @@ const COMPACT_INPUT_CLASS =
 const ROW_ACTION_BTN_BASE =
   "w-fit h-[32px] min-h-[32px] px-2.5 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer disabled:opacity-60 shrink-0";
 
+const LABEL_CLASS =
+  "block text-[12.5px] font-semibold text-slate-700 dark:text-slate-200 mb-1 whitespace-normal break-words overflow-visible leading-snug";
+
+const HELPER_TEXT_CLASS =
+  "text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug mt-1";
+
+/**
+ * SmartAccordion V63 — Bố cục 2 tầng không bao giờ cắt chữ (Zero-Truncation)
+ */
 function SmartAccordion({
   id,
   title,
@@ -111,48 +120,52 @@ function SmartAccordion({
     <div
       data-testid={`media-accordion-${id}`}
       data-open={isOpen ? "true" : "false"}
-      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs overflow-hidden transition-all"
+      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs transition-all"
     >
       <button
         type="button"
         data-testid={`media-accordion-header-${id}`}
         onClick={() => onToggle(id)}
         aria-expanded={isOpen}
-        className="w-full flex items-center justify-between gap-2.5 py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer"
+        className="w-full min-h-[58px] py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer rounded-xl"
       >
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div
-            className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
-          >
-            <Icon className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate">
+        {/* Tầng 1: Icon + Tiêu đề chức năng bên trái, Mũi tên bên phải */}
+        <div className="flex items-start justify-between gap-2.5 w-full">
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            <div
+              className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
+            >
+              <Icon className="w-4 h-4" />
+            </div>
+            <h3 className="flex-1 min-w-0 text-[14px] font-semibold text-slate-900 dark:text-slate-100 whitespace-normal break-words overflow-visible leading-snug pt-0.5">
               {title}
             </h3>
-            <p
-              data-testid={`media-accordion-summary-${id}`}
-              className="text-[12px] text-slate-500 dark:text-slate-400 truncate mt-0.5 leading-snug"
-            >
-              {summary}
-            </p>
           </div>
+
+          <ChevronDown
+            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 mt-1 ${
+              isOpen ? "rotate-180" : "rotate-0"
+            }`}
+          />
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Tầng 2: Dòng mô tả / tóm tắt động trải trọn 100% chiều rộng */}
+        <div className="w-full mt-1.5 flex flex-wrap items-center justify-between gap-2">
+          <p
+            data-testid={`media-accordion-summary-${id}`}
+            className="flex-1 min-w-0 text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug"
+          >
+            {summary}
+          </p>
+
           {isDirty && (
             <span
               data-testid={`unsaved-badge-${id}`}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap shrink-0"
             >
               ● Chưa lưu
             </span>
           )}
-          <ChevronDown
-            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 ${
-              isOpen ? "rotate-180" : "rotate-0"
-            }`}
-          />
         </div>
       </button>
 
@@ -179,7 +192,6 @@ export default function MediaStorageManagementTab({ showToast }) {
   const [previewAsset, setPreviewAsset] = useState(null);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
 
-  // Khối 1 (Dung lượng & Hạn mức Cloudinary) mặc định mở sẵn
   const [openSections, setOpenSections] = useState({
     media_quota: true,
     media_maintenance: false,
@@ -356,7 +368,6 @@ export default function MediaStorageManagementTab({ showToast }) {
   ].filter(Boolean).length;
   const totalActiveFilterCount = Object.values(filters).filter(Boolean).length;
 
-  // Dòng tóm tắt động cho 3 khối Smart Accordion
   const quotaSummary = `Đã dùng ${usedMbStr} / ${budgetGbStr} (${formatViNumber(
     percentBar,
     1
@@ -378,7 +389,7 @@ export default function MediaStorageManagementTab({ showToast }) {
       data-testid="admin-media-storage-management"
       className="max-w-3xl mx-auto pb-6 space-y-2.5 sm:space-y-3"
     >
-      {/* KHỐI ACCORDION 1: DUNG LƯỢNG & HẠN MỨC CLOUDINARY (Mặc định mở sẵn) */}
+      {/* KHỐI ACCORDION 1: DUNG LƯỢNG & HẠN MỨC CLOUDINARY */}
       <SmartAccordion
         id="media_quota"
         title="Dung lượng & Hạn mức Cloudinary"
@@ -391,10 +402,10 @@ export default function MediaStorageManagementTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="space-y-2.5">
-          {/* Thanh tiến trình dung lượng mảnh, rõ nét */}
+          {/* Thanh tiến trình dung lượng mảnh, rõ nét, không cắt chữ */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2 text-[12px]">
-              <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
+              <span className="flex-1 min-w-0 font-semibold text-slate-700 dark:text-slate-200 whitespace-normal break-words overflow-visible leading-snug">
                 Thư mục gốc:{" "}
                 <strong className="font-mono">{cloud.root_folder || "sedinco-hr"}</strong> •{" "}
                 <span
@@ -408,7 +419,7 @@ export default function MediaStorageManagementTab({ showToast }) {
                 </span>
               </span>
               <span
-                className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold shrink-0 ${badge.cls}`}
+                className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap shrink-0 ${badge.cls}`}
               >
                 {badge.label}
               </span>
@@ -430,52 +441,52 @@ export default function MediaStorageManagementTab({ showToast }) {
             </div>
           </div>
 
-          {/* Lưới 4 chỉ số chính nén gọn (grid-cols-2 sm:grid-cols-4 gap-2, p-2.5) */}
+          {/* Lưới 4 chỉ số chính nén gọn, hiển thị đầy đủ không cắt chữ */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70">
-              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <div className="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400 whitespace-normal break-words leading-snug">
                 Dung lượng lưu trữ
               </div>
-              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 font-mono">
+              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 font-mono whitespace-normal break-words">
                 {formatBytes(summary.active_bytes)}
               </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              <div className="text-[11.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words leading-snug mt-0.5">
                 Hôm nay: {formatBytes(summary.bytes_today)}
               </div>
             </div>
 
             <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70">
-              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <div className="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400 whitespace-normal break-words leading-snug">
                 Băng thông / Tín dụng
               </div>
-              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 font-mono">
+              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 font-mono whitespace-normal break-words">
                 {formatBytes(snapshot?.cloud_bandwidth_bytes || 0)}
               </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              <div className="text-[11.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words leading-snug mt-0.5">
                 Biến đổi: {formatViNumber(snapshot?.cloud_transformations || 0, 0)}
               </div>
             </div>
 
             <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70">
-              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <div className="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400 whitespace-normal break-words leading-snug">
                 Số tệp hoạt động
               </div>
-              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5">
+              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 whitespace-normal break-words">
                 {formatViNumber(summary.active_files || 0, 0)} tệp
               </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              <div className="text-[11.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words leading-snug mt-0.5">
                 Ảnh: {summary.image_files || 0} • TL: {summary.document_files || 0}
               </div>
             </div>
 
             <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700/70">
-              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <div className="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400 whitespace-normal break-words leading-snug">
                 Ngưỡng cảnh báo
               </div>
-              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 font-mono">
+              <div className="text-[14px] font-bold text-slate-900 dark:text-white mt-0.5 font-mono whitespace-normal break-words">
                 70% / 85% / 95%
               </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+              <div className="text-[11.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words leading-snug mt-0.5">
                 Gói: {snapshot?.plan_name || "Tiêu chuẩn"}
               </div>
             </div>
@@ -486,10 +497,10 @@ export default function MediaStorageManagementTab({ showToast }) {
               {dashboard.anomaly_alerts.map((al, i) => (
                 <div
                   key={`${al.code}-${i}`}
-                  className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/70 flex items-start gap-2 text-[12px]"
+                  className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/70 flex items-start gap-2 text-[12.5px] whitespace-normal break-words overflow-visible"
                 >
                   <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1 leading-snug">
                     <span className="font-bold text-rose-800 dark:text-rose-200">{al.title}: </span>
                     <span className="text-rose-700 dark:text-rose-300">{al.description}</span>
                   </div>
@@ -498,9 +509,9 @@ export default function MediaStorageManagementTab({ showToast }) {
             </div>
           )}
 
-          {/* Hàng thao tác 1 dòng gọn (flex items-center justify-between gap-2 pt-2) */}
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+          {/* Hàng thao tác 1 dòng gọn */}
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <span className="flex-1 min-w-0 text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug">
               Đồng bộ gần nhất: {formatDateTimeVi(snapshot?.synced_at)}
             </span>
             <button
@@ -530,11 +541,11 @@ export default function MediaStorageManagementTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="space-y-2.5">
-          <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-snug">
+          <p className="text-[13px] text-slate-600 dark:text-slate-300 whitespace-normal break-words overflow-visible leading-relaxed">
             Hệ thống tự động giữ an toàn <strong>24 giờ</strong> đối với các tệp không còn gắn với hồ sơ nhân viên, bảng công hoặc đơn từ trước khi cho phép thu hồi vĩnh viễn khỏi Cloudinary.
           </p>
 
-          <div className="flex flex-wrap items-center gap-2 text-[12px] text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words">
             <span>
               Chờ dọn: <strong className="text-slate-800 dark:text-slate-100">{summary.orphan_files || 0} tệp</strong>
             </span>
@@ -548,8 +559,8 @@ export default function MediaStorageManagementTab({ showToast }) {
             </span>
           </div>
 
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <span className="flex-1 min-w-0 text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug">
               Bảo vệ 100% tệp đang sử dụng (ASSET_IN_USE)
             </span>
             <button
@@ -583,44 +594,47 @@ export default function MediaStorageManagementTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="space-y-2.5">
-          {/* Thanh tìm kiếm & Bộ lọc nâng cao gọn trên 1 hàng (flex items-center gap-2) */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={filters.ma_nv}
-                onChange={(e) =>
-                  setFilters((p) => ({ ...p, ma_nv: e.target.value.toUpperCase() }))
-                }
-                placeholder="Tìm theo Mã NV (VD: NV001)..."
-                className={`${COMPACT_INPUT_CLASS} pl-9`}
-              />
-            </div>
+          {/* Thanh tìm kiếm & Bộ lọc nâng cao gọn trên 1 hàng */}
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={filters.ma_nv}
+                  onChange={(e) =>
+                    setFilters((p) => ({ ...p, ma_nv: e.target.value.toUpperCase() }))
+                  }
+                  placeholder="VD: NV001"
+                  className={`${COMPACT_INPUT_CLASS} pl-9`}
+                />
+              </div>
 
-            <button
-              type="button"
-              data-testid="toggle-media-filters-btn"
-              onClick={() => setFilterPanelOpen((prev) => !prev)}
-              className={`w-fit h-[40px] min-h-[40px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1.5 border transition cursor-pointer shrink-0 ${
-                filterPanelOpen || advancedFilterCount > 0
-                  ? "bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700 text-[#E11D48] dark:text-rose-300"
-                  : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
-              }`}
-            >
-              <Filter className="w-3.5 h-3.5 shrink-0" />
-              <span>Bộ lọc{totalActiveFilterCount > 0 ? ` (${totalActiveFilterCount})` : ""}</span>
-            </button>
+              <button
+                type="button"
+                data-testid="toggle-media-filters-btn"
+                onClick={() => setFilterPanelOpen((prev) => !prev)}
+                className={`w-fit h-[40px] min-h-[40px] px-3.5 text-[13.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1.5 border transition cursor-pointer shrink-0 ${
+                  filterPanelOpen || advancedFilterCount > 0
+                    ? "bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700 text-[#E11D48] dark:text-rose-300"
+                    : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                }`}
+              >
+                <Filter className="w-3.5 h-3.5 shrink-0" />
+                <span>Bộ lọc{totalActiveFilterCount > 0 ? ` (${totalActiveFilterCount})` : ""}</span>
+              </button>
+            </div>
+            <p className={HELPER_TEXT_CLASS}>
+              Tìm nhanh tài nguyên theo mã nhân viên tải lên hoặc bấm Bộ lọc để lọc theo module nghiệp vụ và thời gian.
+            </p>
           </div>
 
-          {/* Bộ lọc nâng cao Progressive Disclosure: lưới grid-cols-2 gap-2.5 items-end, cao h-[40px], nút [Đặt lại] w-fit h-[34px] */}
+          {/* Bộ lọc nâng cao Progressive Disclosure */}
           {filterPanelOpen && (
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
-              <div className="grid grid-cols-2 gap-2.5 items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                    Module nghiệp vụ
-                  </label>
+                  <label className={LABEL_CLASS}>Module nghiệp vụ</label>
                   <select
                     value={filters.category}
                     onChange={(e) => setFilters((p) => ({ ...p, category: e.target.value }))}
@@ -641,9 +655,7 @@ export default function MediaStorageManagementTab({ showToast }) {
                 </div>
 
                 <div>
-                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                    Loại tệp
-                  </label>
+                  <label className={LABEL_CLASS}>Loại tệp</label>
                   <select
                     value={filters.resourceType}
                     onChange={(e) => setFilters((p) => ({ ...p, resourceType: e.target.value }))}
@@ -659,9 +671,7 @@ export default function MediaStorageManagementTab({ showToast }) {
 
               <div className="grid grid-cols-2 gap-2.5 items-end">
                 <div>
-                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                    Từ ngày
-                  </label>
+                  <label className={LABEL_CLASS}>Từ ngày</label>
                   <input
                     type="date"
                     aria-label="Từ ngày"
@@ -672,9 +682,7 @@ export default function MediaStorageManagementTab({ showToast }) {
                 </div>
 
                 <div>
-                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                    Đến ngày
-                  </label>
+                  <label className={LABEL_CLASS}>Đến ngày</label>
                   <input
                     type="date"
                     aria-label="Đến ngày"
@@ -685,11 +693,9 @@ export default function MediaStorageManagementTab({ showToast }) {
                 </div>
               </div>
 
-              <div className="flex items-end justify-between gap-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2.5">
                 <div className="flex-1 min-w-0">
-                  <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                    Trạng thái tệp
-                  </label>
+                  <label className={LABEL_CLASS}>Trạng thái tệp</label>
                   <select
                     value={filters.status}
                     onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}
@@ -715,7 +721,7 @@ export default function MediaStorageManagementTab({ showToast }) {
                       status: ""
                     })
                   }
-                  className="w-fit h-[34px] min-h-[34px] px-3 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+                  className="w-fit h-[34px] min-h-[34px] px-3 text-[12.5px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center justify-center gap-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0 self-end"
                 >
                   <RotateCcw className="w-3 h-3 shrink-0" />
                   <span>Đặt lại</span>
@@ -724,7 +730,7 @@ export default function MediaStorageManagementTab({ showToast }) {
             </div>
           )}
 
-          {/* Danh sách tệp nén gọn (divide-y) */}
+          {/* Danh sách tệp nén gọn (divide-y), 2 tầng trên Mobile để không cắt tên tệp */}
           {assetsLoading ? (
             <SkeletonList rows={3} label="Đang lọc danh sách tài nguyên..." />
           ) : (assetsData.items || []).length === 0 ? (
@@ -747,10 +753,10 @@ export default function MediaStorageManagementTab({ showToast }) {
                 return (
                   <div
                     key={item.asset_uuid}
-                    className="py-2.5 flex items-center justify-between gap-2.5"
+                    className="py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      {/* Ảnh thu nhỏ / icon loại file (36px × 36px rounded-lg shrink-0) */}
+                    {/* Hàng trên (Mobile) / Cột trái (Desktop): Thumbnail + Tên tệp + Thông tin phụ chiếm 100% chiều ngang */}
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
                       <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
                         {isImage && item.preview_url && item.upload_status !== "deleted" ? (
                           <img
@@ -765,15 +771,15 @@ export default function MediaStorageManagementTab({ showToast }) {
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate">
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                          <span className="text-[13.5px] font-semibold text-slate-900 dark:text-white whitespace-normal break-words overflow-visible leading-snug">
                             {item.original_filename || item.asset_uuid.slice(0, 12)}
                           </span>
-                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap shrink-0">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-600 dark:text-slate-300 whitespace-normal break-words">
                             {categoryName}
                           </span>
                         </div>
-                        <div className="text-[12px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        <div className="text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug mt-0.5">
                           {item.uploader_name || item.uploaded_by || "Hệ thống"} •{" "}
                           <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
                             {formatBytes(item.bytes)}
@@ -783,8 +789,8 @@ export default function MediaStorageManagementTab({ showToast }) {
                       </div>
                     </div>
 
-                    {/* Cụm 2 nút gọn Xem & Xóa (w-fit h-[32px] px-2.5 text-[12.5px] font-semibold) */}
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Hàng dưới (Mobile) / Cột phải (Desktop): Cụm 2 nút gọn Xem & Xóa */}
+                    <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                       {item.upload_status !== "deleted" && item.preview_url && (
                         <button
                           type="button"
@@ -812,13 +818,13 @@ export default function MediaStorageManagementTab({ showToast }) {
             </div>
           )}
 
-          {/* Phân trang gọn gàng phía dưới nếu danh sách nhiều tệp */}
+          {/* Phân trang gọn gàng phía dưới */}
           {totalPages > 1 && (
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-[12px]">
-              <span className="text-slate-500 dark:text-slate-400">
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[12px]">
+              <span className="text-slate-500 dark:text-slate-400 whitespace-normal break-words">
                 Trang <strong>{assetsData.page || 1}</strong> / {totalPages} ({assetsData.total} tệp)
               </span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   disabled={(assetsData.page || 1) <= 1 || assetsLoading}
@@ -858,10 +864,10 @@ export default function MediaStorageManagementTab({ showToast }) {
               mimeType={previewAsset.mime_type}
               filename={previewAsset.original_filename}
             />
-            <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl">
+            <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl whitespace-normal break-words">
               <div>
                 <strong>Public ID:</strong>{" "}
-                <span className="font-mono">{previewAsset.public_id || "inline_fallback"}</span>
+                <span className="font-mono break-all">{previewAsset.public_id || "inline_fallback"}</span>
               </div>
               <div>
                 <strong>Loại nghiệp vụ:</strong>{" "}

@@ -101,6 +101,12 @@ const INPUT_PAIRED_BTN_BASE =
 const COMPACT_INPUT_CLASS =
   "w-full h-[40px] min-h-[40px] px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[14px] font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:border-[#E11D48] dark:focus:border-rose-400 focus:outline-none";
 
+const LABEL_CLASS =
+  "block text-[12.5px] font-semibold text-slate-700 dark:text-slate-200 mb-1 whitespace-normal break-words overflow-visible leading-snug";
+
+const HELPER_TEXT_CLASS =
+  "text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug mt-1";
+
 /**
  * InputWithSuffix — Ô nhập liệu chuẩn cao 40px có hậu tố đơn vị nằm cố định bên phải trong ô
  */
@@ -117,7 +123,7 @@ function InputWithSuffix({
         className={`${COMPACT_INPUT_CLASS} ${suffix ? suffixWidthClass : ""} ${className}`}
       />
       {suffix && (
-        <span className="pointer-events-none select-none absolute right-3 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+        <span className="pointer-events-none select-none absolute right-3 text-[12px] font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0">
           {suffix}
         </span>
       )}
@@ -168,10 +174,9 @@ function SectionSaveButton({
 }
 
 /**
- * SmartAccordion — Kiểu B Compact Enterprise Accordion
- * - Header gọn py-3 px-3.5: Icon w-8 h-8 rounded-lg + Tiêu đề 14px font-semibold + Tóm tắt động 1 dòng 12px truncate
- * - Bên phải: Huy hiệu cam "● Chưa lưu" khi isDirty + ChevronDown xoay 180deg
- * - Thân gọn px-3.5 pb-3.5 pt-2.5 (mobile) / px-4 pb-4 pt-3 (desktop) với border-t mảnh
+ * SmartAccordion V63 — Bố cục 2 tầng không bao giờ cắt chữ (Zero-Truncation)
+ * - Tầng 1: Icon (w-8 h-8 shrink-0) + Tiêu đề chức năng (flex-1 min-w-0 whitespace-normal break-words) + ChevronDown (shrink-0 mt-1)
+ * - Tầng 2: Dòng tóm tắt trạng thái động trải trọn 100% chiều rộng (kèm huy hiệu "● Chưa lưu")
  */
 function SmartAccordion({
   id,
@@ -189,53 +194,57 @@ function SmartAccordion({
     <div
       data-testid={`settings-accordion-${id}`}
       data-open={isOpen ? "true" : "false"}
-      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs overflow-hidden transition-all"
+      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/85 dark:border-slate-800 shadow-xs transition-all"
     >
       <button
         type="button"
         data-testid={`accordion-header-${id}`}
         onClick={() => onToggle(id)}
         aria-expanded={isOpen}
-        className="w-full flex items-center justify-between gap-2.5 py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer"
+        className="w-full min-h-[58px] py-3 px-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors text-left cursor-pointer rounded-xl"
       >
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div
-            className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
-          >
-            <Icon className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate">
+        {/* Tầng 1: Icon + Tiêu đề chức năng bên trái, Mũi tên bên phải */}
+        <div className="flex items-start justify-between gap-2.5 w-full">
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            <div
+              className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}
+            >
+              <Icon className="w-4 h-4" />
+            </div>
+            <h3 className="flex-1 min-w-0 text-[14px] font-semibold text-slate-900 dark:text-slate-100 whitespace-normal break-words overflow-visible leading-snug pt-0.5">
               {title}
             </h3>
-            <p
-              data-testid={`accordion-summary-${id}`}
-              className="text-[12px] text-slate-500 dark:text-slate-400 truncate mt-0.5 leading-snug"
-            >
-              {summary}
-            </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {isDirty && (
-            <span
-              data-testid={`unsaved-badge-${id}`}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap"
-            >
-              ● Chưa lưu
-            </span>
-          )}
           <ChevronDown
-            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 ${
+            className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 shrink-0 mt-1 ${
               isOpen ? "rotate-180" : "rotate-0"
             }`}
           />
         </div>
+
+        {/* Tầng 2: Dòng mô tả / tóm tắt trạng thái động chiếm trọn 100% chiều rộng */}
+        <div className="w-full mt-1.5 flex flex-wrap items-center justify-between gap-2">
+          <p
+            data-testid={`accordion-summary-${id}`}
+            className="flex-1 min-w-0 text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug"
+          >
+            {summary}
+          </p>
+
+          {isDirty && (
+            <span
+              data-testid={`unsaved-badge-${id}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap shrink-0"
+            >
+              ● Chưa lưu
+            </span>
+          )}
+        </div>
       </button>
 
       {isOpen && (
-        <div className="px-3.5 pb-3.5 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+        <div className="px-3.5 pb-3.5 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
           {children}
         </div>
       )}
@@ -310,8 +319,6 @@ export default function CompanySettingsTab({ showToast }) {
   });
   const [statusBanner, setStatusBanner] = useState(null);
 
-  // Mặc định khép gọn để toàn bộ 6 mục Accordion nằm gọn trong 1 màn hình điện thoại;
-  // Trên Mobile (< 768px): Single-Open; Trên Desktop (>= 768px): Multi-Open.
   const [openSections, setOpenSections] = useState({
     company_info: false,
     announcement: false,
@@ -394,7 +401,6 @@ export default function CompanySettingsTab({ showToast }) {
     fetchConfig();
   }, [fetchConfig]);
 
-  // Hành vi đóng/mở thích nghi: Mobile (< 768px) Single-Open, Desktop (>= 768px) Multi-Open
   const toggleSection = useCallback((id) => {
     const isMobileViewport =
       typeof window !== "undefined" && Number(window.innerWidth) < 768;
@@ -429,7 +435,6 @@ export default function CompanySettingsTab({ showToast }) {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Kiểm tra Dirty State riêng cho từng khối
   const effectiveAnnouncementText = announcementEnabled
     ? String(config.announcement_text || "").trim()
     : "";
@@ -471,7 +476,6 @@ export default function CompanySettingsTab({ showToast }) {
     toNum(config.ot_rate_weekend, 2.0) !== toNum(savedConfig.ot_rate_weekend, 2.0) ||
     toNum(config.insurance_rate, 10.5) !== toNum(savedConfig.insurance_rate, 10.5);
 
-  // Áp dụng cấu hình cục bộ cho đúng 1 khối vừa lưu (Bảo toàn 100% bản nháp & chấm cam ở các khối khác)
   const applySectionSavedConfig = useCallback((sectionKey, serverData, partialPayload) => {
     const keys = SECTION_FIELD_MAP[sectionKey] || Object.keys(partialPayload || {});
     const source = serverData && typeof serverData === "object" ? serverData : partialPayload || {};
@@ -963,15 +967,13 @@ export default function CompanySettingsTab({ showToast }) {
   const currentYearNum = Number(getVietnamTodayIso().slice(0, 4));
   const currentStdDays = getMonthlyStandardWorkdays();
 
-  // Tóm tắt động 1 dòng (Live Summaries) cho cả 6 khối dựa trên dữ liệu đã lưu (savedConfig)
+  // Tóm tắt trạng thái động hiển thị đầy đủ (Zero-Truncation)
   const companyInfoSummary = `${
     savedConfig.company_name || "Chưa đặt tên công ty"
   } • ${savedConfig.logo_url ? "Đã có logo" : "Chưa có logo"}`;
 
   const announcementSummary = savedAnnouncementText
-    ? `Đang bật • ${savedAnnouncementText.slice(0, 34)}${
-        savedAnnouncementText.length > 34 ? "…" : ""
-      }`
+    ? `Đang bật (${savedAnnouncementText.length} ký tự) • ${savedAnnouncementText}`
     : "Đang tắt";
 
   const scheduleSummary = `Sáng ${savedConfig.work_start || "08:00"}–${
@@ -1007,18 +1009,20 @@ export default function CompanySettingsTab({ showToast }) {
     <div className="max-w-3xl mx-auto pb-6 space-y-2.5 sm:space-y-3">
       {statusBanner && (
         <div
-          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-[13px] font-medium ${
+          className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[13px] font-medium whitespace-normal break-words overflow-visible ${
             statusBanner.type === "error"
               ? "bg-red-50 dark:bg-rose-950/60 border-red-200 dark:border-rose-800/70 text-red-700 dark:text-rose-300"
               : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/70 text-emerald-700 dark:text-emerald-300"
           }`}
         >
           {statusBanner.type === "error" ? (
-            <AlertCircle className="w-4 h-4 shrink-0" />
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           ) : (
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
           )}
-          <span>{statusBanner.msg}</span>
+          <span className="flex-1 min-w-0 whitespace-normal break-words overflow-visible leading-snug">
+            {statusBanner.msg}
+          </span>
         </div>
       )}
 
@@ -1035,9 +1039,9 @@ export default function CompanySettingsTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="space-y-2.5">
-          {/* Hàng Logo 48x48 cùng hàng ngang với nút [Đổi logo] và mô tả dung lượng */}
-          <div className="flex items-center justify-between gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2.5 min-w-0">
+          {/* Hàng Logo 48x48 + nút [Đổi logo] */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-start gap-2.5 min-w-0 flex-1">
               <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
                 <img
                   src={
@@ -1051,17 +1055,17 @@ export default function CompanySettingsTab({ showToast }) {
                   className="w-full h-full object-contain"
                 />
               </div>
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 truncate">
-                  Logo nhận diện
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-100 whitespace-normal break-words overflow-visible leading-snug">
+                  Logo nhận diện doanh nghiệp
                 </div>
-                <div className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">
-                  PNG, JPG, WebP • Tối đa 512×512px
+                <div className="text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug mt-0.5">
+                  Hỗ trợ định dạng PNG, JPG, WebP (tối đa 512×512px, tự động lưu lên Cloudinary)
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
               <input
                 ref={logoInputRef}
                 type="file"
@@ -1132,23 +1136,22 @@ export default function CompanySettingsTab({ showToast }) {
           </div>
 
           <div>
-            <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-              Tên công ty
-            </label>
+            <label className={LABEL_CLASS}>Tên công ty</label>
             <input
               type="text"
               value={config.company_name || ""}
               onChange={(e) => updateField("company_name", e.target.value)}
-              placeholder="Nhập tên công ty"
+              placeholder="VD: Công ty CP Sedinco"
               className={COMPACT_INPUT_CLASS}
             />
+            <p className={HELPER_TEXT_CLASS}>
+              Tên pháp nhân hiển thị trên bảng lương, phiếu lương điện tử và báo cáo xuất file.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5 items-end">
             <div>
-              <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                Mã số thuế
-              </label>
+              <label className={LABEL_CLASS}>Mã số thuế</label>
               <input
                 type="text"
                 value={config.tax_code || ""}
@@ -1158,9 +1161,7 @@ export default function CompanySettingsTab({ showToast }) {
               />
             </div>
             <div>
-              <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                Điện thoại
-              </label>
+              <label className={LABEL_CLASS}>Điện thoại</label>
               <input
                 type="text"
                 value={config.phone || ""}
@@ -1172,21 +1173,22 @@ export default function CompanySettingsTab({ showToast }) {
           </div>
 
           <div>
-            <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-              Địa chỉ trụ sở
-            </label>
+            <label className={LABEL_CLASS}>Địa chỉ trụ sở</label>
             <input
               type="text"
               value={config.address || ""}
               onChange={(e) => updateField("address", e.target.value)}
-              placeholder="Nhập địa chỉ công ty"
+              placeholder="VD: Hải Châu, Đà Nẵng"
               className={COMPACT_INPUT_CLASS}
             />
+            <p className={HELPER_TEXT_CLASS}>
+              Nhập địa chỉ trụ sở chính hoặc văn phòng giao dịch của công ty.
+            </p>
           </div>
 
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
-              {isCompanyInfoDirty ? "Có thay đổi chưa lưu" : "Hiển thị trên phiếu lương"}
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <span className="flex-1 min-w-0 text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug">
+              {isCompanyInfoDirty ? "Có thay đổi chưa lưu" : "Thông tin hiển thị trên phiếu lương"}
             </span>
             <SectionSaveButton
               testId="save-section-company-info-btn"
@@ -1211,31 +1213,37 @@ export default function CompanySettingsTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="space-y-2.5">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-100 flex-1 min-w-0">
-              Hiển thị bảng tin cho nhân viên
-            </span>
-            <Switch
-              testId="company-announcement-toggle"
-              ariaLabel="Hiển thị bảng tin cho nhân viên"
-              checked={announcementEnabled}
-              onChange={() => {
-                if (announcementEnabled) {
-                  if (String(config.announcement_text || "").trim()) {
-                    lastAnnouncementTextRef.current = String(config.announcement_text);
+          {/* Bố cục 2 tầng cho dòng có nút gạt Switch */}
+          <div>
+            <div className="flex items-start justify-between gap-3 w-full">
+              <span className="flex-1 min-w-0 text-[14px] font-medium text-slate-900 dark:text-slate-100 whitespace-normal break-words overflow-visible leading-snug">
+                Hiển thị bảng tin cho nhân viên
+              </span>
+              <Switch
+                testId="company-announcement-toggle"
+                ariaLabel="Hiển thị bảng tin cho nhân viên"
+                checked={announcementEnabled}
+                onChange={() => {
+                  if (announcementEnabled) {
+                    if (String(config.announcement_text || "").trim()) {
+                      lastAnnouncementTextRef.current = String(config.announcement_text);
+                    }
+                    setAnnouncementEnabled(false);
+                    setConfig((prev) => ({ ...prev, announcement_text: "" }));
+                  } else {
+                    setAnnouncementEnabled(true);
+                    const restored =
+                      lastAnnouncementTextRef.current ||
+                      savedAnnouncementText ||
+                      "Thông báo nội bộ Sedinco";
+                    setConfig((prev) => ({ ...prev, announcement_text: restored }));
                   }
-                  setAnnouncementEnabled(false);
-                  setConfig((prev) => ({ ...prev, announcement_text: "" }));
-                } else {
-                  setAnnouncementEnabled(true);
-                  const restored =
-                    lastAnnouncementTextRef.current ||
-                    savedAnnouncementText ||
-                    "Thông báo nội bộ Sedinco";
-                  setConfig((prev) => ({ ...prev, announcement_text: restored }));
-                }
-              }}
-            />
+                }}
+              />
+            </div>
+            <p className="w-full mt-1 text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-relaxed">
+              Khi bật, nội dung thông báo sẽ hiển thị nổi bật ngay đầu màn hình Chấm công của toàn bộ nhân viên.
+            </p>
           </div>
 
           <div className={`relative transition-opacity ${announcementEnabled ? "opacity-100" : "opacity-55"}`}>
@@ -1244,16 +1252,19 @@ export default function CompanySettingsTab({ showToast }) {
               data-testid="company-announcement-textarea"
               value={config.announcement_text || ""}
               onChange={(e) => updateField("announcement_text", e.target.value)}
-              placeholder="VD: Thứ 7 tuần này công trình A nghỉ bảo trì điện, anh em ca chiều chuyển sang kho B lúc 13:00..."
+              placeholder="Nhập nội dung thông báo..."
               className="w-full p-2.5 pb-6 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[14px] text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:border-[#E11D48] focus:outline-none"
             />
             <span className="pointer-events-none select-none absolute bottom-2 right-2.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
               {(config.announcement_text || "").length} ký tự
             </span>
           </div>
+          <p className={HELPER_TEXT_CLASS}>
+            Ví dụ: Thứ 7 tuần này công trình A nghỉ bảo trì điện, anh em ca chiều chuyển sang kho B lúc 13:00.
+          </p>
 
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <span className="flex-1 min-w-0 text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug">
               {announcementEnabled ? "Đang bật trên màn hình Chấm công" : "Đang ẩn bảng tin"}
             </span>
             <SectionSaveButton
@@ -1279,9 +1290,9 @@ export default function CompanySettingsTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="space-y-2">
-          {/* Hàng 1: Ca sáng | [07:30] – [11:30] */}
-          <div className="flex items-center justify-between gap-2 py-1.5 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
-            <span className="text-[13.5px] font-semibold text-slate-700 dark:text-slate-200 shrink-0">
+          {/* Hàng 1: Ca sáng */}
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+            <span className="text-[13.5px] font-semibold text-slate-700 dark:text-slate-200 whitespace-normal break-words">
               Ca sáng
             </span>
             <div className="flex items-center gap-1.5">
@@ -1303,9 +1314,9 @@ export default function CompanySettingsTab({ showToast }) {
             </div>
           </div>
 
-          {/* Hàng 2: Ca chiều | [13:30] – [17:30] */}
-          <div className="flex items-center justify-between gap-2 py-1.5 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
-            <span className="text-[13.5px] font-semibold text-slate-700 dark:text-slate-200 shrink-0">
+          {/* Hàng 2: Ca chiều */}
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+            <span className="text-[13.5px] font-semibold text-slate-700 dark:text-slate-200 whitespace-normal break-words">
               Ca chiều
             </span>
             <div className="flex items-center gap-1.5">
@@ -1327,9 +1338,9 @@ export default function CompanySettingsTab({ showToast }) {
             </div>
           </div>
 
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-            <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
-              Nghỉ trưa: {config.lunch_start || "12:00"}–{config.lunch_end || "13:30"}
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <span className="flex-1 min-w-0 text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug">
+              Khung giờ nghỉ trưa tự động: {config.lunch_start || "12:00"}–{config.lunch_end || "13:30"}
             </span>
             <SectionSaveButton
               testId="save-section-schedule-btn"
@@ -1357,11 +1368,11 @@ export default function CompanySettingsTab({ showToast }) {
           <div className="divide-y divide-slate-100 dark:divide-slate-800 space-y-3">
             {(config.allowed_locations || []).map((loc, idx) => (
               <div key={loc.id || idx} className={idx > 0 ? "pt-3 space-y-2.5" : "space-y-2.5"}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 whitespace-normal break-words">
                     Điểm chấm công #{idx + 1}
                   </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleOpenBranchQr(loc)}
@@ -1384,22 +1395,20 @@ export default function CompanySettingsTab({ showToast }) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5 items-end">
+                {/* Cặp ô chứa văn bản dài dùng grid-cols-1 sm:grid-cols-2 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                      Tên điểm chấm công
-                    </label>
+                    <label className={LABEL_CLASS}>Tên điểm chấm công</label>
                     <input
                       type="text"
                       value={loc.name || ""}
                       onChange={(e) => handleLocationChange(idx, "name", e.target.value)}
+                      placeholder="VD: Trụ sở chính"
                       className={COMPACT_INPUT_CLASS}
                     />
                   </div>
                   <div>
-                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                      Phương thức
-                    </label>
+                    <label className={LABEL_CLASS}>Phương thức chấm công</label>
                     <select
                       value={loc.attendance_method || "GPS"}
                       onChange={(e) => handleLocationChange(idx, "attendance_method", e.target.value)}
@@ -1412,12 +1421,10 @@ export default function CompanySettingsTab({ showToast }) {
                   </div>
                 </div>
 
-                {/* Hàng 1 (2 cột items-end): Vĩ độ | Kinh độ */}
+                {/* Hàng 1 (2 cột số ngắn items-end): Vĩ độ | Kinh độ */}
                 <div className="grid grid-cols-2 gap-2.5 items-end">
                   <div>
-                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                      Vĩ độ
-                    </label>
+                    <label className={LABEL_CLASS}>Vĩ độ</label>
                     <input
                       type="number"
                       step="any"
@@ -1427,9 +1434,7 @@ export default function CompanySettingsTab({ showToast }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                      Kinh độ
-                    </label>
+                    <label className={LABEL_CLASS}>Kinh độ</label>
                     <input
                       type="number"
                       step="any"
@@ -1443,9 +1448,7 @@ export default function CompanySettingsTab({ showToast }) {
                 {/* Hàng 2 (flex items-end gap-2): Bán kính GPS [100 m] (flex-1) + [📍 Lấy GPS] (w-fit h-[40px]) */}
                 <div className="flex items-end gap-2">
                   <div className="flex-1 min-w-0">
-                    <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                      Bán kính GPS
-                    </label>
+                    <label className={LABEL_CLASS}>Bán kính GPS</label>
                     <InputWithSuffix
                       type="number"
                       min="20"
@@ -1473,20 +1476,20 @@ export default function CompanySettingsTab({ showToast }) {
             ))}
           </div>
 
-          {/* Hàng 3: Ô nhập Wi-Fi / BSSID (flex-1 h-[40px]) ghép chung 1 hàng với nút [+ Thêm] (w-fit h-[40px]) */}
+          {/* Hàng 3: Ô nhập Wi-Fi / BSSID ghép chung 1 hàng với nút [+ Thêm] */}
           <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-[12px] font-semibold text-slate-600 dark:text-slate-300 truncate">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+              <label className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-200 whitespace-normal break-words overflow-visible leading-snug">
                 Wi-Fi / BSSID văn phòng ({wifiItems.length})
               </label>
               <button
                 type="button"
                 disabled={savingWifi}
                 onClick={handleSaveWifiIp}
-                className="text-[12px] font-semibold text-[#0051CA] dark:text-blue-400 hover:underline inline-flex items-center gap-1 cursor-pointer shrink-0"
+                className="w-fit text-[12.5px] font-semibold text-[#0051CA] dark:text-blue-400 hover:underline inline-flex items-center gap-1 cursor-pointer shrink-0"
               >
                 <Wifi className="w-3.5 h-3.5 shrink-0" />
-                <span>
+                <span className="whitespace-normal break-words text-left">
                   {savingWifi
                     ? "Đang lấy Wi-Fi..."
                     : `Lưu Wi-Fi hiện tại${
@@ -1496,56 +1499,68 @@ export default function CompanySettingsTab({ showToast }) {
               </button>
             </div>
 
-            <div className="flex items-end gap-2">
-              <input
-                type="text"
-                data-testid="new-wifi-input"
-                value={newWifiInput}
-                onChange={(e) => setNewWifiInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddWifiEntry();
-                  }
-                }}
-                placeholder="Nhập IP / BSSID Wi-Fi công ty..."
-                className={`flex-1 ${COMPACT_INPUT_CLASS}`}
-              />
-              <button
-                type="button"
-                data-testid="add-wifi-btn"
-                onClick={handleAddWifiEntry}
-                className={`${INPUT_PAIRED_BTN_BASE} bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white`}
-              >
-                <Plus className="w-3.5 h-3.5 shrink-0" />
-                <span>Thêm</span>
-              </button>
+            <div>
+              <div className="flex items-end gap-2">
+                <input
+                  type="text"
+                  data-testid="new-wifi-input"
+                  value={newWifiInput}
+                  onChange={(e) => setNewWifiInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddWifiEntry();
+                    }
+                  }}
+                  placeholder="VD: 192.168.1.1"
+                  className={`flex-1 ${COMPACT_INPUT_CLASS}`}
+                />
+                <button
+                  type="button"
+                  data-testid="add-wifi-btn"
+                  onClick={handleAddWifiEntry}
+                  className={`${INPUT_PAIRED_BTN_BASE} bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white`}
+                >
+                  <Plus className="w-3.5 h-3.5 shrink-0" />
+                  <span>Thêm</span>
+                </button>
+              </div>
+              <p className={HELPER_TEXT_CLASS}>
+                Nhập địa chỉ IP hoặc BSSID Wi-Fi công ty rồi bấm Thêm (hoặc bấm Lưu Wi-Fi hiện tại để tự động nhận diện).
+              </p>
             </div>
 
             {wifiItems.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl bg-slate-50/50 dark:bg-slate-800/40">
                 {wifiItems.map((wifi) => (
-                  <span
+                  <div
                     key={wifi}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[12px] font-mono text-slate-700 dark:text-slate-200"
+                    className="py-2 px-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
                   >
-                    <Wifi className="w-3 h-3 text-[#0051CA] dark:text-blue-400 shrink-0" />
-                    <span>{wifi}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveWifiEntry(wifi)}
-                      aria-label={`Xóa Wi-Fi ${wifi}`}
-                      className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </span>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Wifi className="w-3.5 h-3.5 text-[#0051CA] dark:text-blue-400 shrink-0" />
+                      <span className="text-[13px] font-mono text-slate-800 dark:text-slate-100 whitespace-normal break-all sm:break-words overflow-visible leading-snug">
+                        {wifi}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveWifiEntry(wifi)}
+                        aria-label={`Xóa Wi-Fi ${wifi}`}
+                        className="w-fit h-[30px] min-h-[30px] px-2.5 text-[12px] font-semibold rounded-lg whitespace-nowrap inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200/70 dark:border-rose-800/60 cursor-pointer shrink-0"
+                      >
+                        <Trash2 className="w-3 h-3 shrink-0" />
+                        <span>Xóa</span>
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
               onClick={handleAddLocation}
@@ -1577,37 +1592,41 @@ export default function CompanySettingsTab({ showToast }) {
         onToggle={toggleSection}
       >
         <div className="space-y-2.5">
-          {/* Thanh thêm mới 1 hàng duy nhất: [Ô nhập tên khối mới (flex-1 h-[40px])] + [+ Thêm] (w-fit h-[40px]) */}
-          <form onSubmit={handleAddDepartment} className="flex items-center gap-2">
-            <input
-              type="text"
-              data-testid="new-department-input"
-              value={newDeptName}
-              onChange={(e) => setNewDeptName(e.target.value)}
-              placeholder="Nhập tên khối / bộ phận mới..."
-              className={`flex-1 ${COMPACT_INPUT_CLASS}`}
-            />
-            <button
-              type="submit"
-              disabled={addingDept}
-              data-testid="add-department-btn"
-              className={`${INPUT_PAIRED_BTN_BASE} bg-[#E11D48] hover:bg-[#BE123C] text-white`}
-            >
-              {addingDept ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-              ) : (
-                <Plus className="w-3.5 h-3.5 shrink-0" />
-              )}
-              <span>Thêm</span>
-            </button>
-          </form>
+          <div>
+            <form onSubmit={handleAddDepartment} className="flex items-center gap-2">
+              <input
+                type="text"
+                data-testid="new-department-input"
+                value={newDeptName}
+                onChange={(e) => setNewDeptName(e.target.value)}
+                placeholder="VD: Khối Kỹ thuật"
+                className={`flex-1 ${COMPACT_INPUT_CLASS}`}
+              />
+              <button
+                type="submit"
+                disabled={addingDept}
+                data-testid="add-department-btn"
+                className={`${INPUT_PAIRED_BTN_BASE} bg-[#E11D48] hover:bg-[#BE123C] text-white`}
+              >
+                {addingDept ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                ) : (
+                  <Plus className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span>Thêm</span>
+              </button>
+            </form>
+            <p className={HELPER_TEXT_CLASS}>
+              Nhập tên khối hoặc bộ phận làm việc mới để phân nhóm nhân sự, bảng công và duyệt đơn.
+            </p>
+          </div>
 
           {loadingDepartments && departments.length === 0 ? (
             <SkeletonList rows={3} label="Đang tải danh sách khối / bộ phận..." />
           ) : (
             <div
               data-testid="departments-list"
-              className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/85 dark:border-slate-700/80 rounded-xl bg-white dark:bg-slate-900 overflow-hidden"
+              className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/85 dark:border-slate-700/80 rounded-xl bg-white dark:bg-slate-900"
             >
               {departments.map((dept) => {
                 const isDefault = Number(dept.is_default) === 1;
@@ -1616,10 +1635,10 @@ export default function CompanySettingsTab({ showToast }) {
                   <div
                     key={dept.id}
                     data-testid={`department-row-${dept.id}`}
-                    className="py-2 px-2.5 flex items-center justify-between gap-2"
+                    className="py-2.5 px-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
                   >
                     {isEditing ? (
-                      <div className="flex-1 flex items-center gap-1.5">
+                      <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2">
                         <input
                           type="text"
                           data-testid={`rename-dept-input-${dept.id}`}
@@ -1637,49 +1656,53 @@ export default function CompanySettingsTab({ showToast }) {
                           autoFocus
                           className={`flex-1 ${COMPACT_INPUT_CLASS}`}
                         />
-                        <button
-                          type="button"
-                          disabled={savingDept}
-                          data-testid={`save-rename-dept-btn-${dept.id}`}
-                          onClick={() => handleSaveRenameDepartment(dept.id)}
-                          className={`${COMPACT_BTN_BASE} bg-emerald-600 hover:bg-emerald-700 text-white`}
-                        >
-                          <Check className="w-3.5 h-3.5 shrink-0" />
-                          <span>Lưu</span>
-                        </button>
-                        <button
-                          type="button"
-                          disabled={savingDept}
-                          onClick={() => {
-                            setEditingDeptId(null);
-                            setEditingDeptName("");
-                          }}
-                          className={`${COMPACT_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200`}
-                        >
-                          <X className="w-3.5 h-3.5 shrink-0" />
-                          <span>Hủy</span>
-                        </button>
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            disabled={savingDept}
+                            data-testid={`save-rename-dept-btn-${dept.id}`}
+                            onClick={() => handleSaveRenameDepartment(dept.id)}
+                            className={`${COMPACT_BTN_BASE} bg-emerald-600 hover:bg-emerald-700 text-white`}
+                          >
+                            <Check className="w-3.5 h-3.5 shrink-0" />
+                            <span>Lưu</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savingDept}
+                            onClick={() => {
+                              setEditingDeptId(null);
+                              setEditingDeptName("");
+                            }}
+                            className={`${COMPACT_BTN_BASE} bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200`}
+                          >
+                            <X className="w-3.5 h-3.5 shrink-0" />
+                            <span>Hủy</span>
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <>
+                        {/* Hàng trên (Mobile) / Cột trái (Desktop): Tên khối + thông tin phụ chiếm 100% chiều ngang */}
                         <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
-                          <span className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate">
+                          <span className="text-[14px] font-semibold text-slate-900 dark:text-white whitespace-normal break-words overflow-visible leading-snug">
                             {dept.name}
                           </span>
                           {isDefault && (
                             <span
                               data-testid="default-department-badge"
-                              className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300 text-[11px] font-bold whitespace-nowrap"
+                              className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-700 text-[#B80035] dark:text-rose-300 text-[11px] font-bold whitespace-nowrap shrink-0"
                             >
                               Mặc định
                             </span>
                           )}
-                          <span className="text-[12px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                            • {dept.employee_count || 0} NV
+                          <span className="text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words">
+                            • {dept.employee_count || 0} nhân viên
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Hàng dưới (Mobile) / Cột phải (Desktop): Cụm nút Sửa & Xóa */}
+                        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                           <button
                             type="button"
                             data-testid={`rename-dept-btn-${dept.id}`}
@@ -1729,15 +1752,13 @@ export default function CompanySettingsTab({ showToast }) {
         <div className="divide-y divide-slate-100 dark:divide-slate-800 space-y-3">
           {/* NHÓM 1: CHẤM CÔNG & PHÉP */}
           <div className="space-y-2.5">
-            <h4 className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <h4 className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 whitespace-normal break-words">
               Chấm công &amp; Phép
             </h4>
 
             <div className="grid grid-cols-2 gap-2.5 items-end">
               <div>
-                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                  Đi muộn tối đa
-                </label>
+                <label className={LABEL_CLASS}>Đi muộn tối đa</label>
                 <InputWithSuffix
                   data-testid="company-grace-period-input"
                   type="number"
@@ -1750,9 +1771,7 @@ export default function CompanySettingsTab({ showToast }) {
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                  Phép có lương / tháng
-                </label>
+                <label className={LABEL_CLASS}>Phép có lương</label>
                 <InputWithSuffix
                   data-testid="company-monthly-leave-limit-input"
                   type="number"
@@ -1767,11 +1786,9 @@ export default function CompanySettingsTab({ showToast }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                  Hình thức phạt trễ
-                </label>
+                <label className={LABEL_CLASS}>Hình thức phạt đi muộn</label>
                 <select
                   value={config.late_policy_type || "PER_MINUTE"}
                   onChange={(e) => updateField("late_policy_type", e.target.value)}
@@ -1785,7 +1802,7 @@ export default function CompanySettingsTab({ showToast }) {
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
+                <label className={LABEL_CLASS}>
                   {config.late_policy_type === "DEDUCT_WORKDAY"
                     ? "Ngưỡng tính nửa công"
                     : "Mức phạt đi muộn"}
@@ -1829,7 +1846,7 @@ export default function CompanySettingsTab({ showToast }) {
 
             <p
               data-testid="auto-standard-workdays-note"
-              className="text-[12px] text-slate-500 dark:text-slate-400 leading-snug"
+              className="text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug"
             >
               Công chuẩn tháng tự động tính = Tổng số ngày trong tháng trừ Chủ nhật (Tháng{" "}
               {currentMonthNum}/{currentYearNum}: <strong>{currentStdDays} ngày</strong>).
@@ -1838,15 +1855,13 @@ export default function CompanySettingsTab({ showToast }) {
 
           {/* NHÓM 2: TĂNG CA (OT) */}
           <div className="pt-3 space-y-2.5">
-            <h4 className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <h4 className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 whitespace-normal break-words">
               Tăng ca (OT)
             </h4>
 
             <div className="grid grid-cols-2 gap-2.5 items-end">
               <div>
-                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                  OT ngày thường
-                </label>
+                <label className={LABEL_CLASS}>Ngày thường</label>
                 <InputWithSuffix
                   data-testid="company-ot-weekday-input"
                   type="text"
@@ -1859,9 +1874,7 @@ export default function CompanySettingsTab({ showToast }) {
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                  OT Chủ nhật
-                </label>
+                <label className={LABEL_CLASS}>Chủ nhật</label>
                 <InputWithSuffix
                   data-testid="company-ot-weekend-input"
                   type="text"
@@ -1876,7 +1889,7 @@ export default function CompanySettingsTab({ showToast }) {
 
             <p
               data-testid="holiday-multiplier-guidance-note"
-              className="text-[12px] text-slate-500 dark:text-slate-400 leading-snug"
+              className="text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug"
             >
               Hệ số đi làm ngày lễ được thiết lập riêng cho từng dịp tại mục{" "}
               <strong className="text-slate-700 dark:text-slate-200">Cài đặt → Ngày lễ</strong>.
@@ -1885,33 +1898,37 @@ export default function CompanySettingsTab({ showToast }) {
 
           {/* NHÓM 3: BẢO HIỂM */}
           <div className="pt-3 space-y-2.5">
-            <h4 className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <h4 className="text-[12px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 whitespace-normal break-words">
               Bảo hiểm
             </h4>
 
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-100 flex-1 min-w-0">
-                Khấu trừ bảo hiểm tự động
-              </span>
-              <Switch
-                testId="company-insurance-toggle"
-                ariaLabel="Khấu trừ bảo hiểm tự động"
-                checked={isInsuranceEnabled}
-                onChange={() => {
-                  if (isInsuranceEnabled) {
-                    updateField("insurance_rate", 0);
-                  } else {
-                    updateField("insurance_rate", lastPositiveInsuranceRateRef.current || 10.5);
-                  }
-                }}
-              />
+            {/* Bố cục 2 tầng cho dòng có nút gạt Switch */}
+            <div>
+              <div className="flex items-start justify-between gap-3 w-full">
+                <span className="flex-1 min-w-0 text-[14px] font-medium text-slate-900 dark:text-slate-100 whitespace-normal break-words overflow-visible leading-snug">
+                  Khấu trừ bảo hiểm tự động
+                </span>
+                <Switch
+                  testId="company-insurance-toggle"
+                  ariaLabel="Khấu trừ bảo hiểm tự động"
+                  checked={isInsuranceEnabled}
+                  onChange={() => {
+                    if (isInsuranceEnabled) {
+                      updateField("insurance_rate", 0);
+                    } else {
+                      updateField("insurance_rate", lastPositiveInsuranceRateRef.current || 10.5);
+                    }
+                  }}
+                />
+              </div>
+              <p className="w-full mt-1 text-[12.5px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-relaxed">
+                Khi tắt (0%), tiền khấu trừ bảo hiểm = 0 đ và ẩn dòng bảo hiểm trên Bảng lương &amp; Phiếu lương.
+              </p>
             </div>
 
             {isInsuranceEnabled && (
               <div>
-                <label className="block text-[12px] font-semibold text-slate-600 dark:text-slate-300 mb-1 truncate">
-                  Tỷ lệ khấu trừ BH
-                </label>
+                <label className={LABEL_CLASS}>Tỷ lệ khấu trừ BH</label>
                 <InputWithSuffix
                   data-testid="company-insurance-rate-input"
                   type="text"
@@ -1926,8 +1943,8 @@ export default function CompanySettingsTab({ showToast }) {
           </div>
         </div>
 
-        <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-          <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+        <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <span className="flex-1 min-w-0 text-[12px] text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug">
             {isRulesDirty ? "Có thay đổi chưa lưu" : "Đồng bộ trực tiếp với bảng lương"}
           </span>
           <SectionSaveButton

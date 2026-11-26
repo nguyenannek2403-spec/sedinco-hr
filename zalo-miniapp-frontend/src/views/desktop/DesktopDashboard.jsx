@@ -417,34 +417,37 @@ export default function DesktopDashboard({
                         }
                         setIsSettingsPickerOpen((prev) => !prev);
                       }}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-[#E11D48] dark:hover:border-rose-500/60 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between gap-3 text-left transition active:scale-[0.99] cursor-pointer"
+                      className="w-full min-h-[60px] bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-[#E11D48] dark:hover:border-rose-500/60 rounded-2xl p-3.5 sm:p-4 shadow-sm text-left transition active:scale-[0.99] cursor-pointer"
                     >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-11 h-11 rounded-2xl bg-[#FFE4E6] dark:bg-rose-950/70 text-[#E11D48] dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/60 flex items-center justify-center shrink-0">
-                          <ActiveSettingIcon className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#E11D48] dark:text-rose-400">
+                      {/* Tầng 1: Icon + Tiêu đề phân mục bên trái, Nút mũi tên bên phải */}
+                      <div className="flex items-start justify-between gap-2.5 w-full">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div className="w-10 h-10 rounded-xl bg-[#FFE4E6] dark:bg-rose-950/70 text-[#E11D48] dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/60 flex items-center justify-center shrink-0">
+                            <ActiveSettingIcon className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-[11px] font-extrabold uppercase tracking-wider text-[#E11D48] dark:text-rose-400 leading-snug">
                               Danh mục cài đặt
                             </span>
+                            <div className="font-extrabold text-sm sm:text-base text-[#111C2D] dark:text-white whitespace-normal break-words overflow-visible leading-snug">
+                              {activeSettingOpt.label}
+                            </div>
                           </div>
-                          <div className="font-extrabold text-sm sm:text-base text-[#111C2D] dark:text-white truncate leading-snug">
-                            {activeSettingOpt.label}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                            {activeSettingOpt.description}
-                          </div>
+                        </div>
+
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-xs font-extrabold text-[#111C2D] dark:text-slate-200 shrink-0 mt-0.5">
+                          <span className="hidden sm:inline">Chọn mục</span>
+                          <ChevronDown
+                            className={`w-4 h-4 text-[#E11D48] dark:text-rose-400 transition-transform duration-200 ${
+                              isSettingsPickerOpen ? "rotate-180" : ""
+                            }`}
+                          />
                         </div>
                       </div>
 
-                      <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F0F3FF] dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-xs font-extrabold text-[#111C2D] dark:text-slate-200 shrink-0">
-                        <span className="hidden sm:inline">Chọn mục</span>
-                        <ChevronDown
-                          className={`w-4 h-4 text-[#E11D48] dark:text-rose-400 transition-transform duration-200 ${
-                            isSettingsPickerOpen ? "rotate-180" : ""
-                          }`}
-                        />
+                      {/* Tầng 2: Dòng mô tả chức năng trải trọn 100% chiều rộng */}
+                      <div className="w-full mt-1.5 text-xs text-slate-600 dark:text-slate-300 whitespace-normal break-words overflow-visible leading-snug">
+                        {activeSettingOpt.description}
                       </div>
                     </button>
 
@@ -470,13 +473,13 @@ export default function DesktopDashboard({
                                 setSettingsSubTab(opt.id);
                                 setIsSettingsPickerOpen(false);
                               }}
-                              className={`w-full min-h-[54px] px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left transition cursor-pointer ${
+                              className={`w-full min-h-[54px] px-3.5 py-2.5 rounded-xl flex items-start justify-between gap-3 text-left transition cursor-pointer ${
                                 isSelected
                                   ? "bg-[#FFE4E6]/70 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/70"
                                   : "hover:bg-slate-50 dark:hover:bg-slate-800/80 border border-transparent"
                               }`}
                             >
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="flex items-start gap-3 min-w-0 flex-1">
                                 <div
                                   className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                                     isSelected
@@ -488,7 +491,7 @@ export default function DesktopDashboard({
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div
-                                    className={`text-sm font-extrabold truncate ${
+                                    className={`text-sm font-extrabold whitespace-normal break-words overflow-visible leading-snug ${
                                       isSelected
                                         ? "text-[#B80035] dark:text-rose-200"
                                         : "text-[#111C2D] dark:text-white"
@@ -496,14 +499,14 @@ export default function DesktopDashboard({
                                   >
                                     {opt.label}
                                   </div>
-                                  <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                  <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-normal break-words overflow-visible leading-snug mt-0.5">
                                     {opt.description}
                                   </div>
                                 </div>
                               </div>
 
                               {isSelected && (
-                                <span className="w-7 h-7 rounded-full bg-[#E11D48] text-white flex items-center justify-center shrink-0">
+                                <span className="w-7 h-7 rounded-full bg-[#E11D48] text-white flex items-center justify-center shrink-0 mt-1">
                                   <Check className="w-4 h-4 stroke-[3]" />
                                 </span>
                               )}
