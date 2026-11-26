@@ -14,7 +14,6 @@ import {
   checkZaloCameraPermission as zmpCheckCameraPermission,
   requestCameraPermission as zmpRequestCameraPermission,
   getSystemInfo as zmpGetSystemInfo,
-  scanQRCode as zmpScanQRCode,
   vibrate as zmpVibrate,
   getNetworkType as zmpGetNetworkType,
   keepScreen as zmpKeepScreen,
@@ -272,7 +271,7 @@ export const realSdkAdapter = {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             timeout: 5000,
             enableHighAccuracy: true,
-            maximumAge: 15000
+            maximumAge: 0
           });
         });
         return {
@@ -406,24 +405,6 @@ export const realSdkAdapter = {
       return zmpGetSystemInfo() || {};
     } catch (e) {
       return {};
-    }
-  },
-
-  async scanQRCode() {
-    try {
-      if (typeof zmpScanQRCode !== "function") {
-        throw new Error("Thiết bị hoặc phiên bản Zalo chưa hỗ trợ quét mã QR trực tiếp.");
-      }
-      const res = await zmpScanQRCode({});
-      const content = res?.content || res?.data || (typeof res === "string" ? res : "");
-      return { content: String(content || "").trim(), raw: res };
-    } catch (err) {
-      console.warn("[RealSDK] scanQRCode error:", err);
-      throw {
-        code: "QR_SCAN_FAILED",
-        message: err?.message || "Không thể quét mã QR từ Camera Zalo.",
-        raw: err
-      };
     }
   },
 

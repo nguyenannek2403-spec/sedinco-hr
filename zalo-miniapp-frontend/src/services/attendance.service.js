@@ -3,18 +3,16 @@ import { safeGet, safePost, generateIdempotencyKey } from "../utils/api";
 import { getDeviceIdentity } from "../utils/deviceIdentity";
 import { SDK_STATES, createServiceResult } from "./zalo-sdk-core";
 import { acquireVerifiedLocation } from "./zalo-location.service";
-import { scanAttendanceQr } from "./zalo-qr.service";
 import { silentResolveZaloToken } from "./zalo-auth.service";
 
 /**
- * Smart Attendance Orchestrator Service (Phase 1 — Quy trình 9 bước chuẩn):
- * 1. Nhân viên bấm Chấm công vào/ra (hoặc Quét QR).
- * 2. Kiểm tra trạng thái đăng nhập & ca làm (/attendance/today, /attendance/precheck).
- * 3. Lấy vị trí GPS nếu quyền GPS đã được cấp hoặc xin khi người dùng bấm.
- * 4. Kiểm tra chi nhánh, phương thức chi nhánh & vùng GPS phía backend (/attendance/precheck).
- * 5. Quét QR động nếu phương thức chi nhánh yêu cầu (hoặc chế độ QR fallback).
- * 6. Gửi dữ liệu xác thực + client_nonce + Idempotency-Key đến backend (/attendance/check-in).
- * 7-9. Backend quyết định hoàn toàn kết quả chấm công theo Asia/Ho_Chi_Minh và trả về cho Frontend.
+ * Smart Attendance Orchestrator Service (V64 Sequential Pipeline):
+ * Step 1: auth-setting / getSetting() -> Kiểm tra & xin quyền scope.userLocation. Nếu user từ chối -> Dừng ngay.
+ * Step 2: getLocation() -> Lấy zalo_location_token mới tươi (single-use, timeout <= 10s, không bao giờ cache).
+ * Step 3: POST /api/attendance/precheck -> Giải mã zalo_location_token DUY NHẤT 1 LẦN tại Backend, nhận location_proof_token (60s).
+ *         Nếu precheck lỗi hoặc allowed: false -> Dừng ngay, hiển thị lý do, KHÔNG gọi /check-in.
+ * Step 4: POST /api/attendance/check-in -> Gửi location_proof_token (không gửi lại zalo_location_token) + client_nonce + Idempotency-Key.
+ * Step 5: Async post-tasks -> Sau khi check-in 200 OK mới chạy bất đồng bộ các tác vụ phụ.
  */
 
 export async function getAttendanceNetworkStatus() {
@@ -29,38 +27,48 @@ export async function triggerAttendanceHaptic(type = "light") {
   return zmpAdapter.vibrate(type);
 }
 
-export async function fetchDynamicBranchQr({ branchId = null, ttlSeconds = 90 } = {}) {
-  const res = await safePost(
-    "/attendance/qr-session",
-    {
-      ...(branchId ? { branch_id: branchId } : {}),
-      ttl_seconds: ttlSeconds
-    },
-    { cancelPrevious: false }
-  );
-  return res?.data || null;
-}
-
 export async function executeSmartAttendanceFlow({
   isFieldWorkMode = false,
-  fieldNote = "",
-  forceQrScan = false,
-  manualQrToken = ""
+  fieldNote = ""
 } = {}) {
-  // Bước 3: Lấy access token im lặng (nếu ở Zalo) + lấy GPS theo thao tác bấm nút
-  const [accessToken, locResult] = await Promise.all([
-    silentResolveZaloToken(),
-    acquireVerifiedLocation({ requestPermissionIfNeeded: true, timeoutMs: 10000 })
-  ]);
+  const workLocationType = isFieldWorkMode ? "FIELD_WORK" : "OFFICE";
+  const resolvedFieldNote = isFieldWorkMode
+    ? (String(fieldNote || "").trim().length >= 2 ? String(fieldNote).trim() : "Đi công trình / Thị trường (GPS)")
+    : "";
 
-  const gpsGranted = locResult.ok;
+  // Step 1 & Step 2: Kiểm tra auth-setting (scope.userLocation) & lấy vị trí / zalo_location_token mới tươi
+  const locResult = await acquireVerifiedLocation({
+    requestPermissionIfNeeded: true,
+    timeoutMs: 10000
+  });
+
+  // Nếu người dùng từ chối quyền vị trí trên Zalo -> Dừng ngay lập tức, KHÔNG gọi precheck hay check-in
+  if (
+    !locResult.ok &&
+    (locResult.state === SDK_STATES.PERMISSION_DENIED ||
+      locResult.state === SDK_STATES.PENDING_ZALO_APPROVAL)
+  ) {
+    return createServiceResult({
+      state: locResult.state,
+      errorCode: locResult.errorCode || "LOCATION_PERMISSION_DENIED",
+      message:
+        locResult.message ||
+        "Ứng dụng chưa được cấp quyền truy cập vị trí trên Zalo. Vui lòng bật quyền Vị trí để chấm công.",
+      canRetry: locResult.canRetry,
+      canOpenSettings: locResult.canOpenSettings
+    });
+  }
+
+  const accessToken = await silentResolveZaloToken();
+
+  const gpsGranted = Boolean(locResult.ok && locResult.data);
   const lat = gpsGranted ? locResult.data.latitude : null;
   const lng = gpsGranted ? locResult.data.longitude : null;
   const gpsAccuracy = gpsGranted ? locResult.data.accuracy : null;
   const isFakeGps = gpsGranted ? locResult.data.isMock : false;
   const locationToken = gpsGranted ? locResult.data.locationToken : "";
 
-  // Bước 4: Precheck ca làm, chi nhánh, Wi-Fi nội bộ & phương thức chấm công phía Backend
+  // Step 3: POST /api/attendance/precheck — Giải mã zalo_location_token DUY NHẤT 1 LẦN và cấp location_proof_token
   let precheck = null;
   try {
     const preRes = await safePost(
@@ -68,60 +76,49 @@ export async function executeSmartAttendanceFlow({
       {
         lat,
         lng,
-        work_location_type: isFieldWorkMode ? "FIELD_WORK" : "OFFICE"
+        zalo_location_token: locationToken || undefined,
+        zalo_access_token: accessToken || undefined,
+        work_location_type: workLocationType,
+        field_note: resolvedFieldNote || undefined
       },
       { cancelPrevious: false }
     );
     precheck = preRes?.data || null;
   } catch (preErr) {
-    // Không chặn nếu lỗi mạng tạm thời, check-in endpoint vẫn xác thực đầy đủ
-    precheck = null;
-  }
-
-  if (precheck && precheck.can_check_in === false && precheck.block_reason) {
+    const errCode = preErr?.code || preErr?.data?.code || "PRECHECK_FAILED";
+    const errMsg =
+      preErr?.message ||
+      preErr?.data?.message ||
+      "Không thể kiểm tra điều kiện chấm công. Vui lòng kiểm tra kết nối mạng và thử lại.";
     return createServiceResult({
       state: SDK_STATES.ERROR,
-      errorCode: "ATTENDANCE_BLOCKED",
-      message: precheck.block_reason,
-      canRetry: false
+      errorCode: errCode,
+      message: errMsg,
+      canRetry: true
     });
   }
 
-  const branchRequiresQr = Boolean(precheck?.requires_qr);
-  const needsQrScan = Boolean(forceQrScan || (!isFieldWorkMode && branchRequiresQr));
-  let qrToken = manualQrToken ? String(manualQrToken).trim() : "";
-
-  // Nếu không có GPS VÀ không khớp Wi-Fi nội bộ VÀ không quét QR -> trả trạng thái permission-denied / fallback rõ ràng (không giả lập GPS!)
-  if (!gpsGranted && !precheck?.matched_wifi && !needsQrScan && !qrToken) {
+  // Nếu precheck không cho phép (allowed === false hoặc can_check_in === false) -> Dừng ngay, KHÔNG gọi /check-in
+  if (!precheck || precheck.can_check_in === false || precheck.allowed === false) {
+    const blockCode = precheck?.error_code || "ATTENDANCE_PRECHECK_BLOCKED";
+    const blockMsg =
+      precheck?.block_reason ||
+      locResult?.message ||
+      "Chưa đủ điều kiện vị trí để chấm công. Nếu bạn đang đi công trình, hãy chọn chế độ Đi công trình (GPS).";
     return createServiceResult({
-      state: locResult.state,
-      errorCode: locResult.errorCode,
-      message:
-        locResult.message ||
-        "Chưa lấy được vị trí GPS và không thuộc Wi-Fi nội bộ. Bạn có thể bật quyền Vị trí hoặc chuyển sang Quét QR chi nhánh.",
-      canRetry: locResult.canRetry,
-      canOpenSettings: locResult.canOpenSettings,
-      data: { precheck, canUseQrFallback: true }
+      state:
+        blockCode === "ZALO_PERMISSION_DENIED"
+          ? SDK_STATES.PERMISSION_DENIED
+          : SDK_STATES.ERROR,
+      errorCode: blockCode,
+      message: blockMsg,
+      canRetry: precheck?.can_check_in !== false,
+      canOpenSettings: blockCode === "ZALO_PERMISSION_DENIED",
+      data: { precheck }
     });
   }
 
-  // Bước 5: Quét QR động nếu chi nhánh yêu cầu hoặc nhân viên chọn quét QR
-  if (needsQrScan && !qrToken) {
-    const qrRes = await scanAttendanceQr({ timeoutMs: 25000 });
-    if (!qrRes.ok) {
-      return createServiceResult({
-        state: qrRes.state,
-        errorCode: qrRes.errorCode,
-        message: qrRes.message,
-        canRetry: qrRes.canRetry,
-        canOpenSettings: qrRes.canOpenSettings,
-        data: { precheck, qrFailed: true }
-      });
-    }
-    qrToken = qrRes.data.qrToken;
-  }
-
-  // Bước 6: Gửi payload xác thực + client_nonce + Idempotency-Key lên Backend quyết định
+  // Step 4: POST /api/attendance/check-in — Chỉ gọi khi precheck.allowed === true, dùng location_proof_token (KHÔNG gửi lại zalo_location_token)
   const devIdentity = await getDeviceIdentity();
   const idempotencyKey = generateIdempotencyKey("checkin");
   const clientNonce =
@@ -129,27 +126,27 @@ export async function executeSmartAttendanceFlow({
       ? crypto.randomUUID()
       : `nonce_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
-  const resolvedFieldNote = isFieldWorkMode
-    ? (String(fieldNote || "").trim().length >= 2 ? String(fieldNote).trim() : "Đi công trình / Thị trường (GPS)")
-    : "";
-
-  const attendanceMode = qrToken && !gpsGranted ? "QR_FALLBACK" : undefined;
+  const resolvedLat =
+    precheck.verified_lat !== undefined && precheck.verified_lat !== null
+      ? precheck.verified_lat
+      : lat;
+  const resolvedLng =
+    precheck.verified_lng !== undefined && precheck.verified_lng !== null
+      ? precheck.verified_lng
+      : lng;
 
   const result = await safePost(
     "/attendance/check-in",
     {
-      lat,
-      lng,
-      zalo_location_token: locationToken || undefined,
-      zalo_access_token: accessToken || undefined,
-      qr_token: qrToken || undefined,
+      lat: resolvedLat,
+      lng: resolvedLng,
+      location_proof_token: precheck.location_proof_token || undefined,
       client_nonce: clientNonce,
-      attendance_mode: attendanceMode,
       device_name: devIdentity.device_model_name,
       device_info: devIdentity.device_info,
       gps_accuracy: gpsAccuracy,
       is_fake_gps: isFakeGps,
-      work_location_type: isFieldWorkMode ? "FIELD_WORK" : "OFFICE",
+      work_location_type: workLocationType,
       field_note: resolvedFieldNote
     },
     { idempotencyKey }
@@ -177,7 +174,6 @@ export const attendanceService = {
   getAttendanceNetworkStatus,
   setAttendanceKeepScreen,
   triggerAttendanceHaptic,
-  fetchDynamicBranchQr,
   executeSmartAttendanceFlow,
   fetchTodayAndMonthlyStatus
 };

@@ -22,7 +22,6 @@ export const zmpAdapter = {
   checkStateBioAuthentication: (...args) => realSdkAdapter.checkStateBioAuthentication(...args),
   chooseImage: (...args) => realSdkAdapter.chooseImage(...args),
   getSystemInfo: (...args) => realSdkAdapter.getSystemInfo(...args),
-  scanQRCode: (...args) => realSdkAdapter.scanQRCode(...args),
   vibrate: (...args) => realSdkAdapter.vibrate(...args),
   getNetworkType: (...args) => realSdkAdapter.getNetworkType(...args),
   keepScreenOn: (...args) => realSdkAdapter.keepScreenOn(...args),

@@ -34,10 +34,8 @@ export async function acquireVerifiedLocation({ requestPermissionIfNeeded = true
   }
 
   try {
-    const loc = await withSafeRetry(
-      () => withSdkTimeout(() => zmpAdapter.getLocation(), timeoutMs, "getLocation"),
-      { retries: 1, delayMs: 300 }
-    );
+    // Gọi trực tiếp zmpAdapter.getLocation() mới mỗi lần bấm, tuyệt đối không cache hay dùng lại token cũ
+    const loc = await withSdkTimeout(() => zmpAdapter.getLocation(), timeoutMs, "getLocation");
 
     const hasToken = Boolean(loc?.token);
     const lat = loc?.latitude !== undefined && loc?.latitude !== null && Number.isFinite(Number(loc.latitude))
@@ -51,7 +49,7 @@ export async function acquireVerifiedLocation({ requestPermissionIfNeeded = true
       return createServiceResult({
         state: insideZalo ? SDK_STATES.PENDING_ZALO_APPROVAL : SDK_STATES.ERROR,
         errorCode: "EMPTY_LOCATION",
-        message: "Chưa nhận được tọa độ GPS hoặc token vị trí từ thiết bị. Vui lòng thử lại hoặc dùng Quét QR / Wi-Fi nội bộ.",
+        message: "Chưa nhận được tọa độ GPS hoặc token vị trí từ thiết bị. Vui lòng bật GPS / quyền vị trí hoặc kết nối Wi-Fi nội bộ.",
         canRetry: true
       });
     }

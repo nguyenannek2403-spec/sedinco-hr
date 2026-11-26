@@ -1089,7 +1089,17 @@ class AttendanceService {
         };
     }
 
-    async precheckAttendanceBranch({ lat = null, lng = null, work_location_type = 'OFFICE', current_user = null, ip_address = '', currentTime = null } = {}) {
+    async precheckAttendanceBranch({
+        lat = null,
+        lng = null,
+        zalo_location_token = null,
+        zalo_access_token = '',
+        work_location_type = 'OFFICE',
+        field_note = '',
+        current_user = null,
+        ip_address = '',
+        currentTime = null
+    } = {}) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để kiểm tra chấm công!');
             error.statusCode = 401;
@@ -1098,6 +1108,12 @@ class AttendanceService {
 
         const ma_nv = current_user.ma_nv;
         const { getVietnamDateString, getVietnamTimeString } = require('../utils/timeHelper');
+        const {
+            verifyZaloLocationToken,
+            issueLocationProofToken,
+            isLocationTokenReplayed
+        } = require('../utils/zaloAdapter');
+
         const today = currentTime instanceof Date ? currentTime : new Date();
         const dateStr = getVietnamDateString(today);
         const timeStr = getVietnamTimeString(today);
@@ -1138,9 +1154,53 @@ class AttendanceService {
             .map((s) => normalizeIp(s))
             .filter(Boolean);
         const matchedWifi = Boolean(cleanClientIp && ipWhitelist.includes(cleanClientIp));
+        const isFieldWork = String(work_location_type || '').toUpperCase() === 'FIELD_WORK';
 
-        const numLat = lat !== null && lat !== undefined && lat !== '' && Number.isFinite(Number(lat)) ? Number(lat) : null;
-        const numLng = lng !== null && lng !== undefined && lng !== '' && Number.isFinite(Number(lng)) ? Number(lng) : null;
+        let numLat = lat !== null && lat !== undefined && lat !== '' && Number.isFinite(Number(lat)) ? Number(lat) : null;
+        let numLng = lng !== null && lng !== undefined && lng !== '' && Number.isFinite(Number(lng)) ? Number(lng) : null;
+        let resolvedSource = (numLat !== null && numLng !== null) ? 'raw' : (matchedWifi ? 'wifi' : 'none');
+
+        // Giải mã Single-Use Zalo Location Token ĐÚNG 1 LẦN DUY NHẤT tại bước /precheck
+        let tokenVerificationError = null;
+        if (zalo_location_token && String(zalo_location_token).trim()) {
+            const cleanLocToken = String(zalo_location_token).trim();
+            const locTokenHash = `LOC_TOKEN_${crypto.createHash('sha256').update(cleanLocToken).digest('hex').slice(0, 50)}`;
+            const existingReplayRows = await query(
+                'SELECT key_hash FROM idempotency_keys WHERE key_hash = ? AND created_at >= NOW() - INTERVAL 15 MINUTE LIMIT 1',
+                [locTokenHash]
+            ).catch(() => []);
+
+            if (isLocationTokenReplayed(cleanLocToken) || (existingReplayRows && existingReplayRows.length > 0)) {
+                tokenVerificationError = {
+                    code: 'ZALO_TOKEN_ALREADY_USED',
+                    message: 'Mã định vị Zalo đã được sử dụng trước đó. Vui lòng bấm Thử lại để lấy vị trí mới!'
+                };
+            } else {
+                const locRes = await verifyZaloLocationToken({
+                    locationToken: cleanLocToken,
+                    userAccessToken: zalo_access_token || ''
+                });
+
+                if (locRes && locRes.verified && Number.isFinite(Number(locRes.lat)) && Number.isFinite(Number(locRes.lng))) {
+                    numLat = Number(locRes.lat);
+                    numLng = Number(locRes.lng);
+                    resolvedSource = 'token';
+                    await query(
+                        `INSERT INTO idempotency_keys (key_hash, actor_id, endpoint, response_status, response_body)
+                         VALUES (?, ?, 'LOC_TOKEN_REPLAY_GUARD', 200, NULL)
+                         ON DUPLICATE KEY UPDATE created_at = NOW(), actor_id = VALUES(actor_id)`,
+                        [locTokenHash, ma_nv]
+                    ).catch(() => {});
+                } else if (numLat === null || numLng === null) {
+                    tokenVerificationError = {
+                        code: locRes?.errorCode || 'INVALID_ZALO_LOCATION_TOKEN',
+                        message:
+                            locRes?.message ||
+                            'Token định vị Zalo không hợp lệ hoặc đã hết hạn. Vui lòng bấm Thử lại để lấy vị trí mới!'
+                    };
+                }
+            }
+        }
 
         let matchedBranch = null;
         let nearestBranch = allowedLocations[0] || { id: 'loc_hq_1', name: 'Trụ sở chính Đà Nẵng', lat: 16.0544, lng: 108.2022, radius: 500, attendance_method: 'GPS' };
@@ -1174,35 +1234,78 @@ class AttendanceService {
         const alreadyCheckedOut = Boolean(todayLog && todayLog.check_in_time && todayLog.check_out_time);
 
         let blockReason = null;
-        if (isAdmin) blockReason = 'Tài khoản Quản trị viên không tham gia chấm công cá nhân.';
-        else if (isAccountLocked) blockReason = 'Tài khoản nhân sự đang bị tạm khóa.';
-        else if (isLocked) blockReason = `Kỳ công Tháng ${currentMonth}/${currentYear} đã bị khóa sổ.`;
-        else if (isStatusLocked) blockReason = effToday.note || 'Trạng thái công hôm nay đã được chốt.';
-        else if (alreadyCheckedOut) blockReason = 'Bạn đã hoàn tất cả vào ca và tan ca hôm nay.';
+        let errorCode = null;
+        if (isAdmin) {
+            blockReason = 'Tài khoản Quản trị viên không tham gia chấm công cá nhân.';
+            errorCode = 'ADMIN_EXCLUDED';
+        } else if (isAccountLocked) {
+            blockReason = 'Tài khoản nhân sự đang bị tạm khóa.';
+            errorCode = 'ACCOUNT_LOCKED';
+        } else if (isLocked) {
+            blockReason = `Kỳ công Tháng ${currentMonth}/${currentYear} đã bị khóa sổ.`;
+            errorCode = 'PERIOD_LOCKED';
+        } else if (isStatusLocked) {
+            blockReason = effToday.note || 'Trạng thái công hôm nay đã được chốt.';
+            errorCode = 'EFFECTIVE_STATUS_LOCKED';
+        } else if (alreadyCheckedOut) {
+            blockReason = 'Bạn đã hoàn tất cả vào ca và tan ca hôm nay.';
+            errorCode = 'ALREADY_CHECKED_OUT';
+        } else if (!isFieldWork && !matchedWifi && tokenVerificationError && (numLat === null || numLng === null)) {
+            blockReason = tokenVerificationError.message;
+            errorCode = tokenVerificationError.code;
+        } else if (!isFieldWork && !matchedBranch && !matchedWifi && numLat !== null && numLng !== null) {
+            const distRounded = Number.isFinite(minDistanceMeters) ? Math.round(minDistanceMeters) : 999999;
+            blockReason = `Bạn đang ngoài phạm vi các điểm chấm công văn phòng (Cách ${nearestBranch.name} ${distRounded}m, cho phép ${nearestBranch.radius}m). Nếu bạn đang đi thị trường/công trình, hãy chọn chế độ "Đi công trình"!`;
+            errorCode = 'OUT_OF_GEOFENCE';
+        } else if (!isFieldWork && !matchedBranch && !matchedWifi && (numLat === null || numLng === null)) {
+            blockReason = 'Chưa xác định được vị trí GPS và không thuộc mạng Wi-Fi nội bộ văn phòng.';
+            errorCode = 'EMPTY_LOCATION';
+        }
 
         const checkType = (todayLog && todayLog.check_in_time && !todayLog.check_out_time) ? 'OUT' : 'IN';
         const activeShiftCode = (emp.shift_type && SHIFT_DEFINITIONS[String(emp.shift_type).trim().toUpperCase()])
             ? String(emp.shift_type).trim().toUpperCase()
             : 'FULL_DAY';
-        const activeBranch = matchedBranch || nearestBranch;
-        const isFieldWork = String(work_location_type || '').toUpperCase() === 'FIELD_WORK';
-        const requiredMethod = isFieldWork ? 'GPS' : (activeBranch?.attendance_method || 'GPS');
+
+        const distanceMetersRounded = Number.isFinite(minDistanceMeters) ? Math.round(minDistanceMeters) : null;
+        const isAllowed = !blockReason;
+
+        // Cấp chứng chỉ vị trí 1 lần (location_proof_token) để /check-in sử dụng mà không cần gọi lại graph.zalo.me
+        const locationProofToken = isAllowed
+            ? issueLocationProofToken({
+                  userId: ma_nv,
+                  lat: numLat,
+                  lng: numLng,
+                  distance: distanceMetersRounded,
+                  mode: isFieldWork ? 'FIELD_WORK' : 'OFFICE',
+                  source: isFieldWork ? (resolvedSource === 'none' ? 'field_fallback' : resolvedSource) : resolvedSource
+              })
+            : null;
 
         return {
-            ready: !blockReason,
-            can_check_in: !blockReason,
+            ready: isAllowed,
+            allowed: isAllowed,
+            can_check_in: isAllowed,
             block_reason: blockReason,
+            error_code: errorCode,
+            location_proof_token: locationProofToken,
+            verified_lat: numLat,
+            verified_lng: numLng,
+            resolved_lat: numLat,
+            resolved_lng: numLng,
+            location_source: resolvedSource,
             check_type: checkType,
             shift_type: activeShiftCode,
             shift_label: (SHIFT_DEFINITIONS[activeShiftCode] || SHIFT_DEFINITIONS.FULL_DAY).label,
             today_effective_status: effToday,
-            matched_branch: matchedBranch ? { id: matchedBranch.id, name: matchedBranch.name, radius: matchedBranch.radius, attendance_method: matchedBranch.attendance_method || 'GPS' } : null,
-            nearest_branch: nearestBranch ? { id: nearestBranch.id, name: nearestBranch.name, radius: nearestBranch.radius, attendance_method: nearestBranch.attendance_method || 'GPS' } : null,
-            distance_meters: Number.isFinite(minDistanceMeters) ? Math.round(minDistanceMeters) : null,
-            in_geofence: Boolean(matchedBranch),
+            matched_branch: matchedBranch ? { id: matchedBranch.id, name: matchedBranch.name, radius: matchedBranch.radius, attendance_method: 'GPS' } : null,
+            nearest_branch: nearestBranch ? { id: nearestBranch.id, name: nearestBranch.name, radius: nearestBranch.radius, attendance_method: 'GPS' } : null,
+            distance_meters: distanceMetersRounded,
+            in_geofence: isFieldWork ? true : Boolean(matchedBranch || matchedWifi),
             matched_wifi: matchedWifi,
-            required_method: requiredMethod,
-            requires_qr: requiredMethod === 'GPS_AND_QR' || requiredMethod === 'QR_ONLY',
+            work_location_type: isFieldWork ? 'FIELD_WORK' : 'OFFICE',
+            required_method: 'GPS',
+            requires_qr: false,
             period_locked: Boolean(isLocked),
             server_date_vn: dateStr,
             server_time_vn: timeStr,
@@ -1210,7 +1313,7 @@ class AttendanceService {
         };
     }
 
-    async checkInMultiFactor({ lat, lng, zalo_location_token, zalo_access_token = '', qr_token = null, client_nonce = null, attendance_mode = null, image_snapshot, device_info, device_name = null, user_agent = '', is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
+    async checkInMultiFactor({ lat, lng, location_proof_token = null, zalo_location_token, zalo_access_token = '', qr_token = null, client_nonce = null, attendance_mode = null, image_snapshot, device_info, device_name = null, user_agent = '', is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
             error.statusCode = 401;
@@ -1328,7 +1431,20 @@ class AttendanceService {
             throw error;
         };
 
-        if (zalo_location_token) {
+        const isFieldWorkReq = String(work_location_type || '').toUpperCase() === 'FIELD_WORK';
+
+        if (location_proof_token && String(location_proof_token).trim()) {
+            const { verifyAndConsumeLocationProofToken } = require('../utils/zaloAdapter');
+            const proof = await verifyAndConsumeLocationProofToken(location_proof_token, ma_nv);
+            if (proof.lat !== null && proof.lat !== undefined && proof.lng !== null && proof.lng !== undefined) {
+                finalLat = proof.lat;
+                finalLng = proof.lng;
+                numLat = Number(proof.lat);
+                numLng = Number(proof.lng);
+            }
+            location_source = proof.source || 'token';
+            is_low_trust = 0;
+        } else if (zalo_location_token) {
             const { verifyZaloLocationToken, isLocationTokenReplayed } = require('../utils/zaloAdapter');
             const cleanLocToken = String(zalo_location_token).trim();
             const locTokenHash = `LOC_TOKEN_${crypto.createHash('sha256').update(cleanLocToken).digest('hex').slice(0, 50)}`;
@@ -1345,15 +1461,10 @@ class AttendanceService {
                 );
             }
 
-            let locResult = null;
-            try {
-                locResult = await verifyZaloLocationToken({
-                    locationToken: cleanLocToken,
-                    userAccessToken: zalo_access_token || ''
-                });
-            } catch (zaloErr) {
-                console.warn('[AttendanceService] Giải mã location_token Zalo thất bại, fallback sang GPS/Wi-Fi:', zaloErr?.message || zaloErr);
-            }
+            const locResult = await verifyZaloLocationToken({
+                locationToken: cleanLocToken,
+                userAccessToken: zalo_access_token || ''
+            });
 
             if (locResult && locResult.verified && locResult.lat !== undefined && locResult.lng !== undefined) {
                 finalLat = locResult.lat;
@@ -1370,11 +1481,16 @@ class AttendanceService {
                      ON DUPLICATE KEY UPDATE created_at = NOW(), actor_id = VALUES(actor_id)`,
                     [locTokenHash, ma_nv]
                 ).catch(() => {});
-            } else {
-                const err = new Error('Token định vị Zalo không hợp lệ, đã hết hạn hoặc bị chỉnh sửa. Vui lòng lấy lại vị trí từ Zalo!');
-                err.statusCode = 403;
-                err.code = 'INVALID_ZALO_LOCATION_TOKEN';
-                throw err;
+            } else if (numLat === null || numLng === null) {
+                if (!matchedWifiIp && !isFieldWorkReq) {
+                    const err = new Error(
+                        locResult?.message ||
+                            'Token định vị Zalo không hợp lệ, đã hết hạn hoặc bị chỉnh sửa. Vui lòng bấm Thử lại để lấy vị trí mới!'
+                    );
+                    err.statusCode = locResult?.errorCode === 'ZALO_GRAPH_TIMEOUT' ? 504 : 400;
+                    err.code = locResult?.errorCode || 'INVALID_ZALO_LOCATION_TOKEN';
+                    throw err;
+                }
             }
         }
 
@@ -1425,8 +1541,8 @@ class AttendanceService {
             }
         }
 
-        if (!hasRawCoords && !matchedWifiIp && !qrVerifiedBranch) {
-            const error = new Error('Không thể xác định tọa độ GPS hiện tại. Vui lòng bật GPS trên điện thoại, kết nối Wi-Fi Công ty hoặc quét mã QR chi nhánh và thử lại!');
+        if (!hasRawCoords && !matchedWifiIp && !qrVerifiedBranch && !isFieldWorkReq) {
+            const error = new Error('Không thể xác định tọa độ GPS hiện tại. Vui lòng bật GPS trên điện thoại, kết nối Wi-Fi Công ty hoặc bật chế độ Đi Công Trình và thử lại!');
             error.statusCode = 400;
             throw error;
         }
@@ -1450,8 +1566,8 @@ class AttendanceService {
             await triggerCriticalFraud('FAKE_GPS', 'Phát hiện phần mềm giả mạo vị trí (Mock Location / Fake GPS)');
         }
 
-        // 3.2 Kiểm tra dịch chuyển tức thời bất khả thi (Speed Anomaly > 120km/h trong vòng 10 phút)
-        if (numLat !== null && numLng !== null) {
+        // 3.2 Kiểm tra dịch chuyển tức thời bất khả thi (Speed Anomaly > 120km/h trong vòng 10 phút) — chỉ áp dụng khi chấm công Văn phòng
+        if (numLat !== null && numLng !== null && !isFieldWorkReq) {
             const lastCheckInRows = await query(`
                 SELECT check_in_lat, check_in_lng, check_in_time, check_out_time
                 FROM attendance_logs
@@ -1559,7 +1675,18 @@ class AttendanceService {
             throw err;
         }
 
-        if (matchedLocation) {
+        if (isFieldWork) {
+            // V64: Chế độ Đi Công Trình / Thị Trường luôn cho phép chấm công ở bất cứ đâu (không giới hạn bán kính văn phòng hay Wi-Fi)
+            const resolvedNote = cleanFieldNote && cleanFieldNote.length >= 2
+                ? cleanFieldNote
+                : 'Đi công trình / Thị trường (GPS)';
+            cleanFieldNote = resolvedNote;
+            finalLocationType = 'FIELD_WORK';
+            locationName = `Công trình: ${resolvedNote.slice(0, 80)}`;
+            if (location_source === 'token') {
+                is_low_trust = 0;
+            }
+        } else if (matchedLocation) {
             if (targetBranchPolicy === 'GPS_AND_QR' && qrVerifiedBranch && String(matchedLocation.id) !== String(qrVerifiedBranch.id)) {
                 const err = new Error('Vị trí GPS và mã QR động không khớp cùng một chi nhánh!');
                 err.statusCode = 400;
@@ -1591,19 +1718,6 @@ class AttendanceService {
                 ? `${qrVerifiedBranch.name} (QR + Wi-Fi Nội bộ)`
                 : `Wi-Fi Nội bộ (${cleanClientIp})`;
             is_low_trust = 0;
-        } else if (isFieldWork) {
-            // V23: Đi Công Trình / Thị Trường chỉ xác thực GPS + ghi chú tùy chọn (không yêu cầu chụp ảnh)
-            if (numLat === null || numLng === null) {
-                const error = new Error('Chế độ Đi Công Trình cần định vị GPS hợp lệ để ghi nhận tọa độ thực tế!');
-                error.statusCode = 400;
-                throw error;
-            }
-            const resolvedNote = cleanFieldNote && cleanFieldNote.length >= 2
-                ? cleanFieldNote
-                : 'Đi công trình / Thị trường (GPS)';
-            cleanFieldNote = resolvedNote;
-            finalLocationType = 'FIELD_WORK';
-            locationName = `Công trình: ${resolvedNote.slice(0, 80)}`;
         } else {
             const error = new Error(
                 `Bạn đang ngoài phạm vi các điểm chấm công (Cách ${nearestLocation.name} ${distanceMeters}m, cho phép ${nearestLocation.radius}m). Nếu bạn đang đi thị trường/công trình, hãy chọn nút "Đi Công Trình / Thị Trường"!`

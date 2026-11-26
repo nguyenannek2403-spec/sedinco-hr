@@ -122,12 +122,24 @@ class AttendanceController {
 
     async precheckCheckIn(req, res, next) {
         try {
-            const { lat, lng, work_location_type } = req.body || {};
+            const {
+                lat,
+                lng,
+                zalo_location_token,
+                location_token,
+                zalo_access_token,
+                access_token,
+                work_location_type,
+                field_note
+            } = req.body || {};
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '';
             const data = await attendanceService.precheckAttendanceBranch({
                 lat,
                 lng,
+                zalo_location_token: zalo_location_token || location_token,
+                zalo_access_token: zalo_access_token || access_token,
                 work_location_type,
+                field_note,
                 current_user: req.user,
                 ip_address: ip
             });
@@ -142,6 +154,7 @@ class AttendanceController {
             const {
                 lat,
                 lng,
+                location_proof_token,
                 zalo_location_token,
                 location_token,
                 zalo_access_token,
@@ -164,6 +177,7 @@ class AttendanceController {
             const result = await attendanceService.checkInMultiFactor({
                 lat,
                 lng,
+                location_proof_token,
                 zalo_location_token: zalo_location_token || location_token,
                 zalo_access_token: zalo_access_token || access_token,
                 qr_token,

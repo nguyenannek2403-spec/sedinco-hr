@@ -7,7 +7,7 @@ import {
   RotateCcw,
   ShieldAlert,
   HardHat,
-  QrCode,
+  Building2,
   Settings
 } from "lucide-react";
 import { safeGet } from "../utils/api";
@@ -19,6 +19,7 @@ import { attendanceService } from "../services/attendance.service";
 import { zaloLocationService } from "../services/zalo-location.service";
 import { SDK_STATES, isZaloMiniAppRuntime, openZaloPermissionSettings } from "../services/zalo-sdk-core";
 import { AppButton, AppModal, SedincoMascot } from "./ui";
+import { getAttendanceAnimationState } from "./ui/SedincoMascot";
 
 const STAGES = {
   IDLE: "idle",
@@ -123,22 +124,16 @@ export default function OneTouchCheckIn({
 
     // Kiểm tra trạng thái quyền Zalo IM LẶNG qua getSetting() — KHÔNG tự kích hoạt định vị hay hiện popup khi mở app
     const permRes = await zaloLocationService.getLocationPermissionStatus().catch(() => null);
-    const primaryMethod = String(locs[0]?.attendance_method || "GPS").toUpperCase();
-    const methodHint = primaryMethod === "GPS_AND_QR"
-      ? " • Yêu cầu GPS + Quét QR"
-      : primaryMethod === "QR_ONLY"
-        ? " • Quét mã QR"
-        : "";
 
     if (permRes?.ok && permRes?.data?.granted) {
       setLocationFriendlyBadge({
         mode: "checking",
-        text: `📍 Đã cấp quyền vị trí • Chi nhánh: ${locs[0]?.name || "Trụ sở chính"}${methodHint}`
+        text: `📍 Đã cấp quyền vị trí • Chi nhánh: ${locs[0]?.name || "Trụ sở chính"}`
       });
     } else {
       setLocationFriendlyBadge({
         mode: "checking",
-        text: `📍 Chi nhánh mặc định: ${locs[0]?.name || "Trụ sở chính"}${methodHint} — Bấm Chấm công để xác thực`
+        text: `📍 Chi nhánh mặc định: ${locs[0]?.name || "Trụ sở chính"} — Bấm Chấm công để xác thực`
       });
     }
   }, []);
@@ -270,7 +265,7 @@ export default function OneTouchCheckIn({
     };
   }, []);
 
-  const handleStartCheckIn = async (bypassPermExplain = false, { forceQrScan = false } = {}) => {
+  const handleStartCheckIn = async (bypassPermExplain = false) => {
     if (isLockedPeriod) {
       isLockedRef.current = false;
       globalCheckInLockTimestamp = 0;
@@ -281,7 +276,7 @@ export default function OneTouchCheckIn({
     }
 
     const hasSeenPerm = localStorage.getItem("sedinco_has_seen_location_perm");
-    if (!hasSeenPerm && !bypassPermExplain && !forceQrScan) {
+    if (!hasSeenPerm && !bypassPermExplain) {
       isLockedRef.current = false;
       globalCheckInLockTimestamp = 0;
       setIsDebounceLocked(false);
@@ -326,8 +321,8 @@ export default function OneTouchCheckIn({
     try {
       setStage(STAGES.LOCATING);
       setStatusMessage(
-        forceQrScan
-          ? "Đang mở máy ảnh quét mã QR chi nhánh & xác thực..."
+        isFieldWorkMode
+          ? "Đang lấy tọa độ GPS công trình & xác thực..."
           : "Đang kiểm tra quyền vị trí & vùng chi nhánh..."
       );
 
@@ -335,8 +330,7 @@ export default function OneTouchCheckIn({
       try {
         flowOutcome = await attendanceService.executeSmartAttendanceFlow({
           isFieldWorkMode,
-          fieldNote,
-          forceQrScan
+          fieldNote
         });
       } catch (postErr) {
         const errCode = postErr.code || postErr.data?.code || postErr.response?.data?.code || "";
@@ -367,7 +361,7 @@ export default function OneTouchCheckIn({
 
         setStage(STAGES.ERROR);
         setErrorMessage(errText);
-        setErrorDetails("Nếu bạn đang đi công tác/gặp khách hàng, hãy bật chế độ Đi Công Trình (GPS) bên dưới.");
+        setErrorDetails("Nếu bạn đang đi công trình/gặp khách hàng ở xa văn phòng, hãy chọn chế độ Đi Công Trình (GPS) để chấm công tại bất kỳ đâu.");
         return;
       }
 
@@ -382,22 +376,28 @@ export default function OneTouchCheckIn({
         ) {
           setCanOpenPermSetting(Boolean(flowOutcome.canOpenSettings));
           setStage(STAGES.PERM_DENIED);
-          setErrorMessage(flowOutcome.message || "Chưa được cấp quyền vị trí/camera trên Zalo.");
+          setErrorMessage(flowOutcome.message || "Chưa được cấp quyền vị trí trên Zalo.");
           setErrorDetails(
-            "Phương án dự phòng: Kết nối Wi-Fi nội bộ Công ty, dùng nút Quét QR Chi nhánh hoặc gửi Đơn bổ sung công."
+            "Vui lòng mở cài đặt quyền Zalo để bật Vị trí, hoặc kết nối Wi-Fi nội bộ Công ty / chọn chế độ Đi công trình."
           );
           return;
         }
 
+        if (
+          flowOutcome?.errorCode === "OUT_OF_GEOFENCE" ||
+          String(flowOutcome?.message || "").includes("ngoài phạm vi")
+        ) {
+          setIsFieldWorkMode(true);
+        }
+
         setStage(STAGES.ERROR);
         setErrorMessage(flowOutcome?.message || "Chưa hoàn tất kiểm tra chấm công.");
-        setErrorDetails("Vui lòng kiểm tra GPS/Camera/Wi-Fi công ty hoặc thử lại.");
+        setErrorDetails("Nếu bạn đang ở ngoài công trình, hãy chọn chế độ Đi Công Trình (GPS) và bấm Chấm công lại.");
         return;
       }
 
       const result = flowOutcome.data?.response;
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
-      await attendanceService.triggerAttendanceHaptic("light");
 
       const serverTime =
         result?.server_time ||
@@ -410,16 +410,16 @@ export default function OneTouchCheckIn({
         setLiveTodayRecord((prev) => ({
           ...(prev || {}),
           ...result.data,
-          matched_location_name: result.data.location_name || prev?.location_name || "Văn phòng SEDINCO"
+          matched_location_name:
+            result.data.location_name ||
+            prev?.location_name ||
+            (isFieldWorkMode ? "Công trình / Thị trường (GPS)" : "Văn phòng SEDINCO")
         }));
         setLastCheckAction(checkinType);
       }
 
       setServerTimeResult(serverTime);
       setStage(STAGES.SUCCESS);
-      setIsFieldWorkMode(false);
-      setFieldNote("");
-      fetchTodayStatus();
 
       if (result?.is_spam_warning || result?.data?.is_spam_warning) {
         const warnText = result?.message || SPAM_WARNING_MESSAGE;
@@ -435,7 +435,18 @@ export default function OneTouchCheckIn({
       setStatusMessage(serverMsg);
       endCheckInTap(true);
 
-      if (onCheckInSuccess) onCheckInSuccess({ ...result, autoShiftMsg: serverMsg });
+      // Step 5: Async post-tasks chạy bất đồng bộ sau khi check-in 200 OK — lỗi phụ không bao giờ làm hỏng kết quả chấm công
+      Promise.resolve()
+        .then(() => attendanceService.triggerAttendanceHaptic("light"))
+        .catch(() => {});
+      Promise.resolve()
+        .then(() => fetchTodayStatus())
+        .catch(() => {});
+      if (onCheckInSuccess) {
+        try {
+          onCheckInSuccess({ ...result, autoShiftMsg: serverMsg });
+        } catch {}
+      }
     } catch (err) {
       endCheckInTap(false);
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
@@ -491,20 +502,11 @@ export default function OneTouchCheckIn({
   const clockHHMM = `${pad2(nowClock.getHours())}:${pad2(nowClock.getMinutes())}`;
   const clockSS = `:${pad2(nowClock.getSeconds())}`;
 
-  const mascotState =
-    effectiveCode === "NONE" || effectiveCode === "KL"
-      ? "sleeping"
-      : (effectiveCode === "1" && isAdminAdjusted) ||
-        effectiveCode === "P" ||
-        effectiveCode === "L" ||
-        effectiveCode === "OT" ||
-        effectiveCode === "1+OT"
-      ? "completed"
-      : hasCheckedOut || lastCheckAction === "out"
-      ? "waving_goodbye"
-      : hasCheckedIn || lastCheckAction === "in"
-      ? "waving_hello"
-      : "sleeping";
+  const mascotState = getAttendanceAnimationState({
+    todayRecord: effectiveToday,
+    todayEffective: liveTodayEffective,
+    lastCheckAction
+  });
 
   const isActionBusy = isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || stage === STAGES.LOCATING;
   const checkInBtnEnabled =
@@ -810,7 +812,48 @@ export default function OneTouchCheckIn({
         </div>
       </div>
 
-      {/* STITCH SCREEN 2 — SECTION 4: TWO STACKED TACTILE ACTION BUTTONS */}
+      {/* STITCH SCREEN 2 — SECTION 4: WORK LOCATION MODE SWITCHER (VĂN PHÒNG vs ĐI CÔNG TRÌNH) & ACTION BUTTONS */}
+      {!isDayLockedByEffective && !hasCheckedOut && !isLockedPeriod && (
+        <div
+          data-testid="checkin-mode-selector"
+          className="w-full rounded-2xl bg-slate-100/90 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1.5 flex items-center gap-1.5"
+        >
+          <button
+            type="button"
+            data-testid="mode-btn-office"
+            disabled={isActionBusy}
+            onClick={() => setIsFieldWorkMode(false)}
+            className={`flex-1 min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              !isFieldWorkMode
+                ? "bg-white dark:bg-slate-800 text-[#111C2D] dark:text-white shadow-xs border border-slate-200/80 dark:border-slate-700"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <Building2 className="w-4 h-4 shrink-0 text-[#0051CA] dark:text-sky-400" />
+            <span>Tại văn phòng</span>
+          </button>
+          <button
+            type="button"
+            data-testid="mode-btn-fieldwork"
+            disabled={isActionBusy}
+            onClick={() => {
+              setIsFieldWorkMode(true);
+              if (!fieldNote.trim()) {
+                setFieldNote("Đi công trình / Thị trường (GPS)");
+              }
+            }}
+            className={`flex-1 min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              isFieldWorkMode
+                ? "bg-amber-500 text-white shadow-xs border border-amber-600"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <HardHat className="w-4 h-4 shrink-0" />
+            <span>Đi công trình (GPS)</span>
+          </button>
+        </div>
+      )}
+
       <div className="w-full space-y-2.5">
         {/* NÚT 1: CHẤM CÔNG VÀO (VÀO CA) */}
         <button
@@ -852,6 +895,8 @@ export default function OneTouchCheckIn({
                   ? liveTodayEffective?.note || "Đã chốt công / nghỉ hôm nay"
                   : hasCheckedIn
                   ? `Đã vào ca lúc ${String(effectiveToday?.check_in_time || serverTimeResult).slice(0, 5)}`
+                  : isFieldWorkMode
+                  ? "Chấm công GPS tại công trình bất kỳ (không giới hạn khoảng cách)"
                   : `Bắt đầu ca làm việc (${effStart})`}
               </div>
             </div>
@@ -882,6 +927,8 @@ export default function OneTouchCheckIn({
                   ? "ĐANG GỬI CHẤM CÔNG RA..."
                   : !isDayLockedByEffective && hasCheckedIn && !hasCheckedOut && stage === STAGES.LOCATING
                   ? "ĐANG ĐỊNH VỊ GPS..."
+                  : isFieldWorkMode && hasCheckedIn && !hasCheckedOut
+                  ? "VỀ THÔI!!! (TAN CA CÔNG TRÌNH)"
                   : "VỀ THÔI!!! (TAN CA)"}
               </div>
               <div
@@ -896,7 +943,9 @@ export default function OneTouchCheckIn({
                   : hasCheckedOut
                   ? "Đã hoàn thành chấm công hôm nay"
                   : hasCheckedIn
-                  ? `Bấm để chốt giờ tan ca (${effEnd})`
+                  ? isFieldWorkMode
+                    ? "Chốt giờ tan ca tại công trình bằng GPS"
+                    : `Bấm để chốt giờ tan ca (${effEnd})`
                   : "Chưa vào ca làm việc"}
               </div>
             </div>
@@ -905,19 +954,15 @@ export default function OneTouchCheckIn({
         </button>
       </div>
 
-      {/* Nút phụ gọn nhẹ: Quét QR Chi nhánh (khi cần / chi nhánh bật GPS+QR) & Trạng thái kết nối */}
+      {/* Trạng thái kết nối mạng gọn nhẹ */}
       {!isDayLockedByEffective && !hasCheckedOut && !isLockedPeriod && (
         <div className="flex items-center justify-between gap-2 px-1">
-          <button
-            type="button"
-            disabled={isActionBusy}
-            onClick={() => handleStartCheckIn(true, { forceQrScan: true })}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-[#0051CA] dark:text-blue-300 hover:bg-[#F0F3FF] dark:hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
-          >
-            <QrCode className="w-4 h-4 shrink-0" />
-            <span>Quét mã QR chấm công</span>
-          </button>
-          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate text-right">
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            {isFieldWorkMode
+              ? "📍 Chế độ Đi công trình: Cho phép chấm công GPS mọi nơi"
+              : locationFriendlyBadge?.text || "📍 Chấm công theo vị trí chi nhánh"}
+          </span>
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 shrink-0 text-right">
             {networkBadge?.online ? (networkBadge.networkType === "wifi" ? "Wi-Fi sẵn sàng" : "Mạng di động") : "Mất kết nối"}
           </span>
         </div>
@@ -1012,10 +1057,10 @@ export default function OneTouchCheckIn({
                   type="button"
                   variant="secondary"
                   fullWidth
-                  icon={QrCode}
-                  onClick={() => handleStartCheckIn(true, { forceQrScan: true })}
+                  icon={RotateCcw}
+                  onClick={() => handleStartCheckIn(true)}
                 >
-                  Thử Quét QR dự phòng
+                  Thử lại
                 </AppButton>
               </div>
             </div>
