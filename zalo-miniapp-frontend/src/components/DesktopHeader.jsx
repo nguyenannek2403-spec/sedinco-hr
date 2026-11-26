@@ -102,6 +102,8 @@ export default function DesktopHeader({
         return "Duyệt Đơn Từ & OT";
       case "payroll":
         return "Bảng Lương & Phiếu Lương";
+      case "my_attendance":
+        return "Chấm Công & Công Cá Nhân";
       case "settings":
         if (settingsSubTab === "permissions") return "Cài Đặt • Phân Quyền Kế Toán";
         if (settingsSubTab === "holidays") return "Cài Đặt • Lịch Nghỉ Lễ";

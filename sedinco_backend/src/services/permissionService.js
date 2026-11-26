@@ -5,6 +5,7 @@ const ENFORCED_ACCOUNTANT_KEYS = [
     'attendance_view_all',
     'attendance_edit',
     'attendance_lock',
+    'accountant_manual_checkin',
     'leave_view_all',
     'leave_approve',
     'employee_view',
@@ -20,8 +21,28 @@ const ENFORCED_ACCOUNTANT_KEYS = [
     'payroll_export'
 ];
 
+const OPTIONAL_PERMISSION_SEEDS = {
+    accountant_manual_checkin: {
+        permission_name: 'Bật chấm công cho Kế toán',
+        category: 'attendance',
+        is_enabled: 0,
+        description:
+            'Mặc định tắt: hệ thống tự động lưu 1 công mỗi ngày làm việc (trừ Chủ nhật). Khi bật: Kế toán tự chấm công Vào/Ra như nhân viên bình thường và vẫn giữ nguyên toàn bộ ngày công tự động đã lưu trước đó.'
+    }
+};
+
 class PermissionService {
+    async ensureAccountantManualCheckinSeeded() {
+        const meta = OPTIONAL_PERMISSION_SEEDS.accountant_manual_checkin;
+        await query(
+            `INSERT IGNORE INTO accountant_permissions (permission_key, permission_name, category, is_enabled, description, updated_by)
+             VALUES (?, ?, ?, ?, ?, 'system')`,
+            ['accountant_manual_checkin', meta.permission_name, meta.category, meta.is_enabled, meta.description]
+        ).catch(() => {});
+    }
+
     async getAccountantPermissions() {
+        await this.ensureAccountantManualCheckinSeeded();
         const sql = `
             SELECT permission_key, permission_name, category, is_enabled, description, updated_by, updated_at
             FROM accountant_permissions
@@ -37,6 +58,8 @@ class PermissionService {
             error.statusCode = 400;
             throw error;
         }
+
+        await this.ensureAccountantManualCheckinSeeded();
 
         // Lấy trạng thái hiện tại để ghi audit log so sánh before / after
         const currentRows = await query('SELECT permission_key, is_enabled FROM accountant_permissions');
@@ -56,7 +79,7 @@ class PermissionService {
             rawEntries = Object.entries(updatedPermissions).map(([k, v]) => [k, Boolean(v)]);
         }
 
-        // Đồng bộ các khóa phụ cùng nghiệp vụ trong DB với 16 khóa thực thi chuẩn
+        // Đồng bộ các khóa phụ cùng nghiệp vụ trong DB
         const inputMap = {};
         for (const [k, v] of rawEntries) {
             if (k) inputMap[k] = v;
@@ -84,11 +107,30 @@ class PermissionService {
                     'UPDATE accountant_permissions SET is_enabled = ?, updated_by = ? WHERE permission_key = ?',
                     [enabled ? 1 : 0, updaterId, key]
                 );
+            } else if (beforeMap[key] === undefined && OPTIONAL_PERMISSION_SEEDS[key]) {
+                const meta = OPTIONAL_PERMISSION_SEEDS[key];
+                changes[key] = { from: false, to: enabled };
+                await query(
+                    `INSERT INTO accountant_permissions (permission_key, permission_name, category, is_enabled, description, updated_by)
+                     VALUES (?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE is_enabled = VALUES(is_enabled), updated_by = VALUES(updated_by)`,
+                    [key, meta.permission_name, meta.category, enabled ? 1 : 0, meta.description, updaterId]
+                );
             }
         }
 
         // Vô hiệu hóa cache ngay lập tức để request kế tiếp của Kế toán được áp dụng quyền mới ngay
         invalidatePermissionCache();
+
+        // V66 Transition Hook: Xử lý bảo toàn dữ liệu lịch sử khi bật/tắt chế độ Chấm công Kế toán
+        let transitionSummary = null;
+        if (changes.accountant_manual_checkin !== undefined) {
+            const attendanceService = require('./attendanceService');
+            transitionSummary = await attendanceService.handleAccountantManualCheckinTransition({
+                enabled: Boolean(changes.accountant_manual_checkin.to),
+                actorId: updaterId
+            });
+        }
 
         if (Object.keys(changes).length > 0 && current_user) {
             await logAuditEvent({
@@ -98,7 +140,8 @@ class PermissionService {
                 resource: 'permissions',
                 details: {
                     changed_count: Object.keys(changes).length,
-                    changes
+                    changes,
+                    ...(transitionSummary ? { accountant_checkin_transition: transitionSummary } : {})
                 }
             });
         }
@@ -110,6 +153,7 @@ class PermissionService {
             message: 'Cập nhật cấu hình phân quyền Kế toán thành công!',
             changed_count: Object.keys(changes).length,
             updated_keys: Object.keys(inputMap),
+            transition_summary: transitionSummary,
             data: updatedRows
         };
     }

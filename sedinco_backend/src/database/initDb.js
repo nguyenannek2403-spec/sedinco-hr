@@ -264,9 +264,10 @@ async function initDatabase() {
             ['attendance_view_all', 'Xem bảng chấm công toàn công ty', 'attendance', true, 'Cho phép xem dữ liệu chấm công của toàn bộ nhân viên'],
             ['attendance_summarize', 'Tổng hợp công tháng', 'attendance', true, 'Cho phép chạy tổng hợp công chuẩn và công thực tế theo tháng'],
             ['attendance_edit', 'Điều chỉnh chấm công', 'attendance', false, 'Cho phép sửa giờ vào ra và trạng thái chấm công của nhân viên'],
-            ['attendance_lock', 'Khóa kỳ chấm công', 'attendance', false, 'Cho phép khóa bảng chấm công tháng'],
+            ['attendance_lock', 'Khóa sổ kỳ chấm công', 'attendance', false, 'Cho phép khóa bảng chấm công tháng'],
             ['attendance_unlock', 'Mở khóa kỳ chấm công', 'attendance', false, 'Cho phép mở lại kỳ công đã khóa (ưu tiên chỉ Admin)'],
             ['attendance_request_approve', 'Duyệt yêu cầu chấm công', 'attendance', false, 'Cho phép phê duyệt yêu cầu quên chấm công / bổ sung công'],
+            ['accountant_manual_checkin', 'Bật chấm công cho Kế toán', 'attendance', false, 'Mặc định tắt: hệ thống tự động lưu 1 công mỗi ngày làm việc (trừ Chủ nhật). Khi bật: Kế toán tự chấm công Vào/Ra như nhân viên bình thường và vẫn giữ nguyên toàn bộ ngày công tự động đã lưu trước đó.'],
             
             // Nhóm Đơn từ
             ['leave_view_all', 'Xem tất cả đơn từ', 'requests', true, 'Cho phép xem toàn bộ đơn xin nghỉ phép, công tác của nhân sự'],

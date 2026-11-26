@@ -288,6 +288,16 @@ function calculateEmployeeSalary({
 
         if (log.status === '0' || log.duration_status === 'INVALID_SHORT_DURATION') {
             appliedDayCredit = 0;
+        } else if (
+            isHoliday &&
+            String(log.duration_status || '').trim().toUpperCase() === 'AUTO_ACCOUNTANT'
+        ) {
+            // V66 Guardrail: Ngày lễ khi Kế toán ở chế độ tự động vẫn hưởng nguyên lương chuẩn (1 công), KHÔNG cộng nhầm hệ số đi làm ngày lễ
+            appliedDayCredit = 1;
+            holidayDays += 1;
+            if (isProbation) congThuViec += 1; else congChinhThuc += 1;
+            effectiveStatus = 'L';
+            customAttendanceNote = `Nghỉ lễ hưởng nguyên lương (${matchedHoliday.holiday_name})`;
         } else if (log.status === '1' || log.status === '0.5') {
             const credit = log.status === '1'
                 ? (hasExplicitCredit ? dayCredit(Math.max(0, Number(log.work_credit) || 0)) : dayCredit(1))

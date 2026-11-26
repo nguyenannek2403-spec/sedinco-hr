@@ -71,6 +71,10 @@ const server = app.listen(env.PORT, () => {
         const cloudinaryUsageMonitor = require('./services/cloudinaryUsageMonitor');
         cloudinaryUsageMonitor.startBackgroundSyncScheduler();
     } catch {}
+    try {
+        const attendanceService = require('./services/attendanceService');
+        attendanceService.startDailyAttendanceSettlementScheduler();
+    } catch {}
 });
 
 module.exports = server;

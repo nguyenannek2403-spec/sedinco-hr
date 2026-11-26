@@ -251,6 +251,12 @@ export const ACCOUNTANT_PERMISSION_GROUPS = [
         defaultEnabled: false
       },
       {
+        key: 'accountant_manual_checkin',
+        name: 'Bật chấm công cho Kế toán',
+        desc: 'Mặc định tắt: hệ thống tự động lưu 1 công mỗi ngày làm việc (trừ Chủ nhật). Khi bật: Kế toán tự chấm công Vào/Ra như nhân viên bình thường và vẫn giữ nguyên toàn bộ ngày công tự động đã lưu trước đó.',
+        defaultEnabled: false
+      },
+      {
         key: 'leave_view_all',
         name: 'Xem danh sách đơn từ & tăng ca',
         desc: 'Xem đơn xin nghỉ phép, bổ sung công, ứng lương và đăng ký tăng ca của toàn công ty',

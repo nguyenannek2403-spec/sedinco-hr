@@ -68,6 +68,9 @@ class PayrollService {
         const companySettings = (csRows && csRows[0]) ? csRows[0] : {};
         const defaultStandardDays = getMonthlyStandardWorkdays(m, y);
 
+        // V66: Nếu chế độ chấm công thủ công của Kế toán đang TẮT, đồng bộ an toàn các ngày tự động còn thiếu trước khi tính bảng lương tháng
+        await require('./attendanceService').ensureAccountantAutoAttendanceForPeriod(m, y).catch(() => {});
+
         const sql = `
             SELECT e.*, ? as cong_chuan,
                    COALESCE(a.salary_confirm_status, 'PENDING') as salary_confirm_status,
@@ -262,6 +265,9 @@ class PayrollService {
         const companySettings = (csRows && csRows[0]) ? csRows[0] : {};
         const defaultStandardDays = getMonthlyStandardWorkdays(m, y);
 
+        // V66: Nếu chế độ chấm công thủ công của Kế toán đang TẮT, đồng bộ an toàn các ngày tự động còn thiếu trước khi tính bảng lương tháng
+        await require('./attendanceService').ensureAccountantAutoAttendanceForPeriod(m, y).catch(() => {});
+
         const sql = `
             SELECT e.*, ? as cong_chuan,
                    COALESCE(a.salary_confirm_status, 'PENDING') as salary_confirm_status,
@@ -286,6 +292,9 @@ class PayrollService {
 
         const emp = emps[0];
         if (emp.role === 'admin') return null;
+        if (emp.role === 'accountant') {
+            await require('./attendanceService').ensureAccountantAutoAttendanceForPeriod(m, y, emp.ma_nv).catch(() => {});
+        }
         const holidays = await query("SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays ORDER BY start_date ASC");
         const safeHolidays = holidays || [];
 

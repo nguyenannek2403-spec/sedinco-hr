@@ -841,6 +841,14 @@ export default function AttendanceMatrixTable({
                               CT
                             </span>
                           )}
+                          {!isFieldWorkDay && detail?.duration_status === "AUTO_ACCOUNTANT" && (
+                            <span
+                              data-testid={`att-cal-auto-acc-badge-${d}`}
+                              className="absolute top-0.5 left-0.5 px-1 py-0.2 rounded bg-blue-600 text-white text-[8px] font-black leading-tight"
+                            >
+                              TĐ
+                            </span>
+                          )}
                           {hasLateEarly && (
                             <span
                               aria-hidden="true"
@@ -956,6 +964,14 @@ export default function AttendanceMatrixTable({
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500 text-white text-[11px] font-extrabold"
                         >
                           👷 Công trình
+                        </span>
+                      )}
+                      {cellDetail?.duration_status === "AUTO_ACCOUNTANT" && (
+                        <span
+                          data-testid="att-detail-auto-accountant-badge"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white text-[11px] font-extrabold"
+                        >
+                          ✓ Tự động tính công Kế toán
                         </span>
                       )}
                     </div>

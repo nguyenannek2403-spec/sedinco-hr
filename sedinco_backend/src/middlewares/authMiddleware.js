@@ -134,7 +134,9 @@ async function getAccountantPermissions(forceRefresh = false) {
     try {
         const { query } = require('../config/db');
         const rows = await query('SELECT permission_key, is_enabled FROM accountant_permissions');
-        const map = {};
+        const map = {
+            accountant_manual_checkin: false
+        };
         if (rows && rows.length > 0) {
             for (const r of rows) {
                 map[r.permission_key] = Boolean(r.is_enabled);
@@ -144,11 +146,12 @@ async function getAccountantPermissions(forceRefresh = false) {
         cacheTime = now;
         return map;
     } catch (err) {
-        // Cấu hình mặc định an toàn nếu DB chưa sẵn sàng (16 quyền thực thi chuẩn)
+        // Cấu hình mặc định an toàn nếu DB chưa sẵn sàng (17 quyền thực thi chuẩn)
         return {
             attendance_view_all: true,
             attendance_edit: false,
             attendance_lock: false,
+            accountant_manual_checkin: false,
             leave_view_all: true,
             leave_approve: false,
             employee_view: true,

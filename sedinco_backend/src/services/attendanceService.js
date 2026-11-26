@@ -200,16 +200,24 @@ function computeTodayEffectiveStatus({ todayStr, todayLog = null, holidays = [] 
         work_credit = credit !== null ? credit : 0.5;
         note = 'Ghi nhận nửa công (0,5 công)';
     } else if (rawStatus === '1') {
-        effective_code = '1';
-        is_admin_adjusted = isAdminFlag || (!todayLog.check_in_time && !todayLog.check_out_time);
-        work_credit = credit !== null ? credit : 1;
-        note = is_admin_adjusted ? 'Đã được Quản trị viên xác nhận đủ 1 công' : 'Đủ 1 công';
+        if (durStatus === 'AUTO_ACCOUNTANT') {
+            effective_code = 'AUTO_ACCOUNTANT';
+            is_admin_adjusted = false;
+            work_credit = credit !== null ? credit : 1;
+            note = 'Tự động tính công Kế toán (1 công)';
+        } else {
+            effective_code = '1';
+            is_admin_adjusted = isAdminFlag || (!todayLog.check_in_time && !todayLog.check_out_time);
+            work_credit = credit !== null ? credit : 1;
+            note = is_admin_adjusted ? 'Đã được Quản trị viên xác nhận đủ 1 công' : 'Đủ 1 công';
+        }
     }
 
     return {
         date: todayStr,
         effective_code,
         is_admin_adjusted: Boolean(is_admin_adjusted),
+        is_auto_accountant: durStatus === 'AUTO_ACCOUNTANT',
         is_holiday,
         holiday_name,
         work_credit,
@@ -278,6 +286,10 @@ class AttendanceService {
         const offset = (page - 1) * limit;
         const todayStr = pagination?.todayOverride || getVietnamDateString(new Date());
 
+        await this.ensureAccountantAutoAttendanceForPeriod(month, year, {
+            todayOverride: todayStr
+        }).catch(() => null);
+
         const emps = await query(
             "SELECT ma_nv, ho_ten, avatar_url, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department FROM employees WHERE (role IS NULL OR role != 'admin') ORDER BY ma_nv ASC LIMIT ? OFFSET ?",
             [limit, offset]
@@ -341,6 +353,7 @@ class AttendanceService {
                             check_out_mode: modes.check_out_mode,
                             work_mode: modes.work_mode,
                             is_field_work: modes.is_field_work,
+                            is_auto_accountant: rawDur === 'AUTO_ACCOUNTANT',
                             field_note: log.field_note || null,
                             location_name: log.location_name || null,
                             attendance_note: buildDailyAttendanceNote(log)
@@ -388,6 +401,23 @@ class AttendanceService {
         const m = parseInt(month, 10) || todayM;
         const y = parseInt(year, 10) || todayY;
 
+        const empShiftRows = await query(
+            "SELECT role, COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ? LIMIT 1",
+            [ma_nv]
+        ).catch(() => []);
+        const empRow = (empShiftRows && empShiftRows[0]) ? empShiftRows[0] : {};
+        let accountantManualCheckin = null;
+        if (empRow.role === 'accountant') {
+            const perms = await getAccountantPermissions().catch(() => ({}));
+            accountantManualCheckin = Boolean(perms?.accountant_manual_checkin);
+            if (!accountantManualCheckin) {
+                await this.ensureAccountantAutoAttendanceForPeriod(m, y, {
+                    ma_nv,
+                    todayOverride: todayStr
+                }).catch(() => null);
+            }
+        }
+
         const logs = await query(
             `SELECT DATE_FORMAT(record_date, '%Y-%m-%d') as record_date,
                     DATE_FORMAT(record_date, '%Y-%m-%d') as work_date,
@@ -402,12 +432,6 @@ class AttendanceService {
              ORDER BY record_date ASC`,
             [ma_nv, m, y]
         );
-
-        const empShiftRows = await query(
-            "SELECT role, COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ? LIMIT 1",
-            [ma_nv]
-        ).catch(() => []);
-        const empRow = (empShiftRows && empShiftRows[0]) ? empShiftRows[0] : {};
         if (empRow.role === 'admin') {
             return {
                 logs: [],
@@ -619,6 +643,7 @@ class AttendanceService {
             today_effective_status,
             forgotten_checkout: forgottenCheckout,
             unclosed_previous_record: unclosedPreviousRecord,
+            accountant_manual_checkin: empRow.role === 'accountant' ? Boolean(accountantManualCheckin) : null,
             shift_type: empShiftCode,
             shift_info: {
                 ...shiftInfo,
@@ -664,6 +689,18 @@ class AttendanceService {
                 today_effective_status: computeTodayEffectiveStatus({ todayStr, todayLog: null, holidays: [] }),
                 is_period_locked: false
             };
+        }
+
+        let accountantManualCheckin = null;
+        if (empRow.role === 'accountant') {
+            const perms = await getAccountantPermissions().catch(() => ({}));
+            accountantManualCheckin = Boolean(perms?.accountant_manual_checkin);
+            if (!accountantManualCheckin) {
+                await this.ensureAccountantAutoAttendanceForPeriod(todayM, todayY, {
+                    ma_nv,
+                    todayOverride: todayStr
+                }).catch(() => null);
+            }
         }
 
         const [todayLogRows, holidays, csRows, lockRows] = await Promise.all([
@@ -725,6 +762,7 @@ class AttendanceService {
         return {
             date: todayStr,
             excluded_admin: false,
+            accountant_manual_checkin: empRow.role === 'accountant' ? Boolean(accountantManualCheckin) : null,
             today_record,
             today_effective_status,
             is_period_locked: Boolean(lockRows && lockRows[0] && lockRows[0].is_locked),
@@ -1288,6 +1326,15 @@ class AttendanceService {
             err.statusCode = 404;
             throw err;
         }
+        if (emp.role === 'accountant' || current_user.role === 'accountant') {
+            const perms = await getAccountantPermissions().catch(() => ({}));
+            if (!perms?.accountant_manual_checkin) {
+                const err = new Error('Tài khoản Kế toán đang ở chế độ tự động tính công, không cần chấm công thủ công.');
+                err.statusCode = 403;
+                err.code = 'ACCOUNTANT_AUTO_ATTENDANCE_MODE';
+                throw err;
+            }
+        }
 
         const cs = (companyRows && companyRows[0]) ? companyRows[0] : {};
         const allowedLocations = parseAllowedLocations(
@@ -1488,6 +1535,15 @@ class AttendanceService {
             const error = new Error('Tài khoản Quản trị viên chỉ dùng để quản lý hệ thống, không tham gia chấm công cá nhân!');
             error.statusCode = 403;
             throw error;
+        }
+        if (emp.role === 'accountant' || current_user.role === 'accountant') {
+            const perms = await getAccountantPermissions().catch(() => ({}));
+            if (!perms?.accountant_manual_checkin) {
+                const error = new Error('Tài khoản Kế toán đang ở chế độ tự động tính công, không cần chấm công thủ công.');
+                error.statusCode = 403;
+                error.code = 'ACCOUNTANT_AUTO_ATTENDANCE_MODE';
+                throw error;
+            }
         }
         if (emp.status === 'inactive' || emp.is_locked === 1 || emp.is_locked === true) {
             const error = new Error(`Tài khoản nhân viên ${ma_nv} đang bị TẠM KHÓA. Không thể thực hiện chấm công!`);
@@ -2479,7 +2535,8 @@ class AttendanceService {
         targetDateStr = null,
         todayOverride = null,
         ma_nv = null,
-        persist = false
+        persist = false,
+        forceManualSettle = false
     } = {}) {
         const { getVietnamDateString, isSundayIsoDate } = require('../utils/timeHelper');
         const todayVN = todayOverride || getVietnamDateString(new Date());
@@ -2494,6 +2551,7 @@ class AttendanceService {
         if (targetIso >= todayVN) {
             return {
                 settled_count: 0,
+                auto_accountant_count: 0,
                 settled_records: [],
                 skipped_reason: 'CURRENT_OR_FUTURE_DAY_NOT_ENDED',
                 today_vn: todayVN,
@@ -2504,6 +2562,7 @@ class AttendanceService {
         if (isSundayIsoDate(targetIso)) {
             return {
                 settled_count: 0,
+                auto_accountant_count: 0,
                 settled_records: [],
                 skipped_reason: 'SUNDAY_NON_WORKING_DAY',
                 today_vn: todayVN,
@@ -2518,6 +2577,7 @@ class AttendanceService {
         if (holidays && holidays.length > 0) {
             return {
                 settled_count: 0,
+                auto_accountant_count: 0,
                 settled_records: [],
                 skipped_reason: 'PUBLIC_HOLIDAY',
                 holiday_name: holidays[0].holiday_name,
@@ -2525,6 +2585,9 @@ class AttendanceService {
                 target_date: targetIso
             };
         }
+
+        const perms = forceManualSettle ? { accountant_manual_checkin: true } : await getAccountantPermissions().catch(() => ({}));
+        const accountantManualEnabled = Boolean(perms?.accountant_manual_checkin);
 
         const empParams = [];
         let empSql = "SELECT ma_nv, ho_ten, role, status, is_locked FROM employees WHERE status != 'inactive' AND (is_locked = 0 OR is_locked IS NULL) AND (role IS NULL OR role != 'admin')";
@@ -2563,6 +2626,7 @@ class AttendanceService {
         }
 
         const settledRecords = [];
+        let autoAccountantCount = 0;
         for (const emp of activeEmps || []) {
             const log = logByEmp.get(emp.ma_nv);
             if (paidLeaveEmps.has(emp.ma_nv)) continue;
@@ -2575,6 +2639,21 @@ class AttendanceService {
                 if (isAdminAdjusted) continue;
                 // Nếu đã có dữ liệu chấm công hợp lệ
                 if (log.check_in_time || ['1', '0.5', '1/OT', 'OT', 'P', 'L'].includes(rawSt)) continue;
+            }
+
+            // V66: Khi Kế toán đang ở chế độ tự động tính công (công tắc TẮT), ngày công T2-T7 tạo 1.0 công thực thay vì chốt KL
+            if (emp.role === 'accountant' && !accountantManualEnabled) {
+                if (persist && !log) {
+                    const syncRes = await this.syncAccountantAutoAttendance({
+                        ma_nv: emp.ma_nv,
+                        startDateStr: targetIso,
+                        endDateStr: targetIso,
+                        todayOverride: todayVN,
+                        forceRun: true
+                    }).catch(() => null);
+                    autoAccountantCount += Number(syncRes?.inserted_count) || 0;
+                }
+                continue;
             }
 
             const settledItem = {
@@ -2612,11 +2691,263 @@ class AttendanceService {
 
         return {
             settled_count: settledRecords.length,
+            auto_accountant_count: autoAccountantCount,
             settled_records: settledRecords,
             skipped_reason: null,
             today_vn: todayVN,
             target_date: targetIso
         };
+    }
+
+    /**
+     * V66: Tự động tạo và lưu 1 công thực (Thứ 2 – Thứ 7, trừ Chủ nhật & Ngày lễ)
+     * cho tất cả tài khoản Kế toán đang hoạt động khi công tắc `accountant_manual_checkin` ĐANG TẮT.
+     * Guardrail: Tuyệt đối KHÔNG ghi đè các bản ghi đã tồn tại (chấm công tay, Admin chỉnh công, đơn phép, KL đã chốt).
+     */
+    async syncAccountantAutoAttendance({
+        ma_nv = null,
+        startDateStr = null,
+        endDateStr = null,
+        todayOverride = null,
+        excludeDates = [],
+        forceRun = false
+    } = {}) {
+        const todayVN = todayOverride || getVietnamDateString(new Date());
+        if (!forceRun) {
+            const perms = await getAccountantPermissions().catch(() => ({}));
+            if (perms?.accountant_manual_checkin) {
+                return { inserted_count: 0, skipped_reason: 'MANUAL_CHECKIN_ENABLED', today_vn: todayVN };
+            }
+        }
+
+        const startIso = (startDateStr ? String(startDateStr).slice(0, 10) : todayVN);
+        let endIso = (endDateStr ? String(endDateStr).slice(0, 10) : todayVN);
+        if (endIso > todayVN) endIso = todayVN;
+        if (startIso > endIso) {
+            return { inserted_count: 0, skipped_reason: 'EMPTY_DATE_RANGE', today_vn: todayVN };
+        }
+
+        const empParams = [];
+        let empSql = "SELECT ma_nv FROM employees WHERE role = 'accountant' AND status != 'inactive' AND (is_locked = 0 OR is_locked IS NULL)";
+        if (ma_nv) {
+            empSql += ' AND ma_nv = ?';
+            empParams.push(ma_nv);
+        }
+        const accountants = await query(empSql, empParams).catch(() => []);
+        if (!accountants || accountants.length === 0) {
+            return { inserted_count: 0, skipped_reason: 'NO_ACTIVE_ACCOUNTANT', today_vn: todayVN };
+        }
+
+        const excludedSet = new Set((excludeDates || []).map((d) => String(d).slice(0, 10)));
+        const holidays = await query(
+            "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays WHERE start_date <= ? AND end_date >= ?",
+            [endIso, startIso]
+        ).catch(() => []);
+
+        const workingDates = [];
+        let cursorMs = new Date(`${startIso}T00:00:00+07:00`).getTime();
+        const endMs = new Date(`${endIso}T00:00:00+07:00`).getTime();
+        while (cursorMs <= endMs) {
+            const iso = getVietnamDateString(new Date(cursorMs));
+            if (!excludedSet.has(iso) && !isSundayIsoDate(iso)) {
+                const hol = findHolidayForDate(holidays || [], iso);
+                if (!hol) {
+                    workingDates.push(iso);
+                }
+            }
+            cursorMs += 24 * 3600 * 1000;
+        }
+
+        if (workingDates.length === 0) {
+            return { inserted_count: 0, skipped_reason: 'NO_WORKING_DATES', today_vn: todayVN };
+        }
+
+        const empIds = accountants.map((a) => a.ma_nv);
+        const placeholders = empIds.map(() => '?').join(',');
+        const [existingRows, approvedReqRows] = await Promise.all([
+            query(
+                `SELECT employee_id, DATE_FORMAT(record_date, '%Y-%m-%d') as record_date
+                 FROM attendance_logs
+                 WHERE employee_id IN (${placeholders}) AND record_date >= ? AND record_date <= ?`,
+                [...empIds, startIso, endIso]
+            ).catch(() => []),
+            query(
+                `SELECT employee_id, DATE_FORMAT(request_date, '%Y-%m-%d') as request_date
+                 FROM requests
+                 WHERE employee_id IN (${placeholders}) AND status = 'approved' AND request_date >= ? AND request_date <= ?`,
+                [...empIds, startIso, endIso]
+            ).catch(() => [])
+        ]);
+
+        const existingKey = new Set((existingRows || []).map((r) => `${r.employee_id}::${r.record_date}`));
+        const reqKey = new Set((approvedReqRows || []).map((r) => `${r.employee_id}::${r.request_date}`));
+
+        let insertedCount = 0;
+        for (const emp of accountants) {
+            for (const iso of workingDates) {
+                const key = `${emp.ma_nv}::${iso}`;
+                if (existingKey.has(key) || reqKey.has(key)) continue;
+                const result = await query(
+                    `INSERT IGNORE INTO attendance_logs (
+                        employee_id, record_date, status, ot_hours,
+                        late_minutes, early_leave_minutes, work_hours,
+                        work_credit, duration_status, location_name
+                     ) VALUES (?, ?, '1', 0, 0, 0, 8.00, 1.00, 'AUTO_ACCOUNTANT', 'Tự động tính công Kế toán')`,
+                    [emp.ma_nv, iso]
+                ).catch(() => ({ affectedRows: 0 }));
+                if (Number(result?.affectedRows) > 0) {
+                    insertedCount += 1;
+                }
+            }
+        }
+
+        return {
+            inserted_count: insertedCount,
+            accountant_count: accountants.length,
+            date_range: { start: startIso, end: endIso },
+            today_vn: todayVN
+        };
+    }
+
+    /**
+     * V66: Đồng bộ bù toàn bộ ngày làm việc (T2-T7) trong tháng nếu chế độ Kế toán tự động tính công ĐANG TẮT.
+     */
+    async ensureAccountantAutoAttendanceForPeriod(month, year, { ma_nv = null, todayOverride = null } = {}) {
+        const m = parseInt(month, 10);
+        const y = parseInt(year, 10);
+        if (!Number.isFinite(m) || !Number.isFinite(y) || m < 1 || m > 12) {
+            return { inserted_count: 0, skipped_reason: 'INVALID_PERIOD' };
+        }
+        const todayVN = todayOverride || getVietnamDateString(new Date());
+        const padM = String(m).padStart(2, '0');
+        const startIso = `${y}-${padM}-01`;
+        if (startIso > todayVN) {
+            return { inserted_count: 0, skipped_reason: 'FUTURE_PERIOD', today_vn: todayVN };
+        }
+        const daysInMonth = getDaysInMonth(m, y);
+        const monthEndIso = `${y}-${padM}-${String(daysInMonth).padStart(2, '0')}`;
+        const endIso = monthEndIso < todayVN ? monthEndIso : todayVN;
+
+        return this.syncAccountantAutoAttendance({
+            ma_nv,
+            startDateStr: startIso,
+            endDateStr: endIso,
+            todayOverride: todayVN
+        });
+    }
+
+    /**
+     * V66: Hook chuyển đổi tức thì khi Admin bật/tắt `accountant_manual_checkin`:
+     * - OFF -> ON: Đồng bộ lưu mọi ngày T2-T7 trước hôm nay (< todayVN) trong tháng hiện tại (giữ 100% công tự động quá khứ),
+     *   và xóa dòng AUTO_ACCOUNTANT chưa chấm công của riêng hôm nay (todayVN) để Kế toán tự chấm công được ngay trong ngày.
+     * - ON -> OFF: Chốt các ngày làm việc còn trống trước hôm nay (< todayVN) trong tháng hiện tại về KL để không ghi đè quá khứ lúc đang bật thủ công,
+     *   giữ nguyên toàn bộ công thủ công/tăng ca/nghỉ phép đã lưu, và tạo tự động 1 công cho hôm nay (todayVN).
+     */
+    async handleAccountantManualCheckinTransition({ enabled, todayOverride = null } = {}) {
+        const todayVN = todayOverride || getVietnamDateString(new Date());
+        const [todayY, todayM] = todayVN.split('-').map(Number);
+        const padM = String(todayM).padStart(2, '0');
+        const monthStartIso = `${todayY}-${padM}-01`;
+        const todayEpoch = new Date(`${todayVN}T00:00:00+07:00`).getTime();
+        const yesterdayIso = getVietnamDateString(new Date(todayEpoch - 24 * 3600 * 1000));
+
+        if (enabled) {
+            if (yesterdayIso >= monthStartIso) {
+                await this.syncAccountantAutoAttendance({
+                    startDateStr: monthStartIso,
+                    endDateStr: yesterdayIso,
+                    todayOverride: todayVN,
+                    forceRun: true
+                }).catch(() => null);
+            }
+            const cleared = await query(
+                `DELETE al FROM attendance_logs al
+                 INNER JOIN employees e ON e.ma_nv = al.employee_id
+                 WHERE e.role = 'accountant'
+                   AND al.record_date = ?
+                   AND al.duration_status = 'AUTO_ACCOUNTANT'
+                   AND al.check_in_time IS NULL
+                   AND (al.proxy_by IS NULL OR al.proxy_by = '')`,
+                [todayVN]
+            ).catch(() => ({ affectedRows: 0 }));
+
+            return {
+                mode: 'MANUAL_CHECKIN_ON',
+                today_vn: todayVN,
+                cleared_today_auto_count: Number(cleared?.affectedRows) || 0
+            };
+        }
+
+        const accountants = await query(
+            "SELECT ma_nv FROM employees WHERE role = 'accountant' AND status != 'inactive' AND (is_locked = 0 OR is_locked IS NULL)"
+        ).catch(() => []);
+        if (yesterdayIso >= monthStartIso && accountants.length > 0) {
+            let cursorMs = new Date(`${monthStartIso}T00:00:00+07:00`).getTime();
+            const yesterdayMs = new Date(`${yesterdayIso}T00:00:00+07:00`).getTime();
+            while (cursorMs <= yesterdayMs) {
+                const iso = getVietnamDateString(new Date(cursorMs));
+                for (const acc of accountants) {
+                    await this.settlePastUnpaidLeaveDays({
+                        targetDateStr: iso,
+                        todayOverride: todayVN,
+                        ma_nv: acc.ma_nv,
+                        persist: true,
+                        forceManualSettle: true
+                    }).catch(() => null);
+                }
+                cursorMs += 24 * 3600 * 1000;
+            }
+        }
+
+        const syncToday = await this.syncAccountantAutoAttendance({
+            startDateStr: todayVN,
+            endDateStr: todayVN,
+            todayOverride: todayVN,
+            forceRun: true
+        }).catch(() => ({ inserted_count: 0 }));
+
+        return {
+            mode: 'AUTO_ACCOUNTANT_OFF',
+            today_vn: todayVN,
+            inserted_today_count: Number(syncToday?.inserted_count) || 0
+        };
+    }
+
+    /**
+     * V66 Scheduler: Tự động chạy hàng ngày lúc 00:05 GMT+7 để chốt ngày cũ (V65)
+     * và ghi nhận 1 công tự động cho Kế toán khi công tắc đang TẮT.
+     */
+    startDailyAttendanceSettlementScheduler() {
+        if (process.env.NODE_ENV === 'test') return null;
+        if (this._dailySchedulerTimer) return this._dailySchedulerTimer;
+
+        let lastRunDateVN = null;
+        const runDailyTick = async () => {
+            try {
+                const now = new Date();
+                const { getVietnamTimeString } = require('../utils/timeHelper');
+                const todayVN = getVietnamDateString(now);
+                const timeVN = getVietnamTimeString(now);
+                if (lastRunDateVN === todayVN) return;
+                if (timeVN < '00:05:00') return;
+                lastRunDateVN = todayVN;
+
+                await this.settlePastUnpaidLeaveDays({ todayOverride: todayVN, persist: true }).catch(() => null);
+                await this.syncAccountantAutoAttendance({
+                    startDateStr: todayVN,
+                    endDateStr: todayVN,
+                    todayOverride: todayVN
+                }).catch(() => null);
+            } catch (e) {
+                console.warn('[V66-Scheduler] Daily attendance tick warning:', e?.message || e);
+            }
+        };
+
+        this._dailySchedulerTimer = setInterval(runDailyTick, 60 * 1000);
+        if (typeof this._dailySchedulerTimer.unref === 'function') {
+            this._dailySchedulerTimer.unref();
+        }
+        return this._dailySchedulerTimer;
     }
 }
 

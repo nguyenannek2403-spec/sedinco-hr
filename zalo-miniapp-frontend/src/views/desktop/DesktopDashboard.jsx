@@ -8,6 +8,8 @@ import EmployeeManagementTab from "./EmployeeManagementTab";
 import CompanySettingsTab from "./CompanySettingsTab";
 import HolidaysTab from "./HolidaysTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
+import WorkerHistoryTab from "../worker/WorkerHistoryTab";
+import OneTouchCheckIn from "../../components/OneTouchCheckIn";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from "../../constants/roles";
 import { safeGet, safePut } from "../../utils/api";
@@ -27,7 +29,9 @@ import {
   Trash2,
   Loader2,
   ChevronDown,
-  Check
+  Check,
+  CheckCircle2,
+  Clock
 } from "lucide-react";
 
 const SETTINGS_OPTIONS = [
@@ -149,26 +153,44 @@ export default function DesktopDashboard({
     ...(liveDynamicPerms || {})
   }), [currentUser?.dynamic_permissions, liveDynamicPerms]);
 
+  const fetchLiveDynamicPerms = useCallback(async () => {
+    if (resolvedRole !== "accountant") return;
+    try {
+      const res = await safeGet("/settings/accountant-permissions");
+      if (!res?.success) return;
+      const raw = res.data;
+      if (Array.isArray(raw)) {
+        const map = {};
+        for (const row of raw) {
+          if (row?.permission_key) map[row.permission_key] = Boolean(row.is_enabled);
+        }
+        setLiveDynamicPerms(map);
+      } else if (raw && typeof raw === "object") {
+        setLiveDynamicPerms(raw);
+      }
+    } catch {
+      // Bỏ qua lỗi tải nền phân quyền động
+    }
+  }, [resolvedRole]);
+
+  useEffect(() => {
+    fetchLiveDynamicPerms();
+  }, [fetchLiveDynamicPerms, refreshTick, currentTab]);
+
   useEffect(() => {
     if (resolvedRole !== "accountant") return undefined;
-    let active = true;
-    safeGet("/settings/accountant-permissions")
-      .then((res) => {
-        if (!active || !res?.success) return;
-        const raw = res.data;
-        if (Array.isArray(raw)) {
-          const map = {};
-          for (const row of raw) {
-            if (row?.permission_key) map[row.permission_key] = Boolean(row.is_enabled);
-          }
-          setLiveDynamicPerms(map);
-        } else if (raw && typeof raw === "object") {
-          setLiveDynamicPerms(raw);
-        }
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, [resolvedRole, refreshTick]);
+    const handleVisibilityOrFocus = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        fetchLiveDynamicPerms();
+      }
+    };
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    return () => {
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+    };
+  }, [resolvedRole, fetchLiveDynamicPerms]);
 
   const effectiveTab = isTabAllowedForRole(currentTab, resolvedRole, effectiveDynamicPerms)
     ? currentTab
@@ -392,6 +414,61 @@ export default function DesktopDashboard({
                 showToast={showToast}
                 onShowToast={showToast}
               />
+            )}
+
+            {/* 4.5. Chấm công & Công cá nhân (Kế toán) */}
+            {effectiveTab === "my_attendance" && resolvedRole === ROLES.ACCOUNTANT && (
+              <div className="max-w-2xl mx-auto space-y-4">
+                {effectiveDynamicPerms?.accountant_manual_checkin ? (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/70 rounded-2xl p-3.5 space-y-1">
+                      <div className="flex items-center gap-2 text-sm font-extrabold text-blue-900 dark:text-blue-200 whitespace-normal break-words">
+                        <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                        <span>Chế độ chấm công thủ công đang BẬT</span>
+                      </div>
+                      <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed whitespace-normal break-words">
+                        Kế toán tự chấm công Vào/Ra như nhân viên bình thường; toàn bộ ngày công tự động đã lưu trước đó vẫn được bảo toàn nguyên vẹn.
+                      </p>
+                    </div>
+                    <OneTouchCheckIn
+                      currentUser={currentUser}
+                      showToast={showToast}
+                      onCheckInSuccess={(res) => {
+                        setRefreshTick((t) => t + 1);
+                        if (showToast && res?.autoShiftMsg) {
+                          showToast(res.autoShiftMsg, "success");
+                        }
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    data-testid="accountant-auto-attendance-notice"
+                    className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/70 rounded-2xl p-4 space-y-1.5"
+                  >
+                    <div className="flex items-center gap-2 text-sm font-extrabold text-emerald-900 dark:text-emerald-200 whitespace-normal break-words">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>Chế độ tự động tính công đang bật</span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed whitespace-normal break-words">
+                      Hệ thống tự động lưu 1 công mỗi ngày làm việc (Thứ 2 – Thứ 7, trừ Chủ nhật). Bạn không cần thao tác chấm công Vào/Ra hàng ngày; toàn bộ dữ liệu công và phiếu lương vẫn được cập nhật đầy đủ bên dưới.
+                    </p>
+                  </div>
+                )}
+
+                <WorkerHistoryTab
+                  key={`acc-history-${refreshTick}-${Boolean(effectiveDynamicPerms?.accountant_manual_checkin)}`}
+                  currentUser={currentUser}
+                  showToast={showToast}
+                  onOpenPayslip={(m, y) =>
+                    setPersonalPayslipModal({
+                      open: true,
+                      month: Number(m) || selectedMonth,
+                      year: Number(y) || selectedYear
+                    })
+                  }
+                />
+              </div>
             )}
 
             {/* 5. Cài Đặt Hệ Thống (Compact Enterprise Option Selector) */}

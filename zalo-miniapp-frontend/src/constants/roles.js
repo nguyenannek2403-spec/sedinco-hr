@@ -112,6 +112,7 @@ export const isTabAllowedForRole = (tab, role, dynamicPermissions = {}) => {
   if (normalizedRole === ROLES.ACCOUNTANT) {
     const dp = dynamicPermissions || {};
     if (tab === "profile") return true;
+    if (tab === "my_attendance") return true;
     if (tab === "matrix") return dp.attendance_view_all !== false;
     if (tab === "payroll") return dp.payroll_view_all !== false;
     if (tab === "requests") return dp.leave_view_all !== false;
@@ -128,7 +129,7 @@ export const isTabAllowedForRole = (tab, role, dynamicPermissions = {}) => {
 export const getDefaultTabForRole = (role, dynamicPermissions = {}) => {
   const normalizedRole = role === "employee" ? ROLES.WORKER : (role || ROLES.WORKER);
   if (normalizedRole === ROLES.ACCOUNTANT) {
-    const candidateTabs = ["matrix", "payroll", "requests", "employees", "profile"];
+    const candidateTabs = ["matrix", "payroll", "requests", "employees", "my_attendance", "profile"];
     const firstAllowed = candidateTabs.find((t) => isTabAllowedForRole(t, ROLES.ACCOUNTANT, dynamicPermissions));
     return firstAllowed || "profile";
   }
@@ -140,6 +141,7 @@ export const ACCOUNTANT_ENFORCED_PERMISSION_KEYS = [
   "attendance_view_all",
   "attendance_edit",
   "attendance_lock",
+  "accountant_manual_checkin",
   "leave_view_all",
   "leave_approve",
   "employee_view",

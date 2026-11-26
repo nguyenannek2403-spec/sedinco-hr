@@ -114,7 +114,11 @@ export function resolveLogNote(log) {
   const late = Math.max(0, Math.round(Number(log.late_minutes) || 0));
   const early = Math.max(0, Math.round(Number(log.early_leave_minutes) || 0));
   const st = String(log.status || "").toUpperCase();
-  const isAdminAdjustedFull = String(log.duration_status || "").trim().toUpperCase() === "ADMIN_ADJUSTED_FULL";
+  const durStatus = String(log.duration_status || "").trim().toUpperCase();
+  if (durStatus === "AUTO_ACCOUNTANT") {
+    return "Tự động tính công Kế toán (1 công)";
+  }
+  const isAdminAdjustedFull = durStatus === "ADMIN_ADJUSTED_FULL";
   if (isAdminAdjustedFull && late === 0 && early === 0) {
     if (st === "P") return "Nghỉ phép hưởng lương (P)";
     if (st === "L") return "Nghỉ lễ hưởng lương (L)";

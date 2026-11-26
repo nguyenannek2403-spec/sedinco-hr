@@ -303,6 +303,8 @@ function buildDailyAttendanceNote(log = {}, _settings = {}) {
         baseNote = 'Nghỉ lễ hưởng lương (L)';
     } else if (status === 'KP' || status === 'V') {
         baseNote = 'Vắng / Nghỉ không lương';
+    } else if (durationStatus === 'AUTO_ACCOUNTANT') {
+        baseNote = 'Tự động tính công Kế toán (1 công)';
     } else if (durationStatus === 'ADMIN_ADJUSTED_FULL' && lateMins === 0 && earlyMins === 0) {
         baseNote = 'Đúng giờ • Đủ công';
     } else if (durationStatus === 'INVALID_SHORT_DURATION') {

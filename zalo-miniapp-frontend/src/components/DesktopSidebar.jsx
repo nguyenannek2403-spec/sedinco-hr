@@ -9,7 +9,8 @@ import {
   User,
   LogOut,
   X,
-  ShieldCheck
+  ShieldCheck,
+  Clock
 } from "lucide-react";
 import { ROLES, ROLE_LABELS, isTabAllowedForRole } from "../constants/roles";
 import CompanyLogo from "./CompanyLogo";
@@ -22,15 +23,17 @@ const ALL_MENU_ITEMS = [
   { id: "matrix", label: "Bảng công", shortLabel: "Bảng công", icon: Calendar },
   { id: "requests", label: "Duyệt đơn", shortLabel: "Duyệt đơn", icon: FileText },
   { id: "payroll", label: "Bảng lương", shortLabel: "Bảng lương", icon: DollarSign },
+  { id: "my_attendance", label: "Chấm công & Công cá nhân", shortLabel: "Chấm công", icon: Clock },
   { id: "settings", label: "Cài đặt", shortLabel: "Cài đặt", icon: Settings }
 ];
 
-const ACCOUNTANT_MENU_ORDER = ["matrix", "requests", "payroll", "employees"];
-
 export function getAllowedDesktopMenuItems(effectiveRole, dynamicPerms = {}) {
+  const accountantOrder = dynamicPerms?.accountant_manual_checkin
+    ? ["my_attendance", "matrix", "requests", "payroll", "employees"]
+    : ["matrix", "requests", "payroll", "my_attendance", "employees"];
   const ordered =
     effectiveRole === ROLES.ACCOUNTANT
-      ? ACCOUNTANT_MENU_ORDER.map((id) => ALL_MENU_ITEMS.find((item) => item.id === id)).filter(Boolean)
+      ? accountantOrder.map((id) => ALL_MENU_ITEMS.find((item) => item.id === id)).filter(Boolean)
       : ALL_MENU_ITEMS;
   return ordered.filter((item) => isTabAllowedForRole(item.id, effectiveRole, dynamicPerms));
 }
