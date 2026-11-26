@@ -34,12 +34,21 @@ const STAGES = {
 
 let globalCheckInLockTimestamp = 0;
 
+function formatModeBadgeLabel(mode) {
+  const m = String(mode || "").toUpperCase();
+  if (m === "FIELD_WORK" || m === "FIELD") return "Đi công trình";
+  return "Tại văn phòng";
+}
+
 /**
- * F2 (V6): Chấm Công 1 Chạm Thông Minh
- * - Hỗ trợ Đa địa điểm (Kho/Showroom) & Cứu cánh Wi-Fi Nội bộ
- * - Hỗ trợ chế độ "Đi Công Trình / Thị Trường" (GPS-Only)
- * - Ẩn toàn bộ thông số kỹ thuật thô, thay bằng thẻ trạng thái thân thiện
- * - Phát hiện "Quên bấm Giờ Ra" của ngày hôm trước để bù công 1 chạm
+ * V65 Unified Check-In State Machine (Office & Field-Site):
+ * - 1 nguồn sự thật duy nhất (todayRecord theo GMT+7) dùng chung cho cả Tại văn phòng và Đi công trình:
+ *   + Trạng thái 1 (!check_in_time): Hiển thị nút Chấm công Vào ở cả 2 mục, nhân vật ở Trạng thái 1 (ready).
+ *   + Trạng thái 2 (check_in_time && !check_out_time): ẨN HOÀN TOÀN nút Chấm công Vào ở cả 2 mục,
+ *     đồng bộ sang nút Chấm công Ra (Tan ca) ở cả 2 mục, nhân vật giữ nguyên Trạng thái 2 (working).
+ *   + Trạng thái 3 (check_in_time && check_out_time): ẨN / KHÓA hoàn toàn cả 2 nút Vào & Ra ở cả 2 mục,
+ *     hiển thị tóm tắt giờ Vào – giờ Ra, nhân vật ở Trạng thái 3 (completed).
+ * - Chế độ Đi công trình: Không cần đăng ký trước, chấm công GPS ở bất cứ đâu, chỉ có 1 ô nhập ghi chú ngắn tùy chọn.
  */
 export default function OneTouchCheckIn({
   currentUser,
@@ -81,7 +90,6 @@ export default function OneTouchCheckIn({
   });
   const [shiftInfo, setShiftInfo] = useState(null);
 
-  // Đa địa điểm & Trạng thái vị trí thân thiện (Không hiện lat/lng thô)
   const [companyMeta, setCompanyMeta] = useState({
     work_start: "08:00",
     lunch_start: "12:00",
@@ -91,7 +99,7 @@ export default function OneTouchCheckIn({
     is_matching_office_wifi: false
   });
   const [locationFriendlyBadge, setLocationFriendlyBadge] = useState({
-    mode: "checking", // 'in_range' | 'wifi_office' | 'out_of_range' | 'checking'
+    mode: "checking",
     text: "Đang kiểm tra vị trí chi nhánh gần nhất..."
   });
   const [networkBadge, setNetworkBadge] = useState({
@@ -99,10 +107,9 @@ export default function OneTouchCheckIn({
     online: true
   });
 
-  // Chế độ Đi Công Trình / Thị Trường (chỉ dùng GPS, không chụp ảnh)
+  // Chế độ Tại văn phòng (false) | Đi công trình (true) + 1 ô ghi chú ngắn tùy chọn
   const [isFieldWorkMode, setIsFieldWorkMode] = useState(false);
   const [fieldNote, setFieldNote] = useState("");
-  const [showFieldWorkModal, setShowFieldWorkModal] = useState(false);
 
   const isLockedRef = useRef(false);
   const timeoutIdRef = useRef(null);
@@ -118,11 +125,19 @@ export default function OneTouchCheckIn({
       return;
     }
 
-    const locs = Array.isArray(compData.allowed_locations) && compData.allowed_locations.length > 0
-      ? compData.allowed_locations
-      : [{ name: "Trụ sở chính", lat: Number(compData.latitude || 16.0544), lng: Number(compData.longitude || 108.2022), radius: Number(compData.radius_meters || 500), attendance_method: "GPS" }];
+    const locs =
+      Array.isArray(compData.allowed_locations) && compData.allowed_locations.length > 0
+        ? compData.allowed_locations
+        : [
+            {
+              name: "Trụ sở chính",
+              lat: Number(compData.latitude || 16.0544),
+              lng: Number(compData.longitude || 108.2022),
+              radius: Number(compData.radius_meters || 500),
+              attendance_method: "GPS"
+            }
+          ];
 
-    // Kiểm tra trạng thái quyền Zalo IM LẶNG qua getSetting() — KHÔNG tự kích hoạt định vị hay hiện popup khi mở app
     const permRes = await zaloLocationService.getLocationPermissionStatus().catch(() => null);
 
     if (permRes?.ok && permRes?.data?.granted) {
@@ -244,12 +259,12 @@ export default function OneTouchCheckIn({
   }, []);
 
   const effectiveCode = String(liveTodayEffective?.effective_code || "").toUpperCase();
-  const isDeletedOrClearedToday = effectiveCode === "NONE";
+  const isDeletedOrClearedToday = effectiveCode === "NONE" && !liveTodayRecord?.check_in_time;
   const effectiveToday = isDeletedOrClearedToday ? null : (liveTodayRecord || todayAttendance);
   const isAdminAdjusted = Boolean(liveTodayEffective?.is_admin_adjusted);
   const isDayLockedByEffective = Boolean(
     effectiveCode === "P" ||
-      effectiveCode === "KL" ||
+      (effectiveCode === "KL" && isAdminAdjusted) ||
       effectiveCode === "L" ||
       effectiveCode === "OT" ||
       effectiveCode === "1+OT" ||
@@ -265,13 +280,26 @@ export default function OneTouchCheckIn({
     };
   }, []);
 
-  const handleStartCheckIn = async (bypassPermExplain = false) => {
+  const handleStartCheckIn = async (bypassPermExplain = false, explicitAction = null) => {
     if (isLockedPeriod) {
       isLockedRef.current = false;
       globalCheckInLockTimestamp = 0;
       setIsDebounceLocked(false);
       setStage(STAGES.ERROR);
       setErrorMessage("Kỳ chấm công tháng này đã được Kế toán chốt. Không thể ghi nhận thêm.");
+      return;
+    }
+
+    const actionType = explicitAction || (hasCheckedIn ? "OUT" : "IN");
+
+    if (actionType === "IN" && hasCheckedIn) {
+      setStage(STAGES.ERROR);
+      setErrorMessage("Bạn đã chấm công vào ca hôm nay rồi.");
+      return;
+    }
+    if (actionType === "OUT" && hasCheckedOut) {
+      setStage(STAGES.ERROR);
+      setErrorMessage("Bạn đã hoàn tất chấm công ra ca hôm nay rồi.");
       return;
     }
 
@@ -330,26 +358,26 @@ export default function OneTouchCheckIn({
       try {
         flowOutcome = await attendanceService.executeSmartAttendanceFlow({
           isFieldWorkMode,
-          fieldNote
+          fieldNote,
+          actionType
         });
       } catch (postErr) {
         const errCode = postErr.code || postErr.data?.code || postErr.response?.data?.code || "";
-        const errText = postErr.message || postErr.data?.message || postErr.response?.data?.message || "Lỗi kết nối mạng khi gửi chấm công";
+        const errText =
+          postErr.message ||
+          postErr.data?.message ||
+          postErr.response?.data?.message ||
+          "Lỗi kết nối mạng khi gửi chấm công";
 
         isLockedRef.current = false;
         globalCheckInLockTimestamp = 0;
         if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
 
-        if (
-          errCode === "SECURITY_VIOLATION_FRAUD" ||
-          errText.includes("VI PHẠM") ||
-          errText.includes("giả mạo") ||
-          errText.includes("thiết bị chưa được cấp phép")
-        ) {
+        if (errCode === "SECURITY_VIOLATION_FRAUD") {
           await attendanceService.triggerAttendanceHaptic("heavy").catch(() => {});
           setStage(STAGES.SECURITY_FRAUD);
           setErrorMessage(
-            "⚠️ Không thể xác nhận chấm công: Hệ thống nhận thấy vị trí hoặc thiết bị chưa khớp với thông tin đã đăng ký. Vui lòng tắt ứng dụng giả lập (nếu có) hoặc liên hệ Quản lý để được hỗ trợ."
+            "⚠️ Không thể xác nhận chấm công do phát hiện tín hiệu giả lập vị trí (Mock Location). Vui lòng tắt ứng dụng giả lập GPS và thử lại."
           );
           setFraudDetails(postErr.data?.fraud_reason || errText);
           return;
@@ -361,7 +389,9 @@ export default function OneTouchCheckIn({
 
         setStage(STAGES.ERROR);
         setErrorMessage(errText);
-        setErrorDetails("Nếu bạn đang đi công trình/gặp khách hàng ở xa văn phòng, hãy chọn chế độ Đi Công Trình (GPS) để chấm công tại bất kỳ đâu.");
+        setErrorDetails(
+          "Nếu bạn đang đi công trình hoặc gặp khách hàng ở ngoài văn phòng, hãy chọn mục Đi công trình để chấm công tại bất kỳ đâu."
+        );
         return;
       }
 
@@ -378,7 +408,7 @@ export default function OneTouchCheckIn({
           setStage(STAGES.PERM_DENIED);
           setErrorMessage(flowOutcome.message || "Chưa được cấp quyền vị trí trên Zalo.");
           setErrorDetails(
-            "Vui lòng mở cài đặt quyền Zalo để bật Vị trí, hoặc kết nối Wi-Fi nội bộ Công ty / chọn chế độ Đi công trình."
+            "Vui lòng mở cài đặt quyền Zalo để bật Vị trí, hoặc kết nối Wi-Fi nội bộ Công ty / chọn mục Đi công trình."
           );
           return;
         }
@@ -392,7 +422,7 @@ export default function OneTouchCheckIn({
 
         setStage(STAGES.ERROR);
         setErrorMessage(flowOutcome?.message || "Chưa hoàn tất kiểm tra chấm công.");
-        setErrorDetails("Nếu bạn đang ở ngoài công trình, hãy chọn chế độ Đi Công Trình (GPS) và bấm Chấm công lại.");
+        setErrorDetails("Nếu bạn đang làm việc ngoài công trình, hãy chọn mục Đi công trình và bấm chấm công lại.");
         return;
       }
 
@@ -413,13 +443,14 @@ export default function OneTouchCheckIn({
           matched_location_name:
             result.data.location_name ||
             prev?.location_name ||
-            (isFieldWorkMode ? "Công trình / Thị trường (GPS)" : "Văn phòng SEDINCO")
+            (isFieldWorkMode ? "Đi công trình (GPS)" : "Văn phòng SEDINCO")
         }));
-        setLastCheckAction(checkinType);
+        setLastCheckAction(actionType === "OUT" ? "out" : "in");
       }
 
       setServerTimeResult(serverTime);
       setStage(STAGES.SUCCESS);
+      setFieldNote("");
 
       if (result?.is_spam_warning || result?.data?.is_spam_warning) {
         const warnText = result?.message || SPAM_WARNING_MESSAGE;
@@ -435,7 +466,7 @@ export default function OneTouchCheckIn({
       setStatusMessage(serverMsg);
       endCheckInTap(true);
 
-      // Step 5: Async post-tasks chạy bất đồng bộ sau khi check-in 200 OK — lỗi phụ không bao giờ làm hỏng kết quả chấm công
+      // Step 5: Async post-tasks chạy bất đồng bộ sau khi check-in/out 200 OK
       Promise.resolve()
         .then(() => attendanceService.triggerAttendanceHaptic("light"))
         .catch(() => {});
@@ -508,7 +539,11 @@ export default function OneTouchCheckIn({
     lastCheckAction
   });
 
-  const isActionBusy = isDebounceLocked || isLockedRef.current || stage === STAGES.SUBMITTING || stage === STAGES.LOCATING;
+  const isActionBusy =
+    isDebounceLocked ||
+    isLockedRef.current ||
+    stage === STAGES.SUBMITTING ||
+    stage === STAGES.LOCATING;
   const checkInBtnEnabled =
     !isDayLockedByEffective &&
     !hasCheckedIn &&
@@ -520,10 +555,19 @@ export default function OneTouchCheckIn({
     !hasCheckedOut &&
     !isLockedPeriod &&
     !isActionBusy;
-  const confirmTimeStr =
-    hasCheckedOut || lastCheckAction === "out"
-      ? String(effectiveToday?.check_out_time || serverTimeResult || "").slice(0, 8)
-      : String(effectiveToday?.check_in_time || serverTimeResult || "").slice(0, 8);
+
+  const checkInTimeShort = effectiveToday?.check_in_time
+    ? String(effectiveToday.check_in_time).slice(0, 5)
+    : "";
+  const checkOutTimeShort = effectiveToday?.check_out_time
+    ? String(effectiveToday.check_out_time).slice(0, 5)
+    : "";
+  const checkInModeLabel = formatModeBadgeLabel(
+    effectiveToday?.check_in_mode || effectiveToday?.work_location_type
+  );
+  const checkOutModeLabel = formatModeBadgeLabel(
+    effectiveToday?.check_out_mode || effectiveToday?.work_location_type
+  );
 
   const todaySessionSummary = (() => {
     if (!hasCheckedOut) return "";
@@ -552,7 +596,7 @@ export default function OneTouchCheckIn({
 
   return (
     <div className="w-full px-3.5 pt-2 flex flex-col space-y-3">
-      {/* STITCH SCREEN 2 — SECTION 1: COMPACT DIGITAL CLOCK & SUN/MOON GREETING BAR */}
+      {/* SECTION 1: COMPACT DIGITAL CLOCK & SUN/MOON GREETING BAR */}
       <div className="bg-[#F0F3FF] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1 font-mono">
@@ -574,7 +618,6 @@ export default function OneTouchCheckIn({
           </p>
         </div>
 
-        {/* Circular Sun / Moon Greeting Badge */}
         <div
           className="w-12 h-12 rounded-full bg-white dark:bg-slate-800 border border-amber-200/80 dark:border-slate-700 shadow-sm flex items-center justify-center shrink-0"
           aria-hidden="true"
@@ -596,10 +639,10 @@ export default function OneTouchCheckIn({
         </div>
       </div>
 
-      {/* STITCH SCREEN 2 — SECTION 2: CENTER MASCOT STAGE */}
+      {/* SECTION 2: CENTER MASCOT STAGE (ĐỒNG BỘ 1-1 VỚI 3 TRẠNG THÁI CHẤM CÔNG) */}
       <SedincoMascot state={mascotState} />
 
-      {/* STITCH SCREEN 2 — SECTION 3: PERFORATED REAL-TIME VERIFICATION & ADMIN SYNC TICKET CARD */}
+      {/* SECTION 3: REAL-TIME VERIFICATION & DAILY STATUS TICKET CARD */}
       <div
         data-testid="checkin-effective-status-card"
         data-effective-code={effectiveCode || (hasCheckedOut ? "DONE" : hasCheckedIn ? "IN_SHIFT" : "NONE")}
@@ -621,26 +664,6 @@ export default function OneTouchCheckIn({
               </div>
             </div>
           </div>
-        ) : effectiveCode === "0.5" ? (
-          <div className="p-3.5 bg-sky-50/85 dark:bg-sky-950/45 space-y-1">
-            <div className="flex items-start gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-xs font-black text-sm">
-                ◐
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-xs sm:text-sm font-extrabold text-sky-900 dark:text-sky-200 leading-snug">
-                  ◐ Hôm nay bạn đã được ghi nhận 0,5 công
-                </div>
-                <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
-                  {hasCheckedIn && !hasCheckedOut
-                    ? "Đang trong ca — có thể bấm Tan ca khi kết thúc buổi chiều."
-                    : hasCheckedOut
-                    ? "Đã hoàn tất ghi nhận ca làm việc 0,5 công hôm nay."
-                    : "Có thể bấm Chấm công Vào nếu tiếp tục làm ca còn lại."}
-                </p>
-              </div>
-            </div>
-          </div>
         ) : effectiveCode === "P" ? (
           <div className="p-3.5 bg-sky-50/85 dark:bg-sky-950/45 space-y-1">
             <div className="flex items-start gap-2.5">
@@ -657,7 +680,7 @@ export default function OneTouchCheckIn({
               </div>
             </div>
           </div>
-        ) : effectiveCode === "KL" ? (
+        ) : effectiveCode === "KL" && isAdminAdjusted ? (
           <div className="p-3.5 bg-amber-50/85 dark:bg-amber-950/40 space-y-1">
             <div className="flex items-start gap-2.5">
               <div className="w-8 h-8 rounded-full bg-slate-700 text-white flex items-center justify-center shrink-0 shadow-xs text-sm">
@@ -711,23 +734,34 @@ export default function OneTouchCheckIn({
               </div>
             </div>
           </div>
-        ) : !isDeletedOrClearedToday && (hasCheckedIn || stage === STAGES.SUCCESS) ? (
-          <div className="p-3.5 bg-emerald-50/75 dark:bg-emerald-950/40 space-y-1.5">
+        ) : hasCheckedIn && hasCheckedOut ? (
+          /* TRẠNG THÁI 3 — ĐÃ CHẤM CÔNG RA (HOÀN THÀNH NGÀY CÔNG) */
+          <div className="p-3.5 bg-emerald-50/80 dark:bg-emerald-950/45 space-y-2">
             <div className="flex items-start gap-2.5">
               <div className="w-8 h-8 rounded-full bg-[#16A34A] text-white flex items-center justify-center shrink-0 shadow-xs">
                 <CheckCircle2 size={18} />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-xs sm:text-sm font-extrabold text-[#16A34A] dark:text-emerald-300 uppercase tracking-tight leading-snug">
-                  ✓ {hasCheckedOut || lastCheckAction === "out" ? "TAN CA THÀNH CÔNG" : "VÀO CA THÀNH CÔNG"}
-                  {confirmTimeStr ? ` ${confirmTimeStr}` : ""}
+                  ✓ ĐÃ HOÀN TẤT CHẤM CÔNG HÔM NAY
                 </div>
-                <p className="text-xs font-medium text-[#111C2D] dark:text-slate-200 leading-relaxed break-words mt-0.5">
-                  Nhân viên <strong>{currentUser?.ho_ten || "Nhân viên"}</strong> đã ghi nhận chấm công tại{" "}
-                  <strong className="text-[#16A34A] dark:text-emerald-300">
-                    {effectiveToday?.matched_location_name || effectiveToday?.location_name || "Văn phòng SEDINCO"}
-                  </strong>!
-                </p>
+                <div
+                  data-testid="checkin-completed-summary"
+                  className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-bold text-[#111C2D] dark:text-slate-100"
+                >
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <span>Vào: {checkInTimeShort || "--:--"}</span>
+                    <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">
+                      ({checkInModeLabel})
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <span>Ra: {checkOutTimeShort || "--:--"}</span>
+                    <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">
+                      ({checkOutModeLabel})
+                    </span>
+                  </span>
+                </div>
               </div>
             </div>
             {todaySessionSummary && (
@@ -735,13 +769,52 @@ export default function OneTouchCheckIn({
                 <span>Công thực tế hôm nay: {todaySessionSummary}</span>
               </div>
             )}
-            {effectiveToday?.proxy_by && (
-              <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#DAE2FF]/70 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/40 text-[#0051CA] dark:text-blue-200 text-xs font-semibold">
-                Quản lý chấm hộ{effectiveToday.proxy_note ? `: ${effectiveToday.proxy_note}` : ""}
-              </span>
+            {effectiveToday?.field_note && (
+              <div className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                📍 Công trình: {effectiveToday.field_note}
+              </div>
             )}
           </div>
+        ) : hasCheckedIn ? (
+          /* TRẠNG THÁI 2 — ĐÃ CHẤM CÔNG VÀO, ĐANG TRONG CA LÀM VIỆC */
+          <div className="p-3.5 bg-sky-50/80 dark:bg-sky-950/40 space-y-1.5">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-[#16A34A] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <CheckCircle2 size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs sm:text-sm font-extrabold text-[#16A34A] dark:text-emerald-300 uppercase tracking-tight leading-snug">
+                    ✓ ĐÃ VÀO CA LÚC {checkInTimeShort}
+                  </span>
+                  <span
+                    data-testid="checked-in-mode-badge"
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
+                      checkInModeLabel === "Đi công trình"
+                        ? "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
+                        : "bg-sky-100 dark:bg-sky-950/80 text-[#0051CA] dark:text-sky-200 border border-sky-300 dark:border-sky-700"
+                    }`}
+                  >
+                    {checkInModeLabel}
+                  </span>
+                </div>
+                <p className="text-xs font-medium text-[#111C2D] dark:text-slate-200 leading-relaxed break-words mt-0.5">
+                  Đang trong ca làm việc tại{" "}
+                  <strong className="text-[#16A34A] dark:text-emerald-300">
+                    {effectiveToday?.matched_location_name || effectiveToday?.location_name || checkInModeLabel}
+                  </strong>
+                  . Bấm <strong>Chấm công Ra (Tan ca)</strong> bên dưới khi kết thúc ca.
+                </p>
+                {effectiveToday?.field_note && (
+                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 mt-0.5">
+                    📍 Ghi chú: {effectiveToday.field_note}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         ) : (
+          /* TRẠNG THÁI 1 — CHƯA CHẤM CÔNG VÀO */
           <div className="p-3.5 flex items-start gap-2.5">
             <div className="w-8 h-8 rounded-full bg-[#FFE4E6] dark:bg-rose-950/70 text-[#E11D48] dark:text-rose-300 flex items-center justify-center shrink-0">
               <Clock size={16} />
@@ -751,7 +824,7 @@ export default function OneTouchCheckIn({
                 Chưa chấm công hôm nay
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
-                Chạm nút màu xanh bên dưới để ghi nhận giờ vào ca hôm nay.
+                Chọn chế độ <strong>Tại văn phòng</strong> hoặc <strong>Đi công trình</strong> và bấm <strong>Chấm công Vào</strong> để bắt đầu ca.
               </p>
             </div>
           </div>
@@ -779,32 +852,30 @@ export default function OneTouchCheckIn({
             <span
               className={`inline-flex items-center gap-1 font-extrabold ${
                 hasCheckedOut
-                  ? "text-[#E11D48] dark:text-rose-300"
-                  : hasCheckedIn
                   ? "text-[#16A34A] dark:text-emerald-300"
+                  : hasCheckedIn
+                  ? "text-[#0051CA] dark:text-sky-300"
                   : "text-slate-700 dark:text-slate-200"
               }`}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
                   hasCheckedOut
-                    ? "bg-[#E11D48]"
-                    : hasCheckedIn
                     ? "bg-[#16A34A]"
+                    : hasCheckedIn
+                    ? "bg-[#0051CA]"
                     : "bg-amber-500"
                 }`}
               />
               <span>
                 {isDayLockedByEffective
                   ? liveTodayEffective?.note || "Đã chốt trạng thái hôm nay"
-                  : effectiveCode === "0.5" && !hasCheckedIn
-                  ? "Đã ghi nhận 0,5 công"
                   : hasCheckedOut
                   ? "Đã hoàn tất ca"
                   : hasCheckedIn
                   ? Number(effectiveToday?.late_minutes || 0) > 0
-                    ? `Vào muộn ${effectiveToday.late_minutes} phút`
-                    : "Đúng giờ"
+                    ? `Đang làm việc (Muộn ${effectiveToday.late_minutes}p)`
+                    : "Đang trong ca làm việc"
                   : "Chờ vào ca"}
               </span>
             </span>
@@ -812,165 +883,151 @@ export default function OneTouchCheckIn({
         </div>
       </div>
 
-      {/* STITCH SCREEN 2 — SECTION 4: WORK LOCATION MODE SWITCHER (VĂN PHÒNG vs ĐI CÔNG TRÌNH) & ACTION BUTTONS */}
+      {/* SECTION 4: THANH CHUYỂN CHẾ ĐỘ (TẠI VĂN PHÒNG | ĐI CÔNG TRÌNH) + Ô GHI CHÚ TÙY CHỌN + NÚT CHẤM CÔNG ĐỒNG BỘ 3 TRẠNG THÁI */}
       {!isDayLockedByEffective && !hasCheckedOut && !isLockedPeriod && (
-        <div
-          data-testid="checkin-mode-selector"
-          className="w-full rounded-2xl bg-slate-100/90 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1.5 flex items-center gap-1.5"
-        >
-          <button
-            type="button"
-            data-testid="mode-btn-office"
-            disabled={isActionBusy}
-            onClick={() => setIsFieldWorkMode(false)}
-            className={`flex-1 min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition cursor-pointer ${
-              !isFieldWorkMode
-                ? "bg-white dark:bg-slate-800 text-[#111C2D] dark:text-white shadow-xs border border-slate-200/80 dark:border-slate-700"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
+        <div className="w-full space-y-2.5">
+          {/* Thanh chuyển chế độ gọn gàng 2 lựa chọn */}
+          <div
+            data-testid="checkin-mode-selector"
+            className="w-full rounded-2xl bg-slate-100/90 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1.5 flex items-center gap-1.5"
           >
-            <Building2 className="w-4 h-4 shrink-0 text-[#0051CA] dark:text-sky-400" />
-            <span>Tại văn phòng</span>
-          </button>
-          <button
-            type="button"
-            data-testid="mode-btn-fieldwork"
-            disabled={isActionBusy}
-            onClick={() => {
-              setIsFieldWorkMode(true);
-              if (!fieldNote.trim()) {
-                setFieldNote("Đi công trình / Thị trường (GPS)");
-              }
-            }}
-            className={`flex-1 min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition cursor-pointer ${
-              isFieldWorkMode
-                ? "bg-amber-500 text-white shadow-xs border border-amber-600"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <HardHat className="w-4 h-4 shrink-0" />
-            <span>Đi công trình (GPS)</span>
-          </button>
-        </div>
-      )}
-
-      <div className="w-full space-y-2.5">
-        {/* NÚT 1: CHẤM CÔNG VÀO (VÀO CA) */}
-        <button
-          id={!hasCheckedIn && checkInBtnEnabled ? "btn-start-checkin" : undefined}
-          data-testid="btn-checkin"
-          type="button"
-          disabled={!checkInBtnEnabled}
-          onClick={() => handleStartCheckIn(false)}
-          className={`min-h-[58px] w-full rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-left transition-transform duration-150 ${
-            !isDayLockedByEffective && !hasCheckedIn && !isLockedPeriod
-              ? isFieldWorkMode
-                ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-[0.98]"
-                : "bg-[#16A34A] hover:bg-[#15803D] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-700/80 shadow-[0_8px_20px_-4px_rgba(22,163,74,0.3)] cursor-pointer active:scale-[0.98]"
-              : "bg-[#E7EEFF] dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-40 cursor-not-allowed pointer-events-none"
-          }`}
-        >
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <span className="text-xl leading-none shrink-0" aria-hidden="true">☀️</span>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm sm:text-base font-extrabold leading-tight break-words">
-                {!hasCheckedIn && stage === STAGES.SUBMITTING
-                  ? "ĐANG GỬI CHẤM CÔNG..."
-                  : !hasCheckedIn && stage === STAGES.LOCATING
-                  ? "ĐANG ĐỊNH VỊ GPS..."
-                  : isFieldWorkMode && !hasCheckedIn
-                  ? "CHẤM CÔNG VÀO (ĐI CÔNG TRÌNH)"
-                  : "CHẤM CÔNG VÀO (VÀO CA)"}
-              </div>
-              <div
-                className={`text-xs font-semibold mt-0.5 leading-snug ${
-                  !isDayLockedByEffective && !hasCheckedIn && !isLockedPeriod
-                    ? "text-emerald-50"
-                    : "text-slate-600 dark:text-slate-300"
-                }`}
-              >
-                {isLockedPeriod
-                  ? "Kỳ công tháng này đã chốt"
-                  : isDayLockedByEffective
-                  ? liveTodayEffective?.note || "Đã chốt công / nghỉ hôm nay"
-                  : hasCheckedIn
-                  ? `Đã vào ca lúc ${String(effectiveToday?.check_in_time || serverTimeResult).slice(0, 5)}`
-                  : isFieldWorkMode
-                  ? "Chấm công GPS tại công trình bất kỳ (không giới hạn khoảng cách)"
-                  : `Bắt đầu ca làm việc (${effStart})`}
-              </div>
-            </div>
+            <button
+              type="button"
+              data-testid="mode-btn-office"
+              disabled={isActionBusy}
+              onClick={() => setIsFieldWorkMode(false)}
+              className={`flex-1 min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                !isFieldWorkMode
+                  ? "bg-white dark:bg-slate-800 text-[#111C2D] dark:text-white shadow-xs border border-slate-200/80 dark:border-slate-700"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <Building2 className="w-4 h-4 shrink-0 text-[#0051CA] dark:text-sky-400" />
+              <span>Tại văn phòng</span>
+            </button>
+            <button
+              type="button"
+              data-testid="mode-btn-fieldwork"
+              disabled={isActionBusy}
+              onClick={() => setIsFieldWorkMode(true)}
+              className={`flex-1 min-h-[42px] px-3 py-2 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                isFieldWorkMode
+                  ? "bg-amber-500 text-white shadow-xs border border-amber-600"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <HardHat className="w-4 h-4 shrink-0" />
+              <span>Đi công trình</span>
+            </button>
           </div>
-          <Clock className="w-5 h-5 shrink-0 opacity-90" />
-        </button>
 
-        {/* NÚT 2: CHẤM CÔNG RA (TAN CA — LUÔN SÁNG & BẤM ĐƯỢC NGAY SAU KHI ĐÃ VÀO CA) */}
-        <button
-          id={hasCheckedIn && checkOutBtnEnabled ? "btn-start-checkin" : undefined}
-          data-testid="btn-checkout"
-          type="button"
-          disabled={!checkOutBtnEnabled}
-          onClick={() => handleStartCheckIn(false)}
-          className={`min-h-[58px] w-full rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-left transition-transform duration-150 ${
-            !isDayLockedByEffective && hasCheckedIn && !hasCheckedOut && !isLockedPeriod
-              ? isFieldWorkMode
-                ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-[0.98]"
-                : "sedinco-crimson-gradient hover:bg-[#BE123C] dark:bg-rose-600 dark:hover:bg-rose-500 text-white border border-[#BE123C]/80 shadow-[0_8px_20px_-4px_rgba(225,29,72,0.35)] cursor-pointer active:scale-[0.98]"
-              : "bg-[#E7EEFF] dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-40 cursor-not-allowed pointer-events-none"
-          }`}
-        >
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <span className="text-xl leading-none shrink-0" aria-hidden="true">🌙</span>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm sm:text-base font-extrabold leading-tight break-words">
-                {!isDayLockedByEffective && hasCheckedIn && !hasCheckedOut && stage === STAGES.SUBMITTING
-                  ? "ĐANG GỬI CHẤM CÔNG RA..."
-                  : !isDayLockedByEffective && hasCheckedIn && !hasCheckedOut && stage === STAGES.LOCATING
-                  ? "ĐANG ĐỊNH VỊ GPS..."
-                  : isFieldWorkMode && hasCheckedIn && !hasCheckedOut
-                  ? "VỀ THÔI!!! (TAN CA CÔNG TRÌNH)"
-                  : "VỀ THÔI!!! (TAN CA)"}
-              </div>
-              <div
-                className={`text-xs font-semibold mt-0.5 leading-snug ${
-                  !isDayLockedByEffective && hasCheckedIn && !hasCheckedOut && !isLockedPeriod
-                    ? "text-rose-100"
-                    : "text-slate-600 dark:text-slate-300"
-                }`}
-              >
-                {isDayLockedByEffective
-                  ? liveTodayEffective?.note || "Đã chốt công / nghỉ hôm nay"
-                  : hasCheckedOut
-                  ? "Đã hoàn thành chấm công hôm nay"
-                  : hasCheckedIn
+          {/* Khi chọn Đi công trình: chỉ hiển thị duy nhất 1 ô nhập ghi chú ngắn tùy chọn */}
+          {isFieldWorkMode && (
+            <input
+              type="text"
+              data-testid="fieldwork-optional-note-input"
+              value={fieldNote}
+              onChange={(e) => setFieldNote(e.target.value)}
+              placeholder="Ghi chú công trình (không bắt buộc)"
+              maxLength={200}
+              className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-600/60 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-amber-500"
+            />
+          )}
+
+          {/* TRẠNG THÁI 1 (!hasCheckedIn): CHỈ HIỂN THỊ NÚT CHẤM CÔNG VÀO Ở CẢ 2 MỤC */}
+          {!hasCheckedIn && (
+            <button
+              id="btn-start-checkin"
+              data-testid="btn-checkin"
+              type="button"
+              disabled={!checkInBtnEnabled}
+              onClick={() => handleStartCheckIn(false, "IN")}
+              className={`min-h-[58px] w-full rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-left transition-transform duration-150 ${
+                checkInBtnEnabled
                   ? isFieldWorkMode
-                    ? "Chốt giờ tan ca tại công trình bằng GPS"
-                    : `Bấm để chốt giờ tan ca (${effEnd})`
-                  : "Chưa vào ca làm việc"}
+                    ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-[0.98]"
+                    : "bg-[#16A34A] hover:bg-[#15803D] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white border border-emerald-700/80 shadow-[0_8px_20px_-4px_rgba(22,163,74,0.3)] cursor-pointer active:scale-[0.98]"
+                  : "bg-[#E7EEFF] dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-50 cursor-not-allowed"
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <span className="text-xl leading-none shrink-0" aria-hidden="true">☀️</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm sm:text-base font-extrabold leading-tight break-words">
+                    {stage === STAGES.SUBMITTING
+                      ? "ĐANG GỬI CHẤM CÔNG VÀO..."
+                      : stage === STAGES.LOCATING
+                      ? "ĐANG ĐỊNH VỊ GPS..."
+                      : isFieldWorkMode
+                      ? "CHẤM CÔNG VÀO (ĐI CÔNG TRÌNH)"
+                      : "CHẤM CÔNG VÀO (VÀO CA)"}
+                  </div>
+                  <div className="text-xs font-semibold mt-0.5 leading-snug text-emerald-50">
+                    {isFieldWorkMode
+                      ? "Chấm công GPS tại công trình bất kỳ (không cần đăng ký trước)"
+                      : `Bắt đầu ca làm việc tại văn phòng (${effStart})`}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <Clock className="w-5 h-5 shrink-0 opacity-90" />
-        </button>
-      </div>
+              <Clock className="w-5 h-5 shrink-0 opacity-90" />
+            </button>
+          )}
 
-      {/* Trạng thái kết nối mạng gọn nhẹ */}
-      {!isDayLockedByEffective && !hasCheckedOut && !isLockedPeriod && (
-        <div className="flex items-center justify-between gap-2 px-1">
-          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-            {isFieldWorkMode
-              ? "📍 Chế độ Đi công trình: Cho phép chấm công GPS mọi nơi"
-              : locationFriendlyBadge?.text || "📍 Chấm công theo vị trí chi nhánh"}
-          </span>
-          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 shrink-0 text-right">
-            {networkBadge?.online ? (networkBadge.networkType === "wifi" ? "Wi-Fi sẵn sàng" : "Mạng di động") : "Mất kết nối"}
-          </span>
+          {/* TRẠNG THÁI 2 (hasCheckedIn && !hasCheckedOut): ẨN HOÀN TOÀN NÚT VÀO, ĐỒNG BỘ SANG NÚT CHẤM CÔNG RA Ở CẢ 2 MỤC */}
+          {hasCheckedIn && !hasCheckedOut && (
+            <button
+              id="btn-start-checkin"
+              data-testid="btn-checkout"
+              type="button"
+              disabled={!checkOutBtnEnabled}
+              onClick={() => handleStartCheckIn(false, "OUT")}
+              className={`min-h-[58px] w-full rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-left transition-transform duration-150 ${
+                checkOutBtnEnabled
+                  ? isFieldWorkMode
+                    ? "bg-amber-600 bg-gradient-to-r from-amber-500 to-orange-600 text-white border border-amber-500 shadow-lg shadow-amber-500/25 cursor-pointer active:scale-[0.98]"
+                    : "sedinco-crimson-gradient hover:bg-[#BE123C] dark:bg-rose-600 dark:hover:bg-rose-500 text-white border border-[#BE123C]/80 shadow-[0_8px_20px_-4px_rgba(225,29,72,0.35)] cursor-pointer active:scale-[0.98]"
+                  : "bg-[#E7EEFF] dark:bg-slate-800 border border-slate-300/80 dark:border-slate-700 text-slate-600 dark:text-slate-300 opacity-50 cursor-not-allowed"
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <span className="text-xl leading-none shrink-0" aria-hidden="true">🌙</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm sm:text-base font-extrabold leading-tight break-words">
+                    {stage === STAGES.SUBMITTING
+                      ? "ĐANG GỬI CHẤM CÔNG RA..."
+                      : stage === STAGES.LOCATING
+                      ? "ĐANG ĐỊNH VỊ GPS..."
+                      : isFieldWorkMode
+                      ? "CHẤM CÔNG RA (TAN CA CÔNG TRÌNH)"
+                      : "CHẤM CÔNG RA (TAN CA)"}
+                  </div>
+                  <div className="text-xs font-semibold mt-0.5 leading-snug text-rose-100">
+                    {isFieldWorkMode
+                      ? "Chốt giờ tan ca từ công trình bất kỳ bằng GPS"
+                      : `Bấm để chốt giờ tan ca tại văn phòng (${effEnd})`}
+                  </div>
+                </div>
+              </div>
+              <Clock className="w-5 h-5 shrink-0 opacity-90" />
+            </button>
+          )}
+
+          {/* Dòng trạng thái vị trí & kết nối mạng gọn nhẹ */}
+          <div className="flex items-center justify-between gap-2 px-1">
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              {isFieldWorkMode
+                ? "📍 Đi công trình: Cho phép chấm công GPS tự do mọi nơi"
+                : locationFriendlyBadge?.text || "📍 Chấm công theo vị trí chi nhánh"}
+            </span>
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 shrink-0 text-right">
+              {networkBadge?.online ? (networkBadge.networkType === "wifi" ? "Wi-Fi sẵn sàng" : "Mạng di động") : "Mất kết nối"}
+            </span>
+          </div>
         </div>
       )}
 
-      {/* Cảnh báo & Thông báo trạng thái xử lý (chỉ hiện khi đang xử lý hoặc có cảnh báo/lỗi) */}
-      {(isFieldWorkMode ||
-        Boolean(spamWarning) ||
+      {/* Cảnh báo & Thông báo trạng thái xử lý */}
+      {(Boolean(spamWarning) ||
         stage === STAGES.LOCATING ||
         stage === STAGES.SUBMITTING ||
         stage === STAGES.PERM_DENIED ||
@@ -978,36 +1035,6 @@ export default function OneTouchCheckIn({
         stage === STAGES.SECURITY_FRAUD ||
         (errorMessage && stage !== STAGES.ERROR && stage !== STAGES.PERM_DENIED && stage !== STAGES.SECURITY_FRAUD)) && (
         <div className="space-y-2 text-center">
-          {isFieldWorkMode && (
-            <div className="bg-amber-50 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-500/40 rounded-2xl p-3 space-y-2 text-xs text-left">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-200">
-                  <HardHat className="w-4 h-4 shrink-0" />
-                  <span>Đang bật chế độ Đi Công Trình (GPS)</span>
-                </span>
-                <div className="flex items-center gap-2.5">
-                  <AppButton
-                    variant="secondary"
-                    onClick={() => setShowFieldWorkModal(true)}
-                    className="text-xs px-3 py-2 min-h-[44px] whitespace-nowrap"
-                  >
-                    Sửa ghi chú
-                  </AppButton>
-                  <AppButton
-                    variant="ghost"
-                    onClick={() => setIsFieldWorkMode(false)}
-                    className="text-xs px-3 py-2 min-h-[44px] whitespace-nowrap text-amber-800 dark:text-amber-200"
-                  >
-                    Tắt
-                  </AppButton>
-                </div>
-              </div>
-              <p className="text-xs font-semibold text-slate-900 dark:text-white break-words bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5">
-                {fieldNote.trim() || "Đi công trình / Thị trường (Xác thực tọa độ GPS)"}
-              </p>
-            </div>
-          )}
-
           {spamWarning && (
             <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-left flex items-start gap-2.5">
               <AlertTriangle size={18} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
@@ -1091,9 +1118,13 @@ export default function OneTouchCheckIn({
                     variant="secondary"
                     fullWidth
                     icon={HardHat}
-                    onClick={() => setShowFieldWorkModal(true)}
+                    onClick={() => {
+                      setIsFieldWorkMode(true);
+                      setStage(STAGES.IDLE);
+                      setErrorMessage("");
+                    }}
                   >
-                    Đi công trình (GPS)
+                    Chuyển sang Đi công trình
                   </AppButton>
                 )}
               </div>
@@ -1102,7 +1133,7 @@ export default function OneTouchCheckIn({
         </div>
       )}
 
-      {/* NHẮC QUÊN GIỜ RA + THÔNG BÁO */}
+      {/* NHẮC QUÊN GIỜ RA CỦA NGÀY CŨ + THÔNG BÁO CÔNG TY */}
       {forgottenCheckout && (
         <button
           type="button"
@@ -1137,11 +1168,11 @@ export default function OneTouchCheckIn({
         </div>
       )}
 
-      {/* MODAL CẢNH BÁO ĐỎ TOÀN MÀN HÌNH KHI PHÁT HIỆN FAKE GPS / THIẾT BỊ LẠ */}
+      {/* MODAL CẢNH BÁO KHI PHÁT HIỆN FAKE GPS */}
       <AppModal
         open={stage === STAGES.SECURITY_FRAUD}
         onClose={() => setStage(STAGES.IDLE)}
-        title="Cảnh báo an ninh chấm công"
+        title="Cảnh báo tín hiệu GPS"
         maxWidthClass="max-w-sm"
         footer={
           <AppButton
@@ -1158,7 +1189,7 @@ export default function OneTouchCheckIn({
             <ShieldAlert size={44} />
           </div>
           <p className="text-xs text-rose-900 dark:text-white font-semibold leading-relaxed bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-500/40 rounded-2xl p-3.5">
-            Hệ thống phát hiện dấu hiệu giả mạo vị trí hoặc thiết bị chưa được cấp phép. Thông báo đã được gửi trực tiếp tới Quản lý!
+            Hệ thống phát hiện tín hiệu vị trí giả lập (Mock Location). Vui lòng tắt ứng dụng giả lập GPS trên thiết bị và thử lại.
           </p>
           {fraudDetails && (
             <p className="text-xs text-rose-700 dark:text-rose-200 bg-slate-100 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 leading-relaxed">
@@ -1200,59 +1231,6 @@ export default function OneTouchCheckIn({
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Sedinco HR sử dụng vị trí thực tế để xác nhận bạn đang ở chi nhánh/kho hàng hoặc tại công trình để chấm công nhanh gọn.
           </p>
-        </div>
-      </AppModal>
-
-      {/* Modal Xác Nhận Địa Điểm Đi Công Trình (GPS-Only, Không Cần Ảnh) */}
-      <AppModal
-        open={showFieldWorkModal}
-        onClose={() => setShowFieldWorkModal(false)}
-        title="Chấm công Đi công trình (GPS)"
-        subtitle="Ghi nhận tọa độ GPS trực tiếp tại công trình / khách hàng"
-        icon={<HardHat className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />}
-        maxWidthClass="max-w-md"
-        footer={
-          <div className="flex gap-2.5">
-            <AppButton
-              variant="secondary"
-              onClick={() => setShowFieldWorkModal(false)}
-              className="flex-1"
-            >
-              Đóng / Quay lại
-            </AppButton>
-            <AppButton
-              variant="warning"
-              onClick={() => {
-                if (!fieldNote.trim()) {
-                  setFieldNote("Đi công trình / Thị trường (GPS)");
-                }
-                setIsFieldWorkMode(true);
-                setShowFieldWorkModal(false);
-              }}
-              className="flex-1 font-bold"
-            >
-              Xác nhận Công trình
-            </AppButton>
-          </div>
-        }
-      >
-        <div className="p-4 space-y-3 text-sm">
-          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-500/30 rounded-xl p-3">
-            📍 Hệ thống chỉ cần xác thực tọa độ GPS thực tế, hoàn toàn <strong>không yêu cầu chụp ảnh</strong>.
-          </p>
-
-          <div>
-            <label className="block text-xs font-bold text-amber-800 dark:text-amber-200 uppercase mb-1.5">
-              Ghi chú tên công trình / khách hàng (tùy chọn)
-            </label>
-            <input
-              type="text"
-              value={fieldNote}
-              onChange={(e) => setFieldNote(e.target.value)}
-              placeholder="VD: Giao gạch công trình Hòa Xuân / Gặp anh Minh..."
-              className="w-full min-h-[46px] bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400"
-            />
-          </div>
         </div>
       </AppModal>
     </div>

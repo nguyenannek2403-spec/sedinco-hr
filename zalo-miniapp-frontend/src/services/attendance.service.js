@@ -6,13 +6,13 @@ import { acquireVerifiedLocation } from "./zalo-location.service";
 import { silentResolveZaloToken } from "./zalo-auth.service";
 
 /**
- * Smart Attendance Orchestrator Service (V64 Sequential Pipeline):
+ * Smart Attendance Orchestrator Service (V65 Unified Check-In/Check-Out State Machine):
  * Step 1: auth-setting / getSetting() -> Kiểm tra & xin quyền scope.userLocation. Nếu user từ chối -> Dừng ngay.
  * Step 2: getLocation() -> Lấy zalo_location_token mới tươi (single-use, timeout <= 10s, không bao giờ cache).
  * Step 3: POST /api/attendance/precheck -> Giải mã zalo_location_token DUY NHẤT 1 LẦN tại Backend, nhận location_proof_token (60s).
- *         Nếu precheck lỗi hoặc allowed: false -> Dừng ngay, hiển thị lý do, KHÔNG gọi /check-in.
- * Step 4: POST /api/attendance/check-in -> Gửi location_proof_token (không gửi lại zalo_location_token) + client_nonce + Idempotency-Key.
- * Step 5: Async post-tasks -> Sau khi check-in 200 OK mới chạy bất đồng bộ các tác vụ phụ.
+ *         Nếu precheck lỗi hoặc allowed: false -> Dừng ngay, hiển thị lý do, KHÔNG gọi /check-in hay /check-out.
+ * Step 4: POST /api/attendance/check-in (hoặc /api/attendance/check-out) -> Gửi location_proof_token + action_type ('IN' | 'OUT').
+ * Step 5: Async post-tasks -> Sau khi 200 OK mới chạy bất đồng bộ các tác vụ phụ.
  */
 
 export async function getAttendanceNetworkStatus() {
@@ -29,12 +29,12 @@ export async function triggerAttendanceHaptic(type = "light") {
 
 export async function executeSmartAttendanceFlow({
   isFieldWorkMode = false,
-  fieldNote = ""
+  fieldNote = "",
+  actionType = "IN"
 } = {}) {
   const workLocationType = isFieldWorkMode ? "FIELD_WORK" : "OFFICE";
-  const resolvedFieldNote = isFieldWorkMode
-    ? (String(fieldNote || "").trim().length >= 2 ? String(fieldNote).trim() : "Đi công trình / Thị trường (GPS)")
-    : "";
+  const resolvedFieldNote = isFieldWorkMode ? String(fieldNote || "").trim() : "";
+  const normalizedAction = String(actionType || "IN").toUpperCase() === "OUT" ? "OUT" : "IN";
 
   // Step 1 & Step 2: Kiểm tra auth-setting (scope.userLocation) & lấy vị trí / zalo_location_token mới tươi
   const locResult = await acquireVerifiedLocation({
@@ -98,13 +98,13 @@ export async function executeSmartAttendanceFlow({
     });
   }
 
-  // Nếu precheck không cho phép (allowed === false hoặc can_check_in === false) -> Dừng ngay, KHÔNG gọi /check-in
+  // Nếu precheck không cho phép (allowed === false hoặc can_check_in === false) -> Dừng ngay
   if (!precheck || precheck.can_check_in === false || precheck.allowed === false) {
     const blockCode = precheck?.error_code || "ATTENDANCE_PRECHECK_BLOCKED";
     const blockMsg =
       precheck?.block_reason ||
       locResult?.message ||
-      "Chưa đủ điều kiện vị trí để chấm công. Nếu bạn đang đi công trình, hãy chọn chế độ Đi công trình (GPS).";
+      "Chưa đủ điều kiện vị trí để chấm công. Nếu bạn đang đi công trình, hãy chọn mục Đi công trình.";
     return createServiceResult({
       state:
         blockCode === "ZALO_PERMISSION_DENIED"
@@ -118,9 +118,9 @@ export async function executeSmartAttendanceFlow({
     });
   }
 
-  // Step 4: POST /api/attendance/check-in — Chỉ gọi khi precheck.allowed === true, dùng location_proof_token (KHÔNG gửi lại zalo_location_token)
+  // Step 4: Gọi POST /api/attendance/check-in hoặc POST /api/attendance/check-out với location_proof_token
   const devIdentity = await getDeviceIdentity();
-  const idempotencyKey = generateIdempotencyKey("checkin");
+  const idempotencyKey = generateIdempotencyKey(normalizedAction === "OUT" ? "checkout" : "checkin");
   const clientNonce =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
@@ -135,8 +135,10 @@ export async function executeSmartAttendanceFlow({
       ? precheck.verified_lng
       : lng;
 
+  const targetEndpoint = normalizedAction === "OUT" ? "/attendance/check-out" : "/attendance/check-in";
+
   const result = await safePost(
-    "/attendance/check-in",
+    targetEndpoint,
     {
       lat: resolvedLat,
       lng: resolvedLng,
@@ -147,7 +149,8 @@ export async function executeSmartAttendanceFlow({
       gps_accuracy: gpsAccuracy,
       is_fake_gps: isFakeGps,
       work_location_type: workLocationType,
-      field_note: resolvedFieldNote
+      action_type: normalizedAction,
+      field_note: resolvedFieldNote || undefined
     },
     { idempotencyKey }
   );

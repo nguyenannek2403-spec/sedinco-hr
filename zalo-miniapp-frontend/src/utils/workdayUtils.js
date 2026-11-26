@@ -139,7 +139,24 @@ export function resolveHeatmapCellMeta({ log = null, isoDate = "", todayIso = ge
   }
 
   // 2. Nghỉ không lương / Vắng không phép / 0 công rõ ràng -> Đỏ dịu
+  // V65: Với ngày hôm nay (isToday) hoặc tương lai (isFuture), không bao giờ hiển thị Nghỉ không lương trừ khi Admin đã chỉnh tay
   if (["0", "KP", "KL", "V", "ABSENT"].includes(status)) {
+    const isAdminAdjustedAbsent =
+      String(log?.duration_status || "").trim().toUpperCase().startsWith("ADMIN_ADJUSTED") ||
+      Boolean(log?.proxy_by);
+    if ((isToday || isFuture) && !isAdminAdjustedAbsent && !log?.check_in_time) {
+      return {
+        category: "FUTURE",
+        colorName: "gray",
+        cellClass: "bg-slate-50/70 dark:bg-slate-900/50 border-slate-200/70 dark:border-slate-800 text-slate-400 dark:text-slate-500",
+        dotClass: "bg-slate-400",
+        shortCode: isToday ? "·" : "",
+        badgeText: isToday ? "Chưa chấm công hôm nay" : "Chưa tới ngày",
+        credit: 0,
+        hasLateOrEarly: false,
+        needsCorrection: false
+      };
+    }
     return {
       category: "ABSENT",
       colorName: "red",

@@ -42,10 +42,11 @@ const legacyQrGone = (_req, res) => res.status(410).json({
 router.get('/dynamic-qr', authenticateToken, requireAuth, legacyQrGone);
 router.get('/qr', authenticateToken, requireAuth, legacyQrGone);
 
-// 8. Smart Attendance Phase 1: Kiểm tra trước ca & vùng chi nhánh + Sinh QR động có hạn & chống replay
+// 8. Smart Attendance Phase 1 & V65 Unified Check-In/Check-Out State Machine
 router.post('/precheck', authenticateToken, requireAuth, (req, res, next) => attendanceController.precheckCheckIn(req, res, next));
 router.post('/qr-session', authenticateToken, requireRole(['admin', 'accountant']), (req, res, next) => attendanceController.generateQrSession(req, res, next));
 router.post('/check-in', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => attendanceController.checkInMultiFactor(req, res, next));
+router.post('/check-out', authenticateToken, requireAuth, idempotencyMiddleware(), (req, res, next) => attendanceController.checkOutMultiFactor(req, res, next));
 
 // 9. Danh sách chấm công nghi vấn / phát hiện chấm công hộ (Yêu cầu permission: attendance_view_all)
 router.get('/suspicious-logs', authenticateToken, requirePermission('attendance_view_all'), (req, res, next) => attendanceController.getSuspiciousLogs(req, res, next));

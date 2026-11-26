@@ -12,7 +12,8 @@ const {
     getDaysInMonth,
     getMonthlyStandardWorkdays,
     isSundayIsoDate,
-    normalizePureIsoDate
+    normalizePureIsoDate,
+    getVietnamDateString
 } = require('./timeHelper');
 const { findHolidayForDate, buildHolidayDateMap } = require('./vnHolidaysCatalog');
 
@@ -192,6 +193,7 @@ function calculateEmployeeSalary({
     let billableLateMinutes = 0;
     let billableLateOccurrences = 0;
     const seenIsoDates = new Set();
+    const todayVnIso = companySettings?.today_vn_override || getVietnamDateString(new Date());
 
     const sortedLogs = Array.isArray(logs)
         ? [...logs].sort((a, b) => {
@@ -203,6 +205,20 @@ function calculateEmployeeSalary({
 
     sortedLogs.forEach(log => {
         const cleanIsoDate = normalizePureIsoDate(log.record_date_iso || log.record_date);
+        const rawLogStatusUpper = String(log.status || '').trim().toUpperCase();
+        const rawDurStatusUpper = String(log.duration_status || '').trim().toUpperCase();
+        const isAdminAdjustedRecord = rawDurStatusUpper.startsWith('ADMIN_ADJUSTED') || Boolean(log.proxy_by);
+
+        // V65 Guardrail: Không bao giờ tự chấm Nghỉ không lương cho ngày hôm nay (cleanIsoDate >= todayVnIso) nếu chưa hết ngày và không phải Admin chỉnh tay
+        if (
+            cleanIsoDate &&
+            cleanIsoDate >= todayVnIso &&
+            ['0', 'KP', 'KL', 'V', 'ABSENT'].includes(rawLogStatusUpper) &&
+            !isAdminAdjustedRecord &&
+            !log.check_in_time
+        ) {
+            return;
+        }
         if (cleanIsoDate) seenIsoDates.add(cleanIsoDate);
         const logDate = cleanIsoDate ? new Date(`${cleanIsoDate}T00:00:00+07:00`) : new Date(log.record_date);
 
@@ -493,6 +509,21 @@ function calculateEmployeeSalary({
         daily_breakdown.sort((a, b) => String(a.record_date_iso || '').localeCompare(String(b.record_date_iso || '')));
     }
 
+    // V65: Tổng hợp danh sách ngày cũ (< todayVnIso) đã kết thúc nhưng không có công / phép / lễ -> chốt Nghỉ không lương
+    const settled_unpaid_dates = [];
+    if (month && year) {
+        const holidayMapForUnpaid = buildHolidayDateMap(Array.isArray(holidays) ? holidays : [], month, year);
+        const totalDaysInM = getDaysInMonth(month, year);
+        for (let d = 1; d <= totalDaysInM; d++) {
+            const iso = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            if (iso >= todayVnIso) continue; // Tuyệt đối không chốt ngày hôm nay hoặc tương lai
+            if (seenIsoDates.has(iso)) continue;
+            if (isSundayIsoDate(iso)) continue;
+            if (holidayMapForUnpaid[iso]) continue;
+            settled_unpaid_dates.push(iso);
+        }
+    }
+
     const actualWorkDays = congThuViec + congChinhThuc;
     const effectiveDays = (congThuViec * probationRatio) + congChinhThuc;
     const allowanceWorkDays = probationAllowanceFull ? actualWorkDays : effectiveDays;
@@ -655,6 +686,8 @@ function calculateEmployeeSalary({
         otCalculationMode,
         freeLateExemptsHalfday,
         negativeSalaryPolicy,
+        unpaidLeaveDays: settled_unpaid_dates.length,
+        settled_unpaid_dates,
         daily_breakdown,
         warning
     };

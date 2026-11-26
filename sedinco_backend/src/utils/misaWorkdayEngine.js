@@ -313,7 +313,13 @@ function buildDailyAttendanceNote(log = {}, _settings = {}) {
         const shortMins = rawSpan !== null ? rawSpan : Math.max(0, workedSum);
         baseNote = `Thời gian làm quá ngắn (${shortMins} phút) - Không tính công`;
     } else if (log.check_in_time && !log.check_out_time) {
-        baseNote = [lateLabel, 'Chưa chấm công ra (Quên check-out)'].filter(Boolean).join(' • ');
+        const { getVietnamDateString } = require('./timeHelper');
+        const todayVn = getVietnamDateString(new Date());
+        const logDateIso = String(log.record_date_iso || log.record_date || '').trim().slice(0, 10);
+        const unclosedText = (logDateIso && logDateIso < todayVn)
+            ? 'Chưa chấm công ra (Quên check-out)'
+            : 'Đang trong ca làm việc';
+        baseNote = [lateLabel, unclosedText].filter(Boolean).join(' • ');
     } else if (
         durationStatus === 'MORNING_ONLY' ||
         durationStatus === 'AFTERNOON_ONLY' ||

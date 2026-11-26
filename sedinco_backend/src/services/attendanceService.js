@@ -19,6 +19,80 @@ const {
 const { findHolidayForDate, buildHolidayDateMap } = require('../utils/vnHolidaysCatalog');
 const { generateAttendanceQrToken, verifyAttendanceQrToken } = require('../utils/qrTokenHelper');
 
+function normalizeWorkMode(rawMode) {
+    const val = String(rawMode || '').trim().toUpperCase();
+    if (val === 'FIELD_WORK' || val === 'FIELD' || val === 'CONG_TRINH') {
+        return 'FIELD_WORK';
+    }
+    return 'OFFICE';
+}
+
+function encodeCheckModes(inMode, outMode = null) {
+    const cleanIn = normalizeWorkMode(inMode);
+    if (!outMode) {
+        return cleanIn === 'FIELD_WORK' ? 'FIELD_WORK_IN' : 'OFFICE_IN';
+    }
+    const cleanOut = normalizeWorkMode(outMode);
+    return `${cleanIn}_IN__${cleanOut}_OUT`;
+}
+
+function parseAttendanceModes(log = {}) {
+    if (!log || typeof log !== 'object') {
+        return {
+            check_in_mode: null,
+            check_out_mode: null,
+            work_mode: 'OFFICE',
+            is_field_work: false
+        };
+    }
+    const methodStr = String(log.check_in_method || '').trim().toUpperCase();
+    const locTypeStr = String(log.work_location_type || '').trim().toUpperCase();
+    const locNameStr = String(log.location_name || '').trim();
+    const hasFieldNote = Boolean(log.field_note && String(log.field_note).trim());
+
+    let check_in_mode = null;
+    let check_out_mode = null;
+
+    if (methodStr.includes('__')) {
+        const [inPart, outPart] = methodStr.split('__');
+        check_in_mode = inPart.startsWith('FIELD') ? 'FIELD_WORK' : 'OFFICE';
+        if (log.check_out_time) {
+            check_out_mode = outPart && outPart.startsWith('FIELD') ? 'FIELD_WORK' : 'OFFICE';
+        }
+    } else if (methodStr === 'FIELD_WORK_IN' || methodStr === 'FIELD_CHECKIN') {
+        check_in_mode = 'FIELD_WORK';
+        if (log.check_out_time) {
+            check_out_mode = locTypeStr === 'FIELD_WORK' ? 'FIELD_WORK' : 'OFFICE';
+        }
+    } else if (methodStr === 'OFFICE_IN' || methodStr === 'ONE_TOUCH_GPS' || methodStr === 'WIFI_OFFICE' || methodStr === 'DYNAMIC_QR') {
+        check_in_mode = 'OFFICE';
+        if (log.check_out_time) {
+            check_out_mode = locTypeStr === 'FIELD_WORK' ? 'FIELD_WORK' : 'OFFICE';
+        }
+    } else if (log.check_in_time) {
+        check_in_mode = (locTypeStr === 'FIELD_WORK' || hasFieldNote || locNameStr.startsWith('Công trình'))
+            ? 'FIELD_WORK'
+            : 'OFFICE';
+        if (log.check_out_time) {
+            check_out_mode = check_in_mode;
+        }
+    }
+
+    const is_field_work = Boolean(
+        check_in_mode === 'FIELD_WORK' ||
+        check_out_mode === 'FIELD_WORK' ||
+        locTypeStr === 'FIELD_WORK' ||
+        hasFieldNote
+    );
+
+    return {
+        check_in_mode,
+        check_out_mode,
+        work_mode: is_field_work ? 'FIELD_WORK' : 'OFFICE',
+        is_field_work
+    };
+}
+
 function computeTodayEffectiveStatus({ todayStr, todayLog = null, holidays = [] } = {}) {
     const holidayMatch = findHolidayForDate(holidays, todayStr);
     if (!todayLog) {
@@ -60,6 +134,23 @@ function computeTodayEffectiveStatus({ todayStr, todayLog = null, holidays = [] 
     const otHours = Number(todayLog.ot_hours) || 0;
     const isAdminFlag = durStatus.startsWith('ADMIN_ADJUSTED') || Boolean(todayLog.proxy_by);
 
+    // V65: Ngày hôm nay chưa kết thúc — nếu bản ghi có status '0' / 'KL' tự động mà chưa chấm công và không phải Admin chỉnh tay -> giữ trạng thái trung tính NONE
+    if (['KL', 'KP', '0', 'V', 'ABSENT'].includes(rawStatus) && !isAdminFlag && !todayLog.check_in_time) {
+        return {
+            date: todayStr,
+            effective_code: 'NONE',
+            is_admin_adjusted: false,
+            is_holiday: Boolean(holidayMatch),
+            holiday_name: holidayMatch ? holidayMatch.holiday_name : null,
+            work_credit: 0,
+            ot_hours: 0,
+            check_in_time: null,
+            check_out_time: null,
+            duration_status: null,
+            note: 'Chưa chấm công hôm nay'
+        };
+    }
+
     let effective_code = 'NONE';
     let is_admin_adjusted = isAdminFlag;
     let is_holiday = Boolean(holidayMatch);
@@ -90,12 +181,19 @@ function computeTodayEffectiveStatus({ todayStr, todayLog = null, holidays = [] 
         work_credit = credit !== null ? credit : 1;
         note = 'Nghỉ phép có lương (1 công)';
     } else if (['KL', 'KP', '0', 'V', 'ABSENT'].includes(rawStatus)) {
-        effective_code = 'KL';
-        is_admin_adjusted = isAdminFlag || ['KL', 'KP', 'V', 'ABSENT'].includes(rawStatus) || !todayLog.check_in_time;
-        work_credit = 0;
-        note = durStatus === 'INVALID_SHORT_DURATION'
-            ? 'Thời gian làm việc quá ngắn — 0 công'
-            : 'Nghỉ không lương (0 công)';
+        if (isAdminFlag || ['KL', 'KP', 'V', 'ABSENT'].includes(rawStatus)) {
+            effective_code = 'KL';
+            is_admin_adjusted = true;
+            work_credit = 0;
+            note = 'Nghỉ không lương (0 công)';
+        } else {
+            effective_code = todayLog.check_out_time ? 'COMPLETED' : 'NONE';
+            is_admin_adjusted = false;
+            work_credit = 0;
+            note = durStatus === 'INVALID_SHORT_DURATION'
+                ? 'Đã chấm công ra (Thời gian làm việc ngắn)'
+                : 'Chưa chấm công hôm nay';
+        }
     } else if (rawStatus === '0.5') {
         effective_code = '0.5';
         is_admin_adjusted = isAdminFlag || (!todayLog.check_in_time && !todayLog.check_out_time);
@@ -178,6 +276,7 @@ class AttendanceService {
         const limit = Math.min(200, Math.max(1, parseInt(pagination.limit, 10) || 200));
         const page = Math.max(1, parseInt(pagination.page, 10) || 1);
         const offset = (page - 1) * limit;
+        const todayStr = pagination?.todayOverride || getVietnamDateString(new Date());
 
         const emps = await query(
             "SELECT ma_nv, ho_ten, avatar_url, COALESCE(NULLIF(department, ''), 'Khối Công trình') as department FROM employees WHERE (role IS NULL OR role != 'admin') ORDER BY ma_nv ASC LIMIT ? OFFSET ?",
@@ -193,6 +292,7 @@ class AttendanceService {
                         late_minutes, early_leave_minutes, work_credit, duration_status,
                         COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
                         COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
+                        work_location_type, field_note, location_name, check_in_method,
                         proxy_by
                  FROM attendance_logs
                  WHERE MONTH(record_date)=? AND YEAR(record_date)=?`,
@@ -213,6 +313,19 @@ class AttendanceService {
                 .filter(l => l.employee_id === emp.ma_nv)
                 .forEach(log => {
                     if (log.day > 0 && log.day <= daysInMonth) {
+                        const rawSt = String(log.status || '').trim().toUpperCase();
+                        const rawDur = String(log.duration_status || '').trim().toUpperCase();
+                        const isAdminAdj = rawDur.startsWith('ADMIN_ADJUSTED') || Boolean(log.proxy_by);
+                        // V65: Không hiển thị Nghỉ không lương cho ngày hôm nay (>= todayStr) nếu chưa kết thúc ngày và không phải Admin chỉnh tay
+                        if (
+                            log.record_date >= todayStr &&
+                            ['0', 'KL', 'KP', 'V', 'ABSENT'].includes(rawSt) &&
+                            !isAdminAdj &&
+                            !log.check_in_time
+                        ) {
+                            return;
+                        }
+                        const modes = parseAttendanceModes(log);
                         days[log.day - 1] = log.status;
                         dayDetails[log.day - 1] = {
                             status: log.status,
@@ -223,6 +336,13 @@ class AttendanceService {
                             ot_hours: Number(log.ot_hours) || 0,
                             duration_status: log.duration_status || null,
                             work_credit: log.work_credit !== undefined && log.work_credit !== null ? Number(log.work_credit) : null,
+                            work_location_type: modes.is_field_work ? 'FIELD_WORK' : (log.work_location_type || 'OFFICE'),
+                            check_in_mode: modes.check_in_mode,
+                            check_out_mode: modes.check_out_mode,
+                            work_mode: modes.work_mode,
+                            is_field_work: modes.is_field_work,
+                            field_note: log.field_note || null,
+                            location_name: log.location_name || null,
                             attendance_note: buildDailyAttendanceNote(log)
                         };
                     }
@@ -275,7 +395,7 @@ class AttendanceService {
                     COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
                     COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
                     work_credit, duration_status,
-                    is_suspicious, suspicious_reason, location_name, field_note, work_location_type,
+                    is_suspicious, suspicious_reason, location_name, field_note, work_location_type, check_in_method,
                     COALESCE(shift_type, 'FULL_DAY') as shift_type, proxy_by, proxy_note
              FROM attendance_logs
              WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
@@ -329,7 +449,7 @@ class AttendanceService {
                     COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
                     COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
                     work_credit, duration_status,
-                    is_suspicious, suspicious_reason, location_name, field_note, work_location_type,
+                    is_suspicious, suspicious_reason, location_name, field_note, work_location_type, check_in_method,
                     COALESCE(shift_type, 'FULL_DAY') as shift_type, proxy_by, proxy_note
              FROM attendance_logs
              WHERE employee_id = ? AND record_date = ?
@@ -347,12 +467,29 @@ class AttendanceService {
             holidays: holidays || []
         });
 
-        const existingDates = new Set((logs || []).map((l) => String(l.record_date || '').slice(0, 10)).filter(Boolean));
-        const enrichedLogs = (logs || []).map((l) => {
+        const validLogs = (logs || []).filter((l) => {
+            const iso = String(l.record_date || '').slice(0, 10);
+            const rawSt = String(l.status || '').trim().toUpperCase();
+            const rawDur = String(l.duration_status || '').trim().toUpperCase();
+            const isAdminAdj = rawDur.startsWith('ADMIN_ADJUSTED') || Boolean(l.proxy_by);
+            if (iso >= todayStr && ['0', 'KL', 'KP', 'V', 'ABSENT'].includes(rawSt) && !isAdminAdj && !l.check_in_time) {
+                return false;
+            }
+            return true;
+        });
+
+        const existingDates = new Set(validLogs.map((l) => String(l.record_date || '').slice(0, 10)).filter(Boolean));
+        const enrichedLogs = validLogs.map((l) => {
             const iso = String(l.record_date || '').slice(0, 10);
             const matchedHol = holidayMap[iso] || findHolidayForDate(holidays || [], iso);
+            const modes = parseAttendanceModes(l);
             return {
                 ...l,
+                work_location_type: modes.is_field_work ? 'FIELD_WORK' : (l.work_location_type || 'OFFICE'),
+                check_in_mode: modes.check_in_mode,
+                check_out_mode: modes.check_out_mode,
+                work_mode: modes.work_mode,
+                is_field_work: modes.is_field_work,
                 holiday_name: matchedHol ? matchedHol.holiday_name : null,
                 date_label: formatViDateWithWeekday(l.record_date),
                 attendance_note: matchedHol && String(l.status || '').toUpperCase() === 'L'
@@ -388,10 +525,16 @@ class AttendanceService {
         }
         enrichedLogs.sort((a, b) => String(a.record_date || '').localeCompare(String(b.record_date || '')));
 
-        const today_record = todayRaw
+        const todayRawModes = todayRaw ? parseAttendanceModes(todayRaw) : null;
+        const today_record = todayRaw && (todayRaw.check_in_time || String(todayRaw.duration_status || '').toUpperCase().startsWith('ADMIN_ADJUSTED') || !['0', 'KL', 'KP', 'V', 'ABSENT'].includes(String(todayRaw.status || '').toUpperCase()))
             ? {
                   ...todayRaw,
-                  matched_location_name: todayRaw.location_name || 'Văn phòng SEDINCO',
+                  work_location_type: todayRawModes.is_field_work ? 'FIELD_WORK' : (todayRaw.work_location_type || 'OFFICE'),
+                  check_in_mode: todayRawModes.check_in_mode,
+                  check_out_mode: todayRawModes.check_out_mode,
+                  work_mode: todayRawModes.work_mode,
+                  is_field_work: todayRawModes.is_field_work,
+                  matched_location_name: todayRaw.location_name || (todayRawModes.is_field_work ? 'Đi công trình (GPS)' : 'Văn phòng SEDINCO'),
                   date_label: formatViDateWithWeekday(todayRaw.record_date),
                   attendance_note: buildDailyAttendanceNote(todayRaw, cs)
               }
@@ -533,7 +676,7 @@ class AttendanceService {
                         COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
                         COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
                         work_credit, duration_status,
-                        is_suspicious, suspicious_reason, location_name, field_note, work_location_type,
+                        is_suspicious, suspicious_reason, location_name, field_note, work_location_type, check_in_method,
                         COALESCE(shift_type, 'FULL_DAY') as shift_type, proxy_by, proxy_note
                  FROM attendance_logs
                  WHERE employee_id = ? AND record_date = ?
@@ -554,10 +697,16 @@ class AttendanceService {
 
         const cs = (csRows && csRows[0]) ? csRows[0] : {};
         const todayRaw = todayLogRows && todayLogRows[0] ? todayLogRows[0] : null;
-        const today_record = todayRaw
+        const todayRawModes = todayRaw ? parseAttendanceModes(todayRaw) : null;
+        const today_record = todayRaw && (todayRaw.check_in_time || String(todayRaw.duration_status || '').toUpperCase().startsWith('ADMIN_ADJUSTED') || !['0', 'KL', 'KP', 'V', 'ABSENT'].includes(String(todayRaw.status || '').toUpperCase()))
             ? {
                   ...todayRaw,
-                  matched_location_name: todayRaw.location_name || 'Văn phòng SEDINCO',
+                  work_location_type: todayRawModes.is_field_work ? 'FIELD_WORK' : (todayRaw.work_location_type || 'OFFICE'),
+                  check_in_mode: todayRawModes.check_in_mode,
+                  check_out_mode: todayRawModes.check_out_mode,
+                  work_mode: todayRawModes.work_mode,
+                  is_field_work: todayRawModes.is_field_work,
+                  matched_location_name: todayRaw.location_name || (todayRawModes.is_field_work ? 'Đi công trình (GPS)' : 'Văn phòng SEDINCO'),
                   date_label: formatViDateWithWeekday(todayRaw.record_date),
                   attendance_note: buildDailyAttendanceNote(todayRaw, cs)
               }
@@ -1154,7 +1303,7 @@ class AttendanceService {
             .map((s) => normalizeIp(s))
             .filter(Boolean);
         const matchedWifi = Boolean(cleanClientIp && ipWhitelist.includes(cleanClientIp));
-        const isFieldWork = String(work_location_type || '').toUpperCase() === 'FIELD_WORK';
+        const isFieldWork = normalizeWorkMode(work_location_type) === 'FIELD_WORK';
 
         let numLat = lat !== null && lat !== undefined && lat !== '' && Number.isFinite(Number(lat)) ? Number(lat) : null;
         let numLng = lng !== null && lng !== undefined && lng !== '' && Number.isFinite(Number(lng)) ? Number(lng) : null;
@@ -1313,7 +1462,7 @@ class AttendanceService {
         };
     }
 
-    async checkInMultiFactor({ lat, lng, location_proof_token = null, zalo_location_token, zalo_access_token = '', qr_token = null, client_nonce = null, attendance_mode = null, image_snapshot, device_info, device_name = null, user_agent = '', is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
+    async checkInMultiFactor({ lat, lng, location_proof_token = null, zalo_location_token, zalo_access_token = '', qr_token = null, client_nonce = null, attendance_mode = null, image_snapshot, device_info, device_name = null, user_agent = '', is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, action_type = 'IN', current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
             error.statusCode = 401;
@@ -1321,6 +1470,7 @@ class AttendanceService {
         }
 
         const ma_nv = current_user.ma_nv;
+        const requestedAction = String(action_type || 'IN').trim().toUpperCase().includes('OUT') ? 'OUT' : 'IN';
         const { getVietnamDateString, getVietnamTimeString } = require('../utils/timeHelper');
         const today = currentTime instanceof Date ? currentTime : new Date();
         const dateStr = getVietnamDateString(today);
@@ -1394,6 +1544,7 @@ class AttendanceService {
         let numLng = (lng !== null && lng !== undefined && lng !== '' && Number.isFinite(Number(lng))) ? Number(lng) : null;
 
         // Helper kích hoạt Cảnh báo Đỏ 2 chiều (CRITICAL_FRAUD)
+        // V65: Tuyệt đối KHÔNG tự động INSERT status = '0' (Nghỉ không lương) vào attendance_logs khi phát sinh lỗi thao tác / bảo mật!
         const triggerCriticalFraud = async (fraudType, fraudReason) => {
             await logAuditEvent({
                 actor_id: ma_nv,
@@ -1412,18 +1563,7 @@ class AttendanceService {
                 ip_address
             });
 
-            await query(`
-                INSERT INTO attendance_logs (
-                    employee_id, record_date, status, ot_hours, check_in_lat, check_in_lng,
-                    check_in_method, is_suspicious, suspicious_reason, device_fingerprint, location_source, is_low_trust
-                ) VALUES (?, ?, '0', 0, ?, ?, 'blocked_fraud', 1, ?, ?, ?, 2)
-                ON DUPLICATE KEY UPDATE
-                    is_suspicious = 1,
-                    suspicious_reason = VALUES(suspicious_reason),
-                    device_fingerprint = COALESCE(VALUES(device_fingerprint), device_fingerprint)
-            `, [ma_nv, dateStr, numLat, numLng, fraudReason, deviceStr, location_source]).catch(() => {});
-
-            const error = new Error('⚠️ CẢNH BÁO VI PHẠM AN NINH: Hệ thống phát hiện dấu hiệu giả mạo vị trí (Fake GPS) hoặc thiết bị chưa được cấp phép. Cảnh báo đã được gửi trực tiếp tới Ban Giám Đốc!');
+            const error = new Error('⚠️ Không thể xác nhận chấm công do phát hiện tín hiệu vị trí giả lập (Mock Location). Vui lòng tắt ứng dụng giả lập GPS và thử lại!');
             error.statusCode = 403;
             error.code = 'SECURITY_VIOLATION_FRAUD';
             error.fraud_type = fraudType;
@@ -1431,7 +1571,7 @@ class AttendanceService {
             throw error;
         };
 
-        const isFieldWorkReq = String(work_location_type || '').toUpperCase() === 'FIELD_WORK';
+        const isFieldWorkReq = normalizeWorkMode(work_location_type) === 'FIELD_WORK';
 
         if (location_proof_token && String(location_proof_token).trim()) {
             const { verifyAndConsumeLocationProofToken } = require('../utils/zaloAdapter');
@@ -1455,10 +1595,10 @@ class AttendanceService {
             ).catch(() => []);
 
             if (isLocationTokenReplayed(cleanLocToken) || (existingReplayRows && existingReplayRows.length > 0)) {
-                await triggerCriticalFraud(
-                    'LOCATION_TOKEN_REPLAY',
-                    'Phát hiện tái sử dụng mã định vị Zalo đã sử dụng trước đó (Location Token Replay)'
-                );
+                const replayErr = new Error('Mã định vị Zalo đã được sử dụng trước đó. Vui lòng bấm Thử lại để lấy vị trí mới!');
+                replayErr.statusCode = 400;
+                replayErr.code = 'ZALO_TOKEN_ALREADY_USED';
+                throw replayErr;
             }
 
             const locResult = await verifyZaloLocationToken({
@@ -1566,67 +1706,15 @@ class AttendanceService {
             await triggerCriticalFraud('FAKE_GPS', 'Phát hiện phần mềm giả mạo vị trí (Mock Location / Fake GPS)');
         }
 
-        // 3.2 Kiểm tra dịch chuyển tức thời bất khả thi (Speed Anomaly > 120km/h trong vòng 10 phút) — chỉ áp dụng khi chấm công Văn phòng
-        if (numLat !== null && numLng !== null && !isFieldWorkReq) {
-            const lastCheckInRows = await query(`
-                SELECT check_in_lat, check_in_lng, check_in_time, check_out_time
-                FROM attendance_logs
-                WHERE employee_id = ? AND record_date = ? AND check_in_lat IS NOT NULL AND check_in_lng IS NOT NULL
-                LIMIT 1
-            `, [ma_nv, dateStr]);
-            if (lastCheckInRows && lastCheckInRows.length > 0) {
-                const prev = lastCheckInRows[0];
-                const prevTimeStr = prev.check_out_time || prev.check_in_time;
-                const prevMins = this.parseTimeToMinutes(prevTimeStr, -1);
-                const curMins = this.parseTimeToMinutes(timeStr, -1);
-                const diffMins = Math.abs(curMins - prevMins);
-                if (prevMins >= 0 && curMins >= 0 && diffMins > 0 && diffMins <= 10) {
-                    const jumpMeters = calculateDistanceMeters(numLat, numLng, Number(prev.check_in_lat), Number(prev.check_in_lng));
-                    if (jumpMeters > 20000) {
-                        await triggerCriticalFraud('FAKE_GPS_TELEPORT', `Dịch chuyển vị trí bất thường (${Math.round(jumpMeters / 1000)}km trong ${diffMins} phút)`);
-                    }
-                }
-            }
-        }
-
-        // 3.3 Kiểm tra Ràng buộc Thiết bị & Chấm công hộ trên cùng thiết bị
+        // 3.2 Ghi nhận hoạt động thiết bị (không chặn cứng khi nhân viên di chuyển giữa Văn phòng và Công trình hoặc dùng Zalo WebView)
         let is_suspicious = false;
         let suspicious_reason = null;
 
         if (is_fake_device === true || is_fake_device === 'true') {
-            await triggerCriticalFraud('UNREGISTERED_DEVICE', `Phát hiện thiết bị giả mạo / chưa được cấp phép (${deviceStr || 'Unknown Device'})`);
+            await triggerCriticalFraud('UNREGISTERED_DEVICE', `Phát hiện thiết bị giả mạo (${deviceStr || 'Unknown Device'})`);
         }
 
-        if (deviceStr) {
-            // Kiểm tra xem thiết bị này vừa được một nhân viên KHÁC dùng chấm công trong 15 phút qua không (Chấm công hộ)
-            const sharedDeviceLogs = await query(`
-                SELECT actor_id, details
-                FROM audit_logs
-                WHERE action IN ('CHECK_IN_1TOUCH', 'CHECK_OUT_1TOUCH', 'CHECK_IN_DYNAMIC_QR')
-                  AND actor_id != ?
-                  AND created_at >= NOW() - INTERVAL 15 MINUTE
-                ORDER BY created_at DESC
-                LIMIT 10
-            `, [ma_nv]);
-
-            if (sharedDeviceLogs && sharedDeviceLogs.length > 0) {
-                for (const sLog of sharedDeviceLogs) {
-                    try {
-                        const parsed = JSON.parse(sLog.details || '{}');
-                        if (parsed.device_fingerprint && parsed.device_fingerprint === deviceStr) {
-                            await triggerCriticalFraud(
-                                'CLONED_SHARED_DEVICE',
-                                `Phát hiện dùng chung thiết bị chấm công hộ với nhân viên ${sLog.actor_id} (${deviceStr})`
-                            );
-                        }
-                    } catch (err) {
-                        if (err.code === 'SECURITY_VIOLATION_FRAUD') throw err;
-                    }
-                }
-            }
-        }
-
-        if (current_user.role === 'worker' && deviceStr) {
+        if ((current_user.role === 'worker' || current_user.role === 'accountant') && deviceStr) {
             await recordEmployeeDeviceActivity(emp, {
                 device_id: deviceStr,
                 device_name: deviceIdentity.deviceName,
@@ -1637,7 +1725,7 @@ class AttendanceService {
             });
         }
 
-        // 4. Đối soát Geofence Đa chi nhánh (allowed_locations) + IP Wi-Fi Nội bộ + Chế độ Đi Công Trình
+        // 4. Đối soát Geofence Đa chi nhánh (allowed_locations) + IP Wi-Fi Nội bộ + Chế độ Đi Công Trình (Tự do mọi nơi, không cần đăng ký trước)
         let matchedLocation = null;
         let nearestLocation = allowedLocations[0] || { name: 'Trụ sở chính Đà Nẵng', lat: 16.0544, lng: 108.2022, radius: 500 };
         let minDistanceMeters = Infinity;
@@ -1656,7 +1744,7 @@ class AttendanceService {
         }
 
         const distanceMeters = Number.isFinite(minDistanceMeters) ? Math.round(minDistanceMeters) : 999999;
-        const isFieldWork = String(work_location_type || '').toUpperCase() === 'FIELD_WORK';
+        const isFieldWork = isFieldWorkReq;
         let finalLocationType = 'OFFICE';
         let locationName = nearestLocation.name || 'Trụ sở chính';
         let cleanFieldNote = field_note ? String(field_note).trim().slice(0, 400) : '';
@@ -1676,13 +1764,11 @@ class AttendanceService {
         }
 
         if (isFieldWork) {
-            // V64: Chế độ Đi Công Trình / Thị Trường luôn cho phép chấm công ở bất cứ đâu (không giới hạn bán kính văn phòng hay Wi-Fi)
-            const resolvedNote = cleanFieldNote && cleanFieldNote.length >= 2
-                ? cleanFieldNote
-                : 'Đi công trình / Thị trường (GPS)';
-            cleanFieldNote = resolvedNote;
+            // V65: Đi công trình KHÔNG cần đăng ký trước, lấy GPS ở bất cứ đâu và luôn được phép chấm công Vào / Ra
             finalLocationType = 'FIELD_WORK';
-            locationName = `Công trình: ${resolvedNote.slice(0, 80)}`;
+            locationName = cleanFieldNote
+                ? `Công trình: ${cleanFieldNote.slice(0, 80)}`
+                : 'Đi công trình (GPS)';
             if (location_source === 'token') {
                 is_low_trust = 0;
             }
@@ -1816,27 +1902,6 @@ class AttendanceService {
             );
             let existingLog = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
-            const holRows = await txQuery(
-                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays WHERE start_date <= ? AND end_date >= ? LIMIT 1",
-                [targetRecordDate, targetRecordDate]
-            ).catch(() => []);
-            const todayHoliday = holRows && holRows[0] ? holRows[0] : null;
-            const effToday = computeTodayEffectiveStatus({
-                todayStr: targetRecordDate,
-                todayLog: existingLog,
-                holidays: todayHoliday ? [todayHoliday] : []
-            });
-            const lockedCodes = ['P', 'L', 'KL', 'OT', '1+OT'];
-            if (
-                lockedCodes.includes(effToday.effective_code) ||
-                (effToday.effective_code === '1' && effToday.is_admin_adjusted)
-            ) {
-                const err = new Error(effToday.note || 'Hôm nay đã được ghi nhận công hoặc nghỉ theo quy định, không thể chấm công thêm!');
-                err.statusCode = 400;
-                err.code = 'EFFECTIVE_STATUS_LOCKED';
-                throw err;
-            }
-
             // Xử lý ranh giới qua đêm dành riêng cho NIGHT_SHIFT (trước 06:00 sáng đóng ca đêm ngày hôm trước)
             if (!existingLog && activeShiftCode === 'NIGHT_SHIFT' && currentMins < 360) {
                 const prevNightRows = await txQuery(
@@ -1863,24 +1928,59 @@ class AttendanceService {
             }
             const [targetYear, targetMonth] = targetRecordDate.split('-').map(Number);
 
-            const isCheckOut = Boolean(existingLog && existingLog.check_in_time);
+            const hasExistingCheckIn = Boolean(existingLog && existingLog.check_in_time);
+            const hasExistingCheckOut = Boolean(existingLog && existingLog.check_out_time);
 
-            // Chống rung tay / bấm spam liên tục trong 3 giây đầu tiên (KHÔNG chặn cứng 60s, KHÔNG ghi đè Giờ Ra)
-            if (existingLog && currentSecs !== null && targetRecordDate === dateStr) {
-                const lastTimeStr = existingLog.check_out_time || existingLog.check_in_time;
-                const lastSecs = this.parseTimeToSeconds(lastTimeStr);
-                if (lastSecs !== null) {
-                    const diffSecs = currentSecs - lastSecs;
-                    if (diffSecs >= 0 && diffSecs < 3) {
-                        return {
-                            isSpamWarning: true,
-                            existingLog
-                        };
-                    }
+            // V65 Unified State Machine Guardrails (ưu tiên kiểm tra trạng thái Vào/Ra trước):
+            if (requestedAction === 'IN') {
+                if (hasExistingCheckIn) {
+                    const err = new Error('Bạn đã chấm công vào ca hôm nay rồi.');
+                    err.statusCode = 409;
+                    err.code = 'ALREADY_CHECKED_IN';
+                    throw err;
+                }
+            } else if (requestedAction === 'OUT') {
+                if (!hasExistingCheckIn) {
+                    const err = new Error('Bạn chưa chấm công vào ca hôm nay.');
+                    err.statusCode = 400;
+                    err.code = 'NOT_CHECKED_IN_YET';
+                    throw err;
+                }
+                if (hasExistingCheckOut) {
+                    const err = new Error('Bạn đã hoàn tất chấm công ra ca hôm nay rồi.');
+                    err.statusCode = 409;
+                    err.code = 'ALREADY_CHECKED_OUT';
+                    throw err;
                 }
             }
 
+            const holRows = await txQuery(
+                "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date, COALESCE(salary_multiplier, 3.00) as salary_multiplier FROM public_holidays WHERE start_date <= ? AND end_date >= ? LIMIT 1",
+                [targetRecordDate, targetRecordDate]
+            ).catch(() => []);
+            const todayHoliday = holRows && holRows[0] ? holRows[0] : null;
+            const effToday = computeTodayEffectiveStatus({
+                todayStr: targetRecordDate,
+                todayLog: existingLog,
+                holidays: todayHoliday ? [todayHoliday] : []
+            });
+            const lockedCodes = ['P', 'L', 'KL', 'OT', '1+OT'];
+            if (
+                lockedCodes.includes(effToday.effective_code) ||
+                (effToday.effective_code === '1' && effToday.is_admin_adjusted)
+            ) {
+                const err = new Error(effToday.note || 'Hôm nay đã được ghi nhận công hoặc nghỉ theo quy định, không thể chấm công thêm!');
+                err.statusCode = 400;
+                err.code = 'EFFECTIVE_STATUS_LOCKED';
+                throw err;
+            }
+
+            const isCheckOut = requestedAction === 'OUT';
             const checkType = isCheckOut ? 'OUT' : 'IN';
+            let resolvedCheckInMode = isFieldWork ? 'FIELD_WORK' : 'OFFICE';
+            let resolvedCheckOutMode = null;
+            let resolvedWorkLocationType = finalLocationType;
+            let resolvedFieldNote = cleanFieldNote || null;
             let late_minutes = existingLog ? (Number(existingLog.late_minutes) || 0) : 0;
             let early_leave_minutes = 0;
             let work_hours = existingLog ? (Number(existingLog.work_hours) || 0) : 0;
@@ -1950,6 +2050,8 @@ class AttendanceService {
                     detailedMessage = `Đã ghi nhận Giờ vào: ${shortTime} (${shiftEvaluation})`;
                 }
 
+                const encodedInMethod = encodeCheckModes(resolvedCheckInMode, null);
+
                 const insertSql = `
                     INSERT INTO attendance_logs (
                         employee_id, record_date, status, ot_hours, check_in_time,
@@ -1964,6 +2066,7 @@ class AttendanceService {
                         check_in_time = COALESCE(check_in_time, VALUES(check_in_time)),
                         check_in_lat = COALESCE(VALUES(check_in_lat), check_in_lat),
                         check_in_lng = COALESCE(VALUES(check_in_lng), check_in_lng),
+                        check_in_method = VALUES(check_in_method),
                         check_in_image = COALESCE(VALUES(check_in_image), check_in_image),
                         is_suspicious = CASE WHEN VALUES(is_suspicious) = 1 THEN 1 ELSE is_suspicious END,
                         suspicious_reason = COALESCE(VALUES(suspicious_reason), suspicious_reason),
@@ -1983,7 +2086,7 @@ class AttendanceService {
                     timeStr,
                     numLat,
                     numLng,
-                    checkInMethod,
+                    encodedInMethod,
                     resolvedCheckInImageRef,
                     is_suspicious ? 1 : 0,
                     suspicious_reason || null,
@@ -1992,8 +2095,8 @@ class AttendanceService {
                     is_low_trust,
                     late_minutes,
                     locationName,
-                    cleanFieldNote || null,
-                    finalLocationType,
+                    resolvedFieldNote,
+                    resolvedWorkLocationType,
                     activeShiftCode
                 ]);
                 if (resolvedCheckInImageRef) {
@@ -2058,6 +2161,19 @@ class AttendanceService {
                 shiftEvaluation = misaEval.shift_evaluation;
                 detailedMessage = `Đã ghi nhận Giờ ra: ${shortTime} (${shiftEvaluation})`;
 
+                const prevModes = parseAttendanceModes(existingLog);
+                resolvedCheckInMode = prevModes.check_in_mode || (existingLog.work_location_type === 'FIELD_WORK' ? 'FIELD_WORK' : 'OFFICE');
+                resolvedCheckOutMode = isFieldWork ? 'FIELD_WORK' : 'OFFICE';
+                const encodedOutMethod = encodeCheckModes(resolvedCheckInMode, resolvedCheckOutMode);
+                resolvedWorkLocationType = (resolvedCheckInMode === 'FIELD_WORK' || resolvedCheckOutMode === 'FIELD_WORK')
+                    ? 'FIELD_WORK'
+                    : finalLocationType;
+                resolvedFieldNote = cleanFieldNote
+                    ? (existingLog.field_note && existingLog.field_note !== cleanFieldNote
+                        ? `${existingLog.field_note} • ${cleanFieldNote}`
+                        : cleanFieldNote)
+                    : (existingLog.field_note || null);
+
                 const updateOutSql = `
                     UPDATE attendance_logs
                     SET check_out_time = ?,
@@ -2069,9 +2185,10 @@ class AttendanceService {
                         afternoon_worked_minutes = ?,
                         work_credit = ?,
                         duration_status = ?,
+                        check_in_method = ?,
                         location_name = COALESCE(?, location_name),
                         field_note = COALESCE(?, field_note),
-                        work_location_type = COALESCE(?, work_location_type),
+                        work_location_type = ?,
                         check_in_image = COALESCE(?, check_in_image),
                         is_suspicious = CASE WHEN ? = 1 THEN 1 ELSE is_suspicious END,
                         suspicious_reason = COALESCE(?, suspicious_reason),
@@ -2088,9 +2205,10 @@ class AttendanceService {
                     afternoon_worked_minutes,
                     work_credit,
                     duration_status,
+                    encodedOutMethod,
                     locationName,
-                    cleanFieldNote || null,
-                    finalLocationType,
+                    resolvedFieldNote,
+                    resolvedWorkLocationType,
                     resolvedCheckInImageRef,
                     is_suspicious ? 1 : 0,
                     suspicious_reason || null,
@@ -2162,32 +2280,13 @@ class AttendanceService {
                 session_summary,
                 newStatus,
                 shiftEvaluation,
-                detailedMessage
+                detailedMessage,
+                resolvedCheckInMode,
+                resolvedCheckOutMode,
+                resolvedWorkLocationType,
+                resolvedFieldNote
             };
         });
-
-        if (txOutcome.isSpamWarning) {
-            const savedLog = txOutcome.existingLog;
-            const recordedTime = savedLog.check_out_time || savedLog.check_in_time || timeStr;
-            return {
-                success: true,
-                is_spam_warning: true,
-                message: '⚠️ Bạn đang thao tác bấm liên tục quá nhiều lần! Giờ chấm công của bạn đã được ghi nhận, vui lòng không bấm lặp lại.',
-                server_time: recordedTime,
-                data: {
-                    employee_id: ma_nv,
-                    record_date: dateStr,
-                    check_type: savedLog.check_out_time ? 'OUT' : 'IN',
-                    is_spam_warning: true,
-                    location_name: savedLog.location_name || locationName,
-                    work_location_type: savedLog.work_location_type || finalLocationType,
-                    check_in_time: savedLog.check_in_time,
-                    check_out_time: savedLog.check_out_time || null,
-                    server_time: recordedTime,
-                    status: savedLog.status || '1'
-                }
-            };
-        }
 
         const {
             isCheckOut,
@@ -2205,7 +2304,11 @@ class AttendanceService {
             session_summary,
             newStatus,
             shiftEvaluation,
-            detailedMessage
+            detailedMessage,
+            resolvedCheckInMode,
+            resolvedCheckOutMode,
+            resolvedWorkLocationType,
+            resolvedFieldNote
         } = txOutcome;
 
         const isProbationWorker = Boolean(
@@ -2265,8 +2368,12 @@ class AttendanceService {
                 work_date: targetRecordDate,
                 check_type: checkType,
                 location_name: locationName,
-                work_location_type: finalLocationType,
-                field_note: cleanFieldNote || null,
+                work_location_type: resolvedWorkLocationType,
+                work_mode: resolvedWorkLocationType,
+                check_in_mode: resolvedCheckInMode,
+                check_out_mode: resolvedCheckOutMode,
+                is_field_work: resolvedWorkLocationType === 'FIELD_WORK',
+                field_note: resolvedFieldNote,
                 check_in_time: isCheckOut ? existingLog.check_in_time : timeStr,
                 check_out_time: isCheckOut ? timeStr : null,
                 server_time: timeStr,
@@ -2357,6 +2464,158 @@ class AttendanceService {
             leave,
             absent: Math.max(0, totalEmployees - present - leave),
             attendanceRate
+        };
+    }
+
+    /**
+     * V65 Next-Day Unpaid-Leave Settlement ("Sang ngày mới mới chốt ngày cũ" theo GMT+7):
+     * - Với ngày hôm nay (targetDateStr >= todayVN): KHÔNG BAO GIỜ tự động đánh dấu Nghỉ không lương.
+     * - Chỉ khi bước sang ngày mới (targetDateStr < todayVN):
+     *   Nếu ngày cũ đó là ngày làm việc bình thường (không phải Chủ nhật, không phải Ngày lễ,
+     *   không có đơn nghỉ có lương đã duyệt, không có dữ liệu chấm công hợp lệ và chưa bị Admin chỉnh công tay)
+     *   -> Tự động tính / chốt là Nghỉ không lương ('KL', 0 công).
+     */
+    async settlePastUnpaidLeaveDays({
+        targetDateStr = null,
+        todayOverride = null,
+        ma_nv = null,
+        persist = false
+    } = {}) {
+        const { getVietnamDateString, isSundayIsoDate } = require('../utils/timeHelper');
+        const todayVN = todayOverride || getVietnamDateString(new Date());
+
+        let targetIso = targetDateStr ? String(targetDateStr).trim().slice(0, 10) : null;
+        if (!targetIso) {
+            const todayEpoch = new Date(`${todayVN}T00:00:00+07:00`).getTime();
+            targetIso = getVietnamDateString(new Date(todayEpoch - 24 * 3600 * 1000));
+        }
+
+        // Guardrail tuyệt đối: Không bao giờ chốt Nghỉ không lương cho ngày hiện tại hoặc tương lai
+        if (targetIso >= todayVN) {
+            return {
+                settled_count: 0,
+                settled_records: [],
+                skipped_reason: 'CURRENT_OR_FUTURE_DAY_NOT_ENDED',
+                today_vn: todayVN,
+                target_date: targetIso
+            };
+        }
+
+        if (isSundayIsoDate(targetIso)) {
+            return {
+                settled_count: 0,
+                settled_records: [],
+                skipped_reason: 'SUNDAY_NON_WORKING_DAY',
+                today_vn: todayVN,
+                target_date: targetIso
+            };
+        }
+
+        const holidays = await query(
+            "SELECT id, holiday_name, DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM public_holidays WHERE start_date <= ? AND end_date >= ? LIMIT 1",
+            [targetIso, targetIso]
+        ).catch(() => []);
+        if (holidays && holidays.length > 0) {
+            return {
+                settled_count: 0,
+                settled_records: [],
+                skipped_reason: 'PUBLIC_HOLIDAY',
+                holiday_name: holidays[0].holiday_name,
+                today_vn: todayVN,
+                target_date: targetIso
+            };
+        }
+
+        const empParams = [];
+        let empSql = "SELECT ma_nv, ho_ten, role, status, is_locked FROM employees WHERE status != 'inactive' AND (is_locked = 0 OR is_locked IS NULL) AND (role IS NULL OR role != 'admin')";
+        if (ma_nv) {
+            empSql += ' AND ma_nv = ?';
+            empParams.push(ma_nv);
+        }
+        const [activeEmps, existingLogs, approvedLeaves] = await Promise.all([
+            query(empSql, empParams),
+            query(
+                `SELECT employee_id, status, check_in_time, check_out_time, work_credit, duration_status, proxy_by
+                 FROM attendance_logs
+                 WHERE record_date = ?${ma_nv ? ' AND employee_id = ?' : ''}`,
+                ma_nv ? [targetIso, ma_nv] : [targetIso]
+            ),
+            query(
+                `SELECT employee_id, request_type, reason
+                 FROM requests
+                 WHERE request_date = ? AND status = 'approved'${ma_nv ? ' AND employee_id = ?' : ''}`,
+                ma_nv ? [targetIso, ma_nv] : [targetIso]
+            ).catch(() => [])
+        ]);
+
+        const logByEmp = new Map();
+        for (const l of existingLogs || []) {
+            logByEmp.set(l.employee_id, l);
+        }
+        const paidLeaveEmps = new Set();
+        for (const r of approvedLeaves || []) {
+            const rType = String(r.request_type || '').toLowerCase();
+            const txt = `${rType} ${r.reason || ''}`.toLowerCase();
+            const isUnpaid = rType === 'kp' || rType === 'kl' || txt.includes('không lương') || txt.includes('unpaid');
+            if (!isUnpaid) {
+                paidLeaveEmps.add(r.employee_id);
+            }
+        }
+
+        const settledRecords = [];
+        for (const emp of activeEmps || []) {
+            const log = logByEmp.get(emp.ma_nv);
+            if (paidLeaveEmps.has(emp.ma_nv)) continue;
+
+            if (log) {
+                const durStatus = String(log.duration_status || '').trim().toUpperCase();
+                const rawSt = String(log.status || '').trim().toUpperCase();
+                const isAdminAdjusted = durStatus.startsWith('ADMIN_ADJUSTED') || Boolean(log.proxy_by);
+                // Tôn trọng 100% kết quả Admin đã chỉnh công tay
+                if (isAdminAdjusted) continue;
+                // Nếu đã có dữ liệu chấm công hợp lệ
+                if (log.check_in_time || ['1', '0.5', '1/OT', 'OT', 'P', 'L'].includes(rawSt)) continue;
+            }
+
+            const settledItem = {
+                employee_id: emp.ma_nv,
+                record_date: targetIso,
+                status: 'KL',
+                work_credit: 0,
+                duration_status: 'AUTO_SETTLED_NEXT_DAY',
+                attendance_note: 'Nghỉ không lương (0 công)'
+            };
+            settledRecords.push(settledItem);
+
+            if (persist) {
+                await query(
+                    `INSERT INTO attendance_logs (
+                        employee_id, record_date, status, ot_hours, work_credit, duration_status
+                     ) VALUES (?, ?, 'KL', 0, 0.00, 'AUTO_SETTLED_NEXT_DAY')
+                     ON DUPLICATE KEY UPDATE
+                        status = CASE
+                            WHEN duration_status LIKE 'ADMIN_ADJUSTED%' OR check_in_time IS NOT NULL THEN status
+                            ELSE 'KL'
+                        END,
+                        work_credit = CASE
+                            WHEN duration_status LIKE 'ADMIN_ADJUSTED%' OR check_in_time IS NOT NULL THEN work_credit
+                            ELSE 0.00
+                        END,
+                        duration_status = CASE
+                            WHEN duration_status LIKE 'ADMIN_ADJUSTED%' OR check_in_time IS NOT NULL THEN duration_status
+                            ELSE 'AUTO_SETTLED_NEXT_DAY'
+                        END`,
+                    [emp.ma_nv, targetIso]
+                ).catch(() => {});
+            }
+        }
+
+        return {
+            settled_count: settledRecords.length,
+            settled_records: settledRecords,
+            skipped_reason: null,
+            today_vn: todayVN,
+            target_date: targetIso
         };
     }
 }

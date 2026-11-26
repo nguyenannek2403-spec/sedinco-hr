@@ -62,6 +62,7 @@ function computeEmployeeMonthlyStats(emp, month, year, daysInMonth) {
   let countP = 0;
   let countL = 0;
   let countKL = 0;
+  let countFieldWork = 0;
   let totalOtHours = 0;
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -74,6 +75,16 @@ function computeEmployeeMonthlyStats(emp, month, year, daysInMonth) {
       totalOtHours += detailOt;
     } else if (raw === "OT" || raw === "1/OT") {
       totalOtHours += 2;
+    }
+
+    if (
+      detail &&
+      (detail.is_field_work ||
+        detail.work_location_type === "FIELD_WORK" ||
+        detail.check_in_mode === "FIELD_WORK" ||
+        detail.check_out_mode === "FIELD_WORK")
+    ) {
+      countFieldWork++;
     }
 
     if (raw === "0.5") countHalf++;
@@ -99,12 +110,20 @@ function computeEmployeeMonthlyStats(emp, month, year, daysInMonth) {
     countP,
     countL,
     countKL,
+    countFieldWork,
     totalOtHours
   };
 }
 
 function renderNonZeroStatBadges(stats) {
   const badges = [];
+  if (stats.countFieldWork > 0) {
+    badges.push({
+      key: "field_work",
+      label: `Công trình: ${stats.countFieldWork} lượt`,
+      cls: "bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border-amber-200/80 dark:border-amber-700/60"
+    });
+  }
   if (stats.countHalf > 0) {
     badges.push({
       key: "half",
@@ -789,6 +808,13 @@ export default function AttendanceMatrixTable({
                       const checkOutShort = detail?.check_out_time
                         ? String(detail.check_out_time).slice(0, 5)
                         : "";
+                      const isFieldWorkDay = Boolean(
+                        detail &&
+                          (detail.is_field_work ||
+                            detail.work_location_type === "FIELD_WORK" ||
+                            detail.check_in_mode === "FIELD_WORK" ||
+                            detail.check_out_mode === "FIELD_WORK")
+                      );
 
                       return (
                         <button
@@ -796,13 +822,25 @@ export default function AttendanceMatrixTable({
                           type="button"
                           data-testid={`att-cal-day-${d}`}
                           onClick={() => handleCellClick(activeDetailEmp, dIdx)}
-                          title={detail?.attendance_note || undefined}
+                          title={
+                            isFieldWorkDay
+                              ? `[Công trình] ${detail?.field_note || detail?.attendance_note || "Chấm công đi công trình"}`
+                              : detail?.attendance_note || undefined
+                          }
                           className={`relative min-h-[62px] rounded-xl border p-1 flex flex-col items-center justify-between transition active:scale-95 cursor-pointer ${
                             isSunday
                               ? "bg-slate-100/80 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700"
                               : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-rose-400"
                           }`}
                         >
+                          {isFieldWorkDay && (
+                            <span
+                              data-testid={`att-cal-field-badge-${d}`}
+                              className="absolute top-0.5 left-0.5 px-1 py-0.2 rounded bg-amber-500 text-white text-[8px] font-black leading-tight"
+                            >
+                              CT
+                            </span>
+                          )}
                           {hasLateEarly && (
                             <span
                               aria-hidden="true"
@@ -868,28 +906,67 @@ export default function AttendanceMatrixTable({
             <div className="p-4 sm:p-5 space-y-4 text-sm text-slate-800 dark:text-slate-100">
               {(() => {
                 const cellDetail = editingCell.emp?.dayDetails?.[editingCell.dayNum - 1];
-                if (!cellDetail?.attendance_note && !cellDetail?.check_in_time) return null;
+                if (!cellDetail?.attendance_note && !cellDetail?.check_in_time && !cellDetail?.field_note) return null;
                 const isWarn = /vào muộn|ra sớm|quên check-out|quá ngắn/i.test(
                   cellDetail?.attendance_note || ""
                 );
+                const isFieldWorkCell = Boolean(
+                  cellDetail &&
+                    (cellDetail.is_field_work ||
+                      cellDetail.work_location_type === "FIELD_WORK" ||
+                      cellDetail.check_in_mode === "FIELD_WORK" ||
+                      cellDetail.check_out_mode === "FIELD_WORK")
+                );
+                const inModeLabel =
+                  cellDetail?.check_in_mode === "FIELD_WORK"
+                    ? "Công trình"
+                    : cellDetail?.check_in_time
+                      ? "Văn phòng"
+                      : "";
+                const outModeLabel =
+                  cellDetail?.check_out_mode === "FIELD_WORK"
+                    ? "Công trình"
+                    : cellDetail?.check_out_time
+                      ? "Văn phòng"
+                      : "";
+
                 return (
                   <div
-                    className={`p-3 rounded-xl border text-xs space-y-1 ${
+                    className={`p-3 rounded-xl border text-xs space-y-1.5 ${
                       isWarn
                         ? "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/70"
                         : "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60"
                     }`}
                   >
-                    <div className="font-bold">
-                      Vào{" "}
-                      {cellDetail.check_in_time
-                        ? String(cellDetail.check_in_time).slice(0, 5)
-                        : "--:--"}{" "}
-                      • Ra{" "}
-                      {cellDetail.check_out_time
-                        ? String(cellDetail.check_out_time).slice(0, 5)
-                        : "--:--"}
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <div className="font-bold">
+                        Vào{" "}
+                        {cellDetail.check_in_time
+                          ? String(cellDetail.check_in_time).slice(0, 5)
+                          : "--:--"}
+                        {inModeLabel ? ` (${inModeLabel})` : ""} • Ra{" "}
+                        {cellDetail.check_out_time
+                          ? String(cellDetail.check_out_time).slice(0, 5)
+                          : "--:--"}
+                        {outModeLabel ? ` (${outModeLabel})` : ""}
+                      </div>
+                      {isFieldWorkCell && (
+                        <span
+                          data-testid="att-detail-fieldwork-badge"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500 text-white text-[11px] font-extrabold"
+                        >
+                          👷 Công trình
+                        </span>
+                      )}
                     </div>
+                    {cellDetail.field_note && (
+                      <div
+                        data-testid="att-detail-fieldwork-note"
+                        className="font-bold text-amber-900 dark:text-amber-200 bg-white/80 dark:bg-slate-900/70 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-700/60"
+                      >
+                        📍 Ghi chú công trình: {cellDetail.field_note}
+                      </div>
+                    )}
                     {cellDetail.attendance_note && (
                       <div className="font-semibold">Chi tiết ca: {cellDetail.attendance_note}</div>
                     )}

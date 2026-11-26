@@ -130,6 +130,7 @@ class AttendanceController {
                 zalo_access_token,
                 access_token,
                 work_location_type,
+                work_mode,
                 field_note
             } = req.body || {};
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '';
@@ -138,7 +139,7 @@ class AttendanceController {
                 lng,
                 zalo_location_token: zalo_location_token || location_token,
                 zalo_access_token: zalo_access_token || access_token,
-                work_location_type,
+                work_location_type: work_location_type || work_mode,
                 field_note,
                 current_user: req.user,
                 ip_address: ip
@@ -169,9 +170,12 @@ class AttendanceController {
                 is_fake_device,
                 gps_accuracy,
                 work_location_type,
+                work_mode,
                 field_note,
-                shift_type
-            } = req.body;
+                shift_type,
+                action_type,
+                check_type
+            } = req.body || {};
             // Chỉ sử dụng IP đã được app middleware chuẩn hóa (tuân thủ TRUST_PROXY)
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '';
             const result = await attendanceService.checkInMultiFactor({
@@ -190,9 +194,64 @@ class AttendanceController {
                 is_fake_gps,
                 is_fake_device,
                 gps_accuracy,
-                work_location_type,
+                work_location_type: work_location_type || work_mode,
                 field_note,
                 shift_type,
+                action_type: action_type || check_type || 'IN',
+                current_user: req.user,
+                ip_address: ip
+            });
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async checkOutMultiFactor(req, res, next) {
+        try {
+            const {
+                lat,
+                lng,
+                location_proof_token,
+                zalo_location_token,
+                location_token,
+                zalo_access_token,
+                access_token,
+                qr_token,
+                client_nonce,
+                attendance_mode,
+                image_snapshot,
+                device_info,
+                device_name,
+                is_fake_gps,
+                is_fake_device,
+                gps_accuracy,
+                work_location_type,
+                work_mode,
+                field_note,
+                shift_type
+            } = req.body || {};
+            const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '';
+            const result = await attendanceService.checkInMultiFactor({
+                lat,
+                lng,
+                location_proof_token,
+                zalo_location_token: zalo_location_token || location_token,
+                zalo_access_token: zalo_access_token || access_token,
+                qr_token,
+                client_nonce,
+                attendance_mode,
+                image_snapshot,
+                device_info,
+                device_name,
+                user_agent: req.headers['user-agent'] || '',
+                is_fake_gps,
+                is_fake_device,
+                gps_accuracy,
+                work_location_type: work_location_type || work_mode,
+                field_note,
+                shift_type,
+                action_type: 'OUT',
                 current_user: req.user,
                 ip_address: ip
             });
