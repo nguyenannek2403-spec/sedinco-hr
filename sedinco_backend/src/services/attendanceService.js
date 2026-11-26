@@ -2700,9 +2700,10 @@ class AttendanceService {
     }
 
     /**
-     * V66: Tự động tạo và lưu 1 công thực (Thứ 2 – Thứ 7, trừ Chủ nhật & Ngày lễ)
-     * cho tất cả tài khoản Kế toán đang hoạt động khi công tắc `accountant_manual_checkin` ĐANG TẮT.
-     * Guardrail: Tuyệt đối KHÔNG ghi đè các bản ghi đã tồn tại (chấm công tay, Admin chỉnh công, đơn phép, KL đã chốt).
+     * V67: Chỉ tự động tạo và lưu 1 công thực (Thứ 2 – Thứ 7, trừ Chủ nhật & Ngày lễ)
+     * cho các ngày ĐÃ KẾT THÚC (date < todayVN, tức từ 00:00 GMT+7 ngày hôm sau) khi `accountant_manual_checkin` TẮT.
+     * Guardrail tuyệt đối: KHÔNG BAO GIỜ tự tạo bản ghi cho hôm nay (todayVN) hay tương lai (date >= todayVN),
+     * và KHÔNG ghi đè bản ghi đã tồn tại (chấm công tay, Admin chỉnh công, đơn phép, KL đã chốt).
      */
     async syncAccountantAutoAttendance({
         ma_nv = null,
@@ -2720,11 +2721,13 @@ class AttendanceService {
             }
         }
 
-        const startIso = (startDateStr ? String(startDateStr).slice(0, 10) : todayVN);
-        let endIso = (endDateStr ? String(endDateStr).slice(0, 10) : todayVN);
-        if (endIso > todayVN) endIso = todayVN;
+        const todayEpoch = new Date(`${todayVN}T00:00:00+07:00`).getTime();
+        const yesterdayVN = getVietnamDateString(new Date(todayEpoch - 24 * 3600 * 1000));
+        const startIso = startDateStr ? String(startDateStr).slice(0, 10) : yesterdayVN;
+        let endIso = endDateStr ? String(endDateStr).slice(0, 10) : yesterdayVN;
+        if (endIso >= todayVN) endIso = yesterdayVN;
         if (startIso > endIso) {
-            return { inserted_count: 0, skipped_reason: 'EMPTY_DATE_RANGE', today_vn: todayVN };
+            return { inserted_count: 0, skipped_reason: 'NO_ENDED_WORKING_DAY', today_vn: todayVN };
         }
 
         const empParams = [];
@@ -2810,7 +2813,8 @@ class AttendanceService {
     }
 
     /**
-     * V66: Đồng bộ bù toàn bộ ngày làm việc (T2-T7) trong tháng nếu chế độ Kế toán tự động tính công ĐANG TẮT.
+     * V67: Đồng bộ bù toàn bộ ngày làm việc ĐÃ KẾT THÚC (T2-T7, strictly < todayVN) trong tháng
+     * nếu chế độ Kế toán tự động tính công ĐANG TẮT. Không bao giờ chấm trước cho todayVN.
      */
     async ensureAccountantAutoAttendanceForPeriod(month, year, { ma_nv = null, todayOverride = null } = {}) {
         const m = parseInt(month, 10);
@@ -2819,14 +2823,16 @@ class AttendanceService {
             return { inserted_count: 0, skipped_reason: 'INVALID_PERIOD' };
         }
         const todayVN = todayOverride || getVietnamDateString(new Date());
+        const todayEpoch = new Date(`${todayVN}T00:00:00+07:00`).getTime();
+        const yesterdayVN = getVietnamDateString(new Date(todayEpoch - 24 * 3600 * 1000));
         const padM = String(m).padStart(2, '0');
         const startIso = `${y}-${padM}-01`;
-        if (startIso > todayVN) {
-            return { inserted_count: 0, skipped_reason: 'FUTURE_PERIOD', today_vn: todayVN };
+        if (startIso > yesterdayVN) {
+            return { inserted_count: 0, skipped_reason: 'NO_ENDED_WORKING_DAY_IN_PERIOD', today_vn: todayVN };
         }
         const daysInMonth = getDaysInMonth(m, y);
         const monthEndIso = `${y}-${padM}-${String(daysInMonth).padStart(2, '0')}`;
-        const endIso = monthEndIso < todayVN ? monthEndIso : todayVN;
+        const endIso = monthEndIso < yesterdayVN ? monthEndIso : yesterdayVN;
 
         return this.syncAccountantAutoAttendance({
             ma_nv,
@@ -2837,11 +2843,11 @@ class AttendanceService {
     }
 
     /**
-     * V66: Hook chuyển đổi tức thì khi Admin bật/tắt `accountant_manual_checkin`:
-     * - OFF -> ON: Đồng bộ lưu mọi ngày T2-T7 trước hôm nay (< todayVN) trong tháng hiện tại (giữ 100% công tự động quá khứ),
-     *   và xóa dòng AUTO_ACCOUNTANT chưa chấm công của riêng hôm nay (todayVN) để Kế toán tự chấm công được ngay trong ngày.
-     * - ON -> OFF: Chốt các ngày làm việc còn trống trước hôm nay (< todayVN) trong tháng hiện tại về KL để không ghi đè quá khứ lúc đang bật thủ công,
-     *   giữ nguyên toàn bộ công thủ công/tăng ca/nghỉ phép đã lưu, và tạo tự động 1 công cho hôm nay (todayVN).
+     * V67: Hook chuyển đổi tức thì khi Admin bật/tắt `accountant_manual_checkin`:
+     * - OFF -> ON: Bảo toàn mọi ngày T2-T7 đã qua (< todayVN) trong tháng hiện tại bằng AUTO_ACCOUNTANT nếu chưa có log,
+     *   và dọn dòng AUTO_ACCOUNTANT chưa chấm công của riêng hôm nay (todayVN, nếu còn sót từ phiên bản cũ) để Kế toán chấm hôm nay.
+     * - ON -> OFF: Chốt các ngày làm việc còn trống trước hôm nay (< todayVN) về KL để không ghi đè quá khứ lúc đang bật thủ công,
+     *   giữ nguyên toàn bộ lịch sử cũ và KHÔNG tạo trước bản ghi cho hôm nay (todayVN sẽ chốt lúc 00:00 ngày mai).
      */
     async handleAccountantManualCheckinTransition({ enabled, todayOverride = null } = {}) {
         const todayVN = todayOverride || getVietnamDateString(new Date());
@@ -2899,23 +2905,53 @@ class AttendanceService {
             }
         }
 
-        const syncToday = await this.syncAccountantAutoAttendance({
-            startDateStr: todayVN,
-            endDateStr: todayVN,
-            todayOverride: todayVN,
-            forceRun: true
-        }).catch(() => ({ inserted_count: 0 }));
-
         return {
             mode: 'AUTO_ACCOUNTANT_OFF',
             today_vn: todayVN,
-            inserted_today_count: Number(syncToday?.inserted_count) || 0
+            inserted_today_count: 0
         };
     }
 
     /**
-     * V66 Scheduler: Tự động chạy hàng ngày lúc 00:05 GMT+7 để chốt ngày cũ (V65)
-     * và ghi nhận 1 công tự động cho Kế toán khi công tắc đang TẮT.
+     * V67: Thực thi 1 chu kỳ chốt ngày mới lúc 00:00 GMT+7 cho ngày hôm qua (date < todayVN).
+     * Có thể gọi trực tiếp trong test mô phỏng bước qua 00:00 hoặc từ cron scheduler.
+     */
+    async runDailyNextDaySettlementTick({ todayOverride = null } = {}) {
+        const todayVN = todayOverride || getVietnamDateString(new Date());
+        const todayEpoch = new Date(`${todayVN}T00:00:00+07:00`).getTime();
+        const yesterdayVN = getVietnamDateString(new Date(todayEpoch - 24 * 3600 * 1000));
+        const [todayY, todayM] = todayVN.split('-').map(Number);
+        const [yestY, yestM] = yesterdayVN.split('-').map(Number);
+
+        const unpaidRes = await this.settlePastUnpaidLeaveDays({
+            targetDateStr: yesterdayVN,
+            todayOverride: todayVN,
+            persist: true
+        }).catch(() => null);
+
+        const currPeriodRes = await this.ensureAccountantAutoAttendanceForPeriod(todayM, todayY, {
+            todayOverride: todayVN
+        }).catch(() => null);
+
+        let prevPeriodRes = null;
+        if (yestM !== todayM || yestY !== todayY) {
+            prevPeriodRes = await this.ensureAccountantAutoAttendanceForPeriod(yestM, yestY, {
+                todayOverride: todayVN
+            }).catch(() => null);
+        }
+
+        return {
+            today_vn: todayVN,
+            yesterday_vn: yesterdayVN,
+            unpaid_settlement: unpaidRes,
+            accountant_sync_current: currPeriodRes,
+            accountant_sync_previous: prevPeriodRes
+        };
+    }
+
+    /**
+     * V67 Scheduler: Tự động kích hoạt đúng mốc 00:00 GMT+7 mỗi ngày mới để chốt công cho ngày hôm qua (date < todayVN),
+     * đồng thời chạy bù an toàn ngay khi khởi động nếu server từng ngủ qua mốc 00:00.
      */
     startDailyAttendanceSettlementScheduler() {
         if (process.env.NODE_ENV === 'test') return null;
@@ -2929,21 +2965,17 @@ class AttendanceService {
                 const todayVN = getVietnamDateString(now);
                 const timeVN = getVietnamTimeString(now);
                 if (lastRunDateVN === todayVN) return;
-                if (timeVN < '00:05:00') return;
+                if (timeVN < '00:00:00') return;
                 lastRunDateVN = todayVN;
 
-                await this.settlePastUnpaidLeaveDays({ todayOverride: todayVN, persist: true }).catch(() => null);
-                await this.syncAccountantAutoAttendance({
-                    startDateStr: todayVN,
-                    endDateStr: todayVN,
-                    todayOverride: todayVN
-                }).catch(() => null);
+                await this.runDailyNextDaySettlementTick({ todayOverride: todayVN }).catch(() => null);
             } catch (e) {
-                console.warn('[V66-Scheduler] Daily attendance tick warning:', e?.message || e);
+                console.warn('[V67-Scheduler] Daily attendance tick warning:', e?.message || e);
             }
         };
 
-        this._dailySchedulerTimer = setInterval(runDailyTick, 60 * 1000);
+        void runDailyTick();
+        this._dailySchedulerTimer = setInterval(runDailyTick, 30 * 1000);
         if (typeof this._dailySchedulerTimer.unref === 'function') {
             this._dailySchedulerTimer.unref();
         }

@@ -78,6 +78,8 @@ export default function SalarySlipModal({
   onSelectEmployee = null,
   canAdjust = false,
   canManagePayment = false,
+  canApprovePayroll = false,
+  canExportPayroll = true,
   onOpenAdjustment = null,
   onOpenTransfer = null,
   onSendReport = null,
@@ -804,17 +806,21 @@ export default function SalarySlipModal({
             Phiếu lương T{monthLabelPadded}/{nam}
           </h2>
 
-          <button
-            type="button"
-            data-testid="payslip-download-excel-btn"
-            disabled={!item || loadingPeriod}
-            onClick={handleExportSingleSlipExcel}
-            className="min-w-[44px] min-h-[44px] px-2.5 sm:px-3 rounded-xl inline-flex items-center gap-1 sm:gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 cursor-pointer whitespace-nowrap disabled:opacity-50 shadow-xs"
-            title="Tải file Excel phiếu lương (.xlsx)"
-          >
-            <FileSpreadsheet className="w-4 h-4 shrink-0" />
-            <span>Excel</span>
-          </button>
+          {(!isAdminOrAccountant || isAdminUser || canExportPayroll) ? (
+            <button
+              type="button"
+              data-testid="payslip-download-excel-btn"
+              disabled={!item || loadingPeriod}
+              onClick={handleExportSingleSlipExcel}
+              className="min-w-[44px] min-h-[44px] px-2.5 sm:px-3 rounded-xl inline-flex items-center gap-1 sm:gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 cursor-pointer whitespace-nowrap disabled:opacity-50 shadow-xs"
+              title="Tải file Excel phiếu lương (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4 shrink-0" />
+              <span>Excel</span>
+            </button>
+          ) : (
+            <div className="min-w-[44px]" aria-hidden="true" />
+          )}
         </header>
       )}
       stickyTabs={
@@ -863,6 +869,7 @@ export default function SalarySlipModal({
           canAdjust={canAdjust}
           canManagePayment={canManagePayment}
           canSendReport={canDoSendReport}
+          canExportPayroll={!isAdminOrAccountant || isAdminUser || canExportPayroll}
           isLockedOrPaid={isLockedOrPaid}
           thang={thang}
           nam={nam}
@@ -1341,7 +1348,7 @@ export default function SalarySlipModal({
                     </div>
                   )}
 
-                  {isAdminOrAccountant && (
+                  {(isAdminUser || canApprovePayroll) && (
                     <div className="pt-2 border-t border-rose-200 dark:border-rose-800/70 space-y-2.5">
                       <label className="block text-xs font-black text-slate-800 dark:text-slate-100">
                         Phản hồi giải quyết của Kế toán / Admin:

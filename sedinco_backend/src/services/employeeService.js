@@ -673,6 +673,23 @@ class EmployeeService {
     }
 
     async updateEmployeeStatus(ma_nv, { status, is_locked }, current_user = null) {
+        const actorId = current_user ? String(current_user.ma_nv || current_user.username || '').trim() : '';
+        const isActorAdmin = Boolean(current_user && current_user.role === 'admin');
+        if (current_user && !isActorAdmin) {
+            if (actorId && actorId === String(ma_nv).trim()) {
+                const err = new Error('Bạn không thể tự khóa hoặc mở khóa tài khoản của chính mình!');
+                err.statusCode = 403;
+                err.code = 'FORBIDDEN';
+                throw err;
+            }
+            const targetRows = await query('SELECT role FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
+            if (targetRows?.[0]?.role === 'admin') {
+                const err = new Error('Bạn không có quyền thay đổi trạng thái tài khoản Quản trị viên!');
+                err.statusCode = 403;
+                err.code = 'FORBIDDEN';
+                throw err;
+            }
+        }
         const isBlocked = status === 'inactive' || status === 'locked' || is_locked === 1 || is_locked === true;
         const newStatus = status ? status : (isBlocked ? 'inactive' : 'active');
         const newLocked = is_locked !== undefined ? (is_locked ? 1 : 0) : (isBlocked ? 1 : 0);
@@ -734,6 +751,14 @@ class EmployeeService {
     }
 
     async updateEmployeeShift(ma_nv, { shift_type = null, annual_leave_quota = null, custom_start_time, custom_end_time } = {}, current_user = null) {
+        const actorId = current_user ? String(current_user.ma_nv || current_user.username || '').trim() : '';
+        const isActorAdmin = Boolean(current_user && current_user.role === 'admin');
+        if (current_user && !isActorAdmin && actorId && actorId === String(ma_nv).trim()) {
+            const err = new Error('Theo nguyên tắc kiểm soát nội bộ, bạn không thể tự điều chỉnh ca làm việc hoặc phép năm của chính mình!');
+            err.statusCode = 403;
+            err.code = 'FORBIDDEN_SELF_PRIVILEGE_EDIT';
+            throw err;
+        }
         const allowedShifts = ['FULL_DAY', 'MORNING_SHIFT', 'AFTERNOON_SHIFT', 'NIGHT_SHIFT'];
         const updates = [];
         const params = [];
@@ -799,10 +824,24 @@ class EmployeeService {
     }
 
     async deleteEmployee(id, current_user = null) {
-        const existingRows = await query('SELECT ma_nv, avatar_url FROM employees WHERE ma_nv = ? LIMIT 1', [id]);
+        const actorId = current_user ? String(current_user.ma_nv || current_user.username || '').trim() : '';
+        const isActorAdmin = Boolean(current_user && current_user.role === 'admin');
+        if (current_user && actorId && actorId === String(id).trim()) {
+            const err = new Error('Bạn không thể tự xóa hồ sơ của chính mình!');
+            err.statusCode = 403;
+            err.code = 'FORBIDDEN';
+            throw err;
+        }
+        const existingRows = await query('SELECT ma_nv, role, avatar_url FROM employees WHERE ma_nv = ? LIMIT 1', [id]);
         if (!existingRows || existingRows.length === 0) {
             const err = new Error('Không tìm thấy nhân viên!');
             err.statusCode = 404;
+            throw err;
+        }
+        if (current_user && !isActorAdmin && existingRows[0].role === 'admin') {
+            const err = new Error('Bạn không có quyền xóa tài khoản Quản trị viên!');
+            err.statusCode = 403;
+            err.code = 'FORBIDDEN';
             throw err;
         }
         const previousAvatarUrl = existingRows[0].avatar_url || null;

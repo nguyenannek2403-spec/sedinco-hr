@@ -10,6 +10,7 @@ import HolidaysTab from "./HolidaysTab";
 import WorkerProfileTab from "../worker/WorkerProfileTab";
 import WorkerHistoryTab from "../worker/WorkerHistoryTab";
 import OneTouchCheckIn from "../../components/OneTouchCheckIn";
+import SmartLeaveRequestModal from "../../components/SmartLeaveRequestModal";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import { getDefaultTabForRole, isTabAllowedForRole, ROLES, ROLE_LABELS } from "../../constants/roles";
 import { safeGet, safePut } from "../../utils/api";
@@ -29,9 +30,7 @@ import {
   Trash2,
   Loader2,
   ChevronDown,
-  Check,
-  CheckCircle2,
-  Clock
+  Check
 } from "lucide-react";
 
 const SETTINGS_OPTIONS = [
@@ -111,6 +110,7 @@ export default function DesktopDashboard({
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [fixCheckoutInfo, setFixCheckoutInfo] = useState(null);
   const adminAvatarInputRef = useRef(null);
   const [adminAvatarSaving, setAdminAvatarSaving] = useState(false);
   const [personalPayslipModal, setPersonalPayslipModal] = useState({
@@ -416,48 +416,24 @@ export default function DesktopDashboard({
               />
             )}
 
-            {/* 4.5. Chấm công & Công cá nhân (Kế toán) */}
-            {effectiveTab === "my_attendance" && resolvedRole === ROLES.ACCOUNTANT && (
-              <div className="max-w-2xl mx-auto space-y-4">
-                {effectiveDynamicPerms?.accountant_manual_checkin ? (
-                  <div className="space-y-4">
-                    <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/70 rounded-2xl p-3.5 space-y-1">
-                      <div className="flex items-center gap-2 text-sm font-extrabold text-blue-900 dark:text-blue-200 whitespace-normal break-words">
-                        <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                        <span>Chế độ chấm công thủ công đang BẬT</span>
-                      </div>
-                      <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed whitespace-normal break-words">
-                        Kế toán tự chấm công Vào/Ra như nhân viên bình thường; toàn bộ ngày công tự động đã lưu trước đó vẫn được bảo toàn nguyên vẹn.
-                      </p>
-                    </div>
-                    <OneTouchCheckIn
-                      currentUser={currentUser}
-                      showToast={showToast}
-                      onCheckInSuccess={(res) => {
-                        setRefreshTick((t) => t + 1);
-                        if (showToast && res?.autoShiftMsg) {
-                          showToast(res.autoShiftMsg, "success");
-                        }
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div
-                    data-testid="accountant-auto-attendance-notice"
-                    className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/70 rounded-2xl p-4 space-y-1.5"
-                  >
-                    <div className="flex items-center gap-2 text-sm font-extrabold text-emerald-900 dark:text-emerald-200 whitespace-normal break-words">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span>Chế độ tự động tính công đang bật</span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed whitespace-normal break-words">
-                      Hệ thống tự động lưu 1 công mỗi ngày làm việc (Thứ 2 – Thứ 7, trừ Chủ nhật). Bạn không cần thao tác chấm công Vào/Ra hàng ngày; toàn bộ dữ liệu công và phiếu lương vẫn được cập nhật đầy đủ bên dưới.
-                    </p>
-                  </div>
-                )}
-
+            {/* 4.5. Chấm công Kế toán (Render 100% cùng component Nhân viên khi bật quyền) */}
+            {effectiveTab === "my_attendance" &&
+              resolvedRole === ROLES.ACCOUNTANT &&
+              Boolean(effectiveDynamicPerms?.accountant_manual_checkin) && (
+              <div className="max-w-lg mx-auto space-y-4">
+                <OneTouchCheckIn
+                  currentUser={currentUser}
+                  showToast={showToast}
+                  onCheckInSuccess={(res) => {
+                    setRefreshTick((t) => t + 1);
+                    if (showToast && res?.autoShiftMsg) {
+                      showToast(res.autoShiftMsg, "success");
+                    }
+                  }}
+                  onOpenFixCheckoutRequest={(record) => setFixCheckoutInfo(record)}
+                />
                 <WorkerHistoryTab
-                  key={`acc-history-${refreshTick}-${Boolean(effectiveDynamicPerms?.accountant_manual_checkin)}`}
+                  key={`acc-history-${refreshTick}`}
                   currentUser={currentUser}
                   showToast={showToast}
                   onOpenPayslip={(m, y) =>
@@ -831,7 +807,18 @@ export default function DesktopDashboard({
                   <FontScaleSelector />
                 </div>
               ) : (
-                <div className="max-w-lg mx-auto">
+                <div className="max-w-lg mx-auto space-y-4">
+                  {resolvedRole === ROLES.ACCOUNTANT &&
+                    !["matrix", "payroll", "requests", "employees", "my_attendance"].some((t) =>
+                      isTabAllowedForRole(t, ROLES.ACCOUNTANT, effectiveDynamicPerms)
+                    ) && (
+                      <div
+                        data-testid="accountant-no-permissions-empty"
+                        className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-normal break-words"
+                      >
+                        Tài khoản Kế toán hiện chưa được cấp quyền thao tác nghiệp vụ nào. Bạn vẫn có thể xem thông tin hồ sơ, phiếu lương cá nhân hoặc liên hệ Quản trị viên để kích hoạt quyền hạn.
+                      </div>
+                    )}
                   <WorkerProfileTab
                     currentUser={currentUser}
                     onLogout={onLogout}
@@ -858,6 +845,23 @@ export default function DesktopDashboard({
             setRefreshTick((t) => t + 1);
           }}
           onClose={() => setPersonalPayslipModal((p) => ({ ...p, open: false }))}
+        />
+      )}
+
+      {fixCheckoutInfo && (
+        <SmartLeaveRequestModal
+          currentUser={currentUser}
+          initialDate={fixCheckoutInfo.iso_date || fixCheckoutInfo.work_date || ""}
+          initialMode="Bổ sung công / Quên chấm giờ ra"
+          initialCorrectionMode="CHECK_OUT"
+          initialCheckInTime={fixCheckoutInfo.check_in_time ? String(fixCheckoutInfo.check_in_time).slice(0, 5) : "07:30"}
+          initialCheckOutTime="17:30"
+          initialReason={`Ngày ${fixCheckoutInfo.short_date} em đã chấm công Vào lúc ${String(fixCheckoutInfo.check_in_time || "").slice(0, 5)} nhưng quên bấm Giờ Ra. Kính mong Admin duyệt bổ sung giờ ra.`}
+          onClose={() => setFixCheckoutInfo(null)}
+          onRequestSubmitted={() => {
+            setFixCheckoutInfo(null);
+            if (showToast) showToast("Đã gửi đơn bổ sung giờ ra thành công!", "success");
+          }}
         />
       )}
     </>

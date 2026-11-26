@@ -24,6 +24,7 @@ export default function SalaryReportModal({
   item,
   month,
   year,
+  canExportPayroll = true,
   showToast
 }) {
   const [sharing, setSharing] = useState(false);
@@ -173,18 +174,20 @@ export default function SalaryReportModal({
             💬 Chia sẻ qua tin nhắn Zalo
           </AppButton>
 
-          <AppButton
-            variant="success"
-            fullWidth
-            icon={FileSpreadsheet}
-            loading={exporting}
-            loadingText="Đang xuất Excel..."
-            data-testid="report-export-xlsx-btn"
-            onClick={handleExportExcel}
-            className="min-h-[48px] rounded-xl font-extrabold"
-          >
-            📥 Xuất file Excel (.xlsx)
-          </AppButton>
+          {canExportPayroll && (
+            <AppButton
+              variant="success"
+              fullWidth
+              icon={FileSpreadsheet}
+              loading={exporting}
+              loadingText="Đang xuất Excel..."
+              data-testid="report-export-xlsx-btn"
+              onClick={handleExportExcel}
+              className="min-h-[48px] rounded-xl font-extrabold"
+            >
+              📥 Xuất file Excel (.xlsx)
+            </AppButton>
+          )}
         </div>
 
         <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center flex items-center justify-center gap-1">

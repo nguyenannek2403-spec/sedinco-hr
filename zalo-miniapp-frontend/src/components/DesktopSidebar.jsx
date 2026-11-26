@@ -23,7 +23,7 @@ const ALL_MENU_ITEMS = [
   { id: "matrix", label: "Bảng công", shortLabel: "Bảng công", icon: Calendar },
   { id: "requests", label: "Duyệt đơn", shortLabel: "Duyệt đơn", icon: FileText },
   { id: "payroll", label: "Bảng lương", shortLabel: "Bảng lương", icon: DollarSign },
-  { id: "my_attendance", label: "Chấm công & Công cá nhân", shortLabel: "Chấm công", icon: Clock },
+  { id: "my_attendance", label: "Chấm công", shortLabel: "Chấm công", icon: Clock },
   { id: "settings", label: "Cài đặt", shortLabel: "Cài đặt", icon: Settings }
 ];
 

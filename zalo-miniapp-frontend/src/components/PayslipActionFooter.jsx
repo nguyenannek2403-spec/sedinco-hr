@@ -17,6 +17,7 @@ export default function PayslipActionFooter({
   canAdjust = false,
   canManagePayment = false,
   canSendReport = false,
+  canExportPayroll = true,
   isLockedOrPaid = false,
   thang = null,
   nam = null,
@@ -124,7 +125,7 @@ export default function PayslipActionFooter({
           >
             Điều chỉnh
           </AppButton>
-        ) : (
+        ) : canExportPayroll ? (
           <AppButton
             data-testid="payslip-admin-export-btn"
             variant="primary"
@@ -135,7 +136,7 @@ export default function PayslipActionFooter({
           >
             Xuất Excel
           </AppButton>
-        )}
+        ) : null}
       </div>
     );
   }

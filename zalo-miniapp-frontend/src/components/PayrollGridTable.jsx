@@ -50,6 +50,7 @@ export default function PayrollGridTable({
   const canCalculatePayroll = isAccountant && dynamicPerms?.payroll_calculate !== false;
   const canApprovePayroll = isAdmin || dynamicPerms?.payroll_approve === true;
   const canManagePayment = isAdmin || dynamicPerms?.payroll_payment_status_manage === true;
+  const canExportPayroll = isAdmin || dynamicPerms?.payroll_export !== false;
   const canLockPeriod = isAdmin || (isAccountant && dynamicPerms?.attendance_lock === true);
   const canUnlockPeriod = hasPermission(effectiveRole, "canUnlockPeriod");
   const notify = showToast || onShowToast;
@@ -682,7 +683,7 @@ export default function PayrollGridTable({
                       >
                         Xem phiếu
                       </AppButton>
-                      {(isAdmin || canApprovePayroll || canCalculatePayroll) && (
+                      {(isAdmin || canApprovePayroll) && (
                         <AppButton
                           variant="success"
                           icon={CheckCircle2}
@@ -1017,6 +1018,8 @@ export default function PayrollGridTable({
           onSelectEmployee={(emp) => setSelectedSlipItem(emp)}
           canAdjust={isAdmin || canCalculatePayroll}
           canManagePayment={canManagePayment}
+          canApprovePayroll={canApprovePayroll}
+          canExportPayroll={canExportPayroll}
           onOpenAdjustment={(slip) => handleOpenAdjustmentModal(slip)}
           onOpenTransfer={(slip) => handleRequestTransfer(slip)}
           onSendReport={(slip) => handleSendSingleReport(slip, { skipModal: true })}
@@ -1213,6 +1216,7 @@ export default function PayrollGridTable({
         item={reportModalItem}
         month={month}
         year={year}
+        canExportPayroll={canExportPayroll}
         showToast={notify}
         onClose={() => setReportModalItem(null)}
       />

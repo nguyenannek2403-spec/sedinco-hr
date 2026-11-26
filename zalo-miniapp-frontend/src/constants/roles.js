@@ -108,11 +108,11 @@ export const isTabAllowedForRole = (tab, role, dynamicPermissions = {}) => {
     return ROLE_PERMISSIONS[ROLES.ADMIN].allowedTabs.includes(tab);
   }
 
-  // Với Kế toán: Ràng buộc nghiêm ngặt theo dynamic_permissions
+  // Với Kế toán: Ràng buộc nghiêm ngặt 1-1 theo dynamic_permissions
   if (normalizedRole === ROLES.ACCOUNTANT) {
     const dp = dynamicPermissions || {};
     if (tab === "profile") return true;
-    if (tab === "my_attendance") return true;
+    if (tab === "my_attendance") return Boolean(dp.accountant_manual_checkin);
     if (tab === "matrix") return dp.attendance_view_all !== false;
     if (tab === "payroll") return dp.payroll_view_all !== false;
     if (tab === "requests") return dp.leave_view_all !== false;

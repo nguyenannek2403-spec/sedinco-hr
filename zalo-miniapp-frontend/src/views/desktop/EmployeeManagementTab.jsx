@@ -25,7 +25,7 @@ import {
   FileText,
   Upload
 } from "lucide-react";
-import { safeGet, safePost, safePut } from "../../utils/api";
+import { safeGet, safePost, safePut, safeDelete } from "../../utils/api";
 import { compressAvatarImage } from "../../utils/imageCompressor";
 import { zaloMediaService } from "../../services/zalo-media.service";
 import { useDebouncedValue } from "../../hooks/useDebounce";
@@ -187,8 +187,16 @@ export default function EmployeeManagementTab({
 }) {
   const effectiveRole = activeRole || currentUser?.role || ROLES.ADMIN;
   const isAdmin = effectiveRole === ROLES.ADMIN;
+  const canCreateEmployees = isAdmin || dynamicPerms?.employee_create === true;
   const canEditEmployees = isAdmin || dynamicPerms?.employee_edit === true;
+  const canDeleteEmployees = isAdmin || dynamicPerms?.employee_delete === true;
+  const canManageEmployeeStatus = isAdmin || dynamicPerms?.employee_status_manage === true;
+  const canManageShift = isAdmin || dynamicPerms?.shift_manage === true;
   const canViewPayroll = isAdmin || dynamicPerms?.payroll_view_all !== false;
+  const canAdjustPayroll = isAdmin || dynamicPerms?.payroll_calculate !== false;
+  const canApprovePayroll = isAdmin || dynamicPerms?.payroll_approve === true;
+  const canManagePayment = isAdmin || dynamicPerms?.payroll_payment_status_manage === true;
+  const canExportPayroll = isAdmin || dynamicPerms?.payroll_export !== false;
 
   const [employees, setEmployees] = useState([]);
   const [payslipEmp, setPayslipEmp] = useState(null);
@@ -551,12 +559,35 @@ export default function EmployeeManagementTab({
   const handleSaveDetailModal = async (e) => {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
     if (!detailEmp || !detailForm || savingDetail) return;
-    if (!String(detailForm.ho_ten || "").trim()) {
+    const isSelfTarget = !isAdmin && currentUser?.ma_nv && detailEmp.ma_nv === currentUser.ma_nv;
+    const canSaveProfile = canEditEmployees && (isAdmin || detailEmp.role !== "admin");
+    const canSaveShift = canManageShift && (isAdmin || (detailEmp.role !== "admin" && !isSelfTarget));
+    if (!canSaveProfile && !canSaveShift) return;
+
+    if (canSaveProfile && !String(detailForm.ho_ten || "").trim()) {
       if (showToast) showToast("Vui lòng nhập họ và tên nhân viên!", "error");
       return;
     }
     setSavingDetail(true);
     try {
+      if (!canSaveProfile && canSaveShift) {
+        const shiftRes = await safePut(`/employees/${detailEmp.ma_nv}/shift`, {
+          shift_type: detailForm.shift_type || "FULL_DAY",
+          annual_leave_quota: Number(detailForm.annual_leave_quota) || 1,
+          custom_start_time: detailForm.custom_start_time || null,
+          custom_end_time: detailForm.custom_end_time || null
+        });
+        if (shiftRes?.success) {
+          if (showToast) showToast(shiftRes.message || `Đã cập nhật ca làm việc cho ${detailEmp.ho_ten}!`, "success");
+          setDetailEmp(null);
+          setDetailForm(null);
+          fetchEmployees();
+        } else if (showToast) {
+          showToast(shiftRes?.message || "Không thể cập nhật ca làm việc.", "error");
+        }
+        return;
+      }
+
       const cleanDetailPhone = String(detailForm.phone ?? detailForm.dien_thoai ?? "").trim();
       const cleanDetailUser = String(detailForm.login_username || "").trim();
       const baseAllowances = Array.isArray(detailForm.custom_allowances)
@@ -564,7 +595,7 @@ export default function EmployeeManagementTab({
         : [];
 
       // Nếu người dùng đang mở khung "+ Thêm phụ cấp" và đã nhập tên + số tiền rồi bấm thẳng "Lưu thay đổi"
-      if (isAddingAllowance) {
+      if (!isSelfTarget && isAddingAllowance) {
         const pendingName = String(newAllowanceName || "").trim();
         const pendingAmt = Math.max(0, Math.round(parseViNumberInput(newAllowanceAmount)));
         if (pendingName && pendingAmt > 0) {
@@ -599,21 +630,25 @@ export default function EmployeeManagementTab({
         phone: cleanDetailPhone,
         dien_thoai: cleanDetailPhone,
         login_username: cleanDetailUser || cleanDetailPhone || detailEmp.ma_nv,
-        email: detailForm.email,
-        shift_type: detailForm.shift_type,
-        annual_leave_quota: Number(detailForm.annual_leave_quota) || 1,
-        luong_cb: Math.max(0, Math.round(parseViNumberInput(detailForm.luong_cb))),
-        custom_allowances: cleanAllowances,
-        phu_cap_an_trua: 0,
-        phu_cap_xang_xe: 0,
-        phu_cap_nha_o: 0,
-        thuong_htcv: 0,
-        phu_cap_trach_nhiem: 0,
-        phu_cap_tiep_khach: 0,
-        has_insurance: Boolean(detailForm.has_insurance),
-        custom_start_time: detailForm.custom_start_time || null,
-        custom_end_time: detailForm.custom_end_time || null
+        email: detailForm.email
       };
+      if (canSaveShift) {
+        payload.shift_type = detailForm.shift_type;
+        payload.annual_leave_quota = Number(detailForm.annual_leave_quota) || 1;
+        payload.custom_start_time = detailForm.custom_start_time || null;
+        payload.custom_end_time = detailForm.custom_end_time || null;
+      }
+      if (!isSelfTarget) {
+        payload.luong_cb = Math.max(0, Math.round(parseViNumberInput(detailForm.luong_cb)));
+        payload.custom_allowances = cleanAllowances;
+        payload.phu_cap_an_trua = 0;
+        payload.phu_cap_xang_xe = 0;
+        payload.phu_cap_nha_o = 0;
+        payload.thuong_htcv = 0;
+        payload.phu_cap_trach_nhiem = 0;
+        payload.phu_cap_tiep_khach = 0;
+        payload.has_insurance = Boolean(detailForm.has_insurance);
+      }
       if (isAdmin && detailEmp.role !== "admin" && ["worker", "accountant"].includes(detailForm.role)) {
         payload.role = detailForm.role;
       }
@@ -639,6 +674,33 @@ export default function EmployeeManagementTab({
     } finally {
       setSavingDetail(false);
     }
+  };
+
+  const handleDeleteEmployee = (emp) => {
+    if (!emp?.ma_nv) return;
+    setConfirmAction({
+      open: true,
+      title: "Xóa hồ sơ nhân viên",
+      message: `Bạn có chắc chắn muốn xóa vĩnh viễn hồ sơ nhân viên ${emp.ma_nv} (${emp.ho_ten})? Hành động này không thể hoàn tác.`,
+      confirmLabel: "Xóa nhân viên",
+      danger: true,
+      onExecute: async () => {
+        try {
+          const res = await safeDelete(`/employees/${emp.ma_nv}`);
+          if (res?.success) {
+            if (showToast) showToast(res.message || `Đã xóa nhân viên ${emp.ma_nv}!`, "success");
+            setDetailEmp(null);
+            setDetailForm(null);
+            fetchEmployees();
+            if (onRefreshAlerts) onRefreshAlerts();
+          } else if (showToast) {
+            showToast(res?.message || "Không thể xóa nhân viên.", "error");
+          }
+        } catch (err) {
+          if (showToast) showToast(err.message || "Lỗi xóa nhân viên.", "error");
+        }
+      }
+    });
   };
 
   const handleToggleLock = (emp) => {
@@ -764,10 +826,11 @@ export default function EmployeeManagementTab({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {canEditEmployees && (
+          {canCreateEmployees && (
             <AppButton
               variant="primary"
               icon={Plus}
+              data-testid="hr-create-employee-btn"
               onClick={() => {
                 setFormError("");
                 setIsAddModalOpen(true);
@@ -1153,7 +1216,7 @@ export default function EmployeeManagementTab({
             >
               Đóng / Quay lại
             </AppButton>
-            {canEditEmployees && (
+            {(canEditEmployees || canManageShift) && detailEmp && (
               <AppButton
                 type="submit"
                 form="edit-employee-360-form"
@@ -1162,7 +1225,7 @@ export default function EmployeeManagementTab({
                 loadingText="Đang lưu..."
                 className="flex-1 shadow-lg shadow-rose-600/30"
               >
-                Lưu thay đổi
+                {canEditEmployees ? "Lưu thay đổi" : "Lưu ca làm việc"}
               </AppButton>
             )}
           </div>
@@ -1347,7 +1410,7 @@ export default function EmployeeManagementTab({
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Ca làm việc chuẩn</label>
-                        {canEditEmployees && (detailForm.custom_start_time || detailForm.custom_end_time) && (
+                        {canManageShift && (isAdmin || currentUser?.ma_nv !== detailEmp.ma_nv) && (detailForm.custom_start_time || detailForm.custom_end_time) && (
                           <button
                             type="button"
                             onClick={() => setDetailForm((p) => ({ ...p, custom_start_time: "", custom_end_time: "" }))}
@@ -1358,7 +1421,7 @@ export default function EmployeeManagementTab({
                         )}
                       </div>
                       <select
-                        disabled={!canEditEmployees}
+                        disabled={!canManageShift || (!isAdmin && currentUser?.ma_nv === detailEmp.ma_nv)}
                         value={detailForm.shift_type || "FULL_DAY"}
                         onChange={(e) => setDetailForm((p) => ({ ...p, shift_type: e.target.value }))}
                         className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900/90 disabled:text-slate-500"
@@ -1375,7 +1438,7 @@ export default function EmployeeManagementTab({
                       <FormRow label="Giờ vào ca riêng">
                         <input
                           type="time"
-                          disabled={!canEditEmployees}
+                          disabled={!canManageShift || (!isAdmin && currentUser?.ma_nv === detailEmp.ma_nv)}
                           value={detailForm.custom_start_time || ""}
                           onChange={(e) => setDetailForm((p) => ({ ...p, custom_start_time: e.target.value }))}
                           className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center"
@@ -1384,7 +1447,7 @@ export default function EmployeeManagementTab({
                       <FormRow label="Giờ tan ca riêng">
                         <input
                           type="time"
-                          disabled={!canEditEmployees}
+                          disabled={!canManageShift || (!isAdmin && currentUser?.ma_nv === detailEmp.ma_nv)}
                           value={detailForm.custom_end_time || ""}
                           onChange={(e) => setDetailForm((p) => ({ ...p, custom_end_time: e.target.value }))}
                           className="w-32 sm:w-36 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-2 text-base font-bold text-slate-900 dark:text-white text-center"
@@ -1633,7 +1696,7 @@ export default function EmployeeManagementTab({
                         <input
                           type="text"
                           inputMode="numeric"
-                          disabled={!canEditEmployees}
+                          disabled={!canEditEmployees || (!isAdmin && currentUser?.ma_nv === detailEmp.ma_nv)}
                           value={formatViNumber(detailForm.luong_cb || 0, 0)}
                           onChange={(e) => setDetailForm((p) => ({ ...p, luong_cb: Math.max(0, Math.round(parseViNumberInput(e.target.value))) }))}
                           className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-emerald-700 dark:text-emerald-300"
@@ -1672,7 +1735,7 @@ export default function EmployeeManagementTab({
                             </span>
                           )}
                         </div>
-                        {canEditEmployees && !isAddingAllowance && (
+                        {canEditEmployees && (isAdmin || currentUser?.ma_nv !== detailEmp.ma_nv) && !isAddingAllowance && (
                           <button
                             type="button"
                             data-testid="add-allowance-btn"
@@ -1706,7 +1769,7 @@ export default function EmployeeManagementTab({
                             >
                               <input
                                 type="text"
-                                disabled={!canEditEmployees}
+                                disabled={!canEditEmployees || (!isAdmin && currentUser?.ma_nv === detailEmp.ma_nv)}
                                 value={item.name}
                                 onChange={(e) => handleUpdateAllowanceName(item.id, e.target.value)}
                                 placeholder="Tên phụ cấp"
@@ -1716,13 +1779,13 @@ export default function EmployeeManagementTab({
                                 <input
                                   type="text"
                                   inputMode="numeric"
-                                  disabled={!canEditEmployees}
+                                  disabled={!canEditEmployees || (!isAdmin && currentUser?.ma_nv === detailEmp.ma_nv)}
                                   value={formatViNumber(item.amount || 0, 0)}
                                   onChange={(e) => handleUpdateAllowanceAmount(item.id, e.target.value)}
                                   className="w-full sm:w-36 min-h-[40px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono font-bold text-emerald-700 dark:text-emerald-300 text-right"
                                 />
                                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">đ</span>
-                                {canEditEmployees && (
+                                {canEditEmployees && (isAdmin || currentUser?.ma_nv !== detailEmp.ma_nv) && (
                                   <button
                                     type="button"
                                     aria-label={`Xóa ${item.name}`}
@@ -1807,7 +1870,7 @@ export default function EmployeeManagementTab({
                       <label className="flex items-center gap-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
                         <input
                           type="checkbox"
-                          disabled={!canEditEmployees}
+                          disabled={!canEditEmployees || (!isAdmin && currentUser?.ma_nv === detailEmp.ma_nv)}
                           checked={Boolean(detailForm.has_insurance)}
                           onChange={(e) => setDetailForm((p) => ({ ...p, has_insurance: e.target.checked }))}
                           className="w-5 h-5 rounded accent-[#E11D48] text-[#E11D48]"
@@ -1927,34 +1990,60 @@ export default function EmployeeManagementTab({
                 )}
               </section>
 
-              {/* KHỐI DƯỚI CÙNG CỦA FORM: LƯU GIỮ NHẬT KÝ HOẠT ĐỘNG & TẠM KHÓA TÀI KHOẢN */}
-              {isAdmin && detailEmp.role !== "admin" && (
+              {/* KHỐI DƯỚI CÙNG CỦA FORM: LƯU GIỮ NHẬT KÝ HOẠT ĐỘNG, KHÓA/MỞ KHÓA & XÓA TÀI KHOẢN */}
+              {detailEmp.role !== "admin" &&
+                (isAdmin ||
+                  (currentUser?.ma_nv !== detailEmp.ma_nv &&
+                    (canManageEmployeeStatus || canDeleteEmployees))) && (
                 <section
                   data-testid="employee-bottom-account-actions"
                   className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3"
                 >
-                  <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(detailForm.keep_logs)}
-                      onChange={(e) => setDetailForm((p) => ({ ...p, keep_logs: e.target.checked }))}
-                      className="w-4 h-4 rounded accent-[#E11D48] text-[#E11D48]"
-                    />
-                    <span>Lưu giữ nhật ký hoạt động</span>
-                  </label>
+                  {isAdmin ? (
+                    <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(detailForm.keep_logs)}
+                        onChange={(e) => setDetailForm((p) => ({ ...p, keep_logs: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-[#E11D48] text-[#E11D48]"
+                      />
+                      <span>Lưu giữ nhật ký hoạt động</span>
+                    </label>
+                  ) : (
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Quản trị trạng thái tài khoản nhân sự
+                    </span>
+                  )}
 
-                  <AppButton
-                    variant="secondary"
-                    icon={isDetailLocked ? Unlock : Lock}
-                    onClick={() => handleToggleLock(detailEmp)}
-                    className={`text-xs px-3.5 py-2 ${
-                      isDetailLocked
-                        ? "!border-emerald-500/50 !text-emerald-700 dark:!text-emerald-300"
-                        : "!border-rose-500/50 !text-rose-700 dark:!text-rose-300"
-                    }`}
-                  >
-                    {isDetailLocked ? "Mở khóa tài khoản" : "Tạm khóa tài khoản"}
-                  </AppButton>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canManageEmployeeStatus && (isAdmin || currentUser?.ma_nv !== detailEmp.ma_nv) && (
+                      <AppButton
+                        data-testid="employee-toggle-lock-btn"
+                        variant="secondary"
+                        icon={isDetailLocked ? Unlock : Lock}
+                        onClick={() => handleToggleLock(detailEmp)}
+                        className={`text-xs px-3.5 py-2 ${
+                          isDetailLocked
+                            ? "!border-emerald-500/50 !text-emerald-700 dark:!text-emerald-300"
+                            : "!border-rose-500/50 !text-rose-700 dark:!text-rose-300"
+                        }`}
+                      >
+                        {isDetailLocked ? "Mở khóa tài khoản" : "Tạm khóa tài khoản"}
+                      </AppButton>
+                    )}
+
+                    {canDeleteEmployees && (isAdmin || currentUser?.ma_nv !== detailEmp.ma_nv) && (
+                      <AppButton
+                        data-testid="employee-delete-btn"
+                        variant="danger"
+                        icon={Trash2}
+                        onClick={() => handleDeleteEmployee(detailEmp)}
+                        className="text-xs px-3.5 py-2"
+                      >
+                        Xóa nhân viên
+                      </AppButton>
+                    )}
+                  </div>
                 </section>
               )}
             </form>
@@ -1970,6 +2059,10 @@ export default function EmployeeManagementTab({
           year={new Date().getFullYear()}
           isAdminOrAccountant={true}
           isAdminUser={isAdmin}
+          canAdjust={canAdjustPayroll}
+          canManagePayment={canManagePayment}
+          canApprovePayroll={canApprovePayroll}
+          canExportPayroll={canExportPayroll}
           showToast={showToast}
           onClose={() => setPayslipEmp(null)}
         />
