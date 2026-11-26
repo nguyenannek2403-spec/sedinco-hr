@@ -22,7 +22,10 @@ export function resolveApiBase() {
   ) {
     return `${window.location.origin}/api`;
   }
-  const envUrl = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env.VITE_API_URL : null;
+  const envUrl =
+    typeof import.meta !== "undefined" && import.meta.env
+      ? import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL
+      : null;
   if (envUrl && typeof envUrl === "string" && envUrl.trim()) {
     return normalizeApiUrl(envUrl);
   }
