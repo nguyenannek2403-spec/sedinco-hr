@@ -24,6 +24,7 @@ router.use('/attendance', attendanceRoutes); // /api/attendance
 router.use('/payroll', payrollRoutes); // /api/payroll
 router.use('/requests', requestRoutes); // /api/requests
 router.use('/employees', employeeRoutes); // /api/employees
+router.use('/users', employeeRoutes); // Alias V70 (/api/users/:id/device-history, /api/users/:id/primary-device)
 router.use('/company', companyRoutes); // /api/company
 router.use('/departments', departmentRoutes); // /api/departments
 router.use('/holidays', holidayRoutes); // /api/holidays

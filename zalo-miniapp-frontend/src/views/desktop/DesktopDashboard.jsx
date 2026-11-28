@@ -73,7 +73,8 @@ export default function DesktopDashboard({
   onClearCache,
   onUserUpdated,
   showToast,
-  onChangePasswordRequest
+  onChangePasswordRequest,
+  onDeviceWarning
 }) {
   const [currentTab, setCurrentTab] = useState(() => {
     const r = activeRole || currentUser?.role;
@@ -424,6 +425,7 @@ export default function DesktopDashboard({
                 <OneTouchCheckIn
                   currentUser={currentUser}
                   showToast={showToast}
+                  onDeviceWarning={onDeviceWarning}
                   onCheckInSuccess={(res) => {
                     setRefreshTick((t) => t + 1);
                     if (showToast && res?.autoShiftMsg) {
@@ -803,6 +805,14 @@ export default function DesktopDashboard({
                         </AppButton>
                       )}
                     </div>
+                    {Boolean(currentUser?.must_change_password) && (
+                      <div
+                        data-testid="admin-temp-pw-reminder"
+                        className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-700/60 text-xs text-amber-800 dark:text-amber-200 whitespace-normal break-words"
+                      >
+                        Bạn đang dùng mật khẩu tạm — bấm &ldquo;Tài khoản &amp; Mật khẩu&rdquo; ở trên để đổi bất cứ lúc nào.
+                      </div>
+                    )}
                   </div>
                   <FontScaleSelector />
                 </div>

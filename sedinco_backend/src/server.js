@@ -22,7 +22,8 @@ const REQUIRED_TABLES = [
     'idempotency_keys',
     'media_assets',
     'media_upload_events',
-    'media_usage_snapshots'
+    'media_usage_snapshots',
+    'user_device_logs'
 ];
 
 async function verifySchemaReadiness(conn) {

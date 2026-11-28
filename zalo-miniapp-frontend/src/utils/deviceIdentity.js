@@ -1,5 +1,6 @@
 import { zmpAdapter } from "../adapters/zmp/sdkAdapter";
 
+const DEVICE_ID_KEY = "sedinco_device_id";
 const DEVICE_FP_KEY = "sedinco_bound_device_fingerprint";
 const DEVICE_MODEL_CACHE_KEY = "sedinco_device_model_name";
 const IDB_NAME = "sedinco_device_identity_db";
@@ -210,46 +211,63 @@ export function detectDeviceModelName(sdkInfo = null) {
   const sh = Number(info?.screenHeight || scr.height || 0);
   const dpr = Math.round(Number(info?.pixelRatio || (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1));
 
+  const rawSys = String(info?.system || info?.osVersion || "").trim();
+  const iosUaMatch = ua.match(/(?:CPU\s+)?(?:iPhone\s+)?OS\s+([\d_]+)/i);
+  const androidUaMatch = ua.match(/Android\s+([\d.]+)/i);
+  const iosVer = rawSys && /iOS/i.test(rawSys)
+    ? rawSys.replace(/^iOS\s*/i, "").trim()
+    : (iosUaMatch ? iosUaMatch[1].replace(/_/g, ".") : (rawSys || ""));
+  const androidVer = rawSys && /Android/i.test(rawSys)
+    ? rawSys.replace(/^Android\s*/i, "").trim()
+    : (androidUaMatch ? androidUaMatch[1] : (rawSys || ""));
+
   // 1. Lấy thông tin brand & model từ SDK hoặc High-Entropy Client Hints
   const brand = String(info?.brand || "").trim();
   const model = String(info?.model || "").trim();
 
   if (model && APPLE_HARDWARE_CODES[model.toLowerCase()]) {
-    return APPLE_HARDWARE_CODES[model.toLowerCase()];
+    const mapped = APPLE_HARDWARE_CODES[model.toLowerCase()];
+    return iosVer ? `${mapped} (iOS ${iosVer})`.slice(0, 100) : mapped;
   }
 
   // 2. Xử lý riêng iOS (Safari / Zalo WKWebView đôi khi chỉ ghi 'iPhone')
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || /iOS/i.test(String(info?.platform || ""));
   if (isIOS) {
-    if (/iPad/i.test(ua) || /iPad/i.test(model)) return "Apple iPad";
-    if (model && /iPhone\s*\d+/i.test(model) && !model.includes("/")) return sanitizeSingleDeviceModelName(model);
+    const verSuffix = iosVer ? ` (iOS ${iosVer})` : "";
+    if (/iPad/i.test(ua) || /iPad/i.test(model)) return `Apple iPad${verSuffix}`.slice(0, 100);
+    if (model && /iPhone\s*\d+/i.test(model) && !model.includes("/")) {
+      return `${sanitizeSingleDeviceModelName(model)}${verSuffix}`.slice(0, 100);
+    }
     if (sw > 0 && sh > 0 && dpr > 0) {
       const minSide = Math.min(sw, sh);
       const maxSide = Math.max(sw, sh);
       const key = `${minSide}x${maxSide}@${dpr}`;
-      if (IOS_SCREEN_MODELS[key]) return IOS_SCREEN_MODELS[key];
+      if (IOS_SCREEN_MODELS[key]) return `${IOS_SCREEN_MODELS[key]}${verSuffix}`.slice(0, 100);
     }
-    return "Apple iPhone";
+    return `iPhone${verSuffix}`.slice(0, 100);
   }
 
   // 3. Xử lý Android (dịch mã kỹ thuật SM-xxx, CPHxxx, RMXxxx...)
   const uaModelMatch = ua.match(/Android\s+[^;]+;\s*([^;)]+)/i);
   const candidate = model || (uaModelMatch ? uaModelMatch[1].replace(/\s*Build\/.*$/i, "").trim() : "");
+  const androidSuffix = androidVer ? ` (Android ${androidVer})` : "";
   if (candidate && !/^K$/i.test(candidate)) {
     for (const pat of ANDROID_MODEL_NAMES) {
       if (pat.re.test(candidate)) {
-        return pat.name || `${pat.prefix} (${candidate})`;
+        const base = pat.name || `${pat.prefix} ${candidate}`;
+        return `${base}${androidSuffix}`.slice(0, 100);
       }
     }
     if (brand && !candidate.toLowerCase().startsWith(brand.toLowerCase())) {
-      return sanitizeSingleDeviceModelName(`${brand} ${candidate}`);
+      return sanitizeSingleDeviceModelName(`${brand} ${candidate}${androidSuffix}`);
     }
-    return sanitizeSingleDeviceModelName(candidate);
+    return sanitizeSingleDeviceModelName(`${candidate}${androidSuffix}`);
   }
 
-  if (/Android/i.test(ua)) return brand ? `${brand} Android` : UNKNOWN_DEVICE_LABEL;
-  if (/Macintosh|Mac OS/i.test(ua)) return "Máy tính Mac";
-  if (/Windows/i.test(ua)) return "Máy tính Windows";
+  if (/Android/i.test(ua)) return brand ? `${brand}${androidSuffix || " Android"}` : `Android${androidSuffix}`;
+  if (/Macintosh|Mac OS/i.test(ua)) return "Trình duyệt macOS";
+  if (/Windows/i.test(ua)) return "Trình duyệt Windows";
+  if (/Linux/i.test(ua)) return "Trình duyệt Linux";
 
   try {
     const cached = localStorage.getItem(DEVICE_MODEL_CACHE_KEY);
@@ -332,15 +350,19 @@ function writeIndexedDbUuid(val) {
   });
 }
 
-function createRandomInstallToken() {
+function createRandomUuidV4() {
   try {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
+      return crypto.randomUUID();
     }
   } catch {
-    // Fallback ngẫu nhiên
+    // Fallback RFC4122 v4
   }
-  return Math.random().toString(36).substring(2, 14).toUpperCase();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 export function getDeviceIdentitySync() {
@@ -357,18 +379,15 @@ export function getDeviceIdentitySync() {
 
   let deviceId = "";
   try {
-    deviceId = localStorage.getItem(DEVICE_FP_KEY) || "";
+    deviceId = localStorage.getItem(DEVICE_ID_KEY) || localStorage.getItem(DEVICE_FP_KEY) || "";
   } catch {
     deviceId = "";
   }
 
   if (!deviceId) {
-    const plat = (typeof navigator !== "undefined" ? (navigator.platform || "MOB") : "ZMP")
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .slice(0, 8) || "ZMP";
-    const installTok = createRandomInstallToken();
-    deviceId = `DEV_${plat}_${traits.hardwareSignature.slice(0, 8)}_${installTok}`.slice(0, 96);
+    deviceId = createRandomUuidV4();
     try {
+      localStorage.setItem(DEVICE_ID_KEY, deviceId);
       localStorage.setItem(DEVICE_FP_KEY, deviceId);
       localStorage.setItem(DEVICE_MODEL_CACHE_KEY, deviceModelName);
     } catch {
@@ -389,6 +408,7 @@ export function getDeviceIdentitySync() {
       deviceName: deviceModelName,
       model: sdkInfo?.model || "",
       brand: sdkInfo?.brand || "",
+      osVersion: sdkInfo?.system || sdkInfo?.osVersion || "",
       platform: sdkInfo?.platform || nav.platform || "Mobile",
       screenWidth: traits.sw,
       screenHeight: traits.sh,
@@ -413,24 +433,41 @@ export async function getDeviceIdentity() {
     try {
       const he = await navigator.userAgentData.getHighEntropyValues(["model", "platformVersion"]);
       if (he?.model) {
-        sdkInfo = { ...sdkInfo, model: he.model };
+        sdkInfo = { ...sdkInfo, model: he.model, osVersion: sdkInfo.osVersion || he.platformVersion || "" };
       }
     } catch {
       // Trình duyệt từ chối hoặc không hỗ trợ
     }
   }
 
-  // Khôi phục persistent UUID từ IndexedDB nếu người dùng vừa xóa localStorage
+  // Khôi phục bền vững từ Zalo nativeStorage -> localStorage -> IndexedDB (KHÔNG mất khi đăng xuất)
   try {
-    const existingLs = localStorage.getItem(DEVICE_FP_KEY);
-    if (!existingLs) {
-      const idbVal = await readIndexedDbUuid();
-      if (idbVal) {
-        localStorage.setItem(DEVICE_FP_KEY, idbVal);
-      }
-    } else {
-      writeIndexedDbUuid(existingLs);
+    const [nativeId, legacyNativeId] = await Promise.all([
+      zmpAdapter.getStorage(DEVICE_ID_KEY).catch(() => null),
+      zmpAdapter.getStorage(DEVICE_FP_KEY).catch(() => null)
+    ]);
+    let resolvedId = String(nativeId || legacyNativeId || "").trim();
+    if (!resolvedId) {
+      resolvedId =
+        (typeof localStorage !== "undefined" &&
+          (localStorage.getItem(DEVICE_ID_KEY) || localStorage.getItem(DEVICE_FP_KEY))) ||
+        "";
     }
+    if (!resolvedId) {
+      resolvedId = (await readIndexedDbUuid()) || "";
+    }
+    if (!resolvedId) {
+      resolvedId = createRandomUuidV4();
+    }
+    await Promise.all([
+      zmpAdapter.setStorage(DEVICE_ID_KEY, resolvedId).catch(() => {}),
+      zmpAdapter.setStorage(DEVICE_FP_KEY, resolvedId).catch(() => {})
+    ]);
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(DEVICE_ID_KEY, resolvedId);
+      localStorage.setItem(DEVICE_FP_KEY, resolvedId);
+    }
+    writeIndexedDbUuid(resolvedId);
   } catch {
     // Bỏ qua nếu trình duyệt chặn storage
   }
@@ -442,6 +479,7 @@ export async function getDeviceIdentity() {
     identity.device_info.deviceName = asyncModelName;
     identity.device_info.model = sdkInfo?.model || identity.device_info.model;
     identity.device_info.brand = sdkInfo?.brand || identity.device_info.brand;
+    identity.device_info.osVersion = sdkInfo?.system || sdkInfo?.osVersion || identity.device_info.osVersion;
     try {
       localStorage.setItem(DEVICE_MODEL_CACHE_KEY, asyncModelName);
     } catch {

@@ -5,6 +5,7 @@ const { authenticateToken, requireAuth, requireRole } = require('../middlewares/
 
 // Public & Protected auth endpoints (Xác thực nội bộ duy nhất bằng Tài khoản / SĐT / Mã NV + Mật khẩu)
 router.post('/login', (req, res, next) => authController.login(req, res, next));
+router.post('/auth/login', (req, res, next) => authController.login(req, res, next));
 router.post('/admin/login', (req, res, next) => authController.adminLogin(req, res, next));
 router.post('/admin/register', authenticateToken, requireAuth, requireRole('admin'), (req, res, next) => authController.adminRegister(req, res, next));
 
@@ -13,6 +14,7 @@ router.get('/me', authenticateToken, requireAuth, (req, res, next) => authContro
 router.get('/auth/me', authenticateToken, requireAuth, (req, res, next) => authController.getProfile(req, res, next));
 router.get('/profile', authenticateToken, requireAuth, (req, res, next) => authController.getProfile(req, res, next));
 router.post('/change-password', authenticateToken, requireAuth, (req, res, next) => authController.changePassword(req, res, next));
+router.post('/auth/change-password', authenticateToken, requireAuth, (req, res, next) => authController.changePassword(req, res, next));
 router.put('/account/credentials', authenticateToken, requireAuth, (req, res, next) => authController.updateAccountCredentials(req, res, next));
 router.put('/account/theme', authenticateToken, requireAuth, (req, res, next) => authController.updateTheme(req, res, next));
 router.put('/account/preferences', authenticateToken, requireAuth, (req, res, next) => authController.updatePreferences(req, res, next));

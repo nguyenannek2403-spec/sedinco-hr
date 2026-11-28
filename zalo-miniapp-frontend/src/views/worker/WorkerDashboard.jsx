@@ -33,7 +33,8 @@ export default function WorkerDashboard({
   onLogout,
   showToast,
   onChangePasswordRequest,
-  onUserUpdated
+  onUserUpdated,
+  onDeviceWarning = null
 }) {
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState("checkin");
@@ -171,6 +172,7 @@ export default function WorkerDashboard({
             <OneTouchCheckIn
               currentUser={currentUser}
               showToast={showToast}
+              onDeviceWarning={onDeviceWarning}
               onCheckInSuccess={(res) => {
                 if (showToast && res?.autoShiftMsg) {
                   showToast(res.autoShiftMsg, "success");

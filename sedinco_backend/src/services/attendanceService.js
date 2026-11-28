@@ -305,7 +305,9 @@ class AttendanceService {
                         COALESCE(morning_worked_minutes, 0) as morning_worked_minutes,
                         COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
                         work_location_type, field_note, location_name, check_in_method,
-                        proxy_by
+                        check_in_device_id, check_in_device_name, check_in_device_warning,
+                        check_out_device_id, check_out_device_name, check_out_device_warning,
+                        device_warning_note, proxy_by
                  FROM attendance_logs
                  WHERE MONTH(record_date)=? AND YEAR(record_date)=?`,
                 [month, year]
@@ -356,6 +358,17 @@ class AttendanceService {
                             is_auto_accountant: rawDur === 'AUTO_ACCOUNTANT',
                             field_note: log.field_note || null,
                             location_name: log.location_name || null,
+                            check_in_device_id: log.check_in_device_id || null,
+                            check_in_device_name: log.check_in_device_name || null,
+                            check_in_device_warning: log.check_in_device_warning || null,
+                            check_out_device_id: log.check_out_device_id || null,
+                            check_out_device_name: log.check_out_device_name || null,
+                            check_out_device_warning: log.check_out_device_warning || null,
+                            device_warning_note: log.device_warning_note || null,
+                            has_device_warning: Boolean(
+                                (log.check_in_device_warning && log.check_in_device_warning !== 'NONE') ||
+                                (log.check_out_device_warning && log.check_out_device_warning !== 'NONE')
+                            ),
                             attendance_note: buildDailyAttendanceNote(log)
                         };
                     }
@@ -426,6 +439,8 @@ class AttendanceService {
                     COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
                     work_credit, duration_status,
                     is_suspicious, suspicious_reason, location_name, field_note, work_location_type, check_in_method,
+                    check_in_device_id, check_in_device_name, check_in_device_warning,
+                    check_out_device_id, check_out_device_name, check_out_device_warning, device_warning_note,
                     COALESCE(shift_type, 'FULL_DAY') as shift_type, proxy_by, proxy_note
              FROM attendance_logs
              WHERE employee_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
@@ -474,6 +489,8 @@ class AttendanceService {
                     COALESCE(afternoon_worked_minutes, 0) as afternoon_worked_minutes,
                     work_credit, duration_status,
                     is_suspicious, suspicious_reason, location_name, field_note, work_location_type, check_in_method,
+                    check_in_device_id, check_in_device_name, check_in_device_warning,
+                    check_out_device_id, check_out_device_name, check_out_device_warning, device_warning_note,
                     COALESCE(shift_type, 'FULL_DAY') as shift_type, proxy_by, proxy_note
              FROM attendance_logs
              WHERE employee_id = ? AND record_date = ?
@@ -1509,7 +1526,7 @@ class AttendanceService {
         };
     }
 
-    async checkInMultiFactor({ lat, lng, location_proof_token = null, zalo_location_token, zalo_access_token = '', qr_token = null, client_nonce = null, attendance_mode = null, image_snapshot, device_info, device_name = null, user_agent = '', is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, action_type = 'IN', current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
+    async checkInMultiFactor({ lat, lng, location_proof_token = null, zalo_location_token, zalo_access_token = '', qr_token = null, client_nonce = null, attendance_mode = null, image_snapshot, device_id = null, device_info, device_name = null, user_agent = '', is_fake_gps = false, is_fake_device = false, gps_accuracy = null, work_location_type = 'OFFICE', field_note = '', shift_type = null, action_type = 'IN', current_user = null, ip_address = '', currentTime = null, faultInjectionHook = null }) {
         if (!current_user || !current_user.ma_nv) {
             const error = new Error('Yêu cầu đăng nhập tài khoản nhân viên để chấm công!');
             error.statusCode = 401;
@@ -1524,7 +1541,7 @@ class AttendanceService {
         const timeStr = getVietnamTimeString(today);
 
         // 1. Kiểm tra tài khoản có bị tạm khóa không & lấy thông tin ràng buộc thiết bị + ca làm việc riêng
-        const empCheck = await query("SELECT ma_nv, ho_ten, role, is_locked, status, luong_cb, ngay_chinh_thuc, chuc_danh, bound_device_id, bound_device_name, device_binding_mode, known_devices_json, COALESCE(multi_device_alert, 0) as multi_device_alert, COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ?", [ma_nv]);
+        const empCheck = await query("SELECT ma_nv, ho_ten, role, is_locked, status, luong_cb, ngay_chinh_thuc, chuc_danh, bound_device_id, bound_device_name, primary_device_set_at, device_binding_mode, known_devices_json, COALESCE(multi_device_alert, 0) as multi_device_alert, COALESCE(shift_type, 'FULL_DAY') as shift_type, custom_start_time, custom_end_time FROM employees WHERE ma_nv = ?", [ma_nv]);
         if (!empCheck || empCheck.length === 0) {
             const error = new Error('Mã nhân viên không tồn tại trong hệ thống!');
             error.statusCode = 404;
@@ -1572,7 +1589,7 @@ class AttendanceService {
         }
 
         // Chuẩn hóa chuỗi định danh & tên thương mại thiết bị
-        const deviceIdentity = parseDeviceIdentity({ device_name, device_info, user_agent });
+        const deviceIdentity = parseDeviceIdentity({ device_id, device_name, device_info, user_agent });
         const deviceStr = deviceIdentity.deviceId || null;
 
         // Đọc cấu hình công ty & kiểm tra Wi-Fi nội bộ trước để hỗ trợ fallback mượt mà
@@ -1768,17 +1785,6 @@ class AttendanceService {
 
         if (is_fake_device === true || is_fake_device === 'true') {
             await triggerCriticalFraud('UNREGISTERED_DEVICE', `Phát hiện thiết bị giả mạo (${deviceStr || 'Unknown Device'})`);
-        }
-
-        if ((current_user.role === 'worker' || current_user.role === 'accountant') && deviceStr) {
-            await recordEmployeeDeviceActivity(emp, {
-                device_id: deviceStr,
-                device_name: deviceIdentity.deviceName,
-                device_info,
-                user_agent,
-                ip_address: cleanClientIp,
-                source: 'check_in'
-            });
         }
 
         // 4. Đối soát Geofence Đa chi nhánh (allowed_locations) + IP Wi-Fi Nội bộ + Chế độ Đi Công Trình (Tự do mọi nơi, không cần đăng ký trước)
@@ -2033,6 +2039,30 @@ class AttendanceService {
 
             const isCheckOut = requestedAction === 'OUT';
             const checkType = isCheckOut ? 'OUT' : 'IN';
+            let devActivity = null;
+            if ((current_user.role === 'worker' || current_user.role === 'accountant') && deviceStr) {
+                devActivity = await recordEmployeeDeviceActivity(emp, {
+                    device_id: deviceStr,
+                    device_name: deviceIdentity.deviceName,
+                    device_info,
+                    user_agent,
+                    ip_address: cleanClientIp,
+                    source: isCheckOut ? 'check_out' : 'check_in',
+                    action_type: isCheckOut ? 'CHECK_OUT' : 'CHECK_IN',
+                    dbQuery: txQuery
+                }).catch(() => null);
+            }
+            const devWarnType = devActivity?.warningType && devActivity.warningType !== 'NONE' ? devActivity.warningType : null;
+            const devWarnObj = devActivity?.deviceWarning || null;
+            const devNameSaved = devActivity?.parsed?.deviceName || deviceIdentity.deviceName || null;
+            const singleDevNote = devWarnObj
+                ? `${isCheckOut ? 'Ra ca' : 'Vào ca'}: ${devWarnObj.message}`.slice(0, 480)
+                : null;
+            const resolvedWarnNote = singleDevNote
+                ? (existingLog?.device_warning_note && isCheckOut
+                    ? `${existingLog.device_warning_note} | ${singleDevNote}`.slice(0, 500)
+                    : singleDevNote)
+                : (existingLog?.device_warning_note || null);
             let resolvedCheckInMode = isFieldWork ? 'FIELD_WORK' : 'OFFICE';
             let resolvedCheckOutMode = null;
             let resolvedWorkLocationType = finalLocationType;
@@ -2113,10 +2143,11 @@ class AttendanceService {
                         employee_id, record_date, status, ot_hours, check_in_time,
                         check_in_lat, check_in_lng, check_in_method, check_in_image,
                         is_suspicious, suspicious_reason, device_fingerprint,
+                        check_in_device_id, check_in_device_name, check_in_device_warning, device_warning_note,
                         location_source, is_low_trust, late_minutes, early_leave_minutes, work_hours,
                         morning_worked_minutes, afternoon_worked_minutes, work_credit, duration_status,
                         location_name, field_note, work_location_type, shift_type
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, NULL, NULL, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, NULL, NULL, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE
                         status = VALUES(status),
                         check_in_time = COALESCE(check_in_time, VALUES(check_in_time)),
@@ -2127,6 +2158,10 @@ class AttendanceService {
                         is_suspicious = CASE WHEN VALUES(is_suspicious) = 1 THEN 1 ELSE is_suspicious END,
                         suspicious_reason = COALESCE(VALUES(suspicious_reason), suspicious_reason),
                         device_fingerprint = COALESCE(VALUES(device_fingerprint), device_fingerprint),
+                        check_in_device_id = COALESCE(VALUES(check_in_device_id), check_in_device_id),
+                        check_in_device_name = COALESCE(VALUES(check_in_device_name), check_in_device_name),
+                        check_in_device_warning = COALESCE(VALUES(check_in_device_warning), check_in_device_warning),
+                        device_warning_note = COALESCE(VALUES(device_warning_note), device_warning_note),
                         location_source = COALESCE(VALUES(location_source), location_source),
                         late_minutes = VALUES(late_minutes),
                         location_name = VALUES(location_name),
@@ -2147,6 +2182,10 @@ class AttendanceService {
                     is_suspicious ? 1 : 0,
                     suspicious_reason || null,
                     deviceStr,
+                    deviceStr,
+                    devNameSaved,
+                    devWarnType,
+                    resolvedWarnNote,
                     location_source,
                     is_low_trust,
                     late_minutes,
@@ -2248,7 +2287,11 @@ class AttendanceService {
                         check_in_image = COALESCE(?, check_in_image),
                         is_suspicious = CASE WHEN ? = 1 THEN 1 ELSE is_suspicious END,
                         suspicious_reason = COALESCE(?, suspicious_reason),
-                        device_fingerprint = COALESCE(?, device_fingerprint)
+                        device_fingerprint = COALESCE(?, device_fingerprint),
+                        check_out_device_id = COALESCE(?, check_out_device_id),
+                        check_out_device_name = COALESCE(?, check_out_device_name),
+                        check_out_device_warning = COALESCE(?, check_out_device_warning),
+                        device_warning_note = COALESCE(?, device_warning_note)
                     WHERE employee_id = ? AND record_date = ?
                 `;
                 await txQuery(updateOutSql, [
@@ -2269,6 +2312,10 @@ class AttendanceService {
                     is_suspicious ? 1 : 0,
                     suspicious_reason || null,
                     deviceStr,
+                    deviceStr,
+                    devNameSaved,
+                    devWarnType,
+                    resolvedWarnNote,
                     ma_nv,
                     targetRecordDate
                 ]);
@@ -2340,7 +2387,10 @@ class AttendanceService {
                 resolvedCheckInMode,
                 resolvedCheckOutMode,
                 resolvedWorkLocationType,
-                resolvedFieldNote
+                resolvedFieldNote,
+                deviceId: devActivity?.parsed?.deviceId || deviceStr || null,
+                deviceName: devNameSaved,
+                deviceWarning: devWarnObj
             };
         });
 
@@ -2364,7 +2414,10 @@ class AttendanceService {
             resolvedCheckInMode,
             resolvedCheckOutMode,
             resolvedWorkLocationType,
-            resolvedFieldNote
+            resolvedFieldNote,
+            deviceId: recordedDeviceId,
+            deviceName: recordedDeviceName,
+            deviceWarning: recordedDeviceWarning
         } = txOutcome;
 
         const isProbationWorker = Boolean(
@@ -2418,6 +2471,7 @@ class AttendanceService {
             success: true,
             message: detailedMessage,
             server_time: timeStr,
+            device_warning: recordedDeviceWarning || null,
             data: {
                 employee_id: ma_nv,
                 record_date: targetRecordDate,
@@ -2451,7 +2505,10 @@ class AttendanceService {
                 is_suspicious,
                 suspicious_reason,
                 location_source,
-                is_low_trust
+                is_low_trust,
+                device_id: recordedDeviceId || null,
+                device_name: recordedDeviceName || null,
+                device_warning: recordedDeviceWarning || null
             }
         };
     }

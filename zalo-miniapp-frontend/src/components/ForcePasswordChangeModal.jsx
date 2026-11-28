@@ -13,6 +13,7 @@ export default function ForcePasswordChangeModal({
     maNv,
     canClose = false,
     onClose,
+    onSkip = null,
     showToast,
     onPasswordChanged
 }) {
@@ -85,12 +86,12 @@ export default function ForcePasswordChangeModal({
             return;
         }
         if (wantsPasswordChange) {
-            if (!newPassword || newPassword.length < 6) {
-                setError('Mật khẩu mới phải có tối thiểu 6 ký tự!');
+            if (!newPassword || newPassword.trim().length < 1) {
+                setError('Mật khẩu mới không được để trống!');
                 return;
             }
-            if (newPassword === '123456') {
-                setError('Không được sử dụng lại mật khẩu mặc định (123456)!');
+            if (newPassword === oldPassword) {
+                setError('Mật khẩu mới phải khác mật khẩu hiện tại / ban đầu!');
                 return;
             }
             if (newPassword !== confirmPassword) {
@@ -152,7 +153,7 @@ export default function ForcePasswordChangeModal({
             closeOnBackdrop={Boolean(canClose)}
             disableClose={!canClose || loading}
             showCloseX={Boolean(canClose)}
-            title={canClose ? 'Tài Khoản & Bảo Mật' : 'Bắt Buộc Đổi Mật Khẩu'}
+            title={canClose ? 'Tài Khoản & Bảo Mật' : 'Đổi Mật Khẩu Mới'}
             subtitle={`${currentUser?.ho_ten || ''} (${currentUser?.login_username || maNv || ''})`.trim()}
             maxWidthClass="max-w-md"
             footer={
@@ -165,8 +166,23 @@ export default function ForcePasswordChangeModal({
                         loading={loading}
                         loadingText="Đang lưu cập nhật..."
                     >
-                        {canClose ? 'Lưu Thông Tin Tài Khoản' : 'Lưu Mật Khẩu & Bắt Đầu Sử Dụng'}
+                        {canClose ? 'Lưu Thông Tin Tài Khoản' : 'Lưu mật khẩu mới'}
                     </AppButton>
+                    {!canClose && typeof onSkip === 'function' && (
+                        <button
+                            type="button"
+                            data-testid="skip-password-change-btn"
+                            disabled={loading}
+                            onClick={() => {
+                                if (!submitInFlightRef.current) {
+                                    onSkip();
+                                }
+                            }}
+                            className="w-full min-h-[42px] px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                        >
+                            Bỏ qua, đổi sau
+                        </button>
+                    )}
                     {canClose && (
                         <AppButton
                             variant="secondary"
@@ -188,25 +204,25 @@ export default function ForcePasswordChangeModal({
                         </div>
                         <div className="min-w-0">
                             <span className="block text-xs font-extrabold uppercase tracking-wider text-[#B80035] dark:text-rose-400">
-                                SEDINCO KNOX ACCOUNT SECURITY
+                                BẢO MẬT TÀI KHOẢN SEDINCO
                             </span>
-                            <p className="text-xs sm:text-sm text-[#111C2D] dark:text-slate-200 font-semibold leading-snug mt-0.5">
+                            <p className="text-xs sm:text-sm text-[#111C2D] dark:text-slate-200 font-semibold leading-snug mt-0.5 whitespace-normal break-words">
                                 {canClose
                                     ? <>Tùy chỉnh <strong>Tên đăng nhập (SĐT)</strong> và <strong>Mật khẩu</strong> cho <strong>{currentUser?.ho_ten || maNv}</strong>.</>
-                                    : <>Tài khoản <strong>{maNv}</strong> đang dùng mật khẩu mặc định. Vui lòng đổi mật khẩu mới để tiếp tục.</>}
+                                    : <>Tài khoản <strong>{maNv}</strong> đang dùng mật khẩu ban đầu. Bạn có thể đổi ngay hoặc bấm Bỏ qua để vào làm việc.</>}
                             </p>
                         </div>
                     </div>
                     <div className="sedinco-ticket-cutout">
                         <div className="w-full border-t-2 border-dashed border-slate-200 dark:border-slate-700" />
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                        • Mật khẩu mới phải từ <strong>6 ký tự trở lên</strong> và không trùng mật khẩu mặc định <strong>123456</strong>.
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-normal break-words">
+                        Nhập mật khẩu dễ nhớ tùy ý (có thể chỉ cần 1 chữ số hoặc chữ cái, miễn khác mật khẩu ban đầu).
                     </p>
                 </div>
 
                 {error && (
-                    <div className="p-3 bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 text-xs font-semibold rounded-xl border border-rose-200 dark:border-rose-600">
+                    <div className="p-3 bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 text-xs font-semibold rounded-xl border border-rose-200 dark:border-rose-600 whitespace-normal break-words">
                         {error}
                     </div>
                 )}
@@ -254,14 +270,25 @@ export default function ForcePasswordChangeModal({
                         />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-[#111C2D] dark:text-slate-200 block mb-1">
-                            Mật khẩu mới {canClose ? '(bỏ trống nếu giữ nguyên mật khẩu)' : '(tối thiểu 6 ký tự)'}
-                        </label>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                            <label className="text-xs font-bold text-[#111C2D] dark:text-slate-200 block">
+                                Mật khẩu mới {canClose ? '(bỏ trống nếu giữ nguyên)' : '(tùy ý, từ 1 ký tự)'}
+                            </label>
+                            <button
+                                type="button"
+                                data-testid="toggle-show-password-btn"
+                                onClick={() => setShowPasswords((v) => !v)}
+                                className="px-2 py-1 rounded-lg text-[11px] font-bold text-[#0051CA] dark:text-sky-300 hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center gap-1 cursor-pointer shrink-0"
+                            >
+                                {showPasswords ? <EyeOff size={14} /> : <Eye size={14} />}
+                                <span>{showPasswords ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}</span>
+                            </button>
+                        </div>
                         <input
                             type={inputType}
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder={canClose ? 'Nhập nếu muốn đổi mật khẩu mới' : 'Thiết lập mật khẩu mới an toàn'}
+                            placeholder={canClose ? 'Nhập nếu muốn đổi mật khẩu mới' : 'VD: 1, 88, tenban...'}
                             className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-[#F0F3FF]/60 dark:bg-slate-800 text-base text-[#111C2D] dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48] focus:bg-white dark:focus:bg-slate-900"
                         />
                     </div>
@@ -277,14 +304,6 @@ export default function ForcePasswordChangeModal({
                             className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-[#F0F3FF]/60 dark:bg-slate-800 text-base text-[#111C2D] dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48] focus:bg-white dark:focus:bg-slate-900"
                         />
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => setShowPasswords((v) => !v)}
-                        className="min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#F0F3FF] hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#111C2D] dark:text-slate-100 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
-                    >
-                        {showPasswords ? <EyeOff size={15} /> : <Eye size={15} />}
-                        <span>{showPasswords ? 'Ẩn mật khẩu' : 'Hiện mật khẩu để kiểm tra'}</span>
-                    </button>
                 </div>
             </form>
         </AppModal>

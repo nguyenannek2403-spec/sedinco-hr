@@ -608,13 +608,23 @@ export default function WorkerProfileTab({
           onClick={onChangePasswordRequest}
           className="perf-list-item w-full p-3 flex items-center justify-between text-left hover:bg-[#F0F3FF]/60 dark:hover:bg-slate-800/80 rounded-xl transition-colors group cursor-pointer"
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
               <Lock className="w-4 h-4" />
             </div>
-            <span className="text-sm font-bold text-[#111C2D] dark:text-white">
-              Tài khoản &amp; Mật khẩu
-            </span>
+            <div className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-[#111C2D] dark:text-white">
+                Tài khoản &amp; Mật khẩu
+              </span>
+              {Boolean(profileUser?.must_change_password) && (
+                <span
+                  data-testid="profile-temp-pw-reminder"
+                  className="block text-[11px] font-semibold text-amber-700 dark:text-amber-300 mt-0.5 whitespace-normal break-words"
+                >
+                  Đang dùng mật khẩu tạm — chạm để đổi khi rảnh
+                </span>
+              )}
+            </div>
           </div>
           <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors shrink-0" />
         </button>

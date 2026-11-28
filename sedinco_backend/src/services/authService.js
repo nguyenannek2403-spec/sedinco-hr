@@ -12,6 +12,7 @@ const {
 } = require('../middlewares/authMiddleware');
 const {
     recordEmployeeDeviceActivity,
+    parseDeviceIdentity,
     sanitizeSingleDeviceModelName,
     safeParseKnownDevices
 } = require('../utils/deviceIdentityHelper');
@@ -21,6 +22,12 @@ function attachDbDeviceState(safeTarget, rawEmp, isPureAdmin) {
     if (isPureAdmin) {
         safeTarget.bound_device_id = null;
         safeTarget.bound_device_name = null;
+        safeTarget.primary_device_id = null;
+        safeTarget.primary_device_name = null;
+        safeTarget.primary_device_set_at = null;
+        safeTarget.last_login_device_id = null;
+        safeTarget.last_login_device_name = null;
+        safeTarget.last_login_at = null;
         safeTarget.current_device = null;
         safeTarget.known_devices = [];
         safeTarget.device_history = [];
@@ -38,8 +45,14 @@ function attachDbDeviceState(safeTarget, rawEmp, isPureAdmin) {
         ? sanitizeSingleDeviceModelName(deviceHistory[deviceHistory.length - 1].device_name)
         : null;
     safeTarget.bound_device_name = dbBoundName;
+    safeTarget.primary_device_id = rawEmp?.bound_device_id || null;
+    safeTarget.primary_device_name = dbBoundName;
+    safeTarget.primary_device_set_at = rawEmp?.primary_device_set_at || null;
+    safeTarget.last_login_device_id = rawEmp?.last_login_device_id || null;
+    safeTarget.last_login_device_name = rawEmp?.last_login_device_name || null;
+    safeTarget.last_login_at = rawEmp?.last_login_at || null;
     safeTarget.device_history = deviceHistory;
-    safeTarget.current_device = dbBoundName || latestHistName || null;
+    safeTarget.current_device = safeTarget.last_login_device_name || dbBoundName || latestHistName || null;
     return safeTarget;
 }
 const {
@@ -344,7 +357,11 @@ class AuthService {
             );
             if (adminRows && adminRows.length > 0) {
                 return await this.adminLogin(adminRows[0].username, password, ip_address, {
-                    skipPreCheck: adminRows[0].username === cleanId
+                    skipPreCheck: adminRows[0].username === cleanId,
+                    device_id,
+                    device_name,
+                    device_info,
+                    user_agent
                 });
             }
 
@@ -418,14 +435,16 @@ class AuthService {
         const role = resolveUserRole(emp);
         const isPureAdmin = role === 'admin';
 
+        let devActivity = null;
         if (!isPureAdmin) {
-            await recordEmployeeDeviceActivity(emp, {
+            devActivity = await recordEmployeeDeviceActivity(emp, {
                 device_id,
                 device_name,
                 device_info,
                 user_agent,
                 ip_address: normalizedIp,
-                source: 'login'
+                source: 'login',
+                action_type: 'LOGIN'
             });
         }
 
@@ -457,25 +476,34 @@ class AuthService {
             actor_role: role,
             action: 'LOGIN_SUCCESS',
             resource: 'auth',
-            details: { method: 'employee_login', device_id: device_id || null, bcrypt_upgraded: !isBcryptHash(storedPass) },
+            details: {
+                method: 'employee_login',
+                device_id: devActivity?.parsed?.deviceId || device_id || null,
+                device_name: devActivity?.parsed?.deviceName || device_name || null,
+                device_warning: devActivity?.warningType || 'NONE',
+                bcrypt_upgraded: !isBcryptHash(storedPass)
+            },
             ip_address
         });
 
         // Kiểm tra cờ must_change_password
         const mustChange = Boolean(emp.must_change_password);
+        const deviceWarning = devActivity?.deviceWarning || null;
 
         return { 
             success: true, 
+            device_warning: deviceWarning,
             data: {
                 ...safeEmp,
                 token,
                 role,
-                must_change_password: mustChange
+                must_change_password: mustChange,
+                device_warning: deviceWarning
             }
         };
     }
 
-    async adminLogin(username, password, ip_address = '', { skipPreCheck = false } = {}) {
+    async adminLogin(username, password, ip_address = '', { skipPreCheck = false, device_id = null, device_name = null, device_info = null, user_agent = '' } = {}) {
         const cleanAdminId = String(username || '').trim();
         if (!cleanAdminId || !password) {
             return { success: false, message: GENERIC_LOGIN_ERROR };
@@ -567,12 +595,26 @@ class AuthService {
             token_version: Number(admin.token_version || 1)
         });
 
+        const parsedAdminDev = parseDeviceIdentity({ device_id, device_name, device_info, user_agent });
+        if (parsedAdminDev.deviceId) {
+            await recordEmployeeDeviceActivity({ username: admin.username, ho_ten: admin.ho_ten, role: 'admin' }, {
+                device_id: parsedAdminDev.deviceId,
+                device_name: parsedAdminDev.deviceName,
+                device_info,
+                user_agent,
+                ip_address: normalizedIp,
+                source: 'login',
+                action_type: 'LOGIN',
+                notify_admin: false
+            }).catch(() => {});
+        }
+
         await logAuditEvent({
             actor_id: admin.username,
             actor_role: 'admin',
             action: 'ADMIN_LOGIN_SUCCESS',
             resource: 'auth',
-            details: { method: 'admin_login' },
+            details: { method: 'admin_login', device_id: parsedAdminDev.deviceId || null },
             ip_address
         });
 
@@ -694,6 +736,13 @@ class AuthService {
             const policyCheck = validatePasswordPolicy(new_password, ma_nv);
             if (!policyCheck.valid) {
                 return { success: false, statusCode: 400, message: policyCheck.message };
+            }
+            if ((old_password && new_password === old_password) || await comparePasswordAsync(new_password, currentPass)) {
+                return {
+                    success: false,
+                    statusCode: 400,
+                    message: 'Mật khẩu mới phải khác mật khẩu hiện tại / ban đầu!'
+                };
             }
             hashedNew = hashPassword(new_password);
         }
@@ -985,19 +1034,31 @@ class AuthService {
         };
     }
 
-    async getProfile(current_user) {
+    async getProfile(current_user, deviceCtx = {}) {
         if (!current_user) return null;
         if (current_user.ma_nv) {
             const rows = await query(`SELECT ${SAFE_EMPLOYEE_FIELDS} FROM employees WHERE ma_nv = ? LIMIT 1`, [current_user.ma_nv]);
             if (rows && rows.length > 0) {
                 const emp = rows[0];
                 const role = resolveUserRole(emp);
+                if (role !== 'admin' && deviceCtx && deviceCtx.device_id) {
+                    await recordEmployeeDeviceActivity(emp, {
+                        device_id: deviceCtx.device_id,
+                        device_name: deviceCtx.device_name || null,
+                        user_agent: deviceCtx.user_agent || '',
+                        ip_address: deviceCtx.ip_address || '',
+                        source: 'session_sync',
+                        action_type: 'SESSION_SYNC',
+                        notify_admin: false
+                    }).catch(() => {});
+                }
                 const safe = sanitizeUserResponse(emp);
                 safe.role = role;
                 safe.phone = emp.phone || emp.dien_thoai || null;
                 safe.login_username = emp.login_username || emp.phone || emp.ma_nv;
                 safe.theme_preference = emp.theme_preference === 'dark' ? 'dark' : 'light';
                 safe.font_scale = normalizeFontScale(emp.font_scale);
+                safe.must_change_password = Boolean(emp.must_change_password);
                 safe.bank_code = emp.bank_code || null;
                 safe.bank_name = emp.bank_name || null;
                 safe.bank_account_number = emp.bank_account_number || null;

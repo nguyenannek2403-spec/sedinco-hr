@@ -44,6 +44,11 @@ async function initDatabase() {
         await query("ALTER TABLE employees ADD COLUMN known_devices_json TEXT NULL").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN multi_device_alert TINYINT(1) DEFAULT 0").catch(() => {});
         await query("ALTER TABLE employees ADD COLUMN token_version INT NOT NULL DEFAULT 1").catch(() => {});
+        // V70: Persistent Primary Device timestamps & Last Login Device tracking (reusing bound_device_id/name)
+        await query("ALTER TABLE employees ADD COLUMN primary_device_set_at DATETIME NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN last_login_device_id VARCHAR(128) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN last_login_device_name VARCHAR(255) NULL").catch(() => {});
+        await query("ALTER TABLE employees ADD COLUMN last_login_at DATETIME NULL").catch(() => {});
         
         // Migrate dữ liệu role ban đầu từ chức danh (CHỈ thực hiện một lần khi role chưa được thiết lập)
         await query(`
@@ -161,7 +166,31 @@ async function initDatabase() {
         await query("ALTER TABLE attendance_logs ADD COLUMN afternoon_worked_minutes INT DEFAULT 0").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN work_credit DECIMAL(4,2) DEFAULT NULL").catch(() => {});
         await query("ALTER TABLE attendance_logs ADD COLUMN duration_status VARCHAR(40) DEFAULT NULL").catch(() => {});
+        // V70: Separate check-in / check-out device tracking & soft warning metadata
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_in_device_id VARCHAR(128) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_in_device_name VARCHAR(255) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_in_device_warning VARCHAR(64) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_out_device_id VARCHAR(128) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_out_device_name VARCHAR(255) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN check_out_device_warning VARCHAR(64) NULL").catch(() => {});
+        await query("ALTER TABLE attendance_logs ADD COLUMN device_warning_note VARCHAR(500) NULL").catch(() => {});
         await query("CREATE INDEX idx_att_record_date ON attendance_logs (record_date)").catch(() => {});
+
+        // V70: Detailed device history & anomaly log table (user_device_logs)
+        await query(`CREATE TABLE IF NOT EXISTS user_device_logs (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            employee_id VARCHAR(20) NOT NULL,
+            device_id VARCHAR(128) NOT NULL,
+            device_name VARCHAR(255) NULL,
+            action_type VARCHAR(20) NOT NULL DEFAULT 'LOGIN',
+            warning_type VARCHAR(40) NOT NULL DEFAULT 'NONE',
+            shared_with_user_id VARCHAR(20) NULL,
+            shared_with_user_label VARCHAR(255) NULL,
+            ip_address VARCHAR(64) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_udl_emp_created (employee_id, created_at),
+            INDEX idx_udl_dev_created (device_id, created_at)
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
 
         // 5. Bảng Đơn từ (requests)
         await query(`CREATE TABLE IF NOT EXISTS requests (

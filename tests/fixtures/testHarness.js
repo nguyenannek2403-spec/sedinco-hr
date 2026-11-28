@@ -134,6 +134,7 @@ class TestHarness {
         await query("DELETE FROM departments WHERE name LIKE 'TEST_DEPT_%'").catch(() => {});
         await query("DELETE FROM public_holidays WHERE holiday_name LIKE 'TEST_HOL_%'").catch(() => {});
         await query("DELETE FROM attendance_logs WHERE employee_id LIKE 'TEST_%' OR record_date >= '2090-01-01'").catch(() => {});
+        await query("DELETE FROM user_device_logs WHERE employee_id LIKE 'TEST_%'").catch(() => {});
         await query("DELETE FROM attendance WHERE ma_nv LIKE 'TEST_%' OR nam >= 2090").catch(() => {});
         await query("DELETE FROM requests WHERE employee_id LIKE 'TEST_%' OR request_date >= '2090-01-01' OR reason LIKE '[TEST]%'").catch(() => {});
         await query("DELETE FROM ot_registrations WHERE employee_id LIKE 'TEST_%' OR work_date >= '2090-01-01' OR reason LIKE '[TEST]%'").catch(() => {});

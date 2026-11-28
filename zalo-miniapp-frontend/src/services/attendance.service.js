@@ -68,6 +68,8 @@ export async function executeSmartAttendanceFlow({
   const isFakeGps = gpsGranted ? locResult.data.isMock : false;
   const locationToken = gpsGranted ? locResult.data.locationToken : "";
 
+  const devIdentity = await getDeviceIdentity();
+
   // Step 3: POST /api/attendance/precheck — Giải mã zalo_location_token DUY NHẤT 1 LẦN và cấp location_proof_token
   let precheck = null;
   try {
@@ -79,7 +81,9 @@ export async function executeSmartAttendanceFlow({
         zalo_location_token: locationToken || undefined,
         zalo_access_token: accessToken || undefined,
         work_location_type: workLocationType,
-        field_note: resolvedFieldNote || undefined
+        field_note: resolvedFieldNote || undefined,
+        device_id: devIdentity.device_id,
+        device_name: devIdentity.device_model_name
       },
       { cancelPrevious: false }
     );
@@ -119,7 +123,6 @@ export async function executeSmartAttendanceFlow({
   }
 
   // Step 4: Gọi POST /api/attendance/check-in hoặc POST /api/attendance/check-out với location_proof_token
-  const devIdentity = await getDeviceIdentity();
   const idempotencyKey = generateIdempotencyKey(normalizedAction === "OUT" ? "checkout" : "checkin");
   const clientNonce =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -144,6 +147,7 @@ export async function executeSmartAttendanceFlow({
       lng: resolvedLng,
       location_proof_token: precheck.location_proof_token || undefined,
       client_nonce: clientNonce,
+      device_id: devIdentity.device_id,
       device_name: devIdentity.device_model_name,
       device_info: devIdentity.device_info,
       gps_accuracy: gpsAccuracy,

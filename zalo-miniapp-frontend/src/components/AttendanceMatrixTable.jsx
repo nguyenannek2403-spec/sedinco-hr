@@ -849,11 +849,28 @@ export default function AttendanceMatrixTable({
                               TĐ
                             </span>
                           )}
-                          {hasLateEarly && (
-                            <span
-                              aria-hidden="true"
-                              className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500"
-                            />
+                          {(hasLateEarly || (effectiveRole === ROLES.ADMIN && detail?.has_device_warning)) && (
+                            <span className="absolute top-1 right-1 flex items-center gap-0.5">
+                              {hasLateEarly && (
+                                <span
+                                  aria-hidden="true"
+                                  className="w-2 h-2 rounded-full bg-amber-500"
+                                />
+                              )}
+                              {effectiveRole === ROLES.ADMIN && detail?.has_device_warning && (
+                                <span
+                                  data-testid={`att-cal-device-warn-${d}`}
+                                  aria-label={detail.device_warning_note || "Cảnh báo thiết bị"}
+                                  title={detail.device_warning_note || "Cảnh báo thiết bị"}
+                                  className={`w-2 h-2 rounded-full ${
+                                    String(detail.check_in_device_warning || "").includes("SHARED") ||
+                                    String(detail.check_out_device_warning || "").includes("SHARED")
+                                      ? "bg-rose-500"
+                                      : "bg-orange-500"
+                                  }`}
+                                />
+                              )}
+                            </span>
                           )}
                           <div className="text-xs font-extrabold text-slate-700 dark:text-slate-200 leading-none">
                             {d}
@@ -914,7 +931,22 @@ export default function AttendanceMatrixTable({
             <div className="p-4 sm:p-5 space-y-4 text-sm text-slate-800 dark:text-slate-100">
               {(() => {
                 const cellDetail = editingCell.emp?.dayDetails?.[editingCell.dayNum - 1];
-                if (!cellDetail?.attendance_note && !cellDetail?.check_in_time && !cellDetail?.field_note) return null;
+                const hasDeviceInfo =
+                  effectiveRole === ROLES.ADMIN &&
+                  Boolean(
+                    cellDetail?.check_in_device_name ||
+                      cellDetail?.check_out_device_name ||
+                      cellDetail?.device_warning_note ||
+                      cellDetail?.has_device_warning
+                  );
+                if (
+                  !cellDetail?.attendance_note &&
+                  !cellDetail?.check_in_time &&
+                  !cellDetail?.field_note &&
+                  !hasDeviceInfo
+                ) {
+                  return null;
+                }
                 const isWarn = /vào muộn|ra sớm|quên check-out|quá ngắn/i.test(
                   cellDetail?.attendance_note || ""
                 );
@@ -984,7 +1016,40 @@ export default function AttendanceMatrixTable({
                       </div>
                     )}
                     {cellDetail.attendance_note && (
-                      <div className="font-semibold">Chi tiết ca: {cellDetail.attendance_note}</div>
+                      <div className="font-semibold whitespace-normal break-words">
+                        Chi tiết ca: {cellDetail.attendance_note}
+                      </div>
+                    )}
+                    {hasDeviceInfo && (
+                      <div className="pt-2 mt-1 border-t border-black/10 dark:border-white/10 space-y-1.5">
+                        {cellDetail.check_in_device_name && (
+                          <div
+                            data-testid="att-detail-checkin-device"
+                            className="whitespace-normal break-words"
+                          >
+                            📱 Thiết bị Vào ca:{" "}
+                            <span className="font-bold">{cellDetail.check_in_device_name}</span>
+                          </div>
+                        )}
+                        {cellDetail.check_out_device_name && (
+                          <div
+                            data-testid="att-detail-checkout-device"
+                            className="whitespace-normal break-words"
+                          >
+                            📱 Thiết bị Tan ca:{" "}
+                            <span className="font-bold">{cellDetail.check_out_device_name}</span>
+                          </div>
+                        )}
+                        {(cellDetail.device_warning_note || cellDetail.has_device_warning) && (
+                          <div
+                            data-testid="att-detail-device-warning"
+                            className="font-bold text-rose-700 dark:text-rose-200 bg-rose-50 dark:bg-rose-950/60 px-2.5 py-1.5 rounded-lg border border-rose-200 dark:border-rose-700/60 whitespace-normal break-words"
+                          >
+                            ⚠️ Cảnh báo thiết bị:{" "}
+                            {cellDetail.device_warning_note || "Chấm công từ thiết bị khác / dùng chung"}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 );

@@ -145,6 +145,17 @@ function resolveFriendlyDeviceName(input = {}) {
     const safeInput = input && typeof input === 'object' ? input : {};
     const { device_name = '', device_info = null, user_agent = '' } = safeInput;
     const infoObj = device_info && typeof device_info === 'object' ? device_info : safeInput;
+    const ua = String(infoObj.userAgent || user_agent || '');
+    const rawOsVer = String(infoObj.osVersion || infoObj.system || '').trim();
+    const iosUaVerMatch = ua.match(/(?:CPU\s+)?(?:iPhone\s+)?OS\s+([\d_]+)/i);
+    const androidUaVerMatch = ua.match(/Android\s+([\d.]+)/i);
+    const detectedIosVer = rawOsVer && /iOS/i.test(rawOsVer)
+        ? rawOsVer.replace(/^iOS\s*/i, '').trim()
+        : (iosUaVerMatch ? iosUaVerMatch[1].replace(/_/g, '.') : (rawOsVer || ''));
+    const detectedAndroidVer = rawOsVer && /Android/i.test(rawOsVer)
+        ? rawOsVer.replace(/^Android\s*/i, '').trim()
+        : (androidUaVerMatch ? androidUaVerMatch[1] : (rawOsVer || ''));
+
     const explicit = String(
         device_name ||
         infoObj.deviceName || infoObj.device_name || infoObj.deviceModel || ''
@@ -153,17 +164,20 @@ function resolveFriendlyDeviceName(input = {}) {
         return sanitizeSingleDeviceModelName(explicit);
     }
 
-    const ua = String(infoObj.userAgent || user_agent || '');
     const rawModel = String(infoObj.model || '').trim();
     if (rawModel && APPLE_HARDWARE_CODES[rawModel]) {
-        return APPLE_HARDWARE_CODES[rawModel];
+        const mapped = APPLE_HARDWARE_CODES[rawModel];
+        return detectedIosVer ? `${mapped} (iOS ${detectedIosVer})`.slice(0, 120) : mapped;
     }
 
     // 1. Khớp iOS theo mã máy cụ thể hoặc kích thước màn hình + pixel ratio -> 1 model đại diện duy nhất
     if (/iPhone|iPad|iPod/i.test(ua) || /iOS/i.test(String(infoObj.platform || ''))) {
-        if (/iPad/i.test(ua) || /iPad/i.test(rawModel)) return 'Apple iPad';
+        if (/iPad/i.test(ua) || /iPad/i.test(rawModel)) {
+            return detectedIosVer ? `Apple iPad (iOS ${detectedIosVer})` : 'Apple iPad';
+        }
         if (rawModel && /iPhone\s*\d+/i.test(rawModel) && !rawModel.includes(',')) {
-            return sanitizeSingleDeviceModelName(rawModel);
+            const clean = sanitizeSingleDeviceModelName(rawModel);
+            return detectedIosVer && !clean.includes('iOS') ? `${clean} (iOS ${detectedIosVer})`.slice(0, 120) : clean;
         }
         const sw = Number(infoObj.screenWidth || 0);
         const sh = Number(infoObj.screenHeight || 0);
@@ -172,9 +186,12 @@ function resolveFriendlyDeviceName(input = {}) {
             const minSide = Math.min(sw, sh);
             const maxSide = Math.max(sw, sh);
             const key = `${minSide}x${maxSide}@${dpr}`;
-            if (IOS_SCREEN_MODEL_MAP[key]) return IOS_SCREEN_MODEL_MAP[key];
+            if (IOS_SCREEN_MODEL_MAP[key]) {
+                const m = IOS_SCREEN_MODEL_MAP[key];
+                return detectedIosVer ? `${m} (iOS ${detectedIosVer})`.slice(0, 120) : m;
+            }
         }
-        return UNKNOWN_DEVICE_LABEL;
+        return detectedIosVer ? `iPhone (iOS ${detectedIosVer})` : UNKNOWN_DEVICE_LABEL;
     }
 
     // 2. Android brand + model cụ thể
@@ -183,19 +200,23 @@ function resolveFriendlyDeviceName(input = {}) {
     const candidateModel = rawModel || (uaModelMatch ? uaModelMatch[1].replace(/\s*Build\/.*$/i, '').trim() : '');
 
     if (candidateModel && !/^K$/i.test(candidateModel)) {
+        const suffix = detectedAndroidVer ? ` (Android ${detectedAndroidVer})` : '';
         for (const p of ANDROID_MODEL_PATTERNS) {
             if (p.re.test(candidateModel)) {
-                return sanitizeSingleDeviceModelName(p.name || `${p.prefix} (${candidateModel})`);
+                const base = sanitizeSingleDeviceModelName(p.name || `${p.prefix} ${candidateModel}`);
+                return `${base}${suffix}`.slice(0, 120);
             }
         }
         if (rawBrand && !candidateModel.toLowerCase().startsWith(rawBrand.toLowerCase())) {
-            return sanitizeSingleDeviceModelName(`${rawBrand} ${candidateModel}`);
+            return sanitizeSingleDeviceModelName(`${rawBrand} ${candidateModel}${suffix}`);
         }
-        return sanitizeSingleDeviceModelName(candidateModel);
+        return sanitizeSingleDeviceModelName(`${candidateModel}${suffix}`);
     }
 
-    if (/Macintosh|Mac OS/i.test(ua)) return 'Máy tính Mac';
-    if (/Windows/i.test(ua)) return 'Máy tính Windows';
+    if (/Android/i.test(ua)) return detectedAndroidVer ? `Android (Android ${detectedAndroidVer})` : 'Thiết bị Android';
+    if (/Macintosh|Mac OS/i.test(ua)) return 'Trình duyệt macOS';
+    if (/Windows/i.test(ua)) return 'Trình duyệt Windows';
+    if (/Linux/i.test(ua)) return 'Trình duyệt Linux';
     return UNKNOWN_DEVICE_LABEL;
 }
 
@@ -243,12 +264,60 @@ function safeParseKnownDevices(rawJson) {
     }
 }
 
+function formatVnDateTimeIso(dateVal) {
+    if (!dateVal) return null;
+    const d = dateVal instanceof Date ? dateVal : new Date(dateVal);
+    if (Number.isNaN(d.getTime())) return String(dateVal);
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).formatToParts(d);
+    const get = (t) => (fmt.find((p) => p.type === t) || {}).value || '00';
+    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}+07:00`;
+}
+
+function buildDeviceWarningPayload({
+    warningType = 'NONE',
+    deviceId = '',
+    deviceName = '',
+    primaryDeviceName = '',
+    sharedPeer = null
+} = {}) {
+    if (!warningType || warningType === 'NONE') return null;
+    const cleanDev = deviceName || UNKNOWN_DEVICE_LABEL;
+    const peerLabel = sharedPeer ? `${sharedPeer.ma_nv} - ${sharedPeer.ho_ten || sharedPeer.ma_nv}` : '';
+
+    let message = '';
+    if (warningType === 'NEW_AND_SHARED_DEVICE') {
+        message = `Tài khoản của bạn đang sử dụng trên thiết bị khác với máy thường dùng (${cleanDev}), đồng thời thiết bị này cũng đang được sử dụng cho tài khoản ${peerLabel || 'nhân sự khác'}. Hệ thống đã ghi nhận thông tin thiết bị để Quản trị viên theo dõi.`;
+    } else if (warningType === 'SHARED_DEVICE') {
+        message = `Thiết bị này (${cleanDev}) cũng đang được sử dụng cho tài khoản nhân sự khác (${peerLabel || 'đồng nghiệp'}). Hệ thống đã ghi nhận thông tin thiết bị để Quản trị viên đối chiếu.`;
+    } else if (warningType === 'NEW_DEVICE') {
+        message = `Tài khoản của bạn đang sử dụng trên thiết bị khác với máy thường dùng (${cleanDev}). Hệ thống đã ghi nhận tên thiết bị này cho Quản trị viên theo dõi.`;
+    }
+
+    return {
+        type: warningType,
+        device_id: deviceId || null,
+        device_name: cleanDev,
+        primary_device_name: primaryDeviceName || null,
+        shared_with_user_id: sharedPeer?.ma_nv || null,
+        shared_with_user_label: peerLabel || null,
+        message
+    };
+}
+
 /**
- * Ghi nhận hoạt động thiết bị cho nhân viên khi đăng nhập hoặc chấm công:
- * - Lưu lịch sử known_devices_json (phân biệt từng máy vật lý bằng device_id + short_tag #XXXX)
- * - Gắn thiết bị đầu tiên làm bound_device_id + bound_device_name
- * - Bật cờ multi_device_alert = 1 & ghi audit_logs ngay khi phát hiện >= 2 thiết bị khác nhau
- *   (kể cả 2 chiếc điện thoại vật lý khác nhau nhưng cùng đời máy như 2 chiếc iPhone 8)
+ * V70: Theo dõi thiết bị thông minh KHÔNG CHẶN CỨNG (Soft-Warning Only):
+ * - Lưu bound_device_id/bound_device_name làm Thiết bị chính cố định (CHỈ tự gán lần đầu, hoặc khi Admin đặt lại).
+ * - Phát hiện Kịch bản A (NEW_DEVICE) & Kịch bản B (SHARED_DEVICE - trùng máy chính hoặc dùng chung trong 30 ngày).
+ * - Ghi lịch sử user_device_logs & known_devices_json, đẩy thông báo Admin chống spam; bọc try/catch không làm sập luồng chính.
  */
 async function recordEmployeeDeviceActivity(emp, {
     device_id = null,
@@ -256,109 +325,279 @@ async function recordEmployeeDeviceActivity(emp, {
     device_info = null,
     user_agent = '',
     ip_address = '',
-    source = 'login'
+    source = 'login',
+    action_type = null,
+    notify_admin = true,
+    dbQuery = query
 } = {}) {
+    const runQuery = typeof dbQuery === 'function' ? dbQuery : query;
     const parsed = parseDeviceIdentity({ device_id, device_name, device_info, user_agent });
-    if (!parsed.deviceId) {
+    if (!parsed.deviceId || !emp || (!emp.ma_nv && !emp.username)) {
         return {
             tracked: false,
             blocked: false,
+            warningType: 'NONE',
+            deviceWarning: null,
             isMultiDevice: Boolean(emp?.multi_device_alert),
             parsed
         };
     }
 
-    const nowIso = new Date().toISOString();
-    const knownDevices = safeParseKnownDevices(emp?.known_devices_json);
+    const empKey = emp.ma_nv || emp.username;
+    const roleStr = String(emp.role || '').toLowerCase();
+    const isAdminActor = roleStr === 'admin' || (!emp.ma_nv && Boolean(emp.username));
+    const resolvedActionType = String(
+        action_type ||
+        (source === 'check_out' ? 'CHECK_OUT' : source === 'check_in' ? 'CHECK_IN' : source === 'session_sync' ? 'SESSION_SYNC' : 'LOGIN')
+    ).toUpperCase();
 
-    // Đảm bảo thiết bị gốc (bound_device_id) luôn nằm trong danh sách known_devices nếu danh sách đang rỗng
-    if (knownDevices.length === 0 && emp?.bound_device_id) {
-        const baseName = emp.bound_device_name || resolveFriendlyDeviceName({ device_name: emp.bound_device_id });
-        knownDevices.push({
-            device_id: emp.bound_device_id,
-            device_name: baseName,
-            short_tag: computeDeviceShortTag(emp.bound_device_id),
-            first_seen: nowIso,
-            last_seen: nowIso,
-            ip: '',
-            source: 'init',
-            login_count: 1
-        });
+    const now = new Date();
+    const nowIso = now.toISOString();
+    let warningType = 'NONE';
+    let sharedPeer = null;
+    let primaryDeviceId = emp.bound_device_id ? String(emp.bound_device_id).trim() : '';
+    let primaryDeviceName = emp.bound_device_name ? sanitizeSingleDeviceModelName(emp.bound_device_name) : '';
+    let primarySetAt = emp.primary_device_set_at || null;
+    let trimmedDevices = safeParseKnownDevices(emp?.known_devices_json);
+
+    try {
+        if (!isAdminActor) {
+            let isFirstPrimaryInit = false;
+            if (!primaryDeviceId) {
+                primaryDeviceId = parsed.deviceId;
+                primaryDeviceName = parsed.deviceName || UNKNOWN_DEVICE_LABEL;
+                primarySetAt = now;
+                isFirstPrimaryInit = true;
+            }
+
+            const isNewDevice = !isFirstPrimaryInit && primaryDeviceId !== parsed.deviceId;
+
+            // Đảm bảo thiết bị chính luôn xuất hiện trong known_devices_json
+            if (trimmedDevices.length === 0 && primaryDeviceId) {
+                trimmedDevices.push({
+                    device_id: primaryDeviceId,
+                    device_name: primaryDeviceName || UNKNOWN_DEVICE_LABEL,
+                    short_tag: computeDeviceShortTag(primaryDeviceId),
+                    first_seen: nowIso,
+                    last_seen: nowIso,
+                    ip: ip_address || '',
+                    source: isFirstPrimaryInit ? source : 'primary',
+                    is_primary: true,
+                    login_count: 1
+                });
+            }
+
+            const lastEntry = trimmedDevices.length > 0 ? trimmedDevices[trimmedDevices.length - 1] : null;
+            const isSameAsLastConsecutive = Boolean(lastEntry && lastEntry.device_id === parsed.deviceId);
+            if (isSameAsLastConsecutive) {
+                trimmedDevices[trimmedDevices.length - 1] = {
+                    ...lastEntry,
+                    device_id: parsed.deviceId,
+                    device_name: parsed.deviceName || lastEntry.device_name,
+                    short_tag: parsed.shortTag || lastEntry.short_tag || computeDeviceShortTag(parsed.deviceId),
+                    last_seen: nowIso,
+                    ip: ip_address || lastEntry.ip || '',
+                    source: resolvedActionType.toLowerCase(),
+                    is_primary: parsed.deviceId === primaryDeviceId,
+                    login_count: (Number(lastEntry.login_count) || 1) + (resolvedActionType === 'SESSION_SYNC' ? 0 : 1)
+                };
+            } else {
+                trimmedDevices.push({
+                    device_id: parsed.deviceId,
+                    device_name: parsed.deviceName,
+                    short_tag: parsed.shortTag,
+                    first_seen: nowIso,
+                    last_seen: nowIso,
+                    ip: ip_address || '',
+                    source: resolvedActionType.toLowerCase(),
+                    is_primary: parsed.deviceId === primaryDeviceId,
+                    login_count: 1
+                });
+            }
+            trimmedDevices = trimmedDevices.slice(-20);
+
+            // Kiểm tra Kịch bản B (SHARED_DEVICE): trùng primary của đồng nghiệp đang hoạt động hoặc trùng log 30 ngày gần nhất
+            const peerPrimaryRows = await runQuery(
+                `SELECT ma_nv, ho_ten
+                 FROM employees
+                 WHERE ma_nv != ?
+                   AND bound_device_id = ?
+                   AND (status IS NULL OR status != 'inactive')
+                   AND COALESCE(is_locked, 0) = 0
+                   AND (role IS NULL OR role != 'admin')
+                 LIMIT 1`,
+                [empKey, parsed.deviceId]
+            ).catch(() => []);
+
+            if (peerPrimaryRows && peerPrimaryRows.length > 0) {
+                sharedPeer = peerPrimaryRows[0];
+            } else {
+                const peerLogRows = await runQuery(
+                    `SELECT udl.employee_id as ma_nv, e.ho_ten
+                     FROM user_device_logs udl
+                     INNER JOIN employees e ON e.ma_nv = udl.employee_id
+                     WHERE udl.employee_id != ?
+                       AND udl.device_id = ?
+                       AND udl.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                       AND (e.status IS NULL OR e.status != 'inactive')
+                       AND COALESCE(e.is_locked, 0) = 0
+                       AND (e.role IS NULL OR e.role != 'admin')
+                     ORDER BY udl.created_at DESC, udl.id DESC
+                     LIMIT 1`,
+                    [empKey, parsed.deviceId]
+                ).catch(() => []);
+                if (peerLogRows && peerLogRows.length > 0) {
+                    sharedPeer = peerLogRows[0];
+                }
+            }
+
+            const isSharedDevice = Boolean(sharedPeer && sharedPeer.ma_nv);
+            if (isNewDevice && isSharedDevice) warningType = 'NEW_AND_SHARED_DEVICE';
+            else if (isSharedDevice) warningType = 'SHARED_DEVICE';
+            else if (isNewDevice) warningType = 'NEW_DEVICE';
+
+            const nextMultiAlert = (warningType !== 'NONE' || new Set(trimmedDevices.map((d) => d.device_id).filter(Boolean)).size >= 2) ? 1 : 0;
+
+            await runQuery(
+                `UPDATE employees
+                 SET bound_device_id = ?,
+                     bound_device_name = ?,
+                     primary_device_set_at = COALESCE(primary_device_set_at, ?),
+                     last_login_device_id = ?,
+                     last_login_device_name = ?,
+                     last_login_at = ?,
+                     known_devices_json = ?,
+                     multi_device_alert = ?
+                 WHERE ma_nv = ?`,
+                [
+                    primaryDeviceId,
+                    primaryDeviceName,
+                    primarySetAt || now,
+                    parsed.deviceId,
+                    parsed.deviceName,
+                    now,
+                    JSON.stringify(trimmedDevices),
+                    nextMultiAlert,
+                    empKey
+                ]
+            ).catch(() => {});
+
+            emp.bound_device_id = primaryDeviceId;
+            emp.bound_device_name = primaryDeviceName;
+            emp.primary_device_set_at = primarySetAt || now;
+            emp.last_login_device_id = parsed.deviceId;
+            emp.last_login_device_name = parsed.deviceName;
+            emp.last_login_at = now;
+            emp.known_devices_json = JSON.stringify(trimmedDevices);
+            emp.multi_device_alert = nextMultiAlert;
+            invalidateUserCache(empKey);
+        }
+
+        // Luôn ghi user_device_logs (trừ khi SESSION_SYNC trùng y hệt trong 5 phút vừa rồi để giữ log gọn sạch)
+        let shouldInsertLog = resolvedActionType !== 'SESSION_SYNC';
+        if (!shouldInsertLog) {
+            const recentSync = await runQuery(
+                `SELECT id FROM user_device_logs
+                 WHERE employee_id = ? AND device_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                 LIMIT 1`,
+                [empKey, parsed.deviceId]
+            ).catch(() => []);
+            shouldInsertLog = !(recentSync && recentSync.length > 0);
+        }
+
+        if (shouldInsertLog) {
+            const sharedLabel = sharedPeer ? `${sharedPeer.ma_nv} - ${sharedPeer.ho_ten || sharedPeer.ma_nv}` : null;
+            await runQuery(
+                `INSERT INTO user_device_logs
+                 (employee_id, device_id, device_name, action_type, warning_type, shared_with_user_id, shared_with_user_label, ip_address, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    empKey,
+                    parsed.deviceId.slice(0, 128),
+                    (parsed.deviceName || UNKNOWN_DEVICE_LABEL).slice(0, 255),
+                    resolvedActionType === 'SESSION_SYNC' ? 'LOGIN' : resolvedActionType,
+                    isAdminActor ? 'NONE' : warningType,
+                    sharedPeer?.ma_nv || null,
+                    sharedLabel ? sharedLabel.slice(0, 255) : null,
+                    ip_address ? String(ip_address).slice(0, 64) : null,
+                    now
+                ]
+            ).catch(() => {});
+        }
+
+        // Bắn thông báo cho Admin khi phát sinh bất thường NEW_DEVICE / SHARED_DEVICE (chống spam cùng máy + hành động trong 3 phút)
+        if (!isAdminActor && notify_admin && resolvedActionType !== 'SESSION_SYNC' && warningType !== 'NONE') {
+            const actionLabel =
+                resolvedActionType === 'CHECK_IN'
+                    ? 'Chấm công Vào'
+                    : resolvedActionType === 'CHECK_OUT'
+                        ? 'Chấm công Ra'
+                        : 'Đăng nhập';
+            const sharedLabel = sharedPeer ? `${sharedPeer.ma_nv} - ${sharedPeer.ho_ten || sharedPeer.ma_nv}` : '';
+            const notifTitle = warningType.includes('SHARED')
+                ? `Dùng chung thiết bị: ${emp.ho_ten || empKey} (${empKey})`
+                : `Thiết bị lạ (${actionLabel}): ${emp.ho_ten || empKey} (${empKey})`;
+            const notifMessage = warningType === 'NEW_AND_SHARED_DEVICE'
+                ? `${actionLabel} bằng thiết bị lạ ${parsed.deviceName} — đồng thời phát hiện dùng chung thiết bị với ${sharedLabel}`
+                : warningType === 'SHARED_DEVICE'
+                    ? `${actionLabel} — phát hiện dùng chung thiết bị ${parsed.deviceName} với ${sharedLabel}`
+                    : `${actionLabel} trên thiết bị khác với máy chính: ${parsed.deviceName}`;
+
+            const existingRecentAlert = await runQuery(
+                `SELECT id FROM user_notifications
+                 WHERE recipient_ma_nv = 'ADMIN'
+                   AND target_ma_nv = ?
+                   AND category = 'device'
+                   AND type = ?
+                   AND created_at >= DATE_SUB(NOW(), INTERVAL 3 MINUTE)
+                   AND title = ?
+                 LIMIT 1`,
+                [empKey, `DEVICE_${warningType}`, notifTitle.slice(0, 255)]
+            ).catch(() => []);
+
+            if (!existingRecentAlert || existingRecentAlert.length === 0) {
+                const evtKey = `dev_${empKey}_${resolvedActionType}_${parsed.shortTag}_${Date.now()}`.slice(0, 118);
+                await runQuery(
+                    `INSERT INTO user_notifications
+                     (recipient_ma_nv, alert_key, type, category, severity, title, message, target_ma_nv, target_tab, target_subtab, target_id, is_read)
+                     VALUES ('ADMIN', ?, ?, 'device', ?, ?, ?, ?, 'management', 'employees', ?, 0)`,
+                    [
+                        evtKey,
+                        `DEVICE_${warningType}`,
+                        warningType.includes('SHARED') ? 'critical' : 'high',
+                        notifTitle.slice(0, 255),
+                        notifMessage.slice(0, 500),
+                        empKey,
+                        empKey
+                    ]
+                ).catch(() => {});
+            }
+        }
+    } catch (err) {
+        console.error('[DeviceIdentityHelper] Soft device tracking warning:', err.message);
     }
 
-    // V36: Ghi nhận lịch sử các thiết bị đăng nhập / chấm công (tối đa 20 lượt gần nhất, tránh trùng lặp liên tiếp cùng 1 thiết bị)
-    const lastEntry = knownDevices.length > 0 ? knownDevices[knownDevices.length - 1] : null;
-    const isSameAsLastConsecutive = Boolean(
-        lastEntry &&
-        (lastEntry.device_id === parsed.deviceId ||
-            (lastEntry.device_name === parsed.deviceName && (!lastEntry.device_id || !parsed.deviceId)))
-    );
-
-    if (isSameAsLastConsecutive) {
-        knownDevices[knownDevices.length - 1] = {
-            ...lastEntry,
-            device_id: parsed.deviceId || lastEntry.device_id,
-            device_name: parsed.deviceName || lastEntry.device_name,
-            short_tag: parsed.shortTag || lastEntry.short_tag || computeDeviceShortTag(parsed.deviceId),
-            last_seen: nowIso,
-            ip: ip_address || lastEntry.ip || '',
-            source,
-            login_count: (Number(lastEntry.login_count) || 1) + 1
-        };
-    } else {
-        knownDevices.push({
-            device_id: parsed.deviceId,
-            device_name: parsed.deviceName,
-            short_tag: parsed.shortTag,
-            first_seen: nowIso,
-            last_seen: nowIso,
-            ip: ip_address || '',
-            source,
-            login_count: 1
-        });
-    }
-
-    // Giữ tối đa 20 lượt thiết bị gần nhất để nhẹ Database
-    const trimmedDevices = knownDevices.slice(-20);
-    const distinctDeviceIds = new Set(trimmedDevices.map((d) => d.device_id || d.device_name).filter(Boolean));
-    const hasDistinctSecondDevice = distinctDeviceIds.size >= 2;
-    const nextMultiAlert = hasDistinctSecondDevice ? 1 : 0;
-
-    // V36: Không tự động khóa cứng thiết bị khi đổi máy; luôn cập nhật thiết bị gần nhất để hiển thị minh bạch
-    const latestDeviceId = parsed.deviceId || emp?.bound_device_id || '';
-    const latestDeviceName = parsed.deviceName || emp?.bound_device_name || UNKNOWN_DEVICE_LABEL;
-    const latestTag = parsed.shortTag || computeDeviceShortTag(latestDeviceId);
-
-    await query(
-        `UPDATE employees
-         SET bound_device_id = ?,
-             bound_device_name = ?,
-             known_devices_json = ?,
-             multi_device_alert = ?
-         WHERE ma_nv = ?`,
-        [
-            latestDeviceId,
-            latestDeviceName,
-            JSON.stringify(trimmedDevices),
-            nextMultiAlert,
-            emp.ma_nv
-        ]
-    ).catch(() => {});
-
-    emp.bound_device_id = latestDeviceId;
-    emp.bound_device_name = latestDeviceName;
-    emp.known_devices_json = JSON.stringify(trimmedDevices);
-    emp.multi_device_alert = nextMultiAlert;
-    invalidateUserCache(emp.ma_nv);
+    const deviceWarning = !isAdminActor
+        ? buildDeviceWarningPayload({
+              warningType,
+              deviceId: parsed.deviceId,
+              deviceName: parsed.deviceName,
+              primaryDeviceName,
+              sharedPeer
+          })
+        : null;
 
     return {
         tracked: true,
         blocked: false,
-        isMultiDevice: Boolean(nextMultiAlert),
+        warningType: isAdminActor ? 'NONE' : warningType,
+        deviceWarning,
+        sharedPeer,
+        isMultiDevice: Boolean(emp?.multi_device_alert),
         parsed,
-        primaryDeviceId: latestDeviceId,
-        primaryDeviceName: latestDeviceName,
-        primaryTag: latestTag,
+        primaryDeviceId: primaryDeviceId || parsed.deviceId,
+        primaryDeviceName: primaryDeviceName || parsed.deviceName,
+        primaryTag: computeDeviceShortTag(primaryDeviceId || parsed.deviceId),
         knownDevices: trimmedDevices
     };
 }
@@ -370,6 +609,8 @@ module.exports = {
     resolveFriendlyDeviceName,
     parseDeviceIdentity,
     safeParseKnownDevices,
+    formatVnDateTimeIso,
+    buildDeviceWarningPayload,
     recordEmployeeDeviceActivity
 };
 

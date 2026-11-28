@@ -243,6 +243,7 @@ export default function EmployeeManagementTab({
   const [savingDetail, setSavingDetail] = useState(false);
   const [resolvingDevice, setResolvingDevice] = useState(false);
   const [showAllDevices, setShowAllDevices] = useState(false);
+  const [detailDeviceState, setDetailDeviceState] = useState({ loading: false, data: null });
 
   // Trạng thái thêm phụ cấp động trong Modal
   const [isAddingAllowance, setIsAddingAllowance] = useState(false);
@@ -350,9 +351,52 @@ export default function EmployeeManagementTab({
     }
   }, []);
 
+  const loadEmployeeDeviceHistory = useCallback(async (maNv) => {
+    if (!maNv) return;
+    setDetailDeviceState({ loading: true, data: null });
+    try {
+      const res = await safeGet(`/employees/${encodeURIComponent(maNv)}/device-history`, {}, { cancelPrevious: false });
+      setDetailDeviceState({ loading: false, data: res?.data || null });
+    } catch {
+      setDetailDeviceState({ loading: false, data: null });
+    }
+  }, []);
+
+  const handleSetPrimaryDevice = async (emp, dev) => {
+    if (!isAdmin || !emp?.ma_nv || !dev?.device_id) return;
+    setResolvingDevice(true);
+    try {
+      const res = await safePost(`/employees/${encodeURIComponent(emp.ma_nv)}/primary-device`, {
+        device_id: dev.device_id,
+        device_name: dev.device_name || UNKNOWN_DEVICE_LABEL
+      });
+      if (res?.success) {
+        if (showToast) {
+          showToast(res.message || "Đã cập nhật thiết bị chính thành công!", "success");
+        }
+        await Promise.all([
+          loadEmployeeDeviceHistory(emp.ma_nv),
+          fetchEmployees()
+        ]);
+        if (onRefreshAlerts) onRefreshAlerts();
+      }
+    } catch (err) {
+      if (showToast) {
+        showToast(err?.message || "Không thể cập nhật thiết bị chính.", "error");
+      }
+    } finally {
+      setResolvingDevice(false);
+    }
+  };
+
   const handleOpen360Modal = (emp) => {
     setDetailEmp(emp);
     loadEmployeeDocuments(emp.ma_nv);
+    if (emp?.role !== "admin") {
+      loadEmployeeDeviceHistory(emp.ma_nv);
+    } else {
+      setDetailDeviceState({ loading: false, data: null });
+    }
     setShowAllDevices(false);
     setIsAddingAllowance(false);
     setNewAllowanceName("");
@@ -1069,14 +1113,14 @@ export default function EmployeeManagementTab({
               </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
-                Mật khẩu khởi tạo
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1 whitespace-normal break-words">
+                Mật khẩu khởi tạo (tùy ý, từ 1 ký tự)
               </label>
               <input
                 type="text"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="123456"
+                placeholder="VD: 123456 hoặc mật khẩu tùy ý"
                 className="w-full min-h-[44px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#E11D48]"
               />
             </div>
@@ -1236,7 +1280,6 @@ export default function EmployeeManagementTab({
           const detailDisplayPhone = detailForm.phone || detailEmp.phone || detailEmp.dien_thoai || "";
           const detailDisplayLogin = detailForm.login_username || detailDisplayPhone || detailEmp.ma_nv;
           const deviceHistoryList = detailDevSummary.sortedHistory || [];
-          const visibleDeviceHistory = showAllDevices ? deviceHistoryList : deviceHistoryList.slice(0, 3);
           const customAllowancesList = Array.isArray(detailForm.custom_allowances) ? detailForm.custom_allowances : [];
           const totalCustomAllowance = customAllowancesList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
 
@@ -1523,7 +1566,7 @@ export default function EmployeeManagementTab({
                         type="text"
                         value={detailForm.new_password}
                         onChange={(e) => setDetailForm((p) => ({ ...p, new_password: e.target.value }))}
-                        placeholder="Nhập MK mới hoặc bỏ trống..."
+                        placeholder="Nhập mật khẩu tùy ý (từ 1 ký tự) hoặc bỏ trống..."
                         className="w-full min-h-[44px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3.5 py-2 text-base font-mono text-slate-900 dark:text-white"
                       />
                     </div>
@@ -1531,20 +1574,51 @@ export default function EmployeeManagementTab({
                 </div>
               </section>
 
-              {/* NHÓM 3 — THIẾT BỊ ĐĂNG NHẬP & LỊCH SỬ THIẾT BỊ ("XEM THÊM CHI TIẾT", KHÔNG ÉP KHÓA CỨNG) */}
-              {detailEmp.role !== "admin" && (
+              {/* NHÓM 3 — THIẾT BỊ ĐĂNG NHẬP & LỊCH SỬ THIẾT BỊ (CHỈ CẢNH BÁO MỀM, ADMIN CHỌN THIẾT BỊ CHÍNH) */}
+              {detailEmp.role !== "admin" && (() => {
+                const apiDev = detailDeviceState.data;
+                const primaryDev = apiDev?.primary_device?.device_id
+                  ? apiDev.primary_device
+                  : detailEmp.bound_device_id
+                  ? {
+                      device_id: detailEmp.bound_device_id,
+                      device_name: detailDevSummary.primaryLabel,
+                      short_tag: computeDeviceShortTag(detailEmp.bound_device_id),
+                      set_at: detailEmp.primary_device_set_at || null
+                    }
+                  : null;
+                const primaryId = primaryDev?.device_id || null;
+                const rawHistory =
+                  Array.isArray(apiDev?.history) && apiDev.history.length > 0
+                    ? apiDev.history
+                    : deviceHistoryList.map((d) => ({
+                        device_id: d.device_id,
+                        device_name: d.device_name,
+                        short_tag: d.short_tag,
+                        ip_address: d.ip,
+                        created_at: d.last_seen,
+                        login_count: d.login_count,
+                        action_type: "LOGIN"
+                      }));
+                const visibleLogs = showAllDevices ? rawHistory : rawHistory.slice(0, 5);
+                const latestSeenAt = apiDev?.last_login?.at || detailDevSummary.latestSeenAt;
+
+                return (
                 <section className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-xs font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-2">
                       <Smartphone className="w-4 h-4 shrink-0" />
-                      <span>3. Thiết bị đăng nhập</span>
+                      <span>3. Thiết bị đăng nhập &amp; chấm công</span>
                     </h3>
-                    {isAdmin && deviceHistoryList.length > 0 && (
+                    {isAdmin && (deviceHistoryList.length > 0 || rawHistory.length > 0) && (
                       <AppButton
                         variant="secondary"
                         icon={RotateCcw}
                         loading={resolvingDevice}
-                        onClick={() => handleResolveDevices(detailEmp, "reset_devices")}
+                        onClick={async () => {
+                          await handleResolveDevices(detailEmp, "reset_devices");
+                          await loadEmployeeDeviceHistory(detailEmp.ma_nv);
+                        }}
                         className="text-xs px-2.5 py-1.5"
                       >
                         Làm mới lịch sử
@@ -1552,15 +1626,38 @@ export default function EmployeeManagementTab({
                     )}
                   </div>
 
-                  {/* Thiết bị gần nhất */}
-                  <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm space-y-1">
-                    <div className="text-slate-500 dark:text-slate-400 font-semibold">Thiết bị gần nhất:</div>
-                    <div className="font-bold text-emerald-700 dark:text-emerald-300 break-words">
-                      📱 {detailDevSummary.primaryLabel}
+                  {/* Thiết bị chính hiện tại */}
+                  <div
+                    data-testid="primary-device-card"
+                    className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm space-y-1.5"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <span className="text-slate-500 dark:text-slate-400 font-semibold">
+                        Thiết bị chính hiện tại:
+                      </span>
+                      {primaryId && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[11px] font-bold">
+                          Thiết bị chính
+                        </span>
+                      )}
                     </div>
-                    {detailDevSummary.latestSeenAt && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
-                        Hoạt động gần nhất: {formatViDateTime(detailDevSummary.latestSeenAt)}
+                    <div className="font-bold text-emerald-700 dark:text-emerald-300 whitespace-normal break-words">
+                      📱{" "}
+                      {primaryDev?.device_id
+                        ? `${sanitizeSingleDeviceModelName(primaryDev.device_name || UNKNOWN_DEVICE_LABEL)}${
+                            primaryDev.short_tag ? ` (${primaryDev.short_tag})` : ""
+                          }`
+                        : detailDevSummary.primaryLabel || "Chưa ghi nhận thiết bị chính"}
+                    </div>
+                    {primaryDev?.set_at && (
+                      <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-normal break-words">
+                        Thiết lập lúc: {formatViDateTime(primaryDev.set_at)}
+                      </div>
+                    )}
+                    {latestSeenAt && (
+                      <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-normal break-words">
+                        Hoạt động gần nhất: {formatViDateTime(latestSeenAt)}
+                        {apiDev?.last_login?.device_name ? ` (${apiDev.last_login.device_name})` : ""}
                       </div>
                     )}
                   </div>
@@ -1569,8 +1666,8 @@ export default function EmployeeManagementTab({
                     <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-500/60 text-xs text-amber-900 dark:text-amber-100">
                       <div className="flex items-start gap-2 font-bold leading-snug">
                         <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                        <span>
-                          Ghi nhận tài khoản đã đăng nhập trên {deviceHistoryList.length} lượt thiết bị khác nhau.
+                        <span className="whitespace-normal break-words">
+                          Ghi nhận tài khoản từng dùng nhiều hơn 1 thiết bị (hệ thống chỉ cảnh báo mềm, không chặn thao tác).
                         </span>
                       </div>
                     </div>
@@ -1578,11 +1675,11 @@ export default function EmployeeManagementTab({
 
                   {detailDevSummary.hasPendingChange && (
                     <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-500/60 space-y-2.5 text-xs">
-                      <div className="font-bold text-amber-900 dark:text-amber-200">
+                      <div className="font-bold text-amber-900 dark:text-amber-200 whitespace-normal break-words">
                         📱 Đề xuất đổi thiết bị: {sanitizeSingleDeviceModelName(detailEmp.pending_device_name || detailEmp.pending_device_id)}
                       </div>
                       {detailEmp.device_change_reason && (
-                        <div className="text-amber-800 dark:text-amber-100">Lý do: {detailEmp.device_change_reason}</div>
+                        <div className="text-amber-800 dark:text-amber-100 whitespace-normal break-words">Lý do: {detailEmp.device_change_reason}</div>
                       )}
                       {isAdmin && (
                         <div className="flex flex-wrap gap-2">
@@ -1609,43 +1706,97 @@ export default function EmployeeManagementTab({
                     </div>
                   )}
 
-                  {/* Lịch sử thiết bị đã dùng (Mặc định hiện tối đa 3 dòng gần nhất + nút Xem thêm chi tiết) */}
-                  {deviceHistoryList.length > 0 && (
+                  {/* Lịch sử thiết bị đã dùng + đặt làm thiết bị chính */}
+                  {detailDeviceState.loading ? (
+                    <div className="text-xs text-slate-500 dark:text-slate-400 py-2">
+                      Đang tải lịch sử thiết bị...
+                    </div>
+                  ) : rawHistory.length > 0 ? (
                     <div className="space-y-2">
                       <div className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                        Lịch sử thiết bị đã dùng ({deviceHistoryList.length}):
+                        Lịch sử thiết bị &amp; đối soát ({rawHistory.length}):
                       </div>
-                      {visibleDeviceHistory.map((dev, idx) => {
-                        const tag = dev.short_tag || computeDeviceShortTag(dev.device_id);
-                        const isLatest = idx === 0;
+                      {visibleLogs.map((dev, idx) => {
+                        const tag = dev.short_tag || (dev.device_id ? computeDeviceShortTag(dev.device_id) : "");
+                        const isPrimaryItem = Boolean(primaryId && dev.device_id === primaryId);
+                        const actionLabel =
+                          dev.action_type === "CHECK_IN"
+                            ? "Vào ca"
+                            : dev.action_type === "CHECK_OUT"
+                            ? "Tan ca"
+                            : dev.action_type === "PRIMARY_CHANGED"
+                            ? "Đặt thiết bị chính"
+                            : "Đăng nhập";
+                        const isSharedWarn = String(dev.warning_type || "").includes("SHARED");
+                        const warnBadge = isSharedWarn
+                            ? `Dùng chung: ${dev.shared_with_user_label || dev.shared_with_user_id || "Nhân viên khác"}`
+                            : dev.warning_type === "NEW_DEVICE"
+                            ? "Thiết bị lạ"
+                            : "";
+                        const displayName = sanitizeSingleDeviceModelName(dev.device_name || UNKNOWN_DEVICE_LABEL);
                         return (
                           <div
-                            key={`${dev.device_id || "dev"}-${dev.last_seen || idx}`}
-                            className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 text-xs ${
-                              isLatest
+                            key={`${dev.id || dev.device_id || "dev"}-${dev.created_at || idx}`}
+                            data-testid={`device-history-row-${idx}`}
+                            className={`p-3 rounded-xl border space-y-2 text-xs ${
+                              isSharedWarn
+                                ? "bg-rose-50/70 dark:bg-rose-950/35 border-rose-300 dark:border-rose-500/50 text-rose-900 dark:text-rose-100"
+                                : dev.warning_type === "NEW_DEVICE"
+                                ? "bg-amber-50/70 dark:bg-amber-950/35 border-amber-300 dark:border-amber-500/50 text-amber-900 dark:text-amber-100"
+                                : isPrimaryItem
                                 ? "bg-emerald-50/70 dark:bg-emerald-950/35 border-emerald-300 dark:border-emerald-500/50 text-emerald-900 dark:text-emerald-100"
                                 : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
                             }`}
                           >
-                            <div className="min-w-0 flex-1 space-y-0.5">
-                              <div className="font-bold break-words">
-                                📱 {formatEmployeeDeviceLabel(detailEmp.ho_ten, dev.device_name || UNKNOWN_DEVICE_LABEL, tag, true)}
-                                {isLatest && (
-                                  <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-200 dark:bg-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs">
-                                    Gần nhất
+                            <div className="min-w-0 space-y-1">
+                              <div className="font-bold whitespace-normal break-words">
+                                📱 {displayName}{tag ? ` (${tag})` : ""}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="px-2 py-0.5 rounded bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-semibold">
+                                  {actionLabel}
+                                </span>
+                                {isPrimaryItem && (
+                                  <span className="px-2 py-0.5 rounded bg-emerald-200 dark:bg-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-[11px] font-bold">
+                                    Thiết bị chính
+                                  </span>
+                                )}
+                                {warnBadge && (
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[11px] font-bold whitespace-normal break-words ${
+                                      isSharedWarn
+                                        ? "bg-rose-200 dark:bg-rose-500/30 text-rose-900 dark:text-rose-200"
+                                        : "bg-amber-200 dark:bg-amber-500/30 text-amber-900 dark:text-amber-200"
+                                    }`}
+                                  >
+                                    ⚠️ {warnBadge}
                                   </span>
                                 )}
                               </div>
-                              <div className="text-slate-500 dark:text-slate-400">
-                                {dev.last_seen ? `${formatViDateTime(dev.last_seen)} • ` : ""}
-                                {dev.login_count || 1} lượt {dev.ip ? `• IP: ${dev.ip}` : ""}
+                              <div className="text-slate-500 dark:text-slate-400 whitespace-normal break-words">
+                                {dev.created_at ? formatViDateTime(dev.created_at) : ""}
+                                {dev.login_count ? ` • ${dev.login_count} lượt` : ""}
+                                {dev.ip_address ? ` • IP: ${dev.ip_address}` : ""}
                               </div>
                             </div>
+                            {isAdmin && dev.device_id && !isPrimaryItem && (
+                              <div className="pt-1">
+                                <button
+                                  type="button"
+                                  disabled={resolvingDevice}
+                                  data-testid={`set-primary-device-${dev.device_id}`}
+                                  onClick={() => handleSetPrimaryDevice(detailEmp, dev)}
+                                  className="min-h-[36px] px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold whitespace-normal break-words cursor-pointer transition"
+                                >
+                                  Đặt làm thiết bị chính
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
 
-                      {deviceHistoryList.length > 3 && (
+                      {rawHistory.length > 5 && (
                         <button
                           type="button"
                           data-testid="device-history-toggle-btn"
@@ -1660,15 +1811,16 @@ export default function EmployeeManagementTab({
                           ) : (
                             <>
                               <ChevronDown className="w-4 h-4" />
-                              <span>Xem thêm chi tiết ({deviceHistoryList.length})</span>
+                              <span>Xem thêm chi tiết ({rawHistory.length})</span>
                             </>
                           )}
                         </button>
                       )}
                     </div>
-                  )}
+                  ) : null}
                 </section>
-              )}
+                );
+              })()}
 
               {/* NHÓM 4 — LƯƠNG & PHỤ CẤP ĐỘNG LINH HOẠT THEO TỪNG NHÂN VIÊN */}
               <section className="space-y-3 bg-[#F0F3FF]/60 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4">

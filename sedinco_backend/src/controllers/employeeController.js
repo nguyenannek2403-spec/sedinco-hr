@@ -166,6 +166,31 @@ class EmployeeController {
         }
     }
 
+    async getDeviceHistory(req, res, next) {
+        try {
+            const targetId = req.params.id || req.params.ma_nv;
+            const data = await employeeService.getEmployeeDeviceHistory(targetId);
+            return res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async setPrimaryDevice(req, res, next) {
+        try {
+            const targetId = req.params.id || req.params.ma_nv;
+            const { device_id, device_name } = req.body || {};
+            const result = await employeeService.setEmployeePrimaryDevice(
+                targetId,
+                { device_id, device_name },
+                req.user
+            );
+            return res.json(result);
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async stagedForcePasswordChange(req, res, next) {
         try {
             const { role, chuc_danh, ma_nv_list, limit, offset, dry_run } = req.body;

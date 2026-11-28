@@ -56,7 +56,8 @@ export default function OneTouchCheckIn({
   onCheckInSuccess,
   onOpenFixCheckoutRequest,
   isLockedPeriod = false,
-  showToast = null
+  showToast = null,
+  onDeviceWarning = null
 }) {
   const { isDark } = useTheme();
   const [lastCheckAction, setLastCheckAction] = useState(null);
@@ -465,6 +466,20 @@ export default function OneTouchCheckIn({
       const serverMsg = `${result?.message || `Đã ghi nhận chấm công lúc ${serverTime}`}${locTag}`;
       setStatusMessage(serverMsg);
       endCheckInTap(true);
+
+      const devWarn = result?.device_warning || result?.data?.device_warning || null;
+      if (devWarn) {
+        if (typeof onDeviceWarning === "function") {
+          try {
+            onDeviceWarning(devWarn);
+          } catch {}
+        } else if (typeof showToast === "function") {
+          showToast(
+            devWarn.user_message || devWarn.message || "Phát hiện chấm công từ thiết bị khác thiết bị chính.",
+            "warning"
+          );
+        }
+      }
 
       // Step 5: Async post-tasks chạy bất đồng bộ sau khi check-in/out 200 OK
       Promise.resolve()

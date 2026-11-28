@@ -4,12 +4,13 @@ import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../context/ThemeContext";
 import { useFontScale } from "../context/FontScaleContext";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { AppButton, AppModal } from "../components/ui";
 import AuthView from "../views/AuthView";
 import CompanyLogo from "../components/CompanyLogo";
 import WorkerDashboard from "../views/worker/WorkerDashboard";
 import DesktopDashboard from "../views/desktop/DesktopDashboard";
 import { ROLES } from "../constants/roles";
-import { CheckCircle2, AlertCircle, Info, X, Loader2, WifiOff, RefreshCw } from "lucide-react";
+import { CheckCircle2, AlertCircle, Info, X, Loader2, WifiOff, RefreshCw, ShieldAlert, Smartphone } from "lucide-react";
 
 // Lazy-load modal đổi mật khẩu bắt buộc
 const ForcePasswordChangeModal = lazy(() => import("../components/ForcePasswordChangeModal"));
@@ -43,6 +44,10 @@ export default function HomePage() {
     activeRole,
     mustChangePassword,
     setMustChangePassword,
+    skippedPasswordChange,
+    skipPasswordChange,
+    deviceWarning,
+    dismissDeviceWarning,
     isHydratingSession,
     sessionNetworkError,
     retrySessionHydration,
@@ -60,11 +65,29 @@ export default function HomePage() {
   });
 
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [checkInDeviceWarning, setCheckInDeviceWarning] = useState(null);
 
   const isManagementView = activeRole === ROLES.ADMIN || activeRole === ROLES.ACCOUNTANT;
 
+  const activeDeviceWarning = checkInDeviceWarning || deviceWarning || null;
+  const shouldShowPasswordModal = Boolean(
+    currentUser && ((mustChangePassword && !skippedPasswordChange) || showAccountModal)
+  );
+  const handleDismissDeviceWarning = () => {
+    setCheckInDeviceWarning(null);
+    dismissDeviceWarning();
+  };
+
+  useEffect(() => {
+    if (!currentUser) {
+      setCheckInDeviceWarning(null);
+      setShowAccountModal(false);
+    }
+  }, [currentUser]);
+
   const handleLoginSubmit = async (username, password) => {
     try {
+      setCheckInDeviceWarning(null);
       const user = await login(username, password);
       showToast(`Đăng nhập thành công với tài khoản ${user?.ho_ten || user?.ma_nv}!`, "success");
     } catch (e) {
@@ -80,13 +103,16 @@ export default function HomePage() {
 
   const confirmLogout = () => {
     setShowLogoutConfirm(false);
+    setCheckInDeviceWarning(null);
     const msg = logout();
     showToast(msg, "info");
   };
 
   const handlePasswordChanged = (updatedUser, freshToken) => {
     if (updatedUser) {
-      updateCurrentUser(updatedUser, freshToken);
+      updateCurrentUser({ ...updatedUser, must_change_password: false }, freshToken);
+    } else {
+      updateCurrentUser({ must_change_password: false }, freshToken);
     }
     setMustChangePassword(false);
     setShowAccountModal(false);
@@ -174,6 +200,7 @@ export default function HomePage() {
           onUserUpdated={updateCurrentUser}
           showToast={showToast}
           onChangePasswordRequest={() => setShowAccountModal(true)}
+          onDeviceWarning={(w) => setCheckInDeviceWarning(w)}
         />
       ) : (
         /* 3. Giao Diện Mobile (Công Nhân Zalo Mini App) */
@@ -184,11 +211,12 @@ export default function HomePage() {
           onUserUpdated={updateCurrentUser}
           showToast={showToast}
           onChangePasswordRequest={() => setShowAccountModal(true)}
+          onDeviceWarning={(w) => setCheckInDeviceWarning(w)}
         />
       )}
 
-      {/* Modal Tài Khoản & Đổi Mật Khẩu (Khả dụng cho cả 3 Role) */}
-      {currentUser && (mustChangePassword || showAccountModal) && (
+      {/* Modal Tài Khoản & Đổi Mật Khẩu (Khả dụng cho cả 3 Role, có nút Bỏ qua, đổi sau khi là mật khẩu tạm) */}
+      {shouldShowPasswordModal && (
         <Suspense fallback={null}>
           <ForcePasswordChangeModal
             visible={true}
@@ -197,13 +225,106 @@ export default function HomePage() {
             token={currentUser.token}
             canClose={!mustChangePassword}
             onClose={() => {
-              if (!mustChangePassword) setShowAccountModal(false);
+              if (!mustChangePassword) {
+                setShowAccountModal(false);
+              } else {
+                skipPasswordChange();
+                setShowAccountModal(false);
+              }
             }}
+            onSkip={
+              mustChangePassword
+                ? () => {
+                    skipPasswordChange();
+                    setShowAccountModal(false);
+                    showToast("Bạn có thể đổi mật khẩu bất cứ lúc nào trong mục Tài khoản.", "info");
+                  }
+                : null
+            }
             showToast={showToast}
             onPasswordChanged={handlePasswordChanged}
           />
         </Suspense>
       )}
+
+      {/* Cảnh báo mềm thiết bị lạ / dùng chung thiết bị (KHÔNG CHẶN chấm công & đăng nhập) */}
+      <AppModal
+        open={Boolean(currentUser && activeDeviceWarning && !shouldShowPasswordModal)}
+        onClose={handleDismissDeviceWarning}
+        variant="dialog"
+        align="center"
+        maxWidthClass="max-w-md"
+        testId="soft-device-warning-modal"
+        title={
+          activeDeviceWarning?.title ||
+          (String(activeDeviceWarning?.type || "").includes("SHARED")
+            ? "Cảnh báo dùng chung thiết bị"
+            : "Phát hiện đăng nhập từ thiết bị mới")
+        }
+        subtitle="Thao tác của bạn vẫn được ghi nhận bình thường"
+        icon={
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            String(activeDeviceWarning?.type || "").includes("SHARED")
+              ? "bg-rose-100 text-rose-600 dark:bg-rose-950/70 dark:text-rose-300"
+              : "bg-amber-100 text-amber-600 dark:bg-amber-950/70 dark:text-amber-300"
+          }`}>
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+        }
+        footer={
+          <AppButton
+            type="button"
+            variant={String(activeDeviceWarning?.type || "").includes("SHARED") ? "danger" : "primary"}
+            size="md"
+            fullWidth
+            data-testid="dismiss-device-warning-btn"
+            onClick={handleDismissDeviceWarning}
+          >
+            Đã hiểu
+          </AppButton>
+        }
+      >
+        {activeDeviceWarning && (
+          <div className="space-y-3 text-sm text-slate-700 dark:text-slate-200">
+            <p className="leading-relaxed whitespace-normal break-words">
+              {activeDeviceWarning.user_message ||
+                activeDeviceWarning.message ||
+                "Hệ thống ghi nhận bạn đang thao tác từ thiết bị khác với thiết bị chính đã đăng ký."}
+            </p>
+            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-3 space-y-2 text-xs">
+              <div className="flex items-start gap-2">
+                <Smartphone className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="text-slate-500 dark:text-slate-400">Thiết bị hiện tại</div>
+                  <div className="font-bold text-slate-900 dark:text-white whitespace-normal break-words">
+                    {activeDeviceWarning.device_name || "Thiết bị chưa xác định"}
+                  </div>
+                </div>
+              </div>
+              {activeDeviceWarning.primary_device_name && (
+                <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
+                  <div className="text-slate-500 dark:text-slate-400">Thiết bị chính đã ghi nhận</div>
+                  <div className="font-semibold text-slate-800 dark:text-slate-100 whitespace-normal break-words">
+                    {activeDeviceWarning.primary_device_name}
+                  </div>
+                </div>
+              )}
+              {String(activeDeviceWarning?.type || "").includes("SHARED") &&
+                (activeDeviceWarning.shared_with_user_label || activeDeviceWarning.shared_with_user_id) && (
+                  <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/80 space-y-0.5">
+                    <div className="text-slate-500 dark:text-slate-400">Tài khoản từng dùng thiết bị này</div>
+                    <div className="font-bold text-rose-600 dark:text-rose-400 whitespace-normal break-words">
+                      {activeDeviceWarning.shared_with_user_label || activeDeviceWarning.shared_with_user_id}
+                    </div>
+                  </div>
+                )}
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed whitespace-normal break-words">
+              Thông tin này đã được lưu vào lịch sử thiết bị và gửi báo cáo đối soát cho Quản trị viên. Bạn vẫn có thể tiếp tục sử dụng bình thường.
+            </p>
+          </div>
+        )}
+      </AppModal>
 
       <ConfirmDialog
         open={showLogoutConfirm}

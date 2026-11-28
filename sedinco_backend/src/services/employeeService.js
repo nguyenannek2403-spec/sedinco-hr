@@ -9,7 +9,8 @@ const {
     computeDeviceShortTag,
     resolveFriendlyDeviceName,
     sanitizeSingleDeviceModelName,
-    safeParseKnownDevices
+    safeParseKnownDevices,
+    formatVnDateTimeIso
 } = require('../utils/deviceIdentityHelper');
 
 function normalizePhone(raw) {
@@ -244,8 +245,15 @@ const sanitizeEmployeeRecord = (emp, monthlyQuota = 1, paidUsageMap = null) => {
         ? sanitizeSingleDeviceModelName(deviceHistory[deviceHistory.length - 1].device_name)
         : null;
     base.bound_device_name = dbBoundName;
+    base.primary_device_id = base.bound_device_id || null;
+    base.primary_device_name = dbBoundName;
+    base.primary_device_set_at = base.primary_device_set_at || null;
+    base.last_login_device_id = base.last_login_device_id || null;
+    base.last_login_device_name = base.last_login_device_name || null;
+    base.last_login_at = base.last_login_at || null;
+    base.must_change_password = Boolean(base.must_change_password);
     base.device_history = deviceHistory;
-    base.current_device = dbBoundName || latestHistName || null;
+    base.current_device = base.last_login_device_name || dbBoundName || latestHistName || null;
     base.monthly_paid_leave_limit = monthlyQuota;
     base.current_month_paid_leave_used = paidUsageMap ? (paidUsageMap.get(base.ma_nv) || 0) : 0;
     return base;
@@ -369,9 +377,17 @@ class EmployeeService {
 
         if (rawPassword && typeof rawPassword === 'string' && rawPassword.trim().length > 0) {
             rawPassword = rawPassword.trim();
-            mustChangePassword = data.must_change_password !== undefined ? (data.must_change_password ? 1 : 0) : 1;
+            const policyCheck = validatePasswordPolicy(rawPassword);
+            if (!policyCheck.valid) {
+                const err = new Error(policyCheck.message);
+                err.statusCode = 400;
+                throw err;
+            }
+            mustChangePassword = normalizedRole === 'admin'
+                ? 0
+                : (data.must_change_password === false || data.must_change_password === 0 ? 0 : 1);
         } else {
-            // Sinh ngẫu nhiên mật khẩu một lần an toàn (>= 16 ký tự, gồm số, chữ hoa, thường và ký tự đặc biệt)
+            // Sinh ngẫu nhiên mật khẩu một lần an toàn (>= 16 ký tự)
             rawPassword = crypto.randomBytes(12).toString('base64url') + '!A9z';
             oneTimePassword = rawPassword;
             mustChangePassword = 1;
@@ -1176,6 +1192,196 @@ class EmployeeService {
         });
 
         return { success: true, message: `Đã cập nhật chế độ liên kết thiết bị thành ${mode}!` };
+    }
+
+    /**
+     * V70 Admin: Xem chi tiết thiết bị chính + lịch sử thiết bị đăng nhập/chấm công (+07:00)
+     */
+    async getEmployeeDeviceHistory(ma_nv) {
+        const cleanId = String(ma_nv || '').trim();
+        if (!cleanId) {
+            const err = new Error('Thiếu mã nhân viên!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const empRows = await query(
+            `SELECT ma_nv, ho_ten, role, bound_device_id, bound_device_name, primary_device_set_at,
+                    last_login_device_id, last_login_device_name, last_login_at, known_devices_json
+             FROM employees WHERE ma_nv = ? LIMIT 1`,
+            [cleanId]
+        );
+        if (!empRows || empRows.length === 0) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
+        const emp = empRows[0];
+        const logs = await query(
+            `SELECT id, employee_id, device_id, device_name, action_type, warning_type,
+                    shared_with_user_id, shared_with_user_label, ip_address, created_at
+             FROM user_device_logs
+             WHERE employee_id = ?
+             ORDER BY created_at DESC, id DESC
+             LIMIT 60`,
+            [emp.ma_nv]
+        ).catch(() => []);
+
+        const primaryId = emp.bound_device_id || null;
+        const primaryName = emp.bound_device_name ? sanitizeSingleDeviceModelName(emp.bound_device_name) : null;
+
+        let history = (logs || []).map((row) => ({
+            id: row.id,
+            device_id: row.device_id,
+            device_name: sanitizeSingleDeviceModelName(row.device_name || row.device_id),
+            short_tag: computeDeviceShortTag(row.device_id),
+            action_type: row.action_type || 'LOGIN',
+            warning_type: row.warning_type || 'NONE',
+            shared_with_user_id: row.shared_with_user_id || null,
+            shared_with_user_label: row.shared_with_user_label || null,
+            ip_address: row.ip_address || null,
+            is_primary: Boolean(primaryId && row.device_id === primaryId),
+            created_at: formatVnDateTimeIso(row.created_at)
+        }));
+
+        if (history.length === 0) {
+            const fallbackKnown = safeParseKnownDevices(emp.known_devices_json);
+            history = fallbackKnown
+                .slice()
+                .reverse()
+                .map((d, idx) => ({
+                    id: `known_${idx}`,
+                    device_id: d.device_id || '',
+                    device_name: sanitizeSingleDeviceModelName(d.device_name || d.device_id),
+                    short_tag: d.short_tag || computeDeviceShortTag(d.device_id || ''),
+                    action_type: String(d.source || 'LOGIN').toUpperCase(),
+                    warning_type: 'NONE',
+                    shared_with_user_id: null,
+                    shared_with_user_label: null,
+                    ip_address: d.ip || null,
+                    is_primary: Boolean(primaryId && d.device_id === primaryId),
+                    created_at: formatVnDateTimeIso(d.last_seen || d.first_seen)
+                }));
+        }
+
+        return {
+            ma_nv: emp.ma_nv,
+            ho_ten: emp.ho_ten,
+            primary_device: primaryId
+                ? {
+                      device_id: primaryId,
+                      device_name: primaryName,
+                      short_tag: computeDeviceShortTag(primaryId),
+                      set_at: formatVnDateTimeIso(emp.primary_device_set_at)
+                  }
+                : null,
+            last_login: emp.last_login_device_id
+                ? {
+                      device_id: emp.last_login_device_id,
+                      device_name: sanitizeSingleDeviceModelName(emp.last_login_device_name || emp.last_login_device_id),
+                      at: formatVnDateTimeIso(emp.last_login_at)
+                  }
+                : null,
+            history
+        };
+    }
+
+    /**
+     * V70 Admin: Đặt 1 thiết bị làm Thiết bị chính mới cho nhân viên (1 chạm, không khóa tài khoản).
+     */
+    async setEmployeePrimaryDevice(ma_nv, { device_id, device_name = null } = {}, current_user = null) {
+        const cleanId = String(ma_nv || '').trim();
+        const targetDeviceId = String(device_id || '').trim().slice(0, 128);
+        if (!cleanId || !targetDeviceId) {
+            const err = new Error('Vui lòng cung cấp mã nhân viên và mã thiết bị cần đặt làm máy chính!');
+            err.statusCode = 400;
+            throw err;
+        }
+        const rows = await query(
+            'SELECT ma_nv, ho_ten, role, known_devices_json FROM employees WHERE ma_nv = ? LIMIT 1',
+            [cleanId]
+        );
+        if (!rows || rows.length === 0) {
+            const err = new Error('Không tìm thấy nhân viên!');
+            err.statusCode = 404;
+            throw err;
+        }
+        const emp = rows[0];
+        if (emp.role === 'admin') {
+            const err = new Error('Tài khoản Quản trị viên không sử dụng thiết bị chính!');
+            err.statusCode = 400;
+            throw err;
+        }
+
+        const logMatch = await query(
+            'SELECT device_name FROM user_device_logs WHERE employee_id = ? AND device_id = ? ORDER BY created_at DESC LIMIT 1',
+            [emp.ma_nv, targetDeviceId]
+        ).catch(() => []);
+        const known = safeParseKnownDevices(emp.known_devices_json);
+        const knownMatch = known.find((d) => d.device_id === targetDeviceId);
+        const resolvedName = sanitizeSingleDeviceModelName(
+            device_name || logMatch?.[0]?.device_name || knownMatch?.device_name || targetDeviceId
+        );
+        const now = new Date();
+        const shortTag = computeDeviceShortTag(targetDeviceId);
+
+        const updatedKnown = known.map((d) => ({
+            ...d,
+            is_primary: d.device_id === targetDeviceId
+        }));
+        if (!updatedKnown.some((d) => d.device_id === targetDeviceId)) {
+            updatedKnown.push({
+                device_id: targetDeviceId,
+                device_name: resolvedName,
+                short_tag: shortTag,
+                first_seen: now.toISOString(),
+                last_seen: now.toISOString(),
+                source: 'admin_set_primary',
+                is_primary: true,
+                login_count: 1
+            });
+        }
+
+        await query(
+            `UPDATE employees
+             SET bound_device_id = ?,
+                 bound_device_name = ?,
+                 primary_device_set_at = ?,
+                 known_devices_json = ?,
+                 multi_device_alert = 0,
+                 pending_device_id = NULL,
+                 pending_device_name = NULL,
+                 device_change_reason = NULL
+             WHERE ma_nv = ?`,
+            [targetDeviceId, resolvedName, now, JSON.stringify(updatedKnown.slice(-20)), emp.ma_nv]
+        );
+        invalidateUserCache(emp.ma_nv);
+
+        await logAuditEvent({
+            actor_id: current_user?.username || current_user?.ma_nv || 'admin',
+            actor_role: 'admin',
+            action: 'SET_PRIMARY_DEVICE',
+            resource: 'employee_device',
+            details: {
+                target_ma_nv: emp.ma_nv,
+                primary_device_id: targetDeviceId,
+                primary_device_name: resolvedName,
+                short_tag: shortTag
+            }
+        });
+
+        return {
+            success: true,
+            message: `Đã đặt ${resolvedName} (#${shortTag}) làm thiết bị chính mới cho ${emp.ho_ten || emp.ma_nv}!`,
+            data: {
+                ma_nv: emp.ma_nv,
+                primary_device: {
+                    device_id: targetDeviceId,
+                    device_name: resolvedName,
+                    short_tag: shortTag,
+                    set_at: formatVnDateTimeIso(now)
+                }
+            }
+        };
     }
 
     /**

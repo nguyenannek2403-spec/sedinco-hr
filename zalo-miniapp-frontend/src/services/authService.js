@@ -5,8 +5,41 @@ import { ROLES } from "../constants/roles";
 export const AUTH_TOKEN_KEY = "sedinco_auth_token";
 export const AUTH_USER_KEY = "sedinco_miniapp_user";
 export const RECENT_USERNAMES_KEY = "sedinco_recent_usernames";
+const SKIP_PW_CHANGE_PREFIX = "sedinco_skip_pw_change_";
 const LEGACY_SESSION_KEY = "sedinco_auth_session";
 const MAX_RECENT_USERNAMES = 3;
+
+function buildSkipPasswordKey(userKey) {
+  const clean = String(userKey || "").trim().toUpperCase();
+  return clean ? `${SKIP_PW_CHANGE_PREFIX}${clean}` : "";
+}
+
+export async function loadSkipPasswordChange(userKey) {
+  const key = buildSkipPasswordKey(userKey);
+  if (!key) return false;
+  try {
+    const val = await zmpAdapter.getStorage(key);
+    return val === "1" || val === true || val === "true";
+  } catch {
+    try {
+      return typeof localStorage !== "undefined" && localStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  }
+}
+
+export async function saveSkipPasswordChange(userKey, skipped = true) {
+  const key = buildSkipPasswordKey(userKey);
+  if (!key) return;
+  try {
+    if (skipped) {
+      await zmpAdapter.setStorage(key, "1");
+    } else {
+      await zmpAdapter.removeStorage(key);
+    }
+  } catch {}
+}
 
 function stripSensitiveFields(user) {
   if (!user || typeof user !== "object") return null;

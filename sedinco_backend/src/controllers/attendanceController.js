@@ -131,7 +131,9 @@ class AttendanceController {
                 access_token,
                 work_location_type,
                 work_mode,
-                field_note
+                field_note,
+                device_id,
+                device_name
             } = req.body || {};
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '';
             const data = await attendanceService.precheckAttendanceBranch({
@@ -141,6 +143,8 @@ class AttendanceController {
                 zalo_access_token: zalo_access_token || access_token,
                 work_location_type: work_location_type || work_mode,
                 field_note,
+                device_id: device_id || req.headers['x-device-id'] || null,
+                device_name: device_name || null,
                 current_user: req.user,
                 ip_address: ip
             });
@@ -164,6 +168,7 @@ class AttendanceController {
                 client_nonce,
                 attendance_mode,
                 image_snapshot,
+                device_id,
                 device_info,
                 device_name,
                 is_fake_gps,
@@ -188,6 +193,7 @@ class AttendanceController {
                 client_nonce,
                 attendance_mode,
                 image_snapshot,
+                device_id,
                 device_info,
                 device_name,
                 user_agent: req.headers['user-agent'] || '',
@@ -221,6 +227,7 @@ class AttendanceController {
                 client_nonce,
                 attendance_mode,
                 image_snapshot,
+                device_id,
                 device_info,
                 device_name,
                 is_fake_gps,
@@ -242,6 +249,7 @@ class AttendanceController {
                 client_nonce,
                 attendance_mode,
                 image_snapshot,
+                device_id,
                 device_info,
                 device_name,
                 user_agent: req.headers['user-agent'] || '',

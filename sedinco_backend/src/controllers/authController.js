@@ -29,8 +29,8 @@ class AuthController {
             const { password, device_id, device_name, device_info } = req.body;
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
             const result = await authService.employeeLogin(identifier, password, ip, {
-                device_id,
-                device_name,
+                device_id: device_id || req.headers['x-device-id'] || null,
+                device_name: device_name || (req.headers['x-device-name'] ? decodeURIComponent(String(req.headers['x-device-name'])) : null),
                 device_info,
                 user_agent: req.headers['user-agent'] || ''
             });
@@ -38,7 +38,11 @@ class AuthController {
                 const status = result.statusCode || 401;
                 return res.status(status).json({ success: false, message: result.message, statusCode: status, request_id: req.id });
             }
-            return res.json({ success: true, data: result.data });
+            return res.json({
+                success: true,
+                device_warning: result.device_warning || result.data?.device_warning || null,
+                data: result.data
+            });
         } catch (err) {
             next(err);
         }
@@ -46,9 +50,14 @@ class AuthController {
 
     async adminLogin(req, res, next) {
         try {
-            const { username, password } = req.body;
+            const { username, password, device_id, device_name, device_info } = req.body;
             const ip = req.clientIp || req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
-            const result = await authService.adminLogin(username, password, ip);
+            const result = await authService.adminLogin(username, password, ip, {
+                device_id: device_id || req.headers['x-device-id'] || null,
+                device_name: device_name || (req.headers['x-device-name'] ? decodeURIComponent(String(req.headers['x-device-name'])) : null),
+                device_info,
+                user_agent: req.headers['user-agent'] || ''
+            });
             if (!result.success) {
                 const status = result.statusCode || 401;
                 return res.status(status).json({ success: false, message: result.message, statusCode: status, request_id: req.id });
@@ -220,7 +229,21 @@ class AuthController {
             if (!req.user) {
                 return res.status(401).json({ success: false, message: 'Chưa đăng nhập!' });
             }
-            const data = await authService.getProfile(req.user);
+            const rawHeaderName = req.headers['x-device-name'];
+            let decodedHeaderName = null;
+            if (rawHeaderName) {
+                try {
+                    decodedHeaderName = decodeURIComponent(String(rawHeaderName));
+                } catch {
+                    decodedHeaderName = String(rawHeaderName);
+                }
+            }
+            const data = await authService.getProfile(req.user, {
+                device_id: req.query?.device_id || req.headers['x-device-id'] || null,
+                device_name: req.query?.device_name || decodedHeaderName || null,
+                user_agent: req.headers['user-agent'] || '',
+                ip_address: req.clientIp || req.ip || ''
+            });
             return res.json({ success: true, data });
         } catch (err) {
             next(err);

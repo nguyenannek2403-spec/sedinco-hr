@@ -16,7 +16,9 @@ import {
   loadRecentUsernamesSync,
   loadRecentUsernames,
   pushRecentUsername,
-  removeRecentUsername as removeStoredRecentUsername
+  removeRecentUsername as removeStoredRecentUsername,
+  loadSkipPasswordChange,
+  saveSkipPasswordChange
 } from "../services/authService";
 import { getDeviceIdentity, sanitizeSingleDeviceModelName } from "../utils/deviceIdentity";
 
@@ -50,6 +52,16 @@ function mapRawUserToSession(rawUser, validToken) {
         : (rawUser?.current_device || rawUser?.bound_device_name)
         ? sanitizeSingleDeviceModelName(rawUser.current_device || rawUser.bound_device_name)
         : null,
+      primary_device_id: isPureAdmin ? null : (rawUser?.primary_device_id || rawUser?.bound_device_id || null),
+      primary_device_name: isPureAdmin
+        ? null
+        : (rawUser?.primary_device_name || rawUser?.bound_device_name)
+        ? sanitizeSingleDeviceModelName(rawUser.primary_device_name || rawUser.bound_device_name)
+        : null,
+      primary_device_set_at: isPureAdmin ? null : (rawUser?.primary_device_set_at || null),
+      last_login_device_id: isPureAdmin ? null : (rawUser?.last_login_device_id || null),
+      last_login_device_name: isPureAdmin ? null : (rawUser?.last_login_device_name || null),
+      last_login_at: isPureAdmin ? null : (rawUser?.last_login_at || null),
       current_device: isPureAdmin ? null : (rawUser?.current_device || null),
       known_devices_json: isPureAdmin ? null : (rawUser?.known_devices_json || null),
       device_history: isPureAdmin ? [] : (Array.isArray(rawUser?.device_history) ? rawUser.device_history : []),
@@ -85,6 +97,8 @@ export function useAuth({ onThemeSync, onFontScaleSync, onSessionRevoked } = {})
   const [currentUser, setCurrentUser] = useState(null);
   const [activeRole, setActiveRole] = useState(ROLES.WORKER);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [skippedPasswordChange, setSkippedPasswordChange] = useState(false);
+  const [deviceWarning, setDeviceWarning] = useState(null);
   const [isHydratingSession, setIsHydratingSession] = useState(true);
   const [sessionNetworkError, setSessionNetworkError] = useState("");
   const [recentUsernames, setRecentUsernames] = useState(() => loadRecentUsernamesSync());
@@ -109,12 +123,26 @@ export function useAuth({ onThemeSync, onFontScaleSync, onSessionRevoked } = {})
     setCurrentUser(null);
     setActiveRole(ROLES.WORKER);
     setMustChangePassword(false);
+    setSkippedPasswordChange(false);
+    setDeviceWarning(null);
     setSessionNetworkError("");
     setIsHydratingSession(false);
     if (showRevokedError && reasonMsg) {
       setLoginError(reasonMsg);
     }
     return reasonMsg;
+  }, []);
+
+  const skipPasswordChange = useCallback(async () => {
+    setSkippedPasswordChange(true);
+    const userKey = currentUser?.ma_nv || currentUser?.username;
+    if (userKey) {
+      await saveSkipPasswordChange(userKey, true);
+    }
+  }, [currentUser]);
+
+  const dismissDeviceWarning = useCallback(() => {
+    setDeviceWarning(null);
   }, []);
 
   // Tự động kiểm tra JWT từ nativeStorage khi mở app -> gọi GET /api/me để xác thực token_version, role & permissions mới nhất
@@ -150,7 +178,20 @@ export function useAuth({ onThemeSync, onFontScaleSync, onSessionRevoked } = {})
       setAuthToken(stored.token);
 
       try {
-        const res = await safeGet("/me", {}, { cancelPrevious: false });
+        const identity = await getDeviceIdentity().catch(() => null);
+        const deviceHeaders = identity?.device_id
+          ? {
+              "X-Device-Id": identity.device_id,
+              ...(identity.device_model_name
+                ? { "X-Device-Name": encodeURIComponent(identity.device_model_name) }
+                : {})
+            }
+          : undefined;
+        const res = await safeGet(
+          "/me",
+          {},
+          { cancelPrevious: false, ...(deviceHeaders ? { headers: deviceHeaders } : {}) }
+        );
         if (!isMountedRef.current) return;
 
         if (res?.success && res?.data) {
@@ -163,6 +204,15 @@ export function useAuth({ onThemeSync, onFontScaleSync, onSessionRevoked } = {})
           lastVerifiedTokenRef.current = stored.token;
           await saveStoredSession(stored.token, safeUser);
 
+          const userKey = safeUser.ma_nv || safeUser.username;
+          const mustChange = Boolean(safeUser.must_change_password);
+          let hasSkipped = false;
+          if (mustChange && userKey) {
+            hasSkipped = await loadSkipPasswordChange(userKey);
+          } else if (userKey) {
+            await saveSkipPasswordChange(userKey, false);
+          }
+
           if (safeUser.theme_preference) {
             onThemeSyncRef.current?.(safeUser);
           }
@@ -172,7 +222,8 @@ export function useAuth({ onThemeSync, onFontScaleSync, onSessionRevoked } = {})
 
           setCurrentUser(safeUser);
           setActiveRole(resolvedRole);
-          setMustChangePassword(Boolean(safeUser.must_change_password));
+          setMustChangePassword(mustChange);
+          setSkippedPasswordChange(mustChange ? hasSkipped : false);
           setSessionNetworkError("");
           setLoginError("");
           return;
@@ -250,6 +301,8 @@ export function useAuth({ onThemeSync, onFontScaleSync, onSessionRevoked } = {})
       setCurrentUser(null);
       setActiveRole(ROLES.WORKER);
       setMustChangePassword(false);
+      setSkippedPasswordChange(false);
+      setDeviceWarning(null);
       setSessionNetworkError("");
       setLoginError("");
     } catch (e) {
@@ -333,14 +386,21 @@ export function useAuth({ onThemeSync, onFontScaleSync, onSessionRevoked } = {})
 
         lastVerifiedTokenRef.current = validToken;
         await saveStoredSession(validToken, safeUser);
+        const userKey = safeUser.ma_nv || safeUser.username;
+        if (userKey) {
+          await saveSkipPasswordChange(userKey, false);
+        }
         const updatedRecents = await pushRecentUsername(rawIdentifier);
+        const devWarn = res.device_warning || rawUser.device_warning || null;
 
         setRecentUsernames(updatedRecents);
         setSessionNetworkError("");
         setCurrentUser(safeUser);
         setActiveRole(resolvedRole);
         setMustChangePassword(safeUser.must_change_password);
-        return safeUser;
+        setSkippedPasswordChange(false);
+        setDeviceWarning(devWarn);
+        return { ...safeUser, device_warning: devWarn };
       } else {
         const msg = res?.message || "Tài khoản hoặc mật khẩu không chính xác!";
         setLoginError(msg);
@@ -374,8 +434,15 @@ export function useAuth({ onThemeSync, onFontScaleSync, onSessionRevoked } = {})
     });
     if (updatedFields && typeof updatedFields.must_change_password === "boolean") {
       setMustChangePassword(updatedFields.must_change_password);
+      if (!updatedFields.must_change_password) {
+        setSkippedPasswordChange(false);
+        const userKey = updatedFields.ma_nv || updatedFields.username || currentUser?.ma_nv || currentUser?.username;
+        if (userKey) {
+          saveSkipPasswordChange(userKey, false).catch(() => {});
+        }
+      }
     }
-  }, []);
+  }, [currentUser]);
 
   return {
     currentUser,
@@ -385,6 +452,10 @@ export function useAuth({ onThemeSync, onFontScaleSync, onSessionRevoked } = {})
     setActiveRole,
     mustChangePassword,
     setMustChangePassword,
+    skippedPasswordChange,
+    skipPasswordChange,
+    deviceWarning,
+    dismissDeviceWarning,
     isHydratingSession,
     sessionNetworkError,
     retrySessionHydration: hydrateSession,
