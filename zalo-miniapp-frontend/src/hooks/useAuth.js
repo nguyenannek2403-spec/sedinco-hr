@@ -7,13 +7,10 @@ import {
   setOnUnauthorizedCallback
 } from "../utils/api";
 import { resolveSession, logoutSession } from "../services/authService";
-import { zaloAuthService } from "../services/zalo-auth.service";
-import { isZaloMiniAppRuntime } from "../services/zalo-sdk-core";
 import { getDeviceIdentity, sanitizeSingleDeviceModelName } from "../utils/deviceIdentity";
 
 const STORAGE_USER_KEY = "sedinco_miniapp_user";
 const STORAGE_TOKEN_KEY = "sedinco_auth_token";
-const STORAGE_ZALO_LINK_META = "sedinco_zalo_linked_meta";
 
 function mapRawUserToSession(rawUser, validToken) {
   let resolvedRole = ROLES.WORKER;
@@ -92,15 +89,6 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
     }
   });
 
-  const [linkedZaloMeta, setLinkedZaloMeta] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_ZALO_LINK_META);
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  });
-
   const [activeRole, setActiveRole] = useState(() => {
     return currentUser?.role || ROLES.WORKER;
   });
@@ -113,89 +101,11 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
   const [loginError, setLoginError] = useState("");
   const isLoginSubmittingRef = useRef(false);
 
-  // V6 Zero-Password Auto Login: Xác thực qua Zalo Access Token tại Backend (không tự xin quyền khi mở app)
-  const loginWithZaloOneTouch = useCallback(async (isSilentAuto = false) => {
-    if (isLoginSubmittingRef.current) return null;
-    if (!isSilentAuto) setLoginError("");
-    isLoginSubmittingRef.current = true;
-    setIsLoggingIn(true);
-
-    try {
-      let meta = null;
-      try {
-        meta = JSON.parse(localStorage.getItem(STORAGE_ZALO_LINK_META) || "null");
-      } catch {}
-
-      const zaloRes = await zaloAuthService.requestZaloIdentityForLogin({
-        isSilentAuto,
-        maNvHint: meta?.ma_nv || ""
-      });
-
-      if (zaloRes.ok && zaloRes.data?.user) {
-        const rawUser = zaloRes.data.user;
-        const validToken = rawUser.token || "";
-        if (!validToken) {
-          if (!isSilentAuto) setLoginError("Máy chủ chưa cấp phiên xác thực hợp lệ.");
-          return null;
-        }
-        setAuthToken(validToken);
-        localStorage.setItem(STORAGE_TOKEN_KEY, validToken);
-
-        const { resolvedRole, safeUser } = mapRawUserToSession(rawUser, validToken);
-
-        if (rawUser.theme_preference) {
-          onThemeSyncRef.current?.(safeUser);
-        }
-        if (rawUser.font_scale !== undefined) {
-          onFontScaleSyncRef.current?.(safeUser);
-        }
-
-        const identity = await getDeviceIdentity();
-        const newMeta = {
-          ma_nv: safeUser.ma_nv,
-          ho_ten: safeUser.ho_ten,
-          chuc_danh: safeUser.chuc_danh,
-          role: resolvedRole,
-          device_id: identity.device_id
-        };
-        localStorage.setItem(STORAGE_ZALO_LINK_META, JSON.stringify(newMeta));
-        setLinkedZaloMeta(newMeta);
-        localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(safeUser));
-        sessionStorage.removeItem("sedinco_manual_logout");
-        setCurrentUser(safeUser);
-        setActiveRole(resolvedRole);
-        setMustChangePassword(safeUser.must_change_password);
-        return safeUser;
-      }
-
-      if (!isSilentAuto) {
-        setLoginError(
-          zaloRes.message || "Thiết bị chưa liên kết tài khoản Zalo. Vui lòng nhập Mã NV & Mật khẩu lần đầu!"
-        );
-      }
-      return null;
-    } catch (err) {
-      if (!isSilentAuto) {
-        setLoginError(err.message || "Không thể đăng nhập nhanh bằng Zalo. Vui lòng nhập mật khẩu.");
-      }
-      return null;
-    } finally {
-      isLoginSubmittingRef.current = false;
-      setIsLoggingIn(false);
-    }
-  }, []);
-
-  // F0: Chỉ im lặng kiểm tra phiên Zalo khi ĐANG chạy trong Zalo Mini App runtime (không gọi API quyền khi mở app)
+  // V68: Chỉ khôi phục phiên JWT đã lưu nội bộ, tuyệt đối KHÔNG tự gọi Zalo SDK khi mở app
   useEffect(() => {
     let isMounted = true;
-    const checkZaloSession = async () => {
+    const checkLocalSession = async () => {
       if (!currentUser) {
-        const manualLoggedOut = sessionStorage.getItem("sedinco_manual_logout") === "1";
-        if (!manualLoggedOut && isZaloMiniAppRuntime()) {
-          const autoUser = await loginWithZaloOneTouch(true);
-          if (isMounted && autoUser) return;
-        }
-
         try {
           const session = await resolveSession();
           if (isMounted && session?.isLinked && session?.user) {
@@ -206,14 +116,14 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
             setMustChangePassword(Boolean(user.must_change_password));
             localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
           }
-        } catch (e) {
-          // Bỏ qua trên môi trường web tiêu chuẩn
+        } catch {
+          // Bỏ qua nếu chưa có phiên lưu trữ
         }
       }
     };
-    checkZaloSession();
+    checkLocalSession();
     return () => { isMounted = false; };
-  }, [currentUser, loginWithZaloOneTouch]);
+  }, [currentUser]);
 
   // Hook 401 Unauthorized tự động đăng xuất an toàn
   useEffect(() => {
@@ -245,7 +155,6 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
       sessionStorage.clear();
       setAuthToken("");
       setCurrentUser(null);
-      setLinkedZaloMeta(null);
       setActiveRole(ROLES.WORKER);
       setMustChangePassword(false);
       setLoginError("");
@@ -254,7 +163,7 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
     }
   }, []);
 
-  // Xử lý đăng nhập bằng SĐT / Tài khoản / Mã NV (tự động gắn zalo_user_id + device_id lần đầu)
+  // Xử lý đăng nhập nội bộ bằng Tài khoản / SĐT / Mã NV + Mật khẩu
   const login = useCallback(async (rawUsername, rawPassword) => {
     if (isLoginSubmittingRef.current) return;
     setLoginError("");
@@ -281,20 +190,15 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
     setIsLoggingIn(true);
 
     try {
-      const [identity, zaloAccessToken] = await Promise.all([
-        getDeviceIdentity(),
-        zaloAuthService.silentResolveZaloToken()
-      ]);
+      const identity = await getDeviceIdentity();
       const { device_id, device_model_name: device_name, device_info } = identity;
 
-      // Xác thực hợp nhất với Backend REST API (hỗ trợ SĐT / Tài khoản / Mã NV) + Liên kết Zalo Access Token thật nếu đang ở Zalo
+      // Xác thực hợp nhất với Backend REST API (SĐT / Tài khoản / Mã NV & Mật khẩu)
       let res = await safePost("/login", {
         identifier: rawIdentifier,
         ma_nv: rawIdentifier,
         username: rawIdentifier,
         password: p,
-        zalo_access_token: zaloAccessToken || undefined,
-        zalo_token: zaloAccessToken || undefined,
         device_id,
         device_name,
         device_info
@@ -326,19 +230,6 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
         }
         if (rawUser.font_scale !== undefined) {
           onFontScaleSyncRef.current?.(safeUser);
-        }
-
-        // Lưu metadata thiết bị cục bộ (không giữ Zalo ID giả mạo)
-        if (safeUser.ma_nv && safeUser.ma_nv !== "admin" && resolvedRole !== ROLES.ADMIN) {
-          const newMeta = {
-            ma_nv: safeUser.ma_nv,
-            ho_ten: safeUser.ho_ten,
-            chuc_danh: safeUser.chuc_danh,
-            role: resolvedRole,
-            device_id
-          };
-          localStorage.setItem(STORAGE_ZALO_LINK_META, JSON.stringify(newMeta));
-          setLinkedZaloMeta(newMeta);
         }
 
         localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(safeUser));
@@ -450,9 +341,7 @@ export function useAuth({ onThemeSync, onFontScaleSync } = {}) {
     isLoggingIn,
     loginError,
     setLoginError,
-    linkedZaloMeta,
     login,
-    loginWithZaloOneTouch,
     logout,
     clearCache
   };
