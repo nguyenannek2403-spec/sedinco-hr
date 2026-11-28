@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Lock, User, Eye, EyeOff, AlertCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { Lock, User, Eye, EyeOff, AlertCircle, RefreshCw } from "lucide-react";
 import CompanyLogo from "../components/CompanyLogo";
 import { ThemeToggleButton, useTheme } from "../context/ThemeContext";
 
@@ -39,16 +39,16 @@ export default function AuthView({
         <ThemeToggleButton compact />
       </div>
 
-      {/* Khối đăng nhập trung tâm theo Sedinco Pulse (Nội bộ SEDINCO) */}
-      <div className="flex-1 flex items-center justify-center w-full py-2 relative z-10">
+      {/* Khối đăng nhập trung tâm theo Sedinco Pulse (Google Stitch Screen 1) */}
+      <div className="flex-1 flex items-center justify-center w-full relative z-10">
         <div
           data-testid="auth-login-card"
-          className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-[28px] p-5 sm:p-6 shadow-[0_12px_36px_-8px_rgba(17,28,45,0.08)] dark:shadow-2xl space-y-4 transition-colors duration-200"
+          className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-[28px] p-6 sm:p-7 shadow-[0_12px_36px_-8px_rgba(17,28,45,0.08)] dark:shadow-2xl transition-colors duration-200"
         >
-          {/* 1-3: Logo Công ty + Tên Công ty + Tên Ứng dụng + Nhãn Ứng dụng nội bộ */}
-          <div className="flex flex-col items-center text-center space-y-2">
+          {/* 1-3: Logo Công ty + Tên Công ty + Tên Ứng dụng + 1 dòng ngữ cảnh nội bộ */}
+          <div className="flex flex-col items-center text-center">
             <CompanyLogo size="default" theme={isDark ? "dark" : "light"} iconOnly />
-            <div className="space-y-1">
+            <div className="space-y-1 mt-2.5">
               <h1 className="text-lg font-extrabold tracking-wide text-[#111C2D] dark:text-white uppercase leading-tight">
                 CÔNG TY SEDINCO
               </h1>
@@ -56,17 +56,16 @@ export default function AuthView({
                 Sedinco HR
               </p>
             </div>
-            <span
-              data-testid="auth-internal-badge"
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200/80 dark:border-rose-800/70 text-[11px] font-bold text-[#B80035] dark:text-rose-300 whitespace-normal break-words leading-snug"
+            <p
+              data-testid="auth-internal-notice"
+              className="text-[12.5px] text-slate-500 dark:text-slate-400 text-center leading-relaxed whitespace-normal break-words px-2 mt-1.5 mb-5"
             >
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-              <span>Ứng dụng quản trị nhân sự nội bộ</span>
-            </span>
+              Ứng dụng nội bộ dành riêng cho nhân sự Công ty SEDINCO. Đăng nhập bằng tài khoản được cấp để chấm công và tra cứu bảng lương.
+            </p>
           </div>
 
           {/* 4: Khối thao tác đăng nhập chính (Tài khoản & Mật khẩu nội bộ) */}
-          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-3.5">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
             <div>
               <label
                 htmlFor="auth-username"
@@ -152,25 +151,6 @@ export default function AuthView({
               )}
             </button>
           </form>
-
-          {/* 5: Khối giải thích ngữ cảnh ứng dụng nội bộ & lý do đăng nhập (Chuẩn xét duyệt Zalo Mini App) */}
-          <div
-            data-testid="auth-internal-context-box"
-            className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-3.5 space-y-1.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed"
-          >
-            <p className="whitespace-normal break-words">
-              <span className="font-bold text-[#111C2D] dark:text-white">Phạm vi sử dụng: </span>
-              Ứng dụng nội bộ dành riêng cho cán bộ, nhân viên Công ty SEDINCO.
-            </p>
-            <p className="whitespace-normal break-words">
-              <span className="font-bold text-[#111C2D] dark:text-white">Lý do cần đăng nhập: </span>
-              Việc đăng nhập giúp định danh chính xác nhân sự để thực hiện chấm công hằng ngày, theo dõi bảng công, gửi đơn từ và bảo mật thông tin phiếu lương cá nhân.
-            </p>
-            <p className="whitespace-normal break-words">
-              <span className="font-bold text-[#111C2D] dark:text-white">Hướng dẫn tài khoản: </span>
-              Tài khoản được Quản trị viên công ty cấp trực tiếp (không hỗ trợ tự đăng ký). Nếu quên mật khẩu hoặc cần hỗ trợ, vui lòng liên hệ Quản trị viên để được cấp lại.
-            </p>
-          </div>
         </div>
       </div>
     </div>
