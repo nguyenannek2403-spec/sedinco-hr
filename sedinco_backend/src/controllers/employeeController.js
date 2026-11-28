@@ -92,20 +92,6 @@ class EmployeeController {
         }
     }
 
-    async bindZalo(req, res, next) {
-        try {
-            const zalo_token = req.body?.zalo_token || req.body?.zalo_access_token || req.headers['x-zalo-access-token'];
-            const ma_nv = req.user ? req.user.ma_nv : null;
-            if (!ma_nv) {
-                return res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập tài khoản nhân viên!' });
-            }
-            const data = await employeeService.bindZalo(ma_nv, zalo_token, req.user);
-            return res.json({ success: true, data });
-        } catch (err) {
-            next(err);
-        }
-    }
-
     async requestDeviceChange(req, res, next) {
         try {
             const { new_device_id, device_name, reason } = req.body;

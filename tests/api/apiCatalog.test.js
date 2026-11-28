@@ -114,25 +114,30 @@ async function apiTest(id, name, fn) {
             assert.strictEqual(bankOk.body.data.bank_account_name, 'NGUYEN VAN TEST');
         });
 
-        await apiTest('API-AUTH-04', 'Zalo link / status / verify-phone / zalo-auto-login / unlink using test token', async () => {
+        await apiTest('API-AUTH-04', 'Deprecated Zalo link/verify endpoints removed and token revocation enforced', async () => {
             const empTok = await harness.tokenFor('TEST_API_W1');
             const linkRes = await harness.request('POST', '/auth/zalo/link', {
                 token: empTok,
                 body: { zalo_access_token: 'mock_zalo_user_zuid_api_01' }
             });
-            assert.strictEqual(linkRes.status, 200);
+            assert.strictEqual(linkRes.status, 404);
 
             const statusRes = await harness.request('GET', '/auth/zalo/status', { token: empTok });
-            assert.strictEqual(statusRes.status, 200);
-            assert.strictEqual(statusRes.body.data.is_linked, true);
+            assert.strictEqual(statusRes.status, 404);
 
             const autoRes = await harness.request('POST', '/auth/zalo-auto-login', {
                 body: { zalo_access_token: 'mock_zalo_user_zuid_api_01' }
             });
-            assert.strictEqual(autoRes.status, 200);
+            assert.strictEqual(autoRes.status, 404);
 
             const unlinkRes = await harness.request('POST', '/auth/zalo/unlink', { token: empTok });
-            assert.strictEqual(unlinkRes.status, 200);
+            assert.strictEqual(unlinkRes.status, 404);
+
+            const verifyPhoneRes = await harness.request('POST', '/auth/zalo/verify-phone', {
+                token: empTok,
+                body: { phone_token: 'mock' }
+            });
+            assert.strictEqual(verifyPhoneRes.status, 404);
         });
 
         // --- C. Company, Departments & Holidays ---

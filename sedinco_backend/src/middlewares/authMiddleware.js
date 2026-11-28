@@ -59,10 +59,34 @@ async function verifyUserStatusInDb(user) {
     return null;
 }
 
-// 1. Tạo JWT Token an toàn không dùng thư viện ngoài
-function generateToken(payload, expiresInSeconds = 7 * 24 * 3600) {
+const DEFAULT_JWT_EXPIRES_SECONDS = 30 * 24 * 3600;
+
+function parseJwtExpiresToSeconds(rawVal, fallbackSeconds = DEFAULT_JWT_EXPIRES_SECONDS) {
+    if (typeof rawVal === 'number' && Number.isFinite(rawVal) && rawVal > 0) {
+        return Math.floor(rawVal);
+    }
+    const str = String(rawVal || '').trim().toLowerCase();
+    if (!str) return fallbackSeconds;
+    if (/^\d+$/.test(str)) {
+        const secs = Number(str);
+        return secs > 0 ? Math.floor(secs) : fallbackSeconds;
+    }
+    const match = str.match(/^(\d+(?:\.\d+)?)\s*(s|m|h|d)$/);
+    if (!match) return fallbackSeconds;
+    const val = Number(match[1]);
+    const unit = match[2];
+    const mult = unit === 's' ? 1 : unit === 'm' ? 60 : unit === 'h' ? 3600 : 86400;
+    const total = Math.floor(val * mult);
+    return total > 0 ? total : fallbackSeconds;
+}
+
+// 1. Tạo JWT Token an toàn không dùng thư viện ngoài (Mặc định 30 ngày hoặc theo JWT_EXPIRES_IN)
+function generateToken(payload, expiresInSeconds = null) {
+    const resolvedSeconds = Number.isFinite(expiresInSeconds) && expiresInSeconds > 0
+        ? Math.floor(expiresInSeconds)
+        : parseJwtExpiresToSeconds(process.env.JWT_EXPIRES_IN, DEFAULT_JWT_EXPIRES_SECONDS);
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
+    const exp = Math.floor(Date.now() / 1000) + resolvedSeconds;
     const fullPayload = { ...payload, exp };
     const body = Buffer.from(JSON.stringify(fullPayload)).toString('base64url');
     const signature = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
@@ -200,17 +224,13 @@ async function authenticateToken(req, res, next) {
                 });
             }
             if (dbCheck.notFound || dbCheck.isLocked) {
+                if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+                    req.app.setCorsHeadersIfAllowed(req, res);
+                }
                 return res.status(403).json({
                     success: false,
+                    code: 'ACCOUNT_REVOKED',
                     message: 'Tài khoản của bạn đã bị TẠM KHÓA hoặc không còn tồn tại trên hệ thống!'
-                });
-            }
-            const normalizedDbRole = dbCheck.role === 'employee' ? 'worker' : dbCheck.role;
-            const normalizedTokenRole = user.role === 'employee' ? 'worker' : user.role;
-            if (normalizedDbRole && normalizedDbRole !== normalizedTokenRole) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Vai trò tài khoản của bạn đã thay đổi. Vui lòng đăng nhập lại!'
                 });
             }
             if (Number(user.token_version || 1) !== Number(dbCheck.tokenVersion || 1)) {
@@ -220,7 +240,19 @@ async function authenticateToken(req, res, next) {
                 return res.status(401).json({
                     success: false,
                     code: 'TOKEN_REVOKED',
-                    message: 'Phiên đăng nhập đã hết hiệu lực do thay đổi bảo mật, vui lòng đăng nhập lại'
+                    message: 'Phiên đăng nhập đã hết hạn hoặc tài khoản vừa được cập nhật, vui lòng đăng nhập lại'
+                });
+            }
+            const normalizedDbRole = dbCheck.role === 'employee' ? 'worker' : dbCheck.role;
+            const normalizedTokenRole = user.role === 'employee' ? 'worker' : user.role;
+            if (normalizedDbRole && normalizedDbRole !== normalizedTokenRole) {
+                if (typeof req.app?.setCorsHeadersIfAllowed === 'function') {
+                    req.app.setCorsHeadersIfAllowed(req, res);
+                }
+                return res.status(401).json({
+                    success: false,
+                    code: 'TOKEN_REVOKED',
+                    message: 'Vai trò tài khoản của bạn đã thay đổi, vui lòng đăng nhập lại'
                 });
             }
             req.user = user;

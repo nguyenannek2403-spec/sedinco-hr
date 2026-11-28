@@ -1,8 +1,5 @@
 import {
   getAccessToken as zmpGetAccessToken,
-  getUserInfo as zmpGetUserInfo,
-  getUserID as zmpGetUserID,
-  getPhoneNumber as zmpGetPhoneNumber,
   getSetting as zmpGetSetting,
   authorize as zmpAuthorize,
   openPermissionSetting as zmpOpenPermissionSetting,
@@ -22,6 +19,7 @@ import {
   openOutApp as zmpOpenOutApp,
   getStorage as zmpGetStorage,
   setStorage as zmpSetStorage,
+  removeStorage as zmpRemoveStorage,
   nativeStorage as zmpNativeStorage
 } from "zmp-sdk/apis";
 
@@ -98,40 +96,6 @@ export const realSdkAdapter = {
     return { opened: true, source: "zmp" };
   },
 
-  async getUserID() {
-    if (!isInsideZaloRuntime() || typeof zmpGetUserID !== "function") {
-      return "";
-    }
-    try {
-      const uid = await zmpGetUserID({});
-      return typeof uid === "string" ? uid : (uid?.userID || uid?.id || "");
-    } catch {
-      return "";
-    }
-  },
-
-  async getUserInfo({ autoRequestPermission = false, avatarType = "normal" } = {}) {
-    try {
-      if (!isInsideZaloRuntime()) return null;
-      if (typeof zmpGetUserInfo === "function") {
-        const res = await zmpGetUserInfo({ autoRequestPermission: Boolean(autoRequestPermission), avatarType });
-        if (res?.userInfo?.id) {
-          return {
-            id: String(res.userInfo.id),
-            name: res.userInfo.name || "",
-            avatar: res.userInfo.avatar || ""
-          };
-        }
-      }
-      return null;
-    } catch (err) {
-      if (autoRequestPermission) {
-        throw err;
-      }
-      return null;
-    }
-  },
-
   async getAccessToken({ silent = false } = {}) {
     if (!isInsideZaloRuntime() || typeof zmpGetAccessToken !== "function") {
       if (silent) return "";
@@ -151,25 +115,10 @@ export const realSdkAdapter = {
       console.warn("[RealSDK] getAccessToken error:", err);
       throw {
         code: err?.code ?? "AUTH_TOKEN_FAILED",
-        message: "Chưa kết nối được phiên Zalo trên máy này. Vui lòng mở lại ứng dụng hoặc đăng nhập bằng Mã nhân viên.",
+        message: "Chưa kết nối được phiên Zalo trên máy này. Vui lòng mở lại ứng dụng hoặc đăng nhập bằng Tài khoản nhân sự.",
         raw: err
       };
     }
-  },
-
-  async getPhoneNumber() {
-    if (!isInsideZaloRuntime() || typeof zmpGetPhoneNumber !== "function") {
-      throw {
-        code: "NOT_IN_ZALO_RUNTIME",
-        message: "Xác minh số điện thoại Zalo chỉ khả dụng trong Zalo Mini App."
-      };
-    }
-    const res = await zmpGetPhoneNumber({});
-    return {
-      token: res?.token || "",
-      number: res?.number || "",
-      raw: res
-    };
   },
 
   async checkCameraPermission() {
@@ -582,29 +531,51 @@ export const realSdkAdapter = {
 
   async setStorage(key, value) {
     if (!key) return false;
+    if (value === null || value === undefined) {
+      return await this.removeStorage(key);
+    }
+    const serialized = String(value);
     try {
       if (typeof localStorage !== "undefined") {
-        if (value === null || value === undefined) {
-          localStorage.removeItem(key);
-        } else {
-          localStorage.setItem(key, String(value));
-        }
+        localStorage.setItem(key, serialized);
       }
     } catch (e) {}
     try {
       if (isInsideZaloRuntime()) {
         if (zmpNativeStorage && typeof zmpNativeStorage.setItem === "function") {
-          zmpNativeStorage.setItem(key, value === null || value === undefined ? "" : String(value));
+          zmpNativeStorage.setItem(key, serialized);
           return true;
         }
         if (typeof zmpSetStorage === "function") {
-          await zmpSetStorage({ data: { [key]: value === null || value === undefined ? "" : String(value) } });
+          await zmpSetStorage({ data: { [key]: serialized } });
           return true;
         }
       }
     } catch (e) {
       // Da luu localStorage lam fallback
     }
+    return true;
+  },
+
+  async removeStorage(key) {
+    if (!key) return false;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem(key);
+      }
+    } catch (e) {}
+    try {
+      if (isInsideZaloRuntime()) {
+        if (zmpNativeStorage && typeof zmpNativeStorage.removeItem === "function") {
+          zmpNativeStorage.removeItem(key);
+          return true;
+        }
+        if (typeof zmpRemoveStorage === "function") {
+          await zmpRemoveStorage({ keys: [key] });
+          return true;
+        }
+      }
+    } catch (e) {}
     return true;
   },
 

@@ -3,14 +3,8 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const { authenticateToken, requireAuth, requireRole } = require('../middlewares/authMiddleware');
 
-// Public & Protected auth endpoints
+// Public & Protected auth endpoints (Xác thực nội bộ duy nhất bằng Tài khoản / SĐT / Mã NV + Mật khẩu)
 router.post('/login', (req, res, next) => authController.login(req, res, next));
-router.post('/auth/zalo-auto-login', (req, res, next) => authController.zaloAutoLogin(req, res, next));
-router.post('/zalo-auto-login', (req, res, next) => authController.zaloAutoLogin(req, res, next));
-router.get('/auth/zalo/status', authenticateToken, requireAuth, (req, res, next) => authController.getZaloStatus(req, res, next));
-router.post('/auth/zalo/link', authenticateToken, requireAuth, (req, res, next) => authController.linkZalo(req, res, next));
-router.post('/auth/zalo/unlink', authenticateToken, requireAuth, (req, res, next) => authController.unlinkZalo(req, res, next));
-router.post('/auth/zalo/verify-phone', authenticateToken, requireAuth, (req, res, next) => authController.verifyZaloPhone(req, res, next));
 router.post('/admin/login', (req, res, next) => authController.adminLogin(req, res, next));
 router.post('/admin/register', authenticateToken, requireAuth, requireRole('admin'), (req, res, next) => authController.adminRegister(req, res, next));
 

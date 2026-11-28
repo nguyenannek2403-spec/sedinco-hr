@@ -147,9 +147,14 @@ apiClient.interceptors.response.use(
 
     const isRevoked = status === 401 || (status === 403 && (error.response?.data?.code === 'ACCOUNT_REVOKED' || error.response?.data?.message?.includes('chấm dứt') || error.response?.data?.message?.includes('khóa')));
     if (isRevoked) {
-      userMessage = formatErrorMessage(error.response?.data?.message || "Phiên đăng nhập đã hết hạn hoặc tài khoản đã bị khóa.");
+      userMessage = formatErrorMessage(
+        error.response?.data?.message ||
+          "Phiên đăng nhập đã hết hạn hoặc tài khoản vừa được cập nhật, vui lòng đăng nhập lại."
+      );
       currentAuthToken = "";
-      if (onUnauthorizedCallback) onUnauthorizedCallback();
+      if (onUnauthorizedCallback) {
+        onUnauthorizedCallback(userMessage, error.response?.data || null);
+      }
     } else if (status === 403) {
       userMessage = formatErrorMessage(error.response?.data?.message || "Bạn chưa được cấp quyền thực hiện thao tác này.");
     } else if (status === 429) {

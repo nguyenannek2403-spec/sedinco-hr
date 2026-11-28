@@ -18,15 +18,10 @@ import {
   Edit3,
   Camera,
   Trash2,
-  Loader2,
-  Link2,
-  Unlink,
-  ShieldCheck
+  Loader2
 } from "lucide-react";
 import { safeGet, safePut } from "../../utils/api";
 import { compressAvatarImage } from "../../utils/imageCompressor";
-import { zaloAuthService } from "../../services/zalo-auth.service";
-import { SDK_STATES, isZaloMiniAppRuntime, openZaloPermissionSettings } from "../../services/zalo-sdk-core";
 import { zaloMediaService } from "../../services/zalo-media.service";
 import SalarySlipModal from "../../components/SalarySlipModal";
 import BankCardModal from "../../components/BankCardModal";
@@ -73,9 +68,6 @@ export default function WorkerProfileTab({
   const [showDeviceHistory, setShowDeviceHistory] = useState(false);
   const [syncedUser, setSyncedUser] = useState(null);
   const [salaryStatusMeta, setSalaryStatusMeta] = useState(null);
-  const [zaloLinkStatus, setZaloLinkStatus] = useState(null);
-  const [zaloActionBusy, setZaloActionBusy] = useState(false);
-  const [zaloNotice, setZaloNotice] = useState(null);
   const [attendanceSummary, setAttendanceSummary] = useState({
     total_work_days: 0,
     on_time_count: 0,
@@ -105,13 +97,9 @@ export default function WorkerProfileTab({
       safeGet("/notifications/my", {
         filter: "unread",
         limit: 10
-      }, { cancelPrevious: false }).catch(() => null),
-      zaloAuthService.getZaloLinkStatus().catch(() => null)
-    ]).then(([attRes, meRes, payRes, notifRes, zaloStatusData]) => {
+      }, { cancelPrevious: false }).catch(() => null)
+    ]).then(([attRes, meRes, payRes, notifRes]) => {
       if (!active) return;
-      if (zaloStatusData) {
-        setZaloLinkStatus(zaloStatusData);
-      }
       const rawAtt = attRes?.data;
       if (rawAtt && !Array.isArray(rawAtt) && rawAtt.summary) {
         setAttendanceSummary((prev) => ({
@@ -203,75 +191,6 @@ export default function WorkerProfileTab({
       try {
         e.target.value = "";
       } catch {}
-    }
-  };
-
-  const handleLinkZalo = async () => {
-    if (zaloActionBusy) return;
-    setZaloActionBusy(true);
-    setZaloNotice(null);
-    try {
-      const res = await zaloAuthService.linkZaloToCurrentEmployee();
-      if (res.ok) {
-        const updated = await zaloAuthService.getZaloLinkStatus().catch(() => null);
-        if (updated) setZaloLinkStatus(updated);
-        setZaloNotice({ state: "success", message: res.message || "Đã liên kết tài khoản Zalo với mã nhân viên!" });
-        if (typeof showToast === "function") showToast(res.message || "Đã liên kết Zalo!", "success");
-      } else {
-        setZaloNotice({
-          state: res.state,
-          message: res.message,
-          canOpenSettings: res.canOpenSettings
-        });
-      }
-    } finally {
-      setZaloActionBusy(false);
-    }
-  };
-
-  const handleUnlinkZalo = async () => {
-    if (zaloActionBusy) return;
-    setZaloActionBusy(true);
-    setZaloNotice(null);
-    try {
-      const res = await zaloAuthService.unlinkZaloFromCurrentEmployee();
-      if (res?.success) {
-        setZaloLinkStatus((prev) => ({ ...(prev || {}), is_linked: false, zalo_user_id_masked: null }));
-        setSyncedUser((prev) => ({ ...(prev || currentUser || {}), zalo_user_id: null }));
-        setZaloNotice({ state: "success", message: "Đã hủy liên kết tài khoản Zalo khỏi mã nhân viên." });
-        if (typeof showToast === "function") showToast("Đã hủy liên kết Zalo.", "success");
-      }
-    } catch (err) {
-      setZaloNotice({ state: "error", message: err?.message || "Không thể hủy liên kết Zalo." });
-    } finally {
-      setZaloActionBusy(false);
-    }
-  };
-
-  const handleVerifyZaloPhone = async () => {
-    if (zaloActionBusy) return;
-    setZaloActionBusy(true);
-    setZaloNotice(null);
-    try {
-      const res = await zaloAuthService.verifyZaloPhoneForEmployee();
-      if (res.ok) {
-        if (res.data?.phone) {
-          setSyncedUser((prev) => ({ ...(prev || currentUser || {}), phone: res.data.phone, dien_thoai: res.data.phone }));
-          if (typeof onUserUpdated === "function") onUserUpdated({ phone: res.data.phone, dien_thoai: res.data.phone });
-        }
-        setZaloNotice({
-          state: res.data?.phone_matched === false ? "warning" : "success",
-          message: res.message || "Đã xác minh số điện thoại Zalo!"
-        });
-      } else {
-        setZaloNotice({
-          state: res.state,
-          message: res.message,
-          canOpenSettings: res.canOpenSettings
-        });
-      }
-    } finally {
-      setZaloActionBusy(false);
     }
   };
 
@@ -681,102 +600,6 @@ export default function WorkerProfileTab({
 
       {/* Cỡ chữ (Option dropdown gọn) */}
       <FontScaleSelector />
-
-      {/* Liên kết định danh Zalo & Xác minh SĐT */}
-      {profileUser?.role !== "admin" && (
-        <div
-          data-testid="profile-zalo-identity-section"
-          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-500/15 border border-sky-200 dark:border-sky-500/30 text-[#0068FF] dark:text-sky-300 flex items-center justify-center shrink-0">
-                <Link2 className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-extrabold text-[#111C2D] dark:text-white truncate">
-                  Liên kết tài khoản Zalo
-                </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                  Khóa định danh theo Mã NV {profileUser?.ma_nv}
-                </p>
-              </div>
-            </div>
-            <span
-              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border whitespace-nowrap ${
-                zaloLinkStatus?.is_linked || profileUser?.zalo_user_id
-                  ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-[#16A34A] dark:text-emerald-300"
-                  : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-              }`}
-            >
-              {zaloLinkStatus?.is_linked || profileUser?.zalo_user_id ? "Đã liên kết" : "Chưa liên kết"}
-            </span>
-          </div>
-
-          {zaloLinkStatus?.zalo_user_id_masked && (
-            <div className="text-xs text-slate-600 dark:text-slate-300 bg-[#F4F6F9] dark:bg-slate-800/70 rounded-xl px-3 py-2 flex items-center justify-between">
-              <span>Zalo ID liên kết:</span>
-              <strong className="font-mono text-[#111C2D] dark:text-white">{zaloLinkStatus.zalo_user_id_masked}</strong>
-            </div>
-          )}
-
-          {zaloNotice && (
-            <div
-              className={`p-3 rounded-xl text-xs border space-y-2 ${
-                zaloNotice.state === "success"
-                  ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
-                  : zaloNotice.state === SDK_STATES.PERMISSION_DENIED || zaloNotice.state === "warning"
-                    ? "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200"
-                    : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
-              }`}
-            >
-              <p className="font-semibold leading-relaxed">{zaloNotice.message}</p>
-              {zaloNotice.canOpenSettings && isZaloMiniAppRuntime() && (
-                <button
-                  type="button"
-                  onClick={() => openZaloPermissionSettings()}
-                  className="text-xs font-bold underline text-[#0051CA] dark:text-blue-300 cursor-pointer"
-                >
-                  Mở cài đặt quyền Zalo
-                </button>
-              )}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {zaloLinkStatus?.is_linked || profileUser?.zalo_user_id ? (
-              <AppButton
-                variant="secondary"
-                icon={Unlink}
-                loading={zaloActionBusy}
-                onClick={handleUnlinkZalo}
-                className="min-h-[44px] rounded-xl text-xs font-bold"
-              >
-                Hủy liên kết Zalo
-              </AppButton>
-            ) : (
-              <AppButton
-                variant="primary"
-                icon={Link2}
-                loading={zaloActionBusy}
-                onClick={handleLinkZalo}
-                className="min-h-[44px] rounded-xl text-xs font-bold"
-              >
-                Liên kết Zalo hiện tại
-              </AppButton>
-            )}
-            <AppButton
-              variant="secondary"
-              icon={ShieldCheck}
-              loading={zaloActionBusy}
-              onClick={handleVerifyZaloPhone}
-              className="min-h-[44px] rounded-xl text-xs font-bold"
-            >
-              Xác minh SĐT từ Zalo
-            </AppButton>
-          </div>
-        </div>
-      )}
 
       {/* Tài khoản & Mật khẩu */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-1.5">

@@ -16,10 +16,7 @@ router.get('/', authenticateToken, requirePermission('employee_view'), (req, res
 router.get('/pending-device-changes', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.getPendingDeviceChanges(req, res, next));
 router.get('/pending-device-requests', authenticateToken, requireRole(['admin']), (req, res, next) => employeeController.getPendingDeviceChanges(req, res, next));
 
-// 1.2 Liên kết tài khoản Zalo (Xác minh qua access token Zalo trên Server)
-router.post('/bind-zalo', authenticateToken, requireAuth, (req, res, next) => employeeController.bindZalo(req, res, next));
-
-// 1.3 Yêu cầu đổi thiết bị (Dành cho Worker)
+// 1.2 Yêu cầu đổi thiết bị (Dành cho Worker)
 router.post('/request-device-change', authenticateToken, requireAuth, (req, res, next) => employeeController.requestDeviceChange(req, res, next));
 
 // 1.4 Phê duyệt đổi thiết bị (hỗ trợ cả param trong body lẫn URL path)

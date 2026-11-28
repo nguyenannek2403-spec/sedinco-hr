@@ -1,17 +1,20 @@
-import React, { useState } from "react";
-import { Lock, User, Eye, EyeOff, AlertCircle, RefreshCw } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Lock, User, Eye, EyeOff, AlertCircle, RefreshCw, X } from "lucide-react";
 import CompanyLogo from "../components/CompanyLogo";
 import { ThemeToggleButton, useTheme } from "../context/ThemeContext";
 
 export default function AuthView({
   onLogin,
   isLoggingIn,
-  loginError
+  loginError,
+  recentUsernames = [],
+  onRemoveRecentUsername = null
 }) {
   const { isDark } = useTheme();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const passwordInputRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -19,6 +22,15 @@ export default function AuthView({
       onLogin(username, password);
     }
   };
+
+  const handleSelectRecentUsername = (selectedUsername) => {
+    setUsername(selectedUsername);
+    if (passwordInputRef.current && typeof passwordInputRef.current.focus === "function") {
+      passwordInputRef.current.focus();
+    }
+  };
+
+  const visibleRecentUsernames = Array.isArray(recentUsernames) ? recentUsernames.slice(0, 3) : [];
 
   return (
     <div
@@ -39,13 +51,13 @@ export default function AuthView({
         <ThemeToggleButton compact />
       </div>
 
-      {/* Khối đăng nhập trung tâm theo Sedinco Pulse (Google Stitch Screen 1) */}
+      {/* Khối đăng nhập trung tâm theo Sedinco Pulse */}
       <div className="flex-1 flex items-center justify-center w-full relative z-10">
         <div
           data-testid="auth-login-card"
           className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-[28px] p-6 sm:p-7 shadow-[0_12px_36px_-8px_rgba(17,28,45,0.08)] dark:shadow-2xl transition-colors duration-200"
         >
-          {/* 1-3: Logo Công ty + Tên Công ty + Tên Ứng dụng + 1 dòng ngữ cảnh nội bộ */}
+          {/* Logo + Tên Công ty + Tên Ứng dụng + 1 dòng ngữ cảnh nội bộ */}
           <div className="flex flex-col items-center text-center">
             <CompanyLogo size="default" theme={isDark ? "dark" : "light"} iconOnly />
             <div className="space-y-1 mt-2.5">
@@ -64,8 +76,8 @@ export default function AuthView({
             </p>
           </div>
 
-          {/* 4: Khối thao tác đăng nhập chính (Tài khoản & Mật khẩu nội bộ) */}
-          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
+          {/* Khối thao tác đăng nhập chính (Tài khoản & Mật khẩu nội bộ) */}
+          <form onSubmit={handleSubmit} autoComplete="on" className="space-y-4">
             <div>
               <label
                 htmlFor="auth-username"
@@ -85,7 +97,7 @@ export default function AuthView({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder=""
-                  autoComplete="off"
+                  autoComplete="username"
                   autoCorrect="off"
                   autoCapitalize="none"
                   spellCheck={false}
@@ -93,6 +105,51 @@ export default function AuthView({
                   className="w-full min-h-[48px] bg-[#F0F3FF]/70 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-3 text-[#111C2D] dark:text-white font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-[#E11D48] focus:bg-white dark:focus:bg-slate-900 transition-all"
                 />
               </div>
+
+              {visibleRecentUsernames.length > 0 && (
+                <div
+                  data-testid="auth-recent-usernames"
+                  className="mt-2 flex flex-wrap items-center gap-1.5"
+                >
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-0.5">
+                    Gần đây:
+                  </span>
+                  {visibleRecentUsernames.map((item) => {
+                    const isActive =
+                      String(username || "").trim().toLowerCase() === item.toLowerCase();
+                    return (
+                      <div
+                        key={item}
+                        className={`inline-flex items-center max-w-full rounded-lg border text-xs font-bold transition-colors ${
+                          isActive
+                            ? "bg-rose-50 dark:bg-rose-950/60 border-[#E11D48]/50 dark:border-rose-500/50 text-[#E11D48] dark:text-rose-300"
+                            : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          data-testid={`recent-username-chip-${item}`}
+                          onClick={() => handleSelectRecentUsername(item)}
+                          className="pl-2.5 pr-1.5 py-1.5 min-h-[32px] truncate max-w-[160px] cursor-pointer text-left"
+                        >
+                          {item}
+                        </button>
+                        {typeof onRemoveRecentUsername === "function" && (
+                          <button
+                            type="button"
+                            data-testid={`remove-recent-username-${item}`}
+                            onClick={() => onRemoveRecentUsername(item)}
+                            aria-label={`Xóa tài khoản gợi ý ${item}`}
+                            className="pr-2 pl-0.5 py-1.5 min-h-[32px] text-slate-400 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 flex items-center justify-center cursor-pointer shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div>
@@ -107,6 +164,7 @@ export default function AuthView({
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
+                  ref={passwordInputRef}
                   id="auth-password"
                   name="password"
                   data-testid="auth-password-input"
@@ -114,7 +172,7 @@ export default function AuthView({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder=""
-                  autoComplete="off"
+                  autoComplete="current-password"
                   required
                   className="flex-1 min-w-0 min-h-[48px] bg-transparent border-0 pl-2.5 pr-2 py-3 text-[#111C2D] dark:text-white font-semibold text-sm focus:outline-none"
                 />

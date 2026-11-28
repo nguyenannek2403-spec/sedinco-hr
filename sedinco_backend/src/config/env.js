@@ -32,6 +32,7 @@ const env = {
     DB_SSL: process.env.DB_SSL === 'true' || Boolean(process.env.DB_HOST && (process.env.DB_HOST.includes('aivencloud.com') || process.env.DB_HOST.includes('tidbcloud.com'))),
     DB_SSL_CA: process.env.DB_SSL_CA || '',
     CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
+    JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '30d',
     // TRUST_PROXY: số hop proxy tin cậy (1 = trực tiếp sau 1 reverse proxy như Nginx/Render)
     // false = không tin cậy X-Forwarded-For (default local), 1 = Render/Nginx, 'loopback' = chỉ local
     TRUST_PROXY: process.env.TRUST_PROXY !== undefined ? process.env.TRUST_PROXY : false,

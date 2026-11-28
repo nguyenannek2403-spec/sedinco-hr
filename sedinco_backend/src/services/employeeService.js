@@ -3,7 +3,6 @@ const { query } = require('../config/db');
 const { SAFE_EMPLOYEE_FIELDS, resolveUserRole, logAuditEvent, invalidateUserCache } = require('../middlewares/authMiddleware');
 const { sanitizeBankCardInput } = require('../utils/bankValidator');
 const { sanitizeAvatarInput } = require('../utils/avatarValidator');
-const { verifyZaloUserToken } = require('../utils/zaloAdapter');
 const { hashPassword, validatePasswordPolicy } = require('../utils/passwordHelper');
 const departmentService = require('./departmentService');
 const {
@@ -520,8 +519,10 @@ class EmployeeService {
             addField('phone', cleanPhone);
             addField('dien_thoai', cleanPhone || '');
         }
+        let shouldBumpTokenVersion = false;
         if (cleanUsername !== undefined) {
             addField('login_username', cleanUsername || id);
+            shouldBumpTokenVersion = true;
         }
         if (email !== undefined) addField('email', email || '');
         if (chuc_danh !== undefined) addField('chuc_danh', chuc_danh || '');
@@ -552,9 +553,16 @@ class EmployeeService {
         }
         if ((current_user && current_user.role === 'admin') && role !== undefined && ['worker', 'accountant', 'admin'].includes(role)) {
             addField('role', role);
+            shouldBumpTokenVersion = true;
         }
-        if (status !== undefined) addField('status', status);
-        if (is_locked !== undefined) addField('is_locked', is_locked ? 1 : 0);
+        if (status !== undefined) {
+            addField('status', status);
+            shouldBumpTokenVersion = true;
+        }
+        if (is_locked !== undefined) {
+            addField('is_locked', is_locked ? 1 : 0);
+            shouldBumpTokenVersion = true;
+        }
         if (shift_type !== undefined && shift_type !== null) {
             const cleanShift = String(shift_type).trim().toUpperCase();
             if (!['FULL_DAY', 'MORNING_SHIFT', 'AFTERNOON_SHIFT', 'NIGHT_SHIFT'].includes(cleanShift)) {
@@ -586,6 +594,9 @@ class EmployeeService {
             }
             addField('password', hashPassword(cleanPw));
             addField('must_change_password', 1);
+            shouldBumpTokenVersion = true;
+        }
+        if (shouldBumpTokenVersion) {
             setClauses.push('token_version = COALESCE(token_version, 1) + 1');
         }
         if (custom_start_time !== undefined) addField('custom_start_time', normalizeOptionalTime(custom_start_time, 'Giờ vào ca riêng'));
@@ -878,64 +889,6 @@ class EmployeeService {
         }
 
         return { success: true };
-    }
-
-    /**
-     * Liên kết tài khoản Zalo thông qua Access Token được Server xác minh với Zalo
-     */
-    async bindZalo(ma_nv, zalo_token, current_user = null) {
-        if (!zalo_token || typeof zalo_token !== 'string' || !zalo_token.trim()) {
-            const error = new Error('Phiên xác thực Zalo không hợp lệ hoặc đã hết hạn, vui lòng mở lại ứng dụng từ Zalo');
-            error.statusCode = 401;
-            throw error;
-        }
-
-        const empRows = await query('SELECT ma_nv, ho_ten, role, status, is_locked FROM employees WHERE ma_nv = ? LIMIT 1', [ma_nv]);
-        if (!empRows || empRows.length === 0) {
-            const error = new Error('Không tìm thấy hồ sơ nhân sự để liên kết Zalo!');
-            error.statusCode = 404;
-            throw error;
-        }
-
-        // Server-side verification với Zalo Open API
-        const verified = await verifyZaloUserToken(zalo_token);
-        if (!verified || !verified.zaloId) {
-            const error = new Error('Phiên xác thực Zalo không hợp lệ hoặc đã hết hạn, vui lòng mở lại ứng dụng từ Zalo');
-            error.statusCode = 401;
-            throw error;
-        }
-
-        const verifiedZaloId = String(verified.zaloId).trim().slice(0, 100);
-        const dupRows = await query(
-            'SELECT ma_nv FROM employees WHERE (zalo_id = ? OR zalo_user_id = ?) AND ma_nv != ? LIMIT 1',
-            [verifiedZaloId, verifiedZaloId, ma_nv]
-        );
-        if (dupRows && dupRows.length > 0) {
-            const error = new Error(
-                `Tài khoản Zalo này đã được liên kết với nhân viên ${dupRows[0].ma_nv}. Vui lòng hủy liên kết cũ hoặc liên hệ Quản trị viên!`
-            );
-            error.statusCode = 409;
-            error.code = 'ZALO_ALREADY_LINKED_OTHER_EMPLOYEE';
-            throw error;
-        }
-
-        await query('UPDATE employees SET zalo_id = ?, zalo_user_id = ? WHERE ma_nv = ?', [verifiedZaloId, verifiedZaloId, ma_nv]);
-        invalidateUserCache(ma_nv);
-
-        await logAuditEvent({
-            actor_id: ma_nv,
-            actor_role: current_user?.role || 'worker',
-            action: 'BIND_ZALO',
-            resource: 'employee_zalo',
-            details: { zalo_id: verifiedZaloId, provider: verified.provider }
-        });
-
-        return {
-            ma_nv,
-            zalo_id: verifiedZaloId,
-            zalo_user_id: verifiedZaloId,
-            verified_by: verified.provider
-        };
     }
 
     /**

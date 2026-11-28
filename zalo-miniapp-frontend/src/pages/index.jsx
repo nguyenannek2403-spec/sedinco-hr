@@ -5,36 +5,20 @@ import { useTheme } from "../context/ThemeContext";
 import { useFontScale } from "../context/FontScaleContext";
 import ConfirmDialog from "../components/ConfirmDialog";
 import AuthView from "../views/AuthView";
+import CompanyLogo from "../components/CompanyLogo";
 import WorkerDashboard from "../views/worker/WorkerDashboard";
 import DesktopDashboard from "../views/desktop/DesktopDashboard";
 import { ROLES } from "../constants/roles";
-import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
+import { CheckCircle2, AlertCircle, Info, X, Loader2, WifiOff, RefreshCw } from "lucide-react";
 
 // Lazy-load modal đổi mật khẩu bắt buộc
 const ForcePasswordChangeModal = lazy(() => import("../components/ForcePasswordChangeModal"));
 
 export default function HomePage() {
-  const { syncThemeFromUser } = useTheme();
+  const { isDark, syncThemeFromUser } = useTheme();
   const { syncFontScaleFromUser } = useFontScale();
-  const {
-    currentUser,
-    updateCurrentUser,
-    activeRole,
-    setActiveRole,
-    mustChangePassword,
-    setMustChangePassword,
-    isLoggingIn,
-    loginError,
-    login,
-    logout,
-    clearCache
-  } = useAuth({ onThemeSync: syncThemeFromUser, onFontScaleSync: syncFontScaleFromUser });
 
-  const [showAccountModal, setShowAccountModal] = useState(false);
-
-  const isManagementView = activeRole === ROLES.ADMIN || activeRole === ROLES.ACCOUNTANT;
-
-  // Toast notification
+  // Toast notification (định nghĩa trước useAuth để truyền callback thông báo khi bị thu hồi phiên)
   const [toastNotification, setToastNotification] = useState(null);
   const showToast = useCallback((message, type = "info") => {
     setToastNotification({ message, type, id: Date.now() });
@@ -42,6 +26,42 @@ export default function HomePage() {
       setToastNotification(prev => (prev?.message === message ? null : prev));
     }, 3500);
   }, []);
+
+  const handleSessionRevoked = useCallback(
+    (msg) => {
+      showToast(
+        msg || "Phiên đăng nhập đã hết hạn hoặc tài khoản vừa được cập nhật, vui lòng đăng nhập lại.",
+        "warning"
+      );
+    },
+    [showToast]
+  );
+
+  const {
+    currentUser,
+    updateCurrentUser,
+    activeRole,
+    mustChangePassword,
+    setMustChangePassword,
+    isHydratingSession,
+    sessionNetworkError,
+    retrySessionHydration,
+    recentUsernames,
+    removeRecentUsername,
+    isLoggingIn,
+    loginError,
+    login,
+    logout,
+    clearCache
+  } = useAuth({
+    onThemeSync: syncThemeFromUser,
+    onFontScaleSync: syncFontScaleFromUser,
+    onSessionRevoked: handleSessionRevoked
+  });
+
+  const [showAccountModal, setShowAccountModal] = useState(false);
+
+  const isManagementView = activeRole === ROLES.ADMIN || activeRole === ROLES.ACCOUNTANT;
 
   const handleLoginSubmit = async (username, password) => {
     try {
@@ -78,12 +98,71 @@ export default function HomePage() {
       className="overflow-x-hidden bg-[#F1F5F9] dark:bg-[#0B1120] text-[#111C2D] dark:text-slate-100 font-sans selection:bg-[#E11D48] selection:text-white transition-colors duration-200"
       style={{ minHeight: "var(--visual-vh)" }}
     >
-      {/* 1. Màn hình Chưa Đăng Nhập */}
-      {!currentUser ? (
+      {/* 0. Splash kiểm tra & khôi phục phiên từ nativeStorage (tránh nháy AuthView) */}
+      {isHydratingSession ? (
+        <div
+          data-testid="auth-session-hydrating"
+          className="flex flex-col items-center justify-center px-6 text-center"
+          style={{
+            minHeight: "var(--visual-vh)",
+            paddingTop: "calc(var(--safe-area-top) + 16px)",
+            paddingBottom: "max(var(--safe-area-bottom), 24px)"
+          }}
+        >
+          <CompanyLogo size="default" theme={isDark ? "dark" : "light"} iconOnly />
+          <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            <Loader2 className="w-4 h-4 animate-spin text-[#E11D48] dark:text-rose-400" />
+            <span>Đang khôi phục phiên đăng nhập...</span>
+          </div>
+        </div>
+      ) : !currentUser && sessionNetworkError ? (
+        <div
+          data-testid="auth-session-network-error"
+          className="flex flex-col items-center justify-center px-4"
+          style={{
+            minHeight: "var(--visual-vh)",
+            paddingTop: "calc(var(--safe-area-top) + 16px)",
+            paddingBottom: "max(var(--safe-area-bottom), 24px)"
+          }}
+        >
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-[28px] p-6 text-center shadow-lg space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700 text-amber-600 dark:text-amber-300 flex items-center justify-center mx-auto">
+              <WifiOff className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-base font-extrabold text-[#111C2D] dark:text-white">
+                Không thể kết nối máy chủ
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed whitespace-normal break-words">
+                {sessionNetworkError}
+              </p>
+            </div>
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={retrySessionHydration}
+                className="w-full min-h-[48px] py-3 bg-[#E11D48] hover:bg-[#BE123C] dark:bg-rose-600 dark:hover:bg-rose-500 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Thử kết nối lại</span>
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="w-full min-h-[44px] py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Đăng nhập tài khoản khác
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : !currentUser ? (
         <AuthView
           onLogin={handleLoginSubmit}
           isLoggingIn={isLoggingIn}
           loginError={loginError}
+          recentUsernames={recentUsernames}
+          onRemoveRecentUsername={removeRecentUsername}
         />
       ) : isManagementView ? (
         /* 2. Giao Diện Quản Trị & Kế Toán (Tương thích cả Mobile Zalo Mini App & PC) */
